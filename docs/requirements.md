@@ -11,8 +11,8 @@ control system.
 
 ascan
 
-:   Change a parameter of a motor device in step-wise fashion. [Question: should
-    this be defined in terms of step size or as number of intervals?]
+:   Change a parameter of a motor device in step-wise fashion. [_should this be
+    defined in terms of step size or as number of intervals?_]
 
 meshscan
 
@@ -27,8 +27,16 @@ Control system
 
 # Requirements
 
-* Motors must be actuated directly
-* Parameter scans must be performed. This includes ascan, dscan and meshscan.
-* There must be pseudo motors that combine physical or other pseudo motors and
-  perform a combined action.
+
+## Device abstractions
+
+* Motors
+* Pseudo motors
+* Tree-structured motor groups
+
+
+## Actions
+
+* Parameter scans such as ascan, dscan and meshscan along trajectories.
+* Trajectories are defined as discrete positions or a sampled implicit function.
 * Persistent logging of all movements must be present.
