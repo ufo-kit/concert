@@ -51,11 +51,14 @@ class FocusControlProcess(object):
         self._camera.start_recording()
         self._measure.start()
 
+    def _is_better(self, value):
+        return self._last_value < value
+
     def _set_point_reached(value):
         return abs(self._last_value - value) < 0.01
 
     def _evaluate(self, value):
-        if self._last_value < value:
+        if self._is_better(value):
             if self._set_point_reached(value):
                 self._camera.stop_recording()
                 self._measure.stop()
