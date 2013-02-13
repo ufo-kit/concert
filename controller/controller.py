@@ -1,4 +1,5 @@
 import math
+import logging
 
 class OutOfRangeError(Exception):
     pass
@@ -37,18 +38,24 @@ class Controller(object):
     def parameters(self):
         return self._params
 
+    def set_motor_position(self, param, value):
+        raise NotImplementedError
+
 
 class LinearMotor(Controller):
-    def __init__(self, device):
-        self._params = { 'position': RangedParameter(0.0, 10.0, 1.0, self._param_changed) }
-        self._position = self._params['position']
-        self._device = device
+    def __init__(self):
+        min_limit, max_limit = self.get_limits()
+        self.logger = logging.getLogger('ctrl.linear')
+        self.logger.propagate = True
 
-    def _param_changed(self, param, value):
-        # This is obviously a good place to actually set the value on the
-        # physical motor. This function will be called on any occasion that the
-        # self._params['position'] is changed.
-        pass
+        self._params = { 'position': RangedParameter(min_limit, max_limit, 1.0,
+                                                     self.set_motor_position) }
+        self._position = self._params['position']
+
+    def get_limits(self):
+        """Returns a tuple (min, max) denoting hard lower and upper limits of
+        the motor device."""
+        raise NotImplementedError
 
     def get_position(self):
         return self._position.value
@@ -57,9 +64,21 @@ class LinearMotor(Controller):
         self._position.value += distance
 
     def move_absolute(self, position):
+        self.logger.debug("Move to %f", position)
         self._position.value = position
 
+    def move_to_relative_position(self, position):
+        min_limit, max_limit = self.get_limits()
+        a = max_limit - min_limit
+        b = min_limit
+        self.move_absolute(a * position + b)
+
     position = property(get_position, move_absolute)
+
+
+class RotationMotor(Controller):
+    def __init__(self):
+        pass
 
 
 class PseudoRotationMotor(Controller):
@@ -82,28 +101,3 @@ class PseudoRotationMotor(Controller):
         y = self._radius * math.sin(value)
         self._param_x.value = x + self._radius
         self._param_y.value = y + self._radius
-
-
-def drange(start, stop, step):
-    r = start
-    while r < stop:
-        yield r
-        r += step
-
-
-def meshscan(controllers, step, callback=None):
-    def scan(controllers, remaining, step, callback):
-        if not remaining:
-            if callback:
-                callback(controllers)
-        else:
-            controller = remaining[0]
-
-            for param in controller.parameters.values():
-                valid = param.range
-
-                for value in drange(valid[0], valid[1], step):
-                    param.value = value
-                    scan(controllers, remaining[1:], step, callback)
-
-    scan(controllers, controllers, step, callback)
