@@ -76,7 +76,7 @@
       <owned-items />
       <style class="default" />
     </item>
-    <item id="di560368563827106585" cid="CMT001" type="comment" name="Comment" style-class="" is-abstract="false" creation-date="02/06/2013 14:42:02">
+    <item id="di560368563827106585" cid="CMT001" type="comment" name="Comment" style-class="default" is-abstract="false" creation-date="02/06/2013 14:42:02">
       <stereotypes />
       <tagged-values />
       <associated-diagrams />
@@ -84,14 +84,14 @@
       <style class="default" />
       <comment>Based on the data and metrics provide feedback about the "quality" of the data.</comment>
     </item>
-    <item id="di883285376503528911" cid="CN004" type="comment-connector" name="" style-class="" is-abstract="false" creation-date="02/06/2013 14:42:02">
+    <item id="di883285376503528911" cid="CN004" type="comment-connector" name="" style-class="default" is-abstract="false" creation-date="02/06/2013 14:42:02">
       <stereotypes />
       <tagged-values />
       <associated-diagrams />
       <owned-items />
       <style class="default" />
     </item>
-    <item id="di636855196885351759" cid="CMT002" type="comment" name="Comment" style-class="" is-abstract="false" creation-date="02/06/2013 14:43:10">
+    <item id="di636855196885351759" cid="CMT002" type="comment" name="Comment" style-class="default" is-abstract="false" creation-date="02/06/2013 14:43:10">
       <stereotypes />
       <tagged-values />
       <associated-diagrams />
@@ -100,14 +100,14 @@
       <comment>Parameters which play a role in the in the data acquisition process and can influence image quality or process under study (FPS, process speed).
 </comment>
     </item>
-    <item id="di611964733429401177" cid="CN005" type="comment-connector" name="" style-class="" is-abstract="false" creation-date="02/06/2013 14:43:10">
+    <item id="di611964733429401177" cid="CN005" type="comment-connector" name="" style-class="default" is-abstract="false" creation-date="02/06/2013 14:43:10">
       <stereotypes />
       <tagged-values />
       <associated-diagrams />
       <owned-items />
       <style class="default" />
     </item>
-    <item id="di854988037977642003" cid="CMT003" type="comment" name="Comment" style-class="" is-abstract="false" creation-date="02/06/2013 14:44:37">
+    <item id="di854988037977642003" cid="CMT003" type="comment" name="Comment" style-class="default" is-abstract="false" creation-date="02/06/2013 14:44:37">
       <stereotypes />
       <tagged-values />
       <associated-diagrams />
@@ -115,7 +115,56 @@
       <style class="default" />
       <comment>Instrumentation control abstracted from physical device properties (pseudo motors, ...).</comment>
     </item>
-    <item id="di631562445950121055" cid="CN006" type="comment-connector" name="" style-class="" is-abstract="false" creation-date="02/06/2013 14:44:37">
+    <item id="di631562445950121055" cid="CN006" type="comment-connector" name="" style-class="default" is-abstract="false" creation-date="02/06/2013 14:44:37">
+      <stereotypes />
+      <tagged-values />
+      <associated-diagrams />
+      <owned-items />
+      <style class="default" />
+    </item>
+    <item id="di256382949369578137" cid="C007" type="class" name="Class7" style-class="" is-abstract="false" creation-date="02/13/2013 15:11:53">
+      <stereotypes />
+      <tagged-values />
+      <associated-diagrams />
+      <owned-items />
+      <style class="default" />
+      <attributes />
+      <operations />
+      <template-parameters>
+        <source-codes />
+      </template-parameters>
+    </item>
+    <item id="di981176435721404245" cid="ELEM001" type="association-class-link" name="" style-class="" is-abstract="false" creation-date="02/13/2013 15:11:53">
+      <stereotypes />
+      <tagged-values />
+      <associated-diagrams />
+      <owned-items />
+      <style class="default" />
+    </item>
+    <item id="di420180826619529844" cid="CMT001" type="comment" name="Comment" style-class="" is-abstract="false" creation-date="02/13/2013 15:52:09">
+      <stereotypes />
+      <tagged-values />
+      <associated-diagrams />
+      <owned-items />
+      <style class="default" />
+      <comment>A movable object. It has some  user defined coordinate system.</comment>
+    </item>
+    <item id="di884216599267213660" cid="CN007" type="comment-connector" name="" style-class="" is-abstract="false" creation-date="02/13/2013 15:52:09">
+      <stereotypes />
+      <tagged-values />
+      <associated-diagrams />
+      <owned-items />
+      <style class="default" />
+    </item>
+    <item id="di659447596279486123" cid="CMT002" type="comment" name="Comment" style-class="" is-abstract="false" creation-date="02/13/2013 15:53:52">
+      <stereotypes />
+      <tagged-values />
+      <associated-diagrams />
+      <owned-items />
+      <style class="default" />
+      <comment>Middle-level class which is responsible for translating the movement request parameters from user specified coordinate system into an absolute coordinate system used by physical motors.</comment>
+    </item>
+    <item id="di948621002351286539" cid="CN008" type="comment-connector" name="" style-class="" is-abstract="false" creation-date="02/13/2013 15:53:52">
       <stereotypes />
       <tagged-values />
       <associated-diagrams />
@@ -800,16 +849,7 @@
             <tagged-values />
             <documentation>
               <text>
-                <content>
-                  <p index="0">
-                    <t />
-                    <style font-name="Arial" font-size="12" font-bold="false" font-italic="false" font-underline="false" font-strikeout="false">
-                      <text>
-                        <solid-brush color="#FF000000" />
-                      </text>
-                    </style>
-                  </p>
-                </content>
+                <content />
               </text>
             </documentation>
             <cooperation>
@@ -916,42 +956,42 @@
               <end-role id="" name="" multiplicity="" navigability="" association-type="association" visibility="private" />
             </relation>
           </item>
-          <item id="ddip997198833993034923_554032108688402030" cid="PORT001" type="port" name="Port1" style-class="" is-abstract="false" creation-date="02/06/2013 14:38:44">
+          <item id="ddip997198833993034923_554032108688402030" cid="PORT001" type="port" name="Port1" style-class="default" is-abstract="false" creation-date="02/06/2013 14:38:44">
             <stereotypes />
             <tagged-values />
             <associated-diagrams />
             <owned-items />
             <style class="default" />
           </item>
-          <item id="ddip997198833993034923_751698544654185075" cid="DEP001" type="dependency" name="&lt;&lt;delegate&gt;&gt;" style-class="" is-abstract="false" creation-date="02/06/2013 14:39:02">
+          <item id="ddip997198833993034923_751698544654185075" cid="DEP001" type="dependency" name="&lt;&lt;delegate&gt;&gt;" style-class="default" is-abstract="false" creation-date="02/06/2013 14:39:02">
             <stereotypes />
             <tagged-values />
             <associated-diagrams />
             <owned-items />
             <style class="default" />
           </item>
-          <item id="ddip997198833993034923_228446532835653190" cid="IFC001" type="uml-interface" name="Experiment" style-class="" is-abstract="false" creation-date="02/06/2013 14:39:15">
+          <item id="ddip997198833993034923_228446532835653190" cid="IFC001" type="uml-interface" name="Experiment" style-class="default" is-abstract="false" creation-date="02/06/2013 14:39:15">
             <stereotypes />
             <tagged-values />
             <associated-diagrams />
             <owned-items />
             <style class="default" />
           </item>
-          <item id="ddip997198833993034923_457936260478272643" cid="RIF001" type="uml-required-interface" name="" style-class="" is-abstract="false" creation-date="02/06/2013 14:39:28">
+          <item id="ddip997198833993034923_457936260478272643" cid="RIF001" type="uml-required-interface" name="" style-class="default" is-abstract="false" creation-date="02/06/2013 14:39:28">
             <stereotypes />
             <tagged-values />
             <associated-diagrams />
             <owned-items />
             <style class="default" />
           </item>
-          <item id="ddip997198833993034923_177039328756259203" cid="CPT001" type="component" name="User Interface" style-class="" is-abstract="false" creation-date="02/06/2013 14:39:31">
+          <item id="ddip997198833993034923_177039328756259203" cid="CPT001" type="component" name="User Interface" style-class="default" is-abstract="false" creation-date="02/06/2013 14:39:31">
             <stereotypes />
             <tagged-values />
             <associated-diagrams />
             <owned-items />
             <style class="default" />
           </item>
-          <item id="ddip997198833993034923_949252972310015433" cid="REL001" type="relationship" name="" style-class="" is-abstract="false" creation-date="02/06/2013 14:39:44">
+          <item id="ddip997198833993034923_949252972310015433" cid="REL001" type="relationship" name="" style-class="default" is-abstract="false" creation-date="02/06/2013 14:39:44">
             <stereotypes />
             <tagged-values />
             <associated-diagrams />
@@ -962,7 +1002,7 @@
               <end-role id="" name="" multiplicity="" navigability="" association-type="association" visibility="private" />
             </relation>
           </item>
-          <item id="ddip997198833993034923_953886774193128755" cid="RIF002" type="uml-required-interface" name="" style-class="" is-abstract="false" creation-date="02/06/2013 14:39:47">
+          <item id="ddip997198833993034923_953886774193128755" cid="RIF002" type="uml-required-interface" name="" style-class="default" is-abstract="false" creation-date="02/06/2013 14:39:47">
             <stereotypes />
             <tagged-values />
             <associated-diagrams />
@@ -1397,6 +1437,419 @@
               </points>
             </layout>
             <relation from="di854988037977642003" to="ddip997198833993034923_613765483582342583" />
+          </item>
+        </layer>
+      </diagram>
+      <diagram type="uml-class" id="p982415841387726808" name="ClassDiagram1" order-index="2">
+        <style>
+          <background-color index="1" color="#FFFFFFFF" />
+          <background-color index="2" color="#FFFFFFFF" />
+          <background-type type="solid" />
+        </style>
+        <meta>
+          <authors>
+            <author> </author>
+          </authors>
+          <description />
+          <creation-date>02/13/2013 14:56:36</creation-date>
+          <change-date>02/13/2013 15:53:52</change-date>
+          <revision-count>0</revision-count>
+          <version />
+        </meta>
+        <abstract-items>
+          <item id="ddip982415841387726808_546563841456515847" cid="C001" type="class" name="Motor" style-class="" is-abstract="false" creation-date="02/13/2013 14:56:38">
+            <stereotypes />
+            <tagged-values />
+            <associated-diagrams />
+            <owned-items />
+            <style class="default" />
+            <attributes>
+              <attribute id="a6854ae50e5e149ef904ab20e52dc8e98102" name="position" type="" type-id="" visibility="private" abstract="false" virtual="false">
+                <stereotypes />
+              </attribute>
+              <attribute id="a6cb5b5c7b9144846b088c126f8810691254" name="speed" type="" type-id="" visibility="private" abstract="false" virtual="false">
+                <stereotypes />
+              </attribute>
+              <attribute id="a2f50f43ce0204cc082b03daba2dd2239936" name="acceleration" type="" type-id="" visibility="private" abstract="false" virtual="false">
+                <stereotypes />
+              </attribute>
+              <attribute id="af3449c62684943138a22d91331da9ba5570" name="deceleration" type="" type-id="" visibility="private" abstract="false" virtual="false">
+                <stereotypes />
+              </attribute>
+              <attribute id="a518db6c24326415eb89ba1f6fb89e85785" name="offset" type="" type-id="" visibility="private" abstract="false" virtual="false">
+                <stereotypes />
+              </attribute>
+            </attributes>
+            <operations>
+              <operation id="oe67424c5ed7b448a9a51778204cf1490249" name="move_absolute" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+              <operation id="ob89a6c4dfbd04b2fb94e6ce6a3395c40347" name="move_relative" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+              <operation id="o04c163baab1647ee88a31358a02c7ed1386" name="stop" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+              <operation id="o72744868bd654456978894dc7dc036d9181" name="get_position" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+              <operation id="o7a62a8e1f57441e4823eea68e222b899627" name="get_speed" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+              <operation id="ocee0b8e0c65e43b8a9331ab4f2e4ba74964" name="set_speed" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+              <operation id="ob725a51a99094f719e70fe2d61d357fa293" name="get_acceleration" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+              <operation id="o43f6ac80393a41e38d78de4dbefc8c27883" name="set_acceleration" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+              <operation id="o25eef656c0734c90b706f50bc16113a590" name="get_deceleration" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+              <operation id="od1a4dfbabf544415a465b8f2fa609ff7327" name="set_deceleration" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+              <operation id="o252066be41644cc4884ce42cefe04bcc860" name="get_offset" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+              <operation id="o482b5065ff2842169608c095388c77c747" name="set_offset" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+            </operations>
+            <template-parameters>
+              <source-codes />
+            </template-parameters>
+          </item>
+          <item id="ddip982415841387726808_618661467382322411" cid="C002" type="class" name="LinearMotor" style-class="" is-abstract="false" creation-date="02/13/2013 14:56:44">
+            <stereotypes />
+            <tagged-values />
+            <associated-diagrams />
+            <owned-items />
+            <style class="default" />
+            <attributes>
+              <attribute id="a556a2344fed64cacb564a3ba9a43dde811" name="position" type="" type-id="" visibility="private" abstract="false" virtual="false">
+                <stereotypes />
+              </attribute>
+              <attribute id="a9e12e40c2d5f4ba28414be8d48338b4f643" name="speed" type="" type-id="" visibility="private" abstract="false" virtual="false">
+                <stereotypes />
+              </attribute>
+              <attribute id="a744d1a169b5840dcab45389a5d066776651" name="NewAttribute3" type="" type-id="" visibility="private" abstract="false" virtual="false">
+                <stereotypes />
+              </attribute>
+            </attributes>
+            <operations />
+            <template-parameters>
+              <source-codes />
+            </template-parameters>
+          </item>
+          <item id="ddip982415841387726808_554148642716912016" cid="C003" type="class" name="RotationMotor" style-class="" is-abstract="false" creation-date="02/13/2013 14:56:53">
+            <stereotypes />
+            <tagged-values />
+            <associated-diagrams />
+            <owned-items />
+            <style class="default" />
+            <attributes />
+            <operations>
+              <operation id="o033808c5674c4902a3ad288993e03157606" name="freerun" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+            </operations>
+            <template-parameters>
+              <source-codes />
+            </template-parameters>
+          </item>
+          <item id="ddip982415841387726808_812469110497546361" cid="GNR001" type="generalization" name="" style-class="" is-abstract="false" creation-date="02/13/2013 14:57:13">
+            <stereotypes />
+            <tagged-values />
+            <associated-diagrams />
+            <owned-items />
+            <style class="default" />
+          </item>
+          <item id="ddip982415841387726808_140740322386358129" cid="GNR002" type="generalization" name="" style-class="" is-abstract="false" creation-date="02/13/2013 14:57:18">
+            <stereotypes />
+            <tagged-values />
+            <associated-diagrams />
+            <owned-items />
+            <style class="default" />
+          </item>
+          <item id="ddip982415841387726808_999910470106181826" cid="C004" type="class" name="Class4" style-class="" is-abstract="false" creation-date="02/13/2013 14:57:35">
+            <stereotypes>
+              <stereotype name="interface" />
+            </stereotypes>
+            <tagged-values />
+            <associated-diagrams />
+            <owned-items />
+            <style class="default" />
+            <attributes />
+            <operations />
+            <template-parameters>
+              <source-codes />
+            </template-parameters>
+          </item>
+          <item id="ddip982415841387726808_107826772677878763" cid="C005" type="class" name="LinearMotor" style-class="" is-abstract="false" creation-date="02/13/2013 14:58:08">
+            <stereotypes />
+            <tagged-values />
+            <associated-diagrams />
+            <owned-items />
+            <style class="default" />
+            <attributes>
+              <attribute id="ae42d2dce19504618ad9009af6bef0047134" name="limits" type="" type-id="" visibility="private" abstract="false" virtual="false">
+                <stereotypes />
+              </attribute>
+            </attributes>
+            <operations>
+              <operation id="ocad6fb6228714cb2acefa6fa14f7c8ff970" name="get_limits" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+            </operations>
+            <template-parameters>
+              <source-codes />
+            </template-parameters>
+          </item>
+          <item id="ddip982415841387726808_842737858390717017" cid="GNR003" type="generalization" name="" style-class="" is-abstract="false" creation-date="02/13/2013 14:58:10">
+            <stereotypes />
+            <tagged-values />
+            <associated-diagrams />
+            <owned-items />
+            <style class="default" />
+          </item>
+          <item id="ddip982415841387726808_569530431977469404" cid="C006" type="class" name="Motion" style-class="" is-abstract="false" creation-date="02/13/2013 15:10:23">
+            <stereotypes />
+            <tagged-values />
+            <associated-diagrams />
+            <owned-items />
+            <style class="default" />
+            <attributes>
+              <attribute id="a0c4df18b339f43d39e54bd3bf2bb4866881" name="motors" type="" type-id="" visibility="private" abstract="false" virtual="false">
+                <stereotypes />
+              </attribute>
+              <attribute id="a8f1831c22f3e49ca9c9e5fc626492a54652" name="position" type="" type-id="" visibility="private" abstract="false" virtual="false">
+                <stereotypes />
+              </attribute>
+            </attributes>
+            <operations>
+              <operation id="o76ed4b616fe54cb7bd42fd90fcbafef6720" name="is_moving" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+              <operation id="ob65e2ef544444a8f8ef1a540189e3e77560" name="add_motor" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+              <operation id="o60b5eb31a4964824ad3a9070bc009e9e423" name="delete_motor" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+              <operation id="o7b44eaa3492a425aa08fb98ee4cbed75742" name="is_movement_feasible" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+              <operation id="o642e2f8c61264f3d836702c6f16a5901826" name="get_acceleration_distance" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+              <operation id="odec34339362b40779bf359fc3f2eb0ca3" name="set_acceleration_distance" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+              <operation id="o1aaab771de894d879a9dee956050f513986" name="get_deceleration_distance" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+              <operation id="ob0a72e62818e4f5d947fa4bea8f75d90546" name="set_deceleration_distance" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+              <operation id="o7e193a91b34a45f2ae97d70bfc8b7063929" name="translate" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+              <operation id="oc3691ffedfb74cbc84598a69e260ef62737" name="rotate" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+              <operation id="o507332e522334d54b4825fcb8eece5f9549" name="get_position" type="" type-id="" visibility="public" abstract="false" virtual="false" static="false">
+                <parameters />
+                <stereotypes />
+                <source-codes />
+              </operation>
+            </operations>
+            <template-parameters>
+              <source-codes />
+            </template-parameters>
+          </item>
+          <item id="ddip982415841387726808_627742902666148036" cid="REL001" type="relationship" name="" style-class="" is-abstract="false" creation-date="02/13/2013 15:11:38">
+            <stereotypes />
+            <tagged-values />
+            <associated-diagrams />
+            <owned-items />
+            <style class="default" />
+            <relation from="ddip982415841387726808_569530431977469404" to="ddip982415841387726808_546563841456515847">
+              <start-role id="" name="" multiplicity="" navigability="" association-type="association" visibility="private" />
+              <end-role id="" name="" multiplicity="" navigability="" association-type="composition" visibility="private" />
+            </relation>
+          </item>
+          <item id="ddip982415841387726808_254298191304032871" cid="REL002" type="relationship" name="" style-class="" is-abstract="false" creation-date="02/13/2013 15:11:43">
+            <stereotypes />
+            <tagged-values />
+            <associated-diagrams />
+            <owned-items />
+            <style class="default" />
+            <relation from="ddip982415841387726808_546563841456515847" to="ddip982415841387726808_569530431977469404">
+              <start-role id="" name="" multiplicity="1..*" navigability="" association-type="association" visibility="private" />
+              <end-role id="" name="" multiplicity="1" navigability="" association-type="composition" visibility="private" />
+            </relation>
+          </item>
+          <item id="ddip982415841387726808_271991534893066634" cid="C008" type="class" name="Sample" style-class="" is-abstract="false" creation-date="02/13/2013 15:13:47">
+            <stereotypes />
+            <tagged-values />
+            <associated-diagrams />
+            <owned-items />
+            <style class="default" />
+            <attributes>
+              <attribute id="aaf20b5ef57a740329c882cf23f60e8da687" name="coordinate_system" type="" type-id="" visibility="private" abstract="false" virtual="false">
+                <stereotypes />
+              </attribute>
+            </attributes>
+            <operations />
+            <template-parameters>
+              <source-codes />
+            </template-parameters>
+          </item>
+          <item id="ddip982415841387726808_831874053492800363" cid="REL003" type="relationship" name="" style-class="" is-abstract="false" creation-date="02/13/2013 15:16:07">
+            <stereotypes />
+            <tagged-values />
+            <associated-diagrams />
+            <owned-items />
+            <style class="default" />
+            <relation from="ddip982415841387726808_569530431977469404" to="ddip982415841387726808_271991534893066634">
+              <start-role id="" name="" multiplicity="0..*" navigability="" association-type="association" visibility="private" />
+              <end-role id="" name="" multiplicity="1..*" navigability="" association-type="aggregation" visibility="private" />
+            </relation>
+          </item>
+        </abstract-items>
+        <layer name="Default" visible="true" enabled="true" locked="false">
+          <item id="ddip982415841387726808_554148642716912016" show-cid="false" show-parent-name="false" show-stereotypes="true" show-tagged-values="false" order-index="2" type="entity">
+            <layout ax="620" ay="470" awidth="190" aheight="80" x="620" y="470" width="190" height="80" />
+            <class />
+          </item>
+          <item id="ddip982415841387726808_140740322386358129" show-cid="false" show-parent-name="false" show-stereotypes="true" show-tagged-values="false" order-index="4" type="relation">
+            <layout line-style="oblique" lock-start-point="false" lock-end-point="false" name-position="10,-10" x1="691" y1="470" x2="607" y2="330" start-border-pos="0.0934210526315789" end-border-pos="0.735869565217391">
+              <points>
+                <point x="691" y="470" />
+                <point x="607" y="330" />
+              </points>
+            </layout>
+            <relation from="ddip982415841387726808_554148642716912016" to="ddip982415841387726808_546563841456515847" />
+          </item>
+          <item id="ddip982415841387726808_107826772677878763" show-cid="false" show-parent-name="false" show-stereotypes="true" show-tagged-values="false" order-index="5" type="entity">
+            <layout ax="200" ay="470" awidth="190" aheight="80" x="200" y="470" width="190" height="80" />
+            <class />
+          </item>
+          <item id="ddip982415841387726808_842737858390717017" show-cid="false" show-parent-name="false" show-stereotypes="true" show-tagged-values="false" order-index="6" type="relation">
+            <layout line-style="oblique" lock-start-point="false" lock-end-point="false" name-position="10,-10" x1="319" y1="470" x2="403" y2="330" start-border-pos="0.156578947368421" end-border-pos="0.514130434782609">
+              <points>
+                <point x="319" y="470" />
+                <point x="403" y="330" />
+              </points>
+            </layout>
+            <relation from="ddip982415841387726808_107826772677878763" to="ddip982415841387726808_546563841456515847" />
+          </item>
+          <item id="ddip982415841387726808_546563841456515847" show-cid="false" show-parent-name="false" show-stereotypes="true" show-tagged-values="false" order-index="0" type="entity">
+            <layout ax="390" ay="-10" awidth="230" aheight="340" x="390" y="-10" width="230" height="340" />
+            <class />
+          </item>
+          <item id="ddip982415841387726808_569530431977469404" show-cid="false" show-parent-name="false" show-stereotypes="true" show-tagged-values="false" order-index="7" type="entity">
+            <layout ax="740" ay="-10" awidth="230" aheight="270" x="740" y="-10" width="230" height="270" />
+            <class />
+          </item>
+          <item id="ddip982415841387726808_254298191304032871" show-cid="false" show-parent-name="false" show-stereotypes="true" show-tagged-values="false" order-index="8" type="relation">
+            <layout line-style="oblique" lock-start-point="false" lock-end-point="false" name-position="10,-10" x1="620" y1="149" x2="740" y2="137" start-border-pos="0.366544117647059" end-border-pos="0.885648148148148">
+              <points>
+                <point x="620" y="149" />
+                <point x="740" y="137" />
+              </points>
+            </layout>
+            <relation from="ddip982415841387726808_546563841456515847" to="ddip982415841387726808_569530431977469404" />
+            <role-positions start-role="25,15" end-role="27.45626,15.68929" start-multiplicity="23.92617,-17.65046" end-multiplicity="25,-15" />
+          </item>
+          <item id="ddip982415841387726808_271991534893066634" show-cid="false" show-parent-name="false" show-stereotypes="true" show-tagged-values="false" order-index="9" type="entity">
+            <layout ax="1080" ay="-10" awidth="230" aheight="270" x="1080" y="-10" width="230" height="270" />
+            <class />
+          </item>
+          <item id="ddip982415841387726808_831874053492800363" show-cid="false" show-parent-name="false" show-stereotypes="true" show-tagged-values="false" order-index="10" type="relation">
+            <layout line-style="oblique" lock-start-point="false" lock-end-point="false" name-position="10,-10" x1="970" y1="125" x2="1080" y2="125" start-border-pos="0.375" end-border-pos="0.875">
+              <points>
+                <point x="970" y="125" />
+                <point x="1080" y="125" />
+              </points>
+            </layout>
+            <relation from="ddip982415841387726808_569530431977469404" to="ddip982415841387726808_271991534893066634" />
+            <role-positions start-role="20.13787,17.84562" end-role="25,15" start-multiplicity="29.90681,-12.2304" end-multiplicity="29.86835,-17.23026" />
+          </item>
+          <item id="di420180826619529844" show-cid="false" show-parent-name="false" show-stereotypes="true" show-tagged-values="false" order-index="11" type="entity">
+            <layout ax="1090" ay="-200" awidth="205" aheight="130" x="1090" y="-200" width="205" height="130" />
+          </item>
+          <item id="di884216599267213660" show-cid="false" show-parent-name="false" show-stereotypes="true" show-tagged-values="false" order-index="12" type="comment-connector">
+            <layout line-style="oblique" lock-start-point="false" lock-end-point="false" name-position="10,-10" x1="1193" y1="-70" x2="1193" y2="-10" start-border-pos="0.62530487804878" end-border-pos="0.123306805154552">
+              <points>
+                <point x="1193" y="-70" />
+                <point x="1193" y="-10" />
+              </points>
+            </layout>
+            <relation from="di420180826619529844" to="ddip982415841387726808_271991534893066634" />
+          </item>
+          <item id="di659447596279486123" show-cid="false" show-parent-name="false" show-stereotypes="true" show-tagged-values="false" order-index="13" type="entity">
+            <layout ax="760" ay="-200" awidth="195" aheight="130" x="760" y="-200" width="195" height="130" />
+          </item>
+          <item id="di948621002351286539" show-cid="false" show-parent-name="false" show-stereotypes="true" show-tagged-values="false" order-index="14" type="comment-connector">
+            <layout line-style="oblique" lock-start-point="false" lock-end-point="false" name-position="10,-10" x1="857" y1="-70" x2="857" y2="-10" start-border-pos="0.624679487179487" end-border-pos="0.126693128502887">
+              <points>
+                <point x="857" y="-70" />
+                <point x="857" y="-10" />
+              </points>
+            </layout>
+            <relation from="di659447596279486123" to="ddip982415841387726808_569530431977469404" />
           </item>
         </layer>
       </diagram>
