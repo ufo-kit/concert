@@ -1,13 +1,13 @@
 import controller.crio
-import process.focus
-import measure.sharpness
+from process.gradientmaximizer import GradientMaximizer
+from measure.maximization import Maximizer
 import logging
 
 from gi.repository import Ufo, Uca
 
 
 if __name__ == '__main__':
-    config = Ufo.Config(paths=['/home/matthias/dev/ufo-filters/build/src'])
+    config = Ufo.Config(paths=['/home/farago/dev/ufo/ufo-filters/build/src'])
 
     logger = logging.getLogger()
     logger.addHandler(logging.StreamHandler())
@@ -16,8 +16,8 @@ if __name__ == '__main__':
     pm = Uca.PluginManager()
     camera = pm.get_camera('mock')
 
-    sharpness = measure.sharpness.Sharpness(camera, config)
+    sharpness = Maximizer()
     lm = controller.crio.LinearMotor()
 
-    focus = process.focus.Focus(camera, sharpness, lm)
+    focus = GradientMaximizer(camera, sharpness, lm, config)
     focus.start()

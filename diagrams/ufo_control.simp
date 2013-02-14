@@ -52,7 +52,7 @@
       <associated-diagrams />
       <owned-items />
       <style class="default" />
-      <comment>Based on the data evaluation and given parameter space try to adjust parameters in order to get better results. This is the "brain" of the whole control.</comment>
+      <comment>The component controls the overal process of data acquisition. Based on the data evaluation and given parameter space try to adjust parameters in order to get better results. This is the "brain" of the whole control.</comment>
     </item>
     <item id="di699768565348916242" cid="CN002" type="comment-connector" name="" style-class="default" is-abstract="false" creation-date="02/06/2013 11:54:55">
       <stereotypes />
@@ -122,7 +122,7 @@
       <owned-items />
       <style class="default" />
     </item>
-    <item id="di256382949369578137" cid="C007" type="class" name="Class7" style-class="" is-abstract="false" creation-date="02/13/2013 15:11:53">
+    <item id="di256382949369578137" cid="C007" type="class" name="Class7" style-class="default" is-abstract="false" creation-date="02/13/2013 15:11:53">
       <stereotypes />
       <tagged-values />
       <associated-diagrams />
@@ -134,14 +134,14 @@
         <source-codes />
       </template-parameters>
     </item>
-    <item id="di981176435721404245" cid="ELEM001" type="association-class-link" name="" style-class="" is-abstract="false" creation-date="02/13/2013 15:11:53">
+    <item id="di981176435721404245" cid="ELEM001" type="association-class-link" name="" style-class="default" is-abstract="false" creation-date="02/13/2013 15:11:53">
       <stereotypes />
       <tagged-values />
       <associated-diagrams />
       <owned-items />
       <style class="default" />
     </item>
-    <item id="di420180826619529844" cid="CMT001" type="comment" name="Comment" style-class="" is-abstract="false" creation-date="02/13/2013 15:52:09">
+    <item id="di420180826619529844" cid="CMT001" type="comment" name="Comment" style-class="default" is-abstract="false" creation-date="02/13/2013 15:52:09">
       <stereotypes />
       <tagged-values />
       <associated-diagrams />
@@ -149,14 +149,14 @@
       <style class="default" />
       <comment>A movable object. It has some  user defined coordinate system.</comment>
     </item>
-    <item id="di884216599267213660" cid="CN007" type="comment-connector" name="" style-class="" is-abstract="false" creation-date="02/13/2013 15:52:09">
+    <item id="di884216599267213660" cid="CN007" type="comment-connector" name="" style-class="default" is-abstract="false" creation-date="02/13/2013 15:52:09">
       <stereotypes />
       <tagged-values />
       <associated-diagrams />
       <owned-items />
       <style class="default" />
     </item>
-    <item id="di659447596279486123" cid="CMT002" type="comment" name="Comment" style-class="" is-abstract="false" creation-date="02/13/2013 15:53:52">
+    <item id="di659447596279486123" cid="CMT002" type="comment" name="Comment" style-class="default" is-abstract="false" creation-date="02/13/2013 15:53:52">
       <stereotypes />
       <tagged-values />
       <associated-diagrams />
@@ -164,7 +164,7 @@
       <style class="default" />
       <comment>Middle-level class which is responsible for translating the movement request parameters from user specified coordinate system into an absolute coordinate system used by physical motors.</comment>
     </item>
-    <item id="di948621002351286539" cid="CN008" type="comment-connector" name="" style-class="" is-abstract="false" creation-date="02/13/2013 15:53:52">
+    <item id="di948621002351286539" cid="CN008" type="comment-connector" name="" style-class="default" is-abstract="false" creation-date="02/13/2013 15:53:52">
       <stereotypes />
       <tagged-values />
       <associated-diagrams />
@@ -774,7 +774,7 @@
             <owned-items />
             <style class="default" />
           </item>
-          <item id="ddip997198833993034923_626462980101040928" cid="CPT003" type="component" name="Instrumentation Controller" style-class="default" is-abstract="false" creation-date="02/06/2013 11:38:19">
+          <item id="ddip997198833993034923_626462980101040928" cid="CPT003" type="component" name="Controller" style-class="default" is-abstract="false" creation-date="02/06/2013 11:38:19">
             <stereotypes />
             <tagged-values />
             <associated-diagrams />
@@ -788,7 +788,7 @@
             <owned-items />
             <style class="default" />
           </item>
-          <item id="ddip997198833993034923_220083943899677062" cid="CPT004" type="component" name="Results Evaluator" style-class="default" is-abstract="false" creation-date="02/06/2013 11:39:28">
+          <item id="ddip997198833993034923_220083943899677062" cid="CPT004" type="component" name="Measure" style-class="default" is-abstract="false" creation-date="02/06/2013 11:39:28">
             <stereotypes />
             <tagged-values />
             <associated-diagrams />
@@ -844,7 +844,7 @@
             <owned-items />
             <style class="default" />
           </item>
-          <item id="ddip997198833993034923_546919612949649081" cid="CPT005" type="component" name="Process Controller" style-class="" is-abstract="false" creation-date="02/06/2013 11:45:16">
+          <item id="ddip997198833993034923_546919612949649081" cid="CPT005" type="component" name="Process" style-class="" is-abstract="false" creation-date="02/06/2013 11:45:16">
             <stereotypes />
             <tagged-values />
             <documentation>
@@ -1289,13 +1289,13 @@
             <relation from="di421133057983856084" to="ddip997198833993034923_510672959153932837" />
           </item>
           <item id="di408909929221789295" show-cid="false" show-parent-name="false" show-stereotypes="true" show-tagged-values="false" order-index="57" type="entity">
-            <layout ax="1550" ay="-180" awidth="160" aheight="130" x="1550" y="-180" width="160" height="130" />
+            <layout ax="1550" ay="-220" awidth="160" aheight="170" x="1550" y="-220" width="160" height="170" />
           </item>
           <item id="di699768565348916242" show-cid="false" show-parent-name="false" show-stereotypes="true" show-tagged-values="false" order-index="58" type="comment-connector">
-            <layout line-style="oblique" lock-start-point="false" lock-end-point="false" name-position="10,-10" x1="1550" y1="-115" x2="1390" y2="-115" start-border-pos="0.875" end-border-pos="0.375">
+            <layout line-style="oblique" lock-start-point="false" lock-end-point="false" name-position="10,-10" x1="1550" y1="-130" x2="1390" y2="-120" start-border-pos="0.882130117977367" end-border-pos="0.359848488701714">
               <points>
-                <point x="1550" y="-115" />
-                <point x="1390" y="-115" />
+                <point x="1550" y="-130" />
+                <point x="1390" y="-120" />
               </points>
             </layout>
             <relation from="di408909929221789295" to="ddip997198833993034923_546919612949649081" />
@@ -1457,7 +1457,7 @@
           <version />
         </meta>
         <abstract-items>
-          <item id="ddip982415841387726808_546563841456515847" cid="C001" type="class" name="Motor" style-class="" is-abstract="false" creation-date="02/13/2013 14:56:38">
+          <item id="ddip982415841387726808_546563841456515847" cid="C001" type="class" name="Motor" style-class="default" is-abstract="false" creation-date="02/13/2013 14:56:38">
             <stereotypes />
             <tagged-values />
             <associated-diagrams />
@@ -1546,7 +1546,7 @@
               <source-codes />
             </template-parameters>
           </item>
-          <item id="ddip982415841387726808_618661467382322411" cid="C002" type="class" name="LinearMotor" style-class="" is-abstract="false" creation-date="02/13/2013 14:56:44">
+          <item id="ddip982415841387726808_618661467382322411" cid="C002" type="class" name="LinearMotor" style-class="default" is-abstract="false" creation-date="02/13/2013 14:56:44">
             <stereotypes />
             <tagged-values />
             <associated-diagrams />
@@ -1568,7 +1568,7 @@
               <source-codes />
             </template-parameters>
           </item>
-          <item id="ddip982415841387726808_554148642716912016" cid="C003" type="class" name="RotationMotor" style-class="" is-abstract="false" creation-date="02/13/2013 14:56:53">
+          <item id="ddip982415841387726808_554148642716912016" cid="C003" type="class" name="RotationMotor" style-class="default" is-abstract="false" creation-date="02/13/2013 14:56:53">
             <stereotypes />
             <tagged-values />
             <associated-diagrams />
@@ -1586,21 +1586,21 @@
               <source-codes />
             </template-parameters>
           </item>
-          <item id="ddip982415841387726808_812469110497546361" cid="GNR001" type="generalization" name="" style-class="" is-abstract="false" creation-date="02/13/2013 14:57:13">
+          <item id="ddip982415841387726808_812469110497546361" cid="GNR001" type="generalization" name="" style-class="default" is-abstract="false" creation-date="02/13/2013 14:57:13">
             <stereotypes />
             <tagged-values />
             <associated-diagrams />
             <owned-items />
             <style class="default" />
           </item>
-          <item id="ddip982415841387726808_140740322386358129" cid="GNR002" type="generalization" name="" style-class="" is-abstract="false" creation-date="02/13/2013 14:57:18">
+          <item id="ddip982415841387726808_140740322386358129" cid="GNR002" type="generalization" name="" style-class="default" is-abstract="false" creation-date="02/13/2013 14:57:18">
             <stereotypes />
             <tagged-values />
             <associated-diagrams />
             <owned-items />
             <style class="default" />
           </item>
-          <item id="ddip982415841387726808_999910470106181826" cid="C004" type="class" name="Class4" style-class="" is-abstract="false" creation-date="02/13/2013 14:57:35">
+          <item id="ddip982415841387726808_999910470106181826" cid="C004" type="class" name="Class4" style-class="default" is-abstract="false" creation-date="02/13/2013 14:57:35">
             <stereotypes>
               <stereotype name="interface" />
             </stereotypes>
@@ -1614,7 +1614,7 @@
               <source-codes />
             </template-parameters>
           </item>
-          <item id="ddip982415841387726808_107826772677878763" cid="C005" type="class" name="LinearMotor" style-class="" is-abstract="false" creation-date="02/13/2013 14:58:08">
+          <item id="ddip982415841387726808_107826772677878763" cid="C005" type="class" name="LinearMotor" style-class="default" is-abstract="false" creation-date="02/13/2013 14:58:08">
             <stereotypes />
             <tagged-values />
             <associated-diagrams />
@@ -1636,14 +1636,14 @@
               <source-codes />
             </template-parameters>
           </item>
-          <item id="ddip982415841387726808_842737858390717017" cid="GNR003" type="generalization" name="" style-class="" is-abstract="false" creation-date="02/13/2013 14:58:10">
+          <item id="ddip982415841387726808_842737858390717017" cid="GNR003" type="generalization" name="" style-class="default" is-abstract="false" creation-date="02/13/2013 14:58:10">
             <stereotypes />
             <tagged-values />
             <associated-diagrams />
             <owned-items />
             <style class="default" />
           </item>
-          <item id="ddip982415841387726808_569530431977469404" cid="C006" type="class" name="Motion" style-class="" is-abstract="false" creation-date="02/13/2013 15:10:23">
+          <item id="ddip982415841387726808_569530431977469404" cid="C006" type="class" name="Motion" style-class="default" is-abstract="false" creation-date="02/13/2013 15:10:23">
             <stereotypes />
             <tagged-values />
             <associated-diagrams />
@@ -1718,7 +1718,7 @@
               <source-codes />
             </template-parameters>
           </item>
-          <item id="ddip982415841387726808_627742902666148036" cid="REL001" type="relationship" name="" style-class="" is-abstract="false" creation-date="02/13/2013 15:11:38">
+          <item id="ddip982415841387726808_627742902666148036" cid="REL001" type="relationship" name="" style-class="default" is-abstract="false" creation-date="02/13/2013 15:11:38">
             <stereotypes />
             <tagged-values />
             <associated-diagrams />
@@ -1729,7 +1729,7 @@
               <end-role id="" name="" multiplicity="" navigability="" association-type="composition" visibility="private" />
             </relation>
           </item>
-          <item id="ddip982415841387726808_254298191304032871" cid="REL002" type="relationship" name="" style-class="" is-abstract="false" creation-date="02/13/2013 15:11:43">
+          <item id="ddip982415841387726808_254298191304032871" cid="REL002" type="relationship" name="" style-class="default" is-abstract="false" creation-date="02/13/2013 15:11:43">
             <stereotypes />
             <tagged-values />
             <associated-diagrams />
@@ -1740,7 +1740,7 @@
               <end-role id="" name="" multiplicity="1" navigability="" association-type="composition" visibility="private" />
             </relation>
           </item>
-          <item id="ddip982415841387726808_271991534893066634" cid="C008" type="class" name="Sample" style-class="" is-abstract="false" creation-date="02/13/2013 15:13:47">
+          <item id="ddip982415841387726808_271991534893066634" cid="C008" type="class" name="Sample" style-class="default" is-abstract="false" creation-date="02/13/2013 15:13:47">
             <stereotypes />
             <tagged-values />
             <associated-diagrams />
@@ -1756,7 +1756,7 @@
               <source-codes />
             </template-parameters>
           </item>
-          <item id="ddip982415841387726808_831874053492800363" cid="REL003" type="relationship" name="" style-class="" is-abstract="false" creation-date="02/13/2013 15:16:07">
+          <item id="ddip982415841387726808_831874053492800363" cid="REL003" type="relationship" name="" style-class="default" is-abstract="false" creation-date="02/13/2013 15:16:07">
             <stereotypes />
             <tagged-values />
             <associated-diagrams />
