@@ -32,7 +32,7 @@ class _Connection(object):
 
 
 class LinearMotor(controller.LinearMotor):
-    def __init__(self, min_limit=-50000, max_limit=50000, port=6342):
+    def __init__(self, min_limit=-51000, max_limit=51000, port=6342):
         self._connection = _Connection(port)
         self._min_limit = min_limit
         self._max_limit = max_limit
