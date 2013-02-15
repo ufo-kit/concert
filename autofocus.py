@@ -8,7 +8,7 @@ from gi.repository import Ufo, Uca
 
 
 if __name__ == '__main__':
-    config = Ufo.Config()
+    config = Ufo.Config(paths=['/home/matthias/dev/ufo-filters/build/src'])
 
     parser = argparse.ArgumentParser(description='Run autofocus procedure')
     parser.add_argument('--camera', type=str, default='mock',
