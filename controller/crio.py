@@ -1,8 +1,6 @@
 import logging
 import socket
-import threading
 import readline
-
 import controller
 
 HOST = 'cRIO9074-Motion.ka.fzk.de'
@@ -33,26 +31,26 @@ class _Connection(object):
 
 class LinearMotor(controller.LinearMotor):
     def __init__(self, min_limit=-51000, max_limit=51000, port=6342):
-        self._connection = _Connection(port)
-        self._min_limit = min_limit
-        self._max_limit = max_limit
+        self.connection = _Connection(port)
+        self.min_limit = min_limit
+        self.max_limit = max_limit
 
-        super(LinearMotor, self).__init__()
+        super(LinearMotor, self).__init__(min_limit, max_limit, 0)
 
     def set_motor_position(self, param, value):
-        return self._connection.send('lin %i\r\n' % value)
+        return self.connection.send('lin %i\r\n' % value)
 
     def get_limits(self):
-        return (self._min_limit, self._max_limit)
+        return (self.min_limit, self.max_limit)
 
 
 class RotationMotor(controller.RotationMotor):
     def __init__(self, port=6340):
         super(RotationMotor, self).__init__()
-        self._connection = _Connection(port)
+        self.connection = _Connection(port)
 
     def set_motor_position(self, param, value):
-        return self._connection.send('rot %i\r\n' % value)
+        return self.connection.send('rot %i\r\n' % value)
 
 
 if __name__ == '__main__':

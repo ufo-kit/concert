@@ -1,79 +1,70 @@
 import math
 import logging
 
+
 class OutOfRangeError(Exception):
     pass
 
+
 class RangedParameter(object):
     def __init__(self, start, end, default, callback=None):
-        self._start = start
-        self._end = end
-        self._value = default
-        self._callbacks = [callback] if callback else []
+        self.start = start
+        self.end = end
+        self.current = default
+        self.callbacks = [callback] if callback else []
 
     def add_callback(self, callback):
-        self._callbacks.append(callback)
+        self.callbacks.append(callback)
 
     def set_value(self, value):
-        if self._start <= value <= self._end:
-            self._value = value
+        if self.start <= value <= self.end:
+            self.current = value
 
-            for callback in self._callbacks:
+            for callback in self.callbacks:
                 callback(self, value)
         else:
-            raise OutOfRangeError('%f <= %f <= %f violated' % (self._start, value, self._end))
+            raise OutOfRangeError('{0} out of range'.format(value))
 
     def get_value(self):
-        return self._value
+        return self.current
 
     @property
     def range(self):
-        return (self._start, self._end)
+        return (self.start, self.end)
 
     value = property(get_value, set_value)
 
 
 class Controller(object):
-    @property
-    def parameters(self):
-        return self._params
-
     def set_motor_position(self, param, value):
         raise NotImplementedError
 
 
 class LinearMotor(Controller):
-    def __init__(self):
-        min_limit, max_limit = self.get_limits()
+    def __init__(self, min_limit, max_limit, default):
+        self.min_limit = min_limit
+        self.max_limit = max_limit
         self.logger = logging.getLogger('ctrl.linear')
         self.logger.propagate = True
 
-        self._params = { 'position': RangedParameter(min_limit, max_limit, 1.0,
-                                                     self.set_motor_position) }
-        self._position = self._params['position']
+        self.params = {
+            'position': RangedParameter(min_limit, max_limit, default,
+                                        self.set_motor_position)
+        }
 
-    def get_limits(self):
-        """Returns a tuple (min, max) denoting hard lower and upper limits of
-        the motor device."""
-        raise NotImplementedError
-
-    def get_position(self):
-        return self._position.value
+        self.position = self.params['position']
 
     def move_relative(self, distance):
-        self._position.value += distance
+        self.position.value += distance
 
     def move_absolute(self, position):
-        self.logger.debug("Move to %f", position)
-        self._position.value = position
+        # self.logger.debug("Move to %f", position)
+        self.position.value = position
 
     def move_to_relative_position(self, position):
-        min_limit, max_limit = self.get_limits()
-        a = max_limit - min_limit
-        b = min_limit
+        a = self.max_limit - self.min_limit
+        b = self.min_limit
         self.move_absolute(a * position + b)
-
-    position = property(get_position, move_absolute)
 
 
 class RotationMotor(Controller):
@@ -83,21 +74,23 @@ class RotationMotor(Controller):
 
 class PseudoRotationMotor(Controller):
     def __init__(self, param_x, param_y):
-        self._params = { 'phi': RangedParameter(0.0, 2*math.pi, 0.0, self._param_changed) }
-        self._param_x = param_x
-        self._param_y = param_y
-        self._phi = self._params['phi']
-        self._radius = min(param_x.range[1], param_y.range[1]) / 2.0
+        self._params = {
+            'phi': RangedParameter(0.0, 2*math.pi, 0.0, self._param_changed)
+        }
+        self.param_x = param_x
+        self.param_y = param_y
+        self.phi = self.params['phi']
+        self.radius = min(param_x.range[1], param_y.range[1]) / 2.0
 
     def move_relative(self, phi_distance):
         # Check for negative angles or introduce ClampedRangedParameter
-        self._phi.value += phi_distance
+        self.phi.value += phi_distance
 
     def move_absolute(self, phi):
-        self._phi.value = phi
+        self.phi.value = phi
 
-    def _param_changed(self, param, value): 
-        x = self._radius * math.cos(value)
-        y = self._radius * math.sin(value)
-        self._param_x.value = x + self._radius
-        self._param_y.value = y + self._radius
+    def _param_changed(self, param, value):
+        x = self.radius * math.cos(value)
+        y = self.radius * math.sin(value)
+        self.param_x.value = x + self.radius
+        self.param_y.value = y + self.radius

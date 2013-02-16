@@ -1,7 +1,7 @@
 import logging
 import controller.crio
 from process.gradientmaximizer import GradientMaximizer
-from measure.maximization import Maximizer
+from measure.optimization import Maximizer
 
 from gi.repository import Ufo, Uca
 
