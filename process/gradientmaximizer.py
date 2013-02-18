@@ -29,10 +29,11 @@ class GradientMaximizer(object):
 
         width, height = camera.props.roi_width, camera.props.roi_height
         window = 100 / 2
+        roi_x = width / 2 - window
+        roi_y = height / 2 - window
 
         self.roi = self.pm.get_task('region-of-interest')
-        self.roi.set_properties(x=width/2-window, y=height/2-window,
-                                width=window, height=window)
+        self.roi.set_properties(x=roi_x, y=roi_y, width=window, height=window)
 
         self.measure_task = self.pm.get_task('sharpness-measure')
         self.measure_task.connect('notify::sharpness', self._evaluate)

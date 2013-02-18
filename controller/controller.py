@@ -75,7 +75,7 @@ class RotationMotor(Controller):
 class PseudoRotationMotor(Controller):
     def __init__(self, param_x, param_y):
         self._params = {
-            'phi': RangedParameter(0.0, 2*math.pi, 0.0, self._param_changed)
+            'phi': RangedParameter(0.0, 2 * math.pi, 0.0, self._param_changed)
         }
         self.param_x = param_x
         self.param_y = param_y
