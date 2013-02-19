@@ -1,4 +1,5 @@
 import logging
+import sys
 
 
 class _ScalarOptimizer(object):
@@ -14,7 +15,7 @@ class _ScalarOptimizer(object):
 
 class Maximizer(_ScalarOptimizer):
     def __init__(self, epsilon=0.01):
-        super(Maximizer, self).__init__(-100000.0, epsilon)
+        super(Maximizer, self).__init__(-sys.float_info.max, epsilon)
 
     def is_better(self, value):
         return value > self.value
@@ -22,7 +23,7 @@ class Maximizer(_ScalarOptimizer):
 
 class Minimizer(_ScalarOptimizer):
     def __init__(self, epsilon=0.01):
-        super(Minimizer, self).__init__(100000.0, epsilon)
+        super(Minimizer, self).__init__(sys.float_info.max, epsilon)
 
     def is_better(self, value):
         return value < self.value
