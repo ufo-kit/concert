@@ -39,15 +39,15 @@ class EventGenerator(object):
         # Sleep a little to establish the connection properly.
         time.sleep(1)
         
-    def _pack_message(self, event_type, source_id, data=""):
-        msg = str(event_type)
-        msg += eventformat.separator + str(source_id)
-        msg += eventformat.separator + str(EventGenerator.event_id())
-        msg += eventformat.separator + str(data)
+    def _pack_message(self, event):
+        msg = str(event.event_type)
+        msg += eventformat.separator + str(event.source)
+        msg += eventformat.separator + str(event.id)
+        msg += eventformat.separator + str(event.data)
         
         return msg
         
-    def fire(self, event_type_id, source_id, data=""):
+    def fire(self, event):
         """Fire an event.
         
         @param event_type_id: event type id (distibguishes different events)
@@ -55,6 +55,6 @@ class EventGenerator(object):
         @param data: a string
         
         """
-        msg = self._pack_message(event_type_id, source_id, data)
-        self._logger.debug("Sending message (first KB): %s" % (msg[:1024]))
+        msg = self._pack_message(event)
+        self._logger.debug("Sending event: %s." % (event))
         self._socket.send(msg)

@@ -11,39 +11,43 @@ import eventtype
 import time
 from eventlistener import MotionEventListener
 import numpy
+from event import Event
 
 class DummyMotionListener(MotionEventListener):
     """A simple implementation of MotionEventListener interface."""
-    def on_start(self, source_id, event_id, data):
-        print "Start of device %s." % (source_id)
+    def on_start(self, event):
+        print "Start of device %s." % (event.source)
         
-    def on_stop(self, source_id, event_id, data):
-        print "Stop of device %s." % (source_id)
+    def on_stop(self, event):
+        print "Stop of device %s." % (event.source)
         
-    def on_state_changed(self, source_id, event_id, data):
-        print "State changed to %s of device %s." % (data, source_id)
+    def on_state_changed(self, event):
+        print "State changed to %s of device %s." % (event.data, event.source)
         
-    def on_position_changed(self, source_id, event_id, data):
-        print "Position changed to %s of device %s." % (data, source_id)
+    def on_position_changed(self, event):
+        print "Position changed to %s of device %s." % (event.data,
+                                                                event.source)
         
-    def on_limit_reached(self, source_id, event_id, data):
-        print "Limit reached by device %s." % (source_id)
+    def on_limit_reached(self, event):
+        print "Limit reached by device %s." % (event.source)
 
 def generate_events(motor_ids, event_generator):
     for i in range(10):
-        event_generator.fire(eventtype.start, motor_ids[i % len(motor_ids)])
+        event_generator.fire(Event(eventtype.start,
+                                   motor_ids[i % len(motor_ids)]))
         time.sleep(0.2)
-        event_generator.fire(eventtype.state_changed,
-                             motor_ids[i % len(motor_ids)], "moving")
+        event_generator.fire(Event(eventtype.state_changed,
+                             motor_ids[i % len(motor_ids)], "moving"))
         time.sleep(0.5)
-        event_generator.fire(eventtype.position_changed,
+        event_generator.fire(Event(eventtype.position_changed,
                              motor_ids[i % len(motor_ids)],
-                             numpy.random.random())
+                             numpy.random.random()))
         time.sleep(1)
-        event_generator.fire(eventtype.limit_reached,
-                             motor_ids[i % len(motor_ids)])
+        event_generator.fire(Event(eventtype.limit_reached,
+                             motor_ids[i % len(motor_ids)]))
         time.sleep(0.5)
-        event_generator.fire(eventtype.stop, motor_ids[i % len(motor_ids)])
+        event_generator.fire(Event(eventtype.stop,
+                                   motor_ids[i % len(motor_ids)]))
         time.sleep(0.2)
 
 if __name__ == '__main__':
