@@ -1,7 +1,9 @@
 import logging
 import socket
 import readline
-import controller
+import quantities as pq
+from motion.axis import Positionable
+from motion.calibration import LinearCalibration
 
 HOST = 'cRIO9074-Motion.ka.fzk.de'
 
@@ -29,28 +31,29 @@ class _Connection(object):
             self.logger.warning('Reading from %s:%i timed out' % self.peer)
 
 
-class LinearMotor(controller.LinearMotor):
-    def __init__(self, min_limit=-51000, max_limit=51000, port=6342):
+class CrioLinearAxis(Positionable):
+    def __init__(self, port=6342):
+        super(CrioLinearAxis, self).__init__()
+
+        self.calibration = LinearCalibration(50000 / pq.mm, -1 * pq.mm)
+        self.position_limit = (0 * pq.mm, 2 * pq.mm)
         self.connection = _Connection(port)
-        self.min_limit = min_limit
-        self.max_limit = max_limit
 
-        super(LinearMotor, self).__init__(min_limit, max_limit, 0)
-
-    def set_motor_position(self, param, value):
-        return self.connection.send('lin %i\r\n' % value)
-
-    def get_limits(self):
-        return (self.min_limit, self.max_limit)
+    def _set_position_real(self, value):
+        steps = self.calibration.to_steps(value)
+        self.connection.send('lin %i\r\n' % steps)
 
 
-class RotationMotor(controller.RotationMotor):
+class CrioRotationAxis(Positionable):
     def __init__(self, port=6340):
-        super(RotationMotor, self).__init__()
+        super(CrioRotationAxis, self).__init__()
+
+        self.calibration = LinearCalibration(50000 / pq.mm, 0 * pq.mm)
         self.connection = _Connection(port)
 
-    def set_motor_position(self, param, value):
-        return self.connection.send('rot %i\r\n' % value)
+    def _set_position_real(self, value):
+        steps = self.calibration.to_steps(value)
+        return self.connection.send('rot %i\r\n' % steps)
 
 
 if __name__ == '__main__':
@@ -60,8 +63,8 @@ if __name__ == '__main__':
 
     readline.parse_and_bind('tab: complete')
 
-    linear_device = LinearMotor()
-    rotation_device = RotationMotor()
+    linear_device = CrioLinearAxis()
+    rotation_device = CrioRotationAxis()
 
     try:
         input = raw_input
@@ -76,8 +79,8 @@ if __name__ == '__main__':
         try:
             command, value = line.split()
             if command == 'r':
-                rotation_device.rotate(int(value))
+                rotation_device.set_position(float(value) * pq.mm)
             elif command == 'm':
-                linear_device.move_absolute(int(value))
+                linear_device.set_position(float(value) * pq.mm)
         except ValueError:
             print("Commands: `r [NUM]`, `m [NUM]`, `q`")
