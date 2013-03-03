@@ -2,8 +2,7 @@ import logging
 import socket
 import readline
 import quantities as pq
-from motion.axis import Positionable
-from motion.calibration import LinearCalibration
+from axis import DiscretelyMovable
 
 HOST = 'cRIO9074-Motion.ka.fzk.de'
 
@@ -31,7 +30,7 @@ class _Connection(object):
             self.logger.warning('Reading from %s:%i timed out' % self.peer)
 
 
-class CrioLinearAxis(Positionable):
+class CrioLinearAxis(DiscretelyMovable):
     def __init__(self, port=6342):
         super(CrioLinearAxis, self).__init__()
 
@@ -44,7 +43,7 @@ class CrioLinearAxis(Positionable):
         self.connection.send('lin %i\r\n' % steps)
 
 
-class CrioRotationAxis(Positionable):
+class CrioRotationAxis(DiscretelyMovable):
     def __init__(self, port=6340):
         super(CrioRotationAxis, self).__init__()
 

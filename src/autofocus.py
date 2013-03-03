@@ -1,10 +1,10 @@
 import logging
 import argparse
-import controller.crio
-from process.gradientmaximizer import GradientMaximizer
-from measure.optimization import Maximizer
 
 from gi.repository import Ufo, Uca
+from control.measure.optimization import Maximizer
+from control.motion.hardware.crio import CrioLinearAxis
+from control.process.gradientmaximizer import GradientMaximizer
 
 
 if __name__ == '__main__':
@@ -24,7 +24,7 @@ if __name__ == '__main__':
     camera = pm.get_camera(args.camera)
 
     sharpness = Maximizer()
-    lm = controller.crio.LinearMotor()
+    lm = CrioLinearAxis()
 
     focus = GradientMaximizer(camera, sharpness, lm, config)
     focus.start()
