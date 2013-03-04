@@ -10,7 +10,7 @@ get_type_id = itertools.count().next
 class Motion(object):
     START = get_type_id()
     STOP = get_type_id()
-    STATE_CHANGED = get_type_id()
-    POSITION_CHANGED = get_type_id()
-    VELOCITY_CHANGED = get_type_id()
-    LIMIT_REACHED = get_type_id()
+    LIMIT_BREACH = get_type_id()
+    
+class ContinuousMotion(Motion):
+    VELOCITY_STEADY = get_type_id()

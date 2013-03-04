@@ -3,7 +3,7 @@ Created on Mar 3, 2013
 
 @author: farago
 '''
-from controlledobject import Identifiable
+from controlobject import Identifiable
 
 class Event(Identifiable):
     def __init__(self, event_type, source, data=None):
@@ -24,10 +24,10 @@ class Event(Identifiable):
     def data(self):
         return self._data
         
-    def __str__(self):
+    def __repr__(self):
         return "Event(type=%s, source=%s, data=%s)" % (self._type,
                                                        self._source,
                                                        str(self._data))
 
-    def __repr__(self):
-        return str(self)
+    def __str__(self):
+        return repr(self)

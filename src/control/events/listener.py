@@ -40,8 +40,7 @@ class EventListener(object):
 class MotionEventListener(EventListener):
     _EVENT_TYPES = [eventtype.Motion.START,
                     eventtype.Motion.STOP,
-                    eventtype.Motion.POSITION_CHANGED,
-                    eventtype.Motion.LIMIT_REACHED]
+                    eventtype.Motion.LIMIT_BREACH]
     
     def __init__(self):
         super(MotionEventListener, self).__init__()
@@ -51,9 +50,7 @@ class MotionEventListener(EventListener):
             self.on_start(event)
         elif event.event_type == eventtype.Motion.STOP:
             self.on_stop(event)
-        elif event.event_type == eventtype.Motion.POSITION_CHANGED:
-            self.on_position_changed(event)
-        elif event.event_type == eventtype.Motion.LIMIT_REACHED:
+        elif event.event_type == eventtype.Motion.LIMIT_BREACH:
             self.on_limit_reached(event)
             
     def on_start(self, event):
@@ -61,9 +58,6 @@ class MotionEventListener(EventListener):
     
     def on_stop(self, event):
         pass
-
-    def on_position_changed(self, event):
-        pass
     
-    def on_limit_reached(self, event):
+    def on_limit_breach(self, event):
         pass
