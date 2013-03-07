@@ -3,28 +3,30 @@ Created on Mar 3, 2013
 
 @author: farago
 '''
-from listener import MotionEventListener
 import time
 import numpy
 import quantities as pq
-from device.motion.axis.axis import DummyDiscreteAxis
-from motion.axis.calibration import LinearCalibration
+from control.devices.motion.axes.dummyaxis import DummyAxis
+from control.devices.motion.axes.calibration import LinearCalibration
+from control.connections.dummyconnection import DummyConnection
+from listener import AxisStateListener
 
 
-class StartStopListener(MotionEventListener):
-    def on_start(self, event):
-        print "%s: start." % (event.source)
+class DummyListener(AxisStateListener):
+    def on_moving(self, source):
+        print "%s: moving." % (source)
     
-    def on_stop(self, event):
-        print "%s: stop." % (event.source)
+    def on_standby(self, source):
+        print "%s: standby." % (source)
         
-    def on_limit_breach(self, event):
-        print "%s: limit breach: %s." % (event.source, event.data)
-        
-        
-if __name__ == '__main__': 
-    da = DummyDiscreteAxis(LinearCalibration(pq.mm, 0*pq.mm), (-5,5))
-    ssl = StartStopListener()
-    for i in range(10):
+    def on_position_limit(self, source):
+        print "%s: position limit breach." % (source)
+
+
+if __name__ == '__main__':
+    da = DummyAxis(DummyConnection(),
+           LinearCalibration(1/pq.mm, 0*pq.mm), (-5,5))
+    ssl = DummyListener()
+    for i in range(5):
         da.set_position(numpy.random.random()*pq.mm)
     time.sleep(1)

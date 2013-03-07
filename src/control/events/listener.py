@@ -3,13 +3,12 @@ Created on Mar 3, 2013
 
 @author: farago
 '''
-from abc import ABCMeta, abstractmethod
-import eventgenerator
-import eventtype
+from control.events import generator as eventgenerator
+from control.devices.motion.axes.axis import AxisState
+from control.events import type as eventtype
+
 
 class EventListener(object):
-    __metaclass__ = ABCMeta
-    
     def __init__(self):
         eventgenerator.get_generator().add_listener(self)
     
@@ -19,7 +18,7 @@ class EventListener(object):
         for cls in self.__class__.__bases__:
             events += cls._EVENT_TYPES
             
-        return events
+        return events + self.__class__._EVENT_TYPES
         
     def _handle(self, event):
         """Distribute the incoming event to all the handlers."""
@@ -29,35 +28,46 @@ class EventListener(object):
             if event.event_type in self.event_types:
                 cls._handle_event(self, event)
                 
-    @abstractmethod
     def _handle_event(self, event):
         """Do something with an incoming event. Every subclass needs to
         implement specific behavior for it depending on the class functionality.
         
         """
         raise NotImplementedError
-    
-class MotionEventListener(EventListener):
-    _EVENT_TYPES = [eventtype.Motion.START,
-                    eventtype.Motion.STOP,
-                    eventtype.Motion.LIMIT_BREACH]
+
+
+class StateChangeListener(EventListener):
+    _EVENT_TYPES = [eventtype.StateChangeEvent.STATE]
     
     def __init__(self):
-        super(MotionEventListener, self).__init__()
-        
+        super(StateChangeListener, self).__init__()
+    
     def _handle_event(self, event):
-        if event.event_type == eventtype.Motion.START:
-            self.on_start(event)
-        elif event.event_type == eventtype.Motion.STOP:
-            self.on_stop(event)
-        elif event.event_type == eventtype.Motion.LIMIT_BREACH:
-            self.on_limit_reached(event)
+        if event.event_type == eventtype.StateChangeEvent.STATE:
+            self._handle_state_change(event.source, event.data)
             
-    def on_start(self, event):
-        pass
+    def _handle_state_change(self, source, state):
+        """Handle a particular state change."""
+        raise NotImplementedError
     
-    def on_stop(self, event):
-        pass
+
+class AxisStateListener(StateChangeListener):
+    def __init__(self):
+        super(AxisStateListener, self).__init__()
     
-    def on_limit_breach(self, event):
-        pass
+    def _handle_state_change(self, source, state):
+        if state == AxisState.MOVING:
+            self.on_moving(source)
+        elif state == AxisState.POSITION_LIMIT:
+            self.on_position_limit(source)
+        elif state == AxisState.STANDBY:
+            self.on_standby(source)
+            
+    def on_moving(self, source):
+        raise NotImplementedError
+    
+    def on_position_limit(self, source):
+        raise NotImplementedError
+    
+    def on_standby(self, source):
+        raise NotImplementedError
