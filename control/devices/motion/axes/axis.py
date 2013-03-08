@@ -63,13 +63,17 @@ class Axis(Device):
     """Base class for everything that moves."""
     def __init__(self, connection, calibration, position_limit=None):
         self._position_limit = position_limit
-        self._position = None
         self._connection = connection
         self._calibration = calibration
+        self._state = None
 
     @property
     def position_limit(self):
         return self._position_limit
+
+    @property
+    def state(self):
+        return self._state
 
     def home(self):
         """Homing procedure."""
@@ -89,6 +93,11 @@ class Axis(Device):
             # process terminates.
             t.daemon = True
             t.start()
+
+    def signal_state_change(self, state):
+        self._state = state
+        event = Event(StateChangeEvent.STATE, self, state)
+        eventgenerator.fire(event)
 
     def is_out_of_limits(self, value, limit):
         """Check if we are outside of the soft limits."""
@@ -127,8 +136,7 @@ class Axis(Device):
         position = self._calibration.to_steps(position_user)
         if self.is_out_of_limits(position_user, self._position_limit):
             limit = Limit(Limit.SOFT)
-            eventgenerator.fire(Event(StateChangeEvent.STATE, self,
-                                                    AxisState.POSITION_LIMIT))
+            self.signal_state_change(AxisState.POSITION_LIMIT)
             raise LimitReached(limit)
 
         if blocking:
@@ -187,8 +195,7 @@ class ContinuousAxis(Axis):
         velocity = self._velocity_calibration.to_steps(velocity_user)
         if self.is_out_of_limits(velocity_user, self._velocity_limit):
             limit = Limit(Limit.SOFT)
-            eventgenerator.fire(Event(StateChangeEvent.STATE, self,
-                                        ContinuousAxisState.VELOCITY_LIMIT))
+            self.signal_state_change(ContinuousAxisState.VELOCITY_LIMIT)
             raise LimitReached(limit)
 
         if blocking:

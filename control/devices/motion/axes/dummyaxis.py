@@ -5,13 +5,11 @@ Created on Mar 5, 2013
 '''
 import numpy
 import time
-from control.devices.motion.axes.axis import Axis
-from control.devices.motion.axes.axis import ContinuousAxis
-from control.devices.motion.axes.axis import AxisState
+from control.devices.motion.axes.axis import Axis, ContinuousAxis
+from control.devices.motion.axes.axis import AxisState, ContinuousAxisState
 from control.events import generator as eventgenerator
-from control.events.event import Event
 from control.events import type as eventtype
-from control.devices.motion.axes.axis import ContinuousAxisState
+from control.events.event import Event
 
 
 class DummyAxis(Axis):
@@ -21,47 +19,42 @@ class DummyAxis(Axis):
                                         position_limit)
         self._hard_limits = -100, 100
         self._position = 0
-        self._state = AxisState.STANDBY
 
-    @property
-    def state(self):
-        return self._state
+    def _stop_real(self):
+        pass
 
     def _set_position_real(self, position):
-        self._state = AxisState.MOVING
-        eventgenerator.fire(Event(eventtype.StateChangeEvent.STATE,
-                                      self, AxisState.MOVING))
+        self.signal_state_change(AxisState.MOVING)
+
         time.sleep(numpy.random.random())
-        self._position = position
-        if self._position < self._hard_limits[0]:
+
+        if position < self._hard_limits[0]:
             self._position = self._hard_limits[0]
-            self._state = AxisState.POSITION_LIMIT
-            eventgenerator.fire(Event(eventtype.StateChangeEvent.STATE,
-                                      self, self._state))
-        elif self._position > self._hard_limits[1]:
+            self.signal_state_change(AxisState.POSITION_LIMIT)
+        elif position > self._hard_limits[1]:
             self._position = self._hard_limits[1]
-            self._state = AxisState.POSITION_LIMIT
-            eventgenerator.fire(Event(eventtype.StateChangeEvent.STATE,
-                                      self, self._state))
+            self.signal_state_change(AxisState.POSITION_LIMIT)
         else:
-            self._state = AxisState.STANDBY
-            eventgenerator.fire(Event(eventtype.StateChangeEvent.STATE,
-                                      self, self._state))
+            self._position = position
+            self.signal_state_change(AxisState.STANDBY)
 
     def _get_position_real(self):
         return self._position
 
     def _is_hard_position_limit_reached(self):
-        return self._position <= self._hard_limits[0] or\
-                self._position >= self._hard_limits[1]
+        return self._position <= self._hard_limits[0] or \
+               self._position >= self._hard_limits[1]
 
 
 class DummyContinuousAxis(ContinuousAxis):
     def __init__(self, connection, position_calibration, velocity_calibration,
-                                position_limit=None, velocity_limit=None):
+                 position_limit=None, velocity_limit=None):
+
         super(DummyContinuousAxis, self).__init__(connection,
-                          position_calibration, velocity_calibration,
-                          position_limit, velocity_limit)
+                                                  position_calibration,
+                                                  velocity_calibration,
+                                                  position_limit,
+                                                  velocity_limit)
         self._position_hard_limits = -10, 10
         self._velocity_hard_limits = -100, 100
         self._position = 0

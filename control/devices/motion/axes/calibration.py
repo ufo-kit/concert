@@ -15,5 +15,4 @@ class LinearCalibration(_Calibration):
         return value_in_steps / self._steps_per_unit + self._offset
 
     def to_steps(self, value):
-        rescaled = value.rescale(1.0 / self._steps_per_unit.units)
-        return (rescaled + self._offset) * self._steps_per_unit
+        return (value - self._offset) * self._steps_per_unit
