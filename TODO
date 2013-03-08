@@ -1,0 +1,11 @@
+- Basic hygiene in package and module structure and naming consensus.
+- Soft and hard limits, distinguish?
+- Make hard limits determination by SocketAxis a string pattern or abstract function? Do all devices support queries about hard limits?
+- ContinuouslyMovable is position really not settable on any device which actually exists? Sounds ridiculous. Reconsider how to model it.
+- Calibration - are there any axes on which one must apply calibration manually? Does one really need to calculate it programatically?
+- Agree on how much the control package should be distributed.
+- Quantities package is not recommended to use for production purposes, does it suggest it is unstable? Do we have any experience with it?
+- How to deal with states? Explicitly? Leave the state handling to events?
+- Should units be part of Axis or Controller?
+- Make attributes like position and velocity classes? (limits, set values, current values, ...)
+- What about soft position limit checking when moving continuously?
