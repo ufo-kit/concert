@@ -3,9 +3,9 @@ Created on Mar 5, 2013
 
 @author: farago
 '''
-from control.connections.connection import Connection
-import PyTango
 import os
+import PyTango
+from control.connections.connection import Connection
 
 
 class TangoConnection(Connection):
@@ -15,7 +15,7 @@ class TangoConnection(Connection):
         # TODO: check if there is a way to adjust the host in PyTango.
         if tango_host is not None and tango_port is not None:
             os.environ["TANGO_HOST"] = "%s:%d" % (tango_host, tango_port)
-            
+
         self._tango_device = PyTango.DeviceProxy(self._uri)
 
     @property

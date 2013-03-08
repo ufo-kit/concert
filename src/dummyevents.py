@@ -15,18 +15,18 @@ from listener import AxisStateListener
 class DummyListener(AxisStateListener):
     def on_moving(self, source):
         print "%s: moving." % (source)
-    
+
     def on_standby(self, source):
         print "%s: standby." % (source)
-        
+
     def on_position_limit(self, source):
         print "%s: position limit breach." % (source)
 
 
 if __name__ == '__main__':
     da = DummyAxis(DummyConnection(),
-           LinearCalibration(1/pq.mm, 0*pq.mm), (-5,5))
+           LinearCalibration(1 / pq.mm, 0 * pq.mm), (-5, 5))
     ssl = DummyListener()
     for i in range(5):
-        da.set_position(numpy.random.random()*pq.mm)
+        da.set_position(numpy.random.random() * pq.mm)
     time.sleep(1)
