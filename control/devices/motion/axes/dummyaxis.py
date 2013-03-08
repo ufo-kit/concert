@@ -26,7 +26,7 @@ class DummyAxis(Axis):
     def _set_position_real(self, position):
         self._set_state(AxisState.MOVING)
 
-        time.sleep(numpy.random.random())
+        time.sleep(numpy.random.random() / 2.)
 
         if position < self._hard_limits[0]:
             self._position = self._hard_limits[0]
@@ -65,7 +65,8 @@ class DummyContinuousAxis(ContinuousAxis):
         self._velocity = 0
 
     def _set_position_real(self, position):
-        time.sleep(numpy.random.random())
+        time.sleep(numpy.random.random() / 2.)
+
         self._position = position
         if self._position < self._position_hard_limits[0]:
             self._position = self._position_hard_limits[0]
@@ -76,31 +77,27 @@ class DummyContinuousAxis(ContinuousAxis):
         return self._position
 
     def _is_hard_position_limit_reached(self):
-        return self._position <= self._position_hard_limits[0] or\
-                self._position >= self._position_hard_limits[1]
+        return self._position <= self._position_hard_limits[0] or \
+               self._position >= self._position_hard_limits[1]
 
     def _set_velocity_real(self, velocity):
-        self._state = AxisState.MOVING
+        self._set_state(AxisState.MOVING)
+
         time.sleep(numpy.random.random())
         self._velocity = velocity
+
         if self._velocity < self._velocity_hard_limits[0]:
             self._velocity = self._velocity_hard_limits[0]
-            self._state = ContinuousAxisState.VELOCITY_LIMIT
-            eventgenerator.fire(Event(eventtype.StateChangeEvent.STATE,
-                                      self, self._state))
+            self._set_state(ContinuousAxisState.VELOCITY_LIMIT)
         elif self._velocity > self._velocity_hard_limits[1]:
             self._velocity = self._velocity_hard_limits[1]
-            self._state = ContinuousAxisState.VELOCITY_LIMIT
-            eventgenerator.fire(Event(eventtype.StateChangeEvent.STATE,
-                                      self, self._state))
+            self._set_state(ContinuousAxisState.VELOCITY_LIMIT)
         else:
-            self._state = AxisState.STANDBY
-            eventgenerator.fire(Event(eventtype.StateChangeEvent.STATE,
-                                      self, self._state))
+            self._set_state(AxisState.STANDBY)
 
     def _get_velocity_real(self):
         return self._velocity
 
     def _is_hard_velocity_limit_reached(self):
-        return self._position <= self._velocity_hard_limits[0] or\
-                self._position >= self._velocity_hard_limits[1]
+        return self._position <= self._velocity_hard_limits[0] or \
+               self._position >= self._velocity_hard_limits[1]

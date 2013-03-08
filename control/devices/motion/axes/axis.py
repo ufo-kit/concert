@@ -164,37 +164,30 @@ class ContinuousAxis(Axis):
 
     """
     def __init__(self, connection, position_calibration, velocity_calibration,
-                            position_limit=None, velocity_limit=None):
+                 position_limit=None, velocity_limit=None):
+
         super(ContinuousAxis, self).__init__(connection, position_calibration,
-                                                        position_limit)
+                                             position_limit)
         self._velocity_limit = velocity_limit
         self._velocity = None
         self._velocity_calibration = velocity_calibration
 
     def get_velocity(self):
-        """Get velocity in set units.
-
-        @return: velocity in set units
-
-        """
+        """Get velocity in set units."""
         return self._velocity_calibration.to_user(self._get_velocity_real())
 
     def set_velocity(self, velocity_user, blocking=False):
         velocity = self._velocity_calibration.to_steps(velocity_user)
+
         if self.is_out_of_limits(velocity_user, self._velocity_limit):
             limit = Limit(Limit.SOFT)
-            self.signal_state_change(ContinuousAxisState.VELOCITY_LIMIT)
+            self._set_state(ContinuousAxisState.VELOCITY_LIMIT)
             raise LimitReached(limit)
 
         if blocking:
             self._set_velocity_real(velocity)
         else:
-            # Create a thread and execute asynchronously.
-            # TODO: make use of threads pool of whatever that improves
-            # performance.
             t = Thread(target=self._set_velocity_real, args=(velocity,))
-            # We don't care if the desired velocity is reached after the
-            # process terminates.
             t.daemon = True
             t.start()
 
