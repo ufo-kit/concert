@@ -17,12 +17,12 @@ class TestDummyAxis(unittest.TestCase):
         new_position = self.axis.get_position()
         self.assertEqual(position, new_position)
 
-    # def test_set_position_nonblocking(self):
-    #     position = 1 * q.mm
+    def test_set_position_nonblocking(self):
+        position = 1 * q.mm
 
-    #     def check_position(axis):
-    #         new_position = axis.get_position()
-    #         self.assertEqual(position, new_position)
+        def check_position(axis):
+            new_position = axis.get_position()
+            self.assertEqual(position, new_position)
 
-    #     self.axis.set_position(position, False)
-    #     self.axis.wait_for(AxisState.STANDBY, check_position)
+        self.axis.set_position(position, False)
+        self.axis.wait_for(AxisState.STANDBY, check_position)

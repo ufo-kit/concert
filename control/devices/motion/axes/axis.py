@@ -4,11 +4,8 @@ Created on Mar 5, 2013
 @author: farago
 '''
 from threading import Thread
-from control.devices.device import Device
-from control.devices.device import State
-from control.events import generator as eventgenerator
-from control.events.event import Event
-from control.events.type import StateChangeEvent
+from control.devices.device import Device, State
+from control.events.dispatcher import dispatcher
 from control.devices import device
 
 
@@ -67,63 +64,11 @@ class Axis(Device):
         self._calibration = calibration
         self._state = None
 
-    @property
-    def position_limit(self):
-        return self._position_limit
-
-    @property
-    def state(self):
-        return self._state
-
-    def home(self):
-        """Homing procedure."""
-        pass
-
-    def stop(self, blocking=False):
-        """Stop the motion."""
-
-        if blocking:
-            self._stop_real()
-        else:
-            # Create a thread and execute asynchronously.
-            # TODO: make use of threads pool of whatever that improves
-            # performance.
-            t = Thread(target=self._stop_real)
-            # We don't care if the desired position is reached after the
-            # process terminates.
-            t.daemon = True
-            t.start()
-
-    def signal_state_change(self, state):
-        self._state = state
-        event = Event(StateChangeEvent.STATE, self, state)
-        eventgenerator.fire(event)
-
-    def is_out_of_limits(self, value, limit):
-        """Check if we are outside of the soft limits."""
-        if limit is None:
-            return False
-        return limit and value < limit[0] or value > limit[1]
-
-    def _stop_real(self):
-        """Stop the physical axis.
-
-        This method must be always blocking in order to provide appropriate
-        events at appropriate times.
-
-        """
-        raise NotImplementedError
-
     def __del__(self):
-        # Be profound.
         self.stop()
 
     def get_position(self):
-        """Get position in set units.
-
-        @return: position in set units
-
-        """
+        """Get position in set units."""
         return self._calibration.to_user(self._get_position_real())
 
     def set_position(self, position_user, blocking=False):
@@ -134,25 +79,68 @@ class Axis(Device):
                          is done.
         """
         position = self._calibration.to_steps(position_user)
+
         if self.is_out_of_limits(position_user, self._position_limit):
             limit = Limit(Limit.SOFT)
-            self.signal_state_change(AxisState.POSITION_LIMIT)
+            self._set_state(AxisState.POSITION_LIMIT)
             raise LimitReached(limit)
 
         if blocking:
             self._set_position_real(position)
         else:
-            # Create a thread and execute asynchronously.
-            # TODO: make use of threads pool of whatever that improves
-            # performance.
             t = Thread(target=self._set_position_real, args=(position,))
-            # We don't care if the actual stopping happens after the process
-            # terminates.
             t.daemon = True
             t.start()
 
+    def subscribe(self, state, callback):
+        dispatcher.subscribe(self, state, callback)
+
+    def wait_for(self, state, callback, timeout=None):
+        if self._state == state:
+            return callback(self)
+
+        dispatcher.wait(self, state, timeout)
+        callback(self)
+
+    def stop(self, blocking=False):
+        """Stop the motion."""
+
+        if blocking:
+            self._stop_real()
+        else:
+            t = Thread(target=self._stop_real)
+            t.daemon = True
+            t.start()
+
+    def is_out_of_limits(self, value, limit):
+        """Check if we are outside of the soft limits."""
+        if limit is None:
+            return False
+        return limit and value < limit[0] or value > limit[1]
+
     def is_hard_position_limit_reached(self):
         """Implemented by a particular device."""
+        raise NotImplementedError
+
+    @property
+    def position_limit(self):
+        return self._position_limit
+
+    @property
+    def state(self):
+        return self._state
+
+    def _set_state(self, state):
+        self._state = state
+        dispatcher.send(self, state)
+
+    def _stop_real(self):
+        """Stop the physical axis.
+
+        This method must be always blocking in order to provide appropriate
+        events at appropriate times.
+
+        """
         raise NotImplementedError
 
     def _set_position_real(self, position):

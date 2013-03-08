@@ -24,19 +24,19 @@ class DummyAxis(Axis):
         pass
 
     def _set_position_real(self, position):
-        self.signal_state_change(AxisState.MOVING)
+        self._set_state(AxisState.MOVING)
 
         time.sleep(numpy.random.random())
 
         if position < self._hard_limits[0]:
             self._position = self._hard_limits[0]
-            self.signal_state_change(AxisState.POSITION_LIMIT)
+            self._set_state(AxisState.POSITION_LIMIT)
         elif position > self._hard_limits[1]:
             self._position = self._hard_limits[1]
-            self.signal_state_change(AxisState.POSITION_LIMIT)
+            self._set_state(AxisState.POSITION_LIMIT)
         else:
             self._position = position
-            self.signal_state_change(AxisState.STANDBY)
+            self._set_state(AxisState.STANDBY)
 
     def _get_position_real(self):
         return self._position
