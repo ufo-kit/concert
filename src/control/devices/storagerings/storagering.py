@@ -5,7 +5,6 @@ Created on Mar 5, 2013
 '''
 from control.controlobject import Identifiable
 
-
 class StorageRing(Identifiable):
     """Electron storage ring."""
     @property

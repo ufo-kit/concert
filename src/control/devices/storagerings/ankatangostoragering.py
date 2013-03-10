@@ -19,7 +19,7 @@ class ANKATangoStorageRing(StorageRing):
     @property
     def energy(self):
         return self._connection.tango_device.read_attribute("Energy").value*\
-                                                                        pq.MeV
+                                                                        pq.GeV
     @property
     def lifetime(self):
         return self._connection.tango_device.read_attribute("Lifetime").value*\

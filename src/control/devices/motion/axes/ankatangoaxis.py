@@ -12,6 +12,7 @@ from control.devices.device import UnknownStateError
 
 
 SLEEP_TIME = 0.005
+SLOW_SLEEP_TIME = 0.5
 
 
 class ANKATangoDiscreteAxis(Axis):
@@ -35,9 +36,12 @@ class ANKATangoDiscreteAxis(Axis):
         
     def _set_position_real(self, position):
         self._connection.tango_device.write_attribute("position", position)
+        time.sleep(SLOW_SLEEP_TIME)
+        while self.state == AxisState.MOVING:
+            time.sleep(SLEEP_TIME)
         
     def _get_position_real(self):
-        return self._connection.tango_device.read_attribute("position")
+        return self._connection.tango_device.read_attribute("position").value
     
     def _stop_real(self):
         self._connection.tango_device.command_inout("Stop")
