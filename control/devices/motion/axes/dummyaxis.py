@@ -7,9 +7,6 @@ import numpy
 import time
 from control.devices.motion.axes.axis import Axis, ContinuousAxis
 from control.devices.motion.axes.axis import AxisState, ContinuousAxisState
-from control.events import generator as eventgenerator
-from control.events import type as eventtype
-from control.events.event import Event
 
 
 class DummyAxis(Axis):

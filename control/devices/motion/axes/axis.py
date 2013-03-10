@@ -6,7 +6,7 @@ Created on Mar 5, 2013
 from threading import Thread
 from control.devices.device import Device, State
 from control.events.dispatcher import dispatcher
-from control.devices import device
+from control.events import type as eventtype
 
 
 class LimitReached(Exception):
@@ -46,14 +46,14 @@ class Limit(object):
 
 class AxisState(State):
     """Axis status."""
-    STANDBY = device.make_state_id()
-    MOVING = device.make_state_id()
-    POSITION_LIMIT = device.make_state_id()
+    STANDBY = eventtype.make_event_id()
+    MOVING = eventtype.make_event_id()
+    POSITION_LIMIT = eventtype.make_event_id()
 
 
 class ContinuousAxisState(AxisState):
     """Axis status."""
-    VELOCITY_LIMIT = device.make_state_id()
+    VELOCITY_LIMIT = eventtype.make_event_id()
 
 
 class Axis(Device):
@@ -91,9 +91,6 @@ class Axis(Device):
             t = Thread(target=self._set_position_real, args=(position,))
             t.daemon = True
             t.start()
-
-    def subscribe(self, state, callback):
-        dispatcher.subscribe(self, state, callback)
 
     def stop(self, blocking=False):
         """Stop the motion."""

@@ -5,9 +5,7 @@ Created on Mar 6, 2013
 '''
 import itertools
 from control.controlobject import ControlObject
-
-
-make_state_id = itertools.count().next
+from control.events import type as eventtype
 
 
 class UnknownStateError(Exception):
@@ -26,7 +24,7 @@ class State(object):
     status. The implementation should follow this guideline.
 
     """
-    ERROR = make_state_id()
+    ERROR = eventtype.make_event_id()
 
 
 class Device(ControlObject):
