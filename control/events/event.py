@@ -3,10 +3,10 @@ Created on Mar 3, 2013
 
 @author: farago
 '''
-from control.controlobject import Identifiable
+from control.controlobject import ControlObject
 
 
-class Event(Identifiable):
+class Event(ControlObject):
     """Event is transported around to listeners who listen to appropriate
     event types.
 

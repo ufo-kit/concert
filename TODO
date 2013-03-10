@@ -9,3 +9,9 @@
 - Should units be part of Axis or Controller?
 - Make attributes like position and velocity classes? (limits, set values, current values, ...)
 - What about soft position limit checking when moving continuously?
+- Add precision to Axis attributes?
+
+- Is coupling senders and messages tightly a good idea? (e.g. a  listener which wants a particular message from all senders)
+- Axis wait_for method: what if the desired state change happens between state check and dispatcher wait method?
+- Why has wait_for in Axis a callback? User waits and then does whatever they want.
+- Change set position to non-blocking by default? (more device operate in that mode?)

@@ -4,7 +4,7 @@ Created on Mar 6, 2013
 @author: farago
 '''
 import itertools
-from control.controlobject import Identifiable
+from control.controlobject import ControlObject
 
 
 make_state_id = itertools.count().next
@@ -29,7 +29,7 @@ class State(object):
     ERROR = make_state_id()
 
 
-class Device(Identifiable):
+class Device(ControlObject):
     """A device with a state."""
     def __init__(self):
         super(Device, self).__init__()

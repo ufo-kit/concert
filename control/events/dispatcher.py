@@ -39,9 +39,10 @@ class Dispatcher(object):
 
         """
         t = (sender, message)
-        try:
+
+        if t in self._subscribers:
             self._subscribers[t].add(handler)
-        except KeyError:
+        else:
             self._subscribers[t] = set([handler])
 
     def send(self, sender, message):

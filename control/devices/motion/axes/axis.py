@@ -95,13 +95,6 @@ class Axis(Device):
     def subscribe(self, state, callback):
         dispatcher.subscribe(self, state, callback)
 
-    def wait_for(self, state, callback, timeout=None):
-        if self._state == state:
-            return callback(self)
-
-        dispatcher.wait(self, state, timeout)
-        callback(self)
-
     def stop(self, blocking=False):
         """Stop the motion."""
 

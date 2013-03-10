@@ -3,9 +3,9 @@ Created on Mar 5, 2013
 
 @author: farago
 '''
-from control.controlobject import Identifiable
+from control.controlobject import ControlObject
 
-class StorageRing(Identifiable):
+class StorageRing(ControlObject):
     """Electron storage ring."""
     @property
     def current(self):

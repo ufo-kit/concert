@@ -4,9 +4,9 @@ Created on Mar 3, 2013
 @author: farago
 '''
 import uuid
+from control.events.dispatcher import dispatcher
 
-
-class Identifiable(object):
+class ControlObject(object):
     """
     An object's id unique for the duration of a process in which the object
     resides. Python's id() function does not guarantee unique object ids
@@ -18,3 +18,6 @@ class Identifiable(object):
     @property
     def object_id(self):
         return self._id
+
+    def wait_for(self, what, timeout=None):
+        dispatcher.wait(self, what, timeout)
