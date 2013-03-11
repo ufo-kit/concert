@@ -8,7 +8,7 @@ from control.devices.axes.axis import AxisState, LinearCalibration
 class TestDummyAxis(unittest.TestCase):
     def setUp(self):
         calibration = LinearCalibration(1 / q.mm, 0 * q.mm)
-        self.axis = DummyAxis(None, calibration)
+        self.axis = DummyAxis(calibration)
 
     def test_set_position_blocking(self):
         position = 1 * q.mm
@@ -23,7 +23,7 @@ class TestDummyAxis(unittest.TestCase):
         self.assertEqual(position, self.axis.get_position())
 
     def test_set_positions_nonblocking(self):
-        self.axis1 = DummyAxis(None, LinearCalibration(1 / q.mm, 0 * q.mm))
+        self.axis1 = DummyAxis(LinearCalibration(1 / q.mm, 0 * q.mm))
 
         position = 1 * q.mm
         position1 = 3 * q.mm
@@ -44,10 +44,8 @@ class TestContinuousDummyAxis(unittest.TestCase):
         velocity_calibration = LinearCalibration(1 / (q.mm / q.s),
                                                  0 * (q.mm / q.s))
 
-        self.axis = DummyContinuousAxis(None,
-                                        position_calibration,
-                                        velocity_calibration,
-                                        None, None)
+        self.axis = DummyContinuousAxis(position_calibration,
+                                        velocity_calibration)
 
     def test_set_velocity_blocking(self):
         velocity = 1 * q.mm / q.s
@@ -63,7 +61,7 @@ class TestAxisCalibration(unittest.TestCase):
 
         class MockAxis(Axis):
             def __init__(self):
-                super(MockAxis, self).__init__(None, calibration)
+                super(MockAxis, self).__init__(calibration)
 
                 self.position = 0 * q.dimensionless
                 self._register('position',

@@ -1,8 +1,3 @@
-'''
-Created on Mar 5, 2013
-
-@author: farago
-'''
 from threading import Thread
 from control.devices.device import Device, State
 from control.events.dispatcher import dispatcher
@@ -23,13 +18,10 @@ class ContinuousAxisState(AxisState):
 
 class Axis(Device):
     """Base class for everything that moves."""
-    def __init__(self, connection, calibration, position_limit=None):
+    def __init__(self, calibration):
         super(Axis, self).__init__()
 
-        self._position_limit = position_limit
-        self._connection = connection
         self._state = None
-
         self._register('position',
                        calibration.to_user,
                        calibration.to_steps,
@@ -53,20 +45,6 @@ class Axis(Device):
             t = Thread(target=self._stop_real)
             t.daemon = True
             t.start()
-
-    def is_out_of_limits(self, value, limit):
-        """Check if we are outside of the soft limits."""
-        if limit is None:
-            return False
-        return limit and value < limit[0] or value > limit[1]
-
-    def is_hard_position_limit_reached(self):
-        """Implemented by a particular device."""
-        raise NotImplementedError
-
-    @property
-    def position_limit(self):
-        return self._position_limit
 
     @property
     def state(self):
@@ -92,12 +70,8 @@ class ContinuousAxis(Axis):
     This class is inherently capable of discrete movement.
 
     """
-    def __init__(self, connection, position_calibration, velocity_calibration,
-                 position_limit=None, velocity_limit=None):
-
-        super(ContinuousAxis, self).__init__(connection, position_calibration,
-                                             position_limit)
-        self._velocity_limit = velocity_limit
+    def __init__(self, position_calibration, velocity_calibration):
+        super(ContinuousAxis, self).__init__(position_calibration)
         self._velocity = None
         self._velocity_calibration = velocity_calibration
 
@@ -111,10 +85,6 @@ class ContinuousAxis(Axis):
 
     def get_velocity(self):
         return self.get('velocity')
-
-    def is_hard_velocity_limit_reached(self):
-        """Implemented by a particular device."""
-        raise NotImplementedError
 
 
 class _Calibration(object):
@@ -146,7 +116,7 @@ class LinearCalibration(_Calibration):
 
 
 class LimitReached(Exception):
-    """Any limit (hard or soft) exception."""
+    """Hard limit exception."""
     def __init__(self, limit):
         self._limit = limit
 

@@ -6,10 +6,8 @@ from control.devices.axes.axis import AxisState, ContinuousAxisState
 
 
 class DummyAxis(Axis):
-    def __init__(self, connection, calibration, position_limit=None):
-        super(DummyAxis, self).__init__(connection,
-                                        calibration,
-                                        position_limit)
+    def __init__(self, calibration):
+        super(DummyAxis, self).__init__(calibration)
         self._hard_limits = -100, 100
         self._position = 0
 
@@ -39,20 +37,11 @@ class DummyAxis(Axis):
     def _get_position(self):
         return self._position
 
-    def _is_hard_position_limit_reached(self):
-        return self._position <= self._hard_limits[0] or \
-               self._position >= self._hard_limits[1]
-
 
 class DummyContinuousAxis(ContinuousAxis):
-    def __init__(self, connection, position_calibration, velocity_calibration,
-                 position_limit=None, velocity_limit=None):
-
-        super(DummyContinuousAxis, self).__init__(connection,
-                                                  position_calibration,
-                                                  velocity_calibration,
-                                                  position_limit,
-                                                  velocity_limit)
+    def __init__(self, position_calibration, velocity_calibration):
+        super(DummyContinuousAxis, self).__init__(position_calibration,
+                                                  velocity_calibration)
         self._position_hard_limits = -10, 10
         self._velocity_hard_limits = -100, 100
         self._position = 0
@@ -84,10 +73,6 @@ class DummyContinuousAxis(ContinuousAxis):
     def _get_position(self):
         return self._position
 
-    def _is_hard_position_limit_reached(self):
-        return self._position <= self._position_hard_limits[0] or \
-               self._position >= self._position_hard_limits[1]
-
     def _set_velocity(self, velocity):
         self._set_state(AxisState.MOVING)
 
@@ -105,7 +90,3 @@ class DummyContinuousAxis(ContinuousAxis):
 
     def _get_velocity(self):
         return self._velocity
-
-    def _is_hard_velocity_limit_reached(self):
-        return self._position <= self._velocity_hard_limits[0] or \
-               self._position >= self._velocity_hard_limits[1]
