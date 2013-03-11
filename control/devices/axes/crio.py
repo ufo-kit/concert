@@ -1,8 +1,7 @@
 import logging
 import readline
 import quantities as q
-from control.devices.motion.axes.axis import Axis
-from control.devices.motion.axes.calibration import LinearCalibration
+from control.devices.axes.axis import Axis, LinearCalibration
 from control.connection import SocketConnection
 
 
@@ -10,12 +9,12 @@ CRIO_HOST = 'cRIO9074-Motion.ka.fzk.de'
 CRIO_PORT = 6342
 
 
-class CrioLinearAxis(Axis):
+class LinearAxis(Axis):
     def __init__(self):
         calibration = LinearCalibration(50000 / q.mm, -1 * q.mm)
         limit = (0 * q.mm, 2 * q.mm)
 
-        super(CrioLinearAxis, self).__init__(None, calibration, limit)
+        super(LinearAxis, self).__init__(None, calibration, limit)
 
         self._connection = SocketConnection(CRIO_HOST, CRIO_PORT)
         self._register('position',
@@ -30,12 +29,12 @@ class CrioLinearAxis(Axis):
         self._connection.communicate('lin %i\r\n' % steps)
 
 
-class CrioRotationAxis(Axis):
+class RotationAxis(Axis):
     def __init__(self):
         calibration = LinearCalibration(50000 / q.mm, -1 * q.mm)
         limit = (0 * q.mm, 2 * q.mm)
 
-        super(CrioRotationAxis, self).__init__(None, calibration, limit)
+        super(RotationAxis, self).__init__(None, calibration, limit)
         self._connection = SocketConnection(CRIO_HOST, CRIO_PORT)
         self._register('position',
                        self._get_position,
@@ -56,8 +55,8 @@ if __name__ == '__main__':
 
     readline.parse_and_bind('tab: complete')
 
-    linear_device = CrioLinearAxis()
-    rotation_device = CrioRotationAxis()
+    linear_device = LinearAxis()
+    rotation_device = RotationAxis()
 
     try:
         input = raw_input

@@ -3,10 +3,9 @@ Created on Mar 5, 2013
 
 @author: farago
 '''
-from control.devices.motion.axes.axis import Axis
 import time
 import PyTango
-from control.devices.motion.axes.axis import AxisState
+from control.devices.axes.axis import Axis, AxisState
 from control.devices.device import State
 from control.devices.device import UnknownStateError
 
