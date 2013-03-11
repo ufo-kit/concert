@@ -4,12 +4,12 @@ from gi.repository import Ufo, Uca
 
 
 class GradientMaximizer(object):
-    def __init__(self, camera, measure, controller, config=None):
+    def __init__(self, camera, measure, axis, limits, config=None):
         self.logger = logging.getLogger(__name__)
         self.logger.propagate = True
 
-        self.controller = controller
-        self.min_limit, self.max_limit = controller.get_limits()
+        self.axis = axis 
+        self.min_limit, self.max_limit = limits
 
         self.step = 1.0
         self.stopped = False
@@ -44,7 +44,7 @@ class GradientMaximizer(object):
 
     def start(self):
         self.logger.info('Move motor to position 0')
-        self.controller.move_to_relative_position(0.0)
+        self.axis.set_position(self.min_limit)
 
         self.logger.info('Start camera recording')
         self.camera.start_recording()
@@ -62,6 +62,9 @@ class GradientMaximizer(object):
 
         return self.step - self.step / 2.0
 
+    def _get_absolute_position(self, x):
+        return (self.max_limit - self.min_limit) * x - self.min_limit
+
     def _evaluate(self, obj, param):
         print('Checking {0}'.format(obj.props.sharpness))
 
@@ -76,5 +79,7 @@ class GradientMaximizer(object):
 
         self.measure.value = obj.props.sharpness
         self.step = self._gradient_step(obj.props.sharpness)
-        self.controller.move_to_relative_position(self.step)
+
+        position = self._get_absolute_position(self.step)
+        self.axis.set_position(position, blocking=True)
         self.camera.trigger()

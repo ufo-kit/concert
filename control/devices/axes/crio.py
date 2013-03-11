@@ -12,15 +12,15 @@ CRIO_PORT = 6342
 class LinearAxis(Axis):
     def __init__(self):
         calibration = LinearCalibration(50000 / q.mm, -1 * q.mm)
-        limit = (0 * q.mm, 2 * q.mm)
 
-        super(LinearAxis, self).__init__(None, calibration, limit)
+        super(LinearAxis, self).__init__(calibration)
 
         self._connection = SocketConnection(CRIO_HOST, CRIO_PORT)
         self._register('position',
                        self._get_position,
                        self._set_position,
-                       q.m)
+                       q.m,
+                       lambda x: x >= 0 * q.mm and x <= 2 * q.mm)
 
     def _get_position(self):
         raise NotImplementedError
@@ -32,14 +32,15 @@ class LinearAxis(Axis):
 class RotationAxis(Axis):
     def __init__(self):
         calibration = LinearCalibration(50000 / q.mm, -1 * q.mm)
-        limit = (0 * q.mm, 2 * q.mm)
 
-        super(RotationAxis, self).__init__(None, calibration, limit)
+        super(RotationAxis, self).__init__(calibration)
+
         self._connection = SocketConnection(CRIO_HOST, CRIO_PORT)
         self._register('position',
                        self._get_position,
                        self._set_position,
-                       q.m)
+                       q.m,
+                       lambda x: x >= 0 * q.mm and x <= 2 * q.mm)
 
     def _get_position(self):
         raise NotImplementedError

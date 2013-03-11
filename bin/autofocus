@@ -1,10 +1,12 @@
+#! python
+
 import logging
 import argparse
-
+import quantities as q
 from gi.repository import Ufo, Uca
-from control.measure.optimization import Maximizer
-from control.motion.hardware.crio import CrioLinearAxis
-from control.process.gradientmaximizer import GradientMaximizer
+from control.feedback.optimization import Maximizer
+from control.devices.axes.crio import LinearAxis
+from control.processes.gradientmaximizer import GradientMaximizer
 
 
 if __name__ == '__main__':
@@ -24,7 +26,8 @@ if __name__ == '__main__':
     camera = pm.get_camera(args.camera)
 
     sharpness = Maximizer()
-    lm = CrioLinearAxis()
+    axis = LinearAxis()
 
-    focus = GradientMaximizer(camera, sharpness, lm, config)
+    limits = (0 * q.mm, 2 * q.mm)
+    focus = GradientMaximizer(camera, sharpness, axis, limits, config)
     focus.start()

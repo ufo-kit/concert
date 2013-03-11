@@ -14,5 +14,6 @@ setup(
               'control/feedback',
               'control/processes',
               ],
+    scripts=['bin/autofocus'],
     description="ANKA control system",
 )
