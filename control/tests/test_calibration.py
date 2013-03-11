@@ -1,6 +1,6 @@
 import unittest
 import quantities as q
-from control.devices.motion.axes.axis import LinearCalibration
+from control.devices.axes.axis import LinearCalibration
 
 
 class TestLinearCalibration(unittest.TestCase):

@@ -1,4 +1,4 @@
-from control.measure.optimization import Maximizer, Minimizer
+from control.feedback.optimization import Maximizer, Minimizer
 
 
 def test_maximizer():

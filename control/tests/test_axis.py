@@ -1,8 +1,8 @@
 import unittest
 import quantities as q
 
-from control.devices.motion.axes.dummyaxis import *
-from control.devices.motion.axes.axis import AxisState, LinearCalibration
+from control.devices.axes.dummyaxis import *
+from control.devices.axes.axis import AxisState, LinearCalibration
 
 
 class TestDummyAxis(unittest.TestCase):
