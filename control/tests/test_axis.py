@@ -84,6 +84,6 @@ class TestAxisCalibration(unittest.TestCase):
         position = 100 * q.mm
         steps = position * self.steps_per_mm
 
-        self.axis.set_position(position)
+        self.axis.set_position(position, True)
         self.assertEqual(self.axis.position, steps)
         self.assertEqual(self.axis.get_position(), position)
