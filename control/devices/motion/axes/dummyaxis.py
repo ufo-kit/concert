@@ -1,10 +1,6 @@
-'''
-Created on Mar 5, 2013
-
-@author: farago
-'''
 import numpy
 import time
+import quantities as q
 from control.devices.motion.axes.axis import Axis, ContinuousAxis
 from control.devices.motion.axes.axis import AxisState, ContinuousAxisState
 
@@ -17,10 +13,15 @@ class DummyAxis(Axis):
         self._hard_limits = -100, 100
         self._position = 0
 
+        self._register('position',
+                       self._get_position,
+                       self._set_position,
+                       q.m)
+
     def _stop_real(self):
         pass
 
-    def _set_position_real(self, position):
+    def _set_position(self, position):
         self._set_state(AxisState.MOVING)
 
         time.sleep(numpy.random.random() / 2.)
@@ -35,7 +36,7 @@ class DummyAxis(Axis):
             self._position = position
             self._set_state(AxisState.STANDBY)
 
-    def _get_position_real(self):
+    def _get_position(self):
         return self._position
 
     def _is_hard_position_limit_reached(self):
@@ -57,11 +58,21 @@ class DummyContinuousAxis(ContinuousAxis):
         self._position = 0
         self._velocity = 0
 
+        self._register('position',
+                       self._get_position,
+                       self._set_position,
+                       q.m)
+
+        self._register('velocity',
+                       self._get_velocity,
+                       self._set_velocity,
+                       q.m / q.s)
+
     def _stop_real(self):
         time.sleep(0.5)
         self._velocity = 0
 
-    def _set_position_real(self, position):
+    def _set_position(self, position):
         time.sleep(numpy.random.random() / 2.)
 
         self._position = position
@@ -70,14 +81,14 @@ class DummyContinuousAxis(ContinuousAxis):
         elif self._position > self._position_hard_limits[1]:
             self._position = self._position_hard_limits[1]
 
-    def _get_position_real(self):
+    def _get_position(self):
         return self._position
 
     def _is_hard_position_limit_reached(self):
         return self._position <= self._position_hard_limits[0] or \
                self._position >= self._position_hard_limits[1]
 
-    def _set_velocity_real(self, velocity):
+    def _set_velocity(self, velocity):
         self._set_state(AxisState.MOVING)
 
         time.sleep(numpy.random.random())
@@ -92,7 +103,7 @@ class DummyContinuousAxis(ContinuousAxis):
         else:
             self._set_state(AxisState.STANDBY)
 
-    def _get_velocity_real(self):
+    def _get_velocity(self):
         return self._velocity
 
     def _is_hard_velocity_limit_reached(self):

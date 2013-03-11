@@ -59,38 +59,25 @@ class ContinuousAxisState(AxisState):
 class Axis(Device):
     """Base class for everything that moves."""
     def __init__(self, connection, calibration, position_limit=None):
+        super(Axis, self).__init__()
+
         self._position_limit = position_limit
         self._connection = connection
-        self._calibration = calibration
         self._state = None
+
+        self._register('position',
+                       calibration.to_user,
+                       calibration.to_steps,
+                       None)
 
     def __del__(self):
         self.stop()
 
+    def set_position(self, position, blocking=False):
+        self.set('position', position, blocking)
+
     def get_position(self):
-        """Get position in set units."""
-        return self._calibration.to_user(self._get_position_real())
-
-    def set_position(self, position_user, blocking=False):
-        """Set position of the device.
-
-        @param position: position in user units.
-        @param blocking: True if the call will block until the movement
-                         is done.
-        """
-        position = self._calibration.to_steps(position_user)
-
-        if self.is_out_of_limits(position_user, self._position_limit):
-            limit = Limit(Limit.SOFT)
-            self._set_state(AxisState.POSITION_LIMIT)
-            raise LimitReached(limit)
-
-        if blocking:
-            self._set_position_real(position)
-        else:
-            t = Thread(target=self._set_position_real, args=(position,))
-            t.daemon = True
-            t.start()
+        return self.get('position')
 
     def stop(self, blocking=False):
         """Stop the motion."""
@@ -133,19 +120,6 @@ class Axis(Device):
         """
         raise NotImplementedError
 
-    def _set_position_real(self, position):
-        """Call to the device itself for physical position setting.
-
-        This method must be always blocking in order to provide appropriate
-        events at appropriate times.
-
-        """
-        raise NotImplementedError
-
-    def _get_position_real(self):
-        """Call to the device itself for physical position query."""
-        raise NotImplementedError
-
 
 class ContinuousAxis(Axis):
     """A movable on which one can set velocity.
@@ -162,38 +136,17 @@ class ContinuousAxis(Axis):
         self._velocity = None
         self._velocity_calibration = velocity_calibration
 
+        self._register('velocity',
+                       velocity_calibration.to_user,
+                       velocity_calibration.to_steps,
+                       None)
+
+    def set_velocity(self, velocity, blocking=False):
+        self.set('velocity', velocity, blocking)
+
     def get_velocity(self):
-        """Get velocity in set units."""
-        return self._velocity_calibration.to_user(self._get_velocity_real())
-
-    def set_velocity(self, velocity_user, blocking=False):
-        velocity = self._velocity_calibration.to_steps(velocity_user)
-
-        if self.is_out_of_limits(velocity_user, self._velocity_limit):
-            limit = Limit(Limit.SOFT)
-            self._set_state(ContinuousAxisState.VELOCITY_LIMIT)
-            raise LimitReached(limit)
-
-        if blocking:
-            self._set_velocity_real(velocity)
-        else:
-            t = Thread(target=self._set_velocity_real, args=(velocity,))
-            t.daemon = True
-            t.start()
+        return self.get('velocity')
 
     def is_hard_velocity_limit_reached(self):
         """Implemented by a particular device."""
-        raise NotImplementedError
-
-    def _get_velocity_real(self):
-        """Call to the device itself for physical velocity setting."""
-        raise NotImplementedError
-
-    def _set_velocity_real(self, velocity):
-        """Call to the device itself for physical velocity query.
-
-        This method must be always blocking in order to provide appropriate
-        events at appropriate times.
-
-        """
         raise NotImplementedError

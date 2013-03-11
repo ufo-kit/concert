@@ -13,7 +13,7 @@ class TestDispatcher(unittest.TestCase):
         def callback(sender):
             self.visited = True
 
-        self.dispatcher.subscribe(self, 'foo', callback)
+        self.dispatcher.subscribe((self, 'foo'), callback)
         self.dispatcher.send(self, 'foo')
         time.sleep(0.005)
         self.assertTrue(self.visited)
