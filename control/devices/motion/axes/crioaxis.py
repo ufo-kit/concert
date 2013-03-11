@@ -1,35 +1,57 @@
 import logging
 import readline
-import quantities as pq
+import quantities as q
 from control.devices.motion.axes.axis import Axis
 from control.devices.motion.axes.calibration import LinearCalibration
+from control.connections.socketconnection import SocketConnection
+
+
+CRIO_HOST = 'cRIO9074-Motion.ka.fzk.de'
+CRIO_PORT = 6342
 
 
 class CrioLinearAxis(Axis):
-    def __init__(self, connection):
-        super(CrioLinearAxis, self).__init__(connection,
-                            LinearCalibration(50000 / pq.mm, -1 * pq.mm),
-                            (0 * pq.mm, 2 * pq.mm))
+    def __init__(self):
+        calibration = LinearCalibration(50000 / q.mm, -1 * q.mm)
+        limit = (0 * q.mm, 2 * q.mm)
 
-    def _get_position_real(self):
+        super(CrioLinearAxis, self).__init__(None, calibration, limit)
+
+        self._connection = SocketConnection(CRIO_HOST, CRIO_PORT)
+        self._register('position',
+                       self._get_position,
+                       self._set_position,
+                       q.m)
+
+    def _stop_real(self):
+        pass
+
+    def _get_position(self):
         raise NotImplementedError
 
-    def _set_position_real(self, value):
-        steps = self._calibration.to_steps(value)
+    def _set_position(self, steps):
         self._connection.communicate('lin %i\r\n' % steps)
 
 
 class CrioRotationAxis(Axis):
-    def __init__(self, connection):
-        super(CrioRotationAxis, self).__init__(connection,
-                            LinearCalibration(50000 / pq.mm, -1 * pq.mm),
-                            (0 * pq.mm, 0 * pq.mm))
+    def __init__(self):
+        calibration = LinearCalibration(50000 / q.mm, -1 * q.mm)
+        limit = (0 * q.mm, 2 * q.mm)
 
-    def _get_position_real(self):
+        super(CrioRotationAxis, self).__init__(None, calibration, limit)
+        self._connection = SocketConnection(CRIO_HOST, CRIO_PORT)
+        self._register('position',
+                       self._get_position,
+                       self._set_position,
+                       q.m)
+
+    def _stop_real(self):
+        pass
+
+    def _get_position(self):
         raise NotImplementedError
 
-    def _set_position_real(self, value):
-        steps = self._calibration.to_steps(value)
+    def _set_position(self, steps):
         self._connection.communicate('rot %i\r\n' % steps)
 
 
@@ -56,8 +78,8 @@ if __name__ == '__main__':
         try:
             command, value = line.split()
             if command == 'r':
-                rotation_device.set_position(float(value) * pq.mm)
+                rotation_device.set_position(float(value) * q.mm)
             elif command == 'm':
-                linear_device.set_position(float(value) * pq.mm)
+                linear_device.set_position(float(value) * q.mm)
         except ValueError:
             print("Commands: `r [NUM]`, `m [NUM]`, `q`")
