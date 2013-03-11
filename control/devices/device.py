@@ -23,7 +23,14 @@ class State(object):
 
 
 class Device(ControlObject):
-    """A device with a state."""
+    """Base class for controllable devices for which a set of parameters can be
+    set.
+
+    A :class:`Device` consists of optional getters, setters, limiters and units
+    for named parameters. Implementations first call :meth:`__init__` and then
+    :meth:`_register` to add or supplement a parameter.
+    """
+
     def __init__(self):
         super(Device, self).__init__()
         self._setters = {}
@@ -32,12 +39,18 @@ class Device(ControlObject):
         self._units = {}
 
     def get(self, param):
+        """Return the value of *param*."""
         if param not in self._getters:
             raise NotImplementedError
 
         return self._getters[param]()
 
     def set(self, param, value, blocking=False):
+        """Set *param* to *value*.
+
+        When *blocking* is true, execution stops until the hardware parameter
+        is set to *value*.
+        """
         if param not in self._setters:
             raise NotImplementedError
 

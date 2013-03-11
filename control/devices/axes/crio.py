@@ -10,6 +10,8 @@ CRIO_PORT = 6342
 
 
 class LinearAxis(Axis):
+    """A linear axis based on the CompactRIO controller."""
+
     def __init__(self):
         calibration = LinearCalibration(50000 / q.mm, -1 * q.mm)
 
@@ -30,6 +32,8 @@ class LinearAxis(Axis):
 
 
 class RotationAxis(Axis):
+    """A rotational axis based on the CompactRIO controller."""
+
     def __init__(self):
         calibration = LinearCalibration(50000 / q.mm, -1 * q.mm)
 

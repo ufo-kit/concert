@@ -15,6 +15,8 @@ class Connection(object):
 
 
 class SocketConnection(Connection):
+    """A two-way socket connection."""
+
     def __init__(self, host, port):
         super(SocketConnection, self).__init__(str(host) + ":" + str(port))
         self._peer = (host, port)
@@ -28,13 +30,12 @@ class SocketConnection(Connection):
         self._sock.close()
 
     def communicate(self, cmd, *args):
-        """Both-way communication via a socket.
+        """Send *cmd* to the peer.
 
-        @param cmd: command to send
-        @param data: data to send
+        :param cmd: command to send
+        :param data: data to send
 
-        @return: reponse from the device
-
+        :return: reponse from the peer
         """
         to_send = cmd % (args)
         self._logger.debug('Sending {0}'.format(to_send))
@@ -49,6 +50,7 @@ class SocketConnection(Connection):
 
 
 class TangoConnection(Connection):
+    """A connection to a Tango device."""
     def __init__(self, uri, tango_host=None, tango_port=None):
         super(TangoConnection, self).__init__(uri)
 

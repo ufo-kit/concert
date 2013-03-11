@@ -17,8 +17,14 @@ class ContinuousAxisState(AxisState):
 
 
 class Axis(Device):
-    """Base class for everything that moves."""
+    """Base class for everything that moves.
+
+    An axis is used with a *calibration* that conforms to the
+    :class:`Calibration` interface to convert between user and device units.
+    """
+
     def __init__(self, calibration):
+
         super(Axis, self).__init__()
 
         self._state = None
@@ -31,9 +37,11 @@ class Axis(Device):
         self.stop()
 
     def set_position(self, position, blocking=False):
+        """Set the *position* in user units."""
         self.set('position', position, blocking)
 
     def get_position(self):
+        """Get the position in user units."""
         return self.get('position')
 
     def stop(self, blocking=False):
@@ -81,37 +89,40 @@ class ContinuousAxis(Axis):
                        None)
 
     def set_velocity(self, velocity, blocking=False):
+        """Set *velocity* of the axis."""
         self.set('velocity', velocity, blocking)
 
     def get_velocity(self):
+        """Get current velocity of the axis."""
         return self.get('velocity')
 
 
-class _Calibration(object):
+class Calibration(object):
+    """Interface to convert between user and device units."""
+
     def to_user(self, value):
+        """Return *value* in user units."""
         raise NotImplementedError
 
     def to_steps(self, value):
+        """Return *value* in device units."""
         raise NotImplementedError
 
 
-class LinearCalibration(_Calibration):
-    """Represents a linear calibration.
+class LinearCalibration(Calibration):
+    """A linear calibration maps a number of motor steps to a real-world unit.
 
-    A linear calibration maps a number of motor steps to a real-world unit
-    system.
-
+    *steps_per_unit* tells how many steps correspond to some unit,
+    *offset_in_steps* by how many steps the device is away from some zero point.
     """
     def __init__(self, steps_per_unit, offset_in_steps):
         self._steps_per_unit = steps_per_unit
         self._offset = offset_in_steps
 
     def to_user(self, value_in_steps):
-        """Convert value_in_steps to user units"""
         return value_in_steps / self._steps_per_unit + self._offset
 
     def to_steps(self, value):
-        """Convert user unit value to motor steps"""
         return (value - self._offset) * self._steps_per_unit
 
 

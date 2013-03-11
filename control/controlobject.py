@@ -20,19 +20,17 @@ class ControlObject(object):
         return self._id
 
     def subscribe(self, sender, event, callback):
-        """Subscribe to an event.
+        """Subscribe to an *event* sent by *sender*.
         
-        @param event: event
-        @param callback: callback function
-        
+        When *sender* sends the particular event, *callback* will be called with
+        the event is the first argument.
         """
         dispatcher.subscribe(sender, event, callback)
 
     def wait(self, senders_messages, timeout=None):
-        """Wait for a particular event to happen (blocks execution).
+        """Wait for a particular set of events to happen.
         
-        @param event: event
-        @param timeout: timeout [s]
-        
+        :func:`wait` blocks until either all messages are delivered or timeout,
+        given in seconds, has passed.
         """
         dispatcher.wait(senders_messages, timeout)

@@ -22,6 +22,8 @@ class LockedEventList(object):
 
 
 class Dispatcher(object):
+    """Core dispatcher"""
+
     def __init__(self):
         self._subscribers = {}
         self._messages = Queue.Queue()
