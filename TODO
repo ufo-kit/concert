@@ -16,3 +16,4 @@
 - Why has wait_for in Axis a callback? User waits and then does whatever they want.
 - Change set position to non-blocking by default? (more device operate in that mode?)
 - Event id generation
+- wait and subscribe nomenclature

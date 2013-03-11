@@ -5,19 +5,19 @@ import Queue
 class LockedEventList(object):
     def __init__(self, events=[]):
         self._lock = threading.Lock()
-        self._events = events
+        self._queues = events
 
     def add_event(self, event):
         self._lock.acquire()
-        self._events.append(event)
+        self._queues.append(event)
         self._lock.release()
 
     def notify_and_clear(self):
         self._lock.acquire()
-        for event in self._events:
-            event.set()
+        for queue in self._queues:
+            queue.put(None)
 
-        self._events = []
+        self._queues = []
         self._lock.release()
 
 
@@ -25,41 +25,50 @@ class Dispatcher(object):
     def __init__(self):
         self._subscribers = {}
         self._messages = Queue.Queue()
-        self._events = {}
+        self._event_queues = {}
 
         server = threading.Thread(target=self._serve)
         server.daemon = True
         server.start()
 
-    def subscribe(self, sender, message, handler):
+    def subscribe(self, senders_messages, handler):
         """Subscribe to a message sent by sender.
 
         When message is sent by sender, handler is called with sender as the
         only argument.
 
         """
-        t = (sender, message)
+        if senders_messages.__class__ == tuple:
+            senders_messages = [senders_messages]
 
-        if t in self._subscribers:
-            self._subscribers[t].add(handler)
-        else:
-            self._subscribers[t] = set([handler])
+        for t in senders_messages:
+            if t in self._subscribers:
+                self._subscribers[t].add(handler)
+            else:
+                self._subscribers[t] = set([handler])
 
     def send(self, sender, message):
         """Send message from sender."""
         self._messages.put((sender, message))
 
-    def wait(self, sender, message, timeout=None):
+    def wait(self, senders_messages, timeout=None):
         """Wait until sender sent message."""
-        t = (sender, message)
-        event = threading.Event()
+        queue = Queue.Queue()
+        
+        if senders_messages.__class__ == tuple:
+            senders_messages = [senders_messages]
+            
+        for t in senders_messages:
+            if t in self._event_queues:
+                self._event_queues[t].add_event(queue)
+            else:
+                self._event_queues[t] = LockedEventList([queue])
 
-        if t in self._events:
-            self._events[t].add_event(event)
-        else:
-            self._events[t] = LockedEventList([event])
-
-        event.wait(timeout)
+        i = 0
+        while i != len(senders_messages):
+            queue.get(timeout=timeout)
+            queue.task_done()
+            i += 1
 
     def _serve(self):
         while True:
@@ -70,8 +79,8 @@ class Dispatcher(object):
                 for callback in self._subscribers[t]:
                     callback(sender)
 
-            if t in self._events:
-                self._events[t].notify_and_clear()
+            if t in self._event_queues:
+                self._event_queues[t].notify_and_clear()
 
             self._messages.task_done()
 

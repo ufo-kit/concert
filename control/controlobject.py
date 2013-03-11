@@ -19,20 +19,20 @@ class ControlObject(object):
     def object_id(self):
         return self._id
 
-    def subscribe(self, event, callback):
+    def subscribe(self, sender, event, callback):
         """Subscribe to an event.
         
         @param event: event
         @param callback: callback function
         
         """
-        dispatcher.subscribe(self, event, callback)
+        dispatcher.subscribe(sender, event, callback)
 
-    def wait_for(self, event, timeout=None):
+    def wait(self, senders_messages, timeout=None):
         """Wait for a particular event to happen (blocks execution).
         
         @param event: event
         @param timeout: timeout [s]
         
         """
-        dispatcher.wait(self, event, timeout)
+        dispatcher.wait(senders_messages, timeout)

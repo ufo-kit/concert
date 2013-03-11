@@ -20,8 +20,23 @@ class TestDummyAxis(unittest.TestCase):
     def test_set_position_nonblocking(self):
         position = 1 * q.mm
         self.axis.set_position(position, False)
-        self.axis.wait_for(AxisState.STANDBY)
+        self.axis.wait((self.axis, AxisState.STANDBY))
         self.assertEqual(position, self.axis.get_position())
+        
+    def test_set_positions_nonblocking(self):
+        self.axis1 = DummyAxis(None, LinearCalibration(1 / q.mm, 0 * q.mm))
+        
+        position = 1*q.mm
+        position1 = 3*q.mm
+        
+        self.axis.set_position(position, False)
+        self.axis1.set_position(position1, False)
+        
+        self.axis.wait([(self.axis, AxisState.STANDBY),
+                        (self.axis1, AxisState.STANDBY)])
+        
+        self.assertEqual(position, self.axis.get_position())
+        self.assertEqual(position1, self.axis1.get_position())
 
 
 class TestContinuousDummyAxis(unittest.TestCase):
