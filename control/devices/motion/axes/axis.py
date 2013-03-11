@@ -9,41 +9,6 @@ from control.events.dispatcher import dispatcher
 from control.events import type as eventtype
 
 
-class LimitReached(Exception):
-    """Any limit (hard or soft) exception."""
-    def __init__(self, limit):
-        self._limit = limit
-
-    def __str__(self):
-        return repr(self._limit)
-
-
-class Limit(object):
-    """Limit can be soft (set programatically) or hard (determined by a device
-    while moving).
-
-    """
-    HARD = 0
-    SOFT = 1
-
-    def __init__(self, limit_type):
-        self._type = limit_type
-
-    @property
-    def limit_type(self):
-        return self._type
-
-    def __repr__(self):
-        if self._type == Limit.HARD:
-            limit_type_str = "HARD"
-        else:
-            limit_type_str = "SOFT"
-        return "Limit(type=%s)" % (limit_type_str)
-
-    def __str__(self):
-        return repr(self)
-
-
 class AxisState(State):
     """Axis status."""
     STANDBY = eventtype.make_event_id()
@@ -150,3 +115,66 @@ class ContinuousAxis(Axis):
     def is_hard_velocity_limit_reached(self):
         """Implemented by a particular device."""
         raise NotImplementedError
+
+
+class _Calibration(object):
+    def to_user(self, value):
+        raise NotImplementedError
+
+    def to_steps(self, value):
+        raise NotImplementedError
+
+
+class LinearCalibration(_Calibration):
+    """Represents a linear calibration.
+
+    A linear calibration maps a number of motor steps to a real-world unit
+    system.
+
+    """
+    def __init__(self, steps_per_unit, offset_in_steps):
+        self._steps_per_unit = steps_per_unit
+        self._offset = offset_in_steps
+
+    def to_user(self, value_in_steps):
+        """Convert value_in_steps to user units"""
+        return value_in_steps / self._steps_per_unit + self._offset
+
+    def to_steps(self, value):
+        """Convert user unit value to motor steps"""
+        return (value - self._offset) * self._steps_per_unit
+
+
+class LimitReached(Exception):
+    """Any limit (hard or soft) exception."""
+    def __init__(self, limit):
+        self._limit = limit
+
+    def __str__(self):
+        return repr(self._limit)
+
+
+class Limit(object):
+    """Limit can be soft (set programatically) or hard (determined by a device
+    while moving).
+
+    """
+    HARD = 0
+    SOFT = 1
+
+    def __init__(self, limit_type):
+        self._type = limit_type
+
+    @property
+    def limit_type(self):
+        return self._type
+
+    def __repr__(self):
+        if self._type == Limit.HARD:
+            limit_type_str = "HARD"
+        else:
+            limit_type_str = "SOFT"
+        return "Limit(type=%s)" % (limit_type_str)
+
+    def __str__(self):
+        return repr(self)
