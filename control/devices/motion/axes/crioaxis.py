@@ -3,7 +3,7 @@ import readline
 import quantities as q
 from control.devices.motion.axes.axis import Axis
 from control.devices.motion.axes.calibration import LinearCalibration
-from control.connections.socketconnection import SocketConnection
+from control.connection import SocketConnection
 
 
 CRIO_HOST = 'cRIO9074-Motion.ka.fzk.de'
@@ -23,9 +23,6 @@ class CrioLinearAxis(Axis):
                        self._set_position,
                        q.m)
 
-    def _stop_real(self):
-        pass
-
     def _get_position(self):
         raise NotImplementedError
 
@@ -44,9 +41,6 @@ class CrioRotationAxis(Axis):
                        self._get_position,
                        self._set_position,
                        q.m)
-
-    def _stop_real(self):
-        pass
 
     def _get_position(self):
         raise NotImplementedError

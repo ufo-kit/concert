@@ -26,6 +26,7 @@ class Dispatcher(object):
         self._subscribers = {}
         self._messages = Queue.Queue()
         self._event_queues = {}
+        self._lock = threading.Lock()
 
         server = threading.Thread(target=self._serve)
         server.daemon = True
