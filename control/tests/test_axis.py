@@ -55,3 +55,38 @@ class TestContinuousDummyAxis(unittest.TestCase):
         self.axis.set_velocity(velocity, True)
         new_velocity = self.axis.get_velocity()
         self.assertEqual(velocity, new_velocity)
+
+
+class TestAxisCalibration(unittest.TestCase):
+    def setUp(self):
+        self.steps_per_mm = 10. / q.mm
+        calibration = LinearCalibration(self.steps_per_mm, 0 * q.mm)
+
+        class MockAxis(Axis):
+            def __init__(self):
+                super(MockAxis, self).__init__(None, calibration)
+
+                self.position = 0 * q.dimensionless
+                self._register('position',
+                               self._get_position,
+                               self._set_position,
+                               q.m)
+
+            def _stop_real(self):
+                pass
+
+            def _set_position(self, position):
+                self.position = position
+
+            def _get_position(self):
+                return self.position
+
+        self.axis = MockAxis()
+
+    def test_set_position(self):
+        position = 100 * q.mm
+        steps = position * self.steps_per_mm
+
+        self.axis.set_position(position)
+        self.assertEqual(self.axis.position, steps)
+        self.assertEqual(self.axis.get_position(), position)
