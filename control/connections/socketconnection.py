@@ -9,7 +9,7 @@ from control.connections.connection import Connection
 
 
 class SocketConnection(Connection):
-    def __init__(self, uri, host, port):
+    def __init__(self, host, port):
         super(SocketConnection, self).__init__(str(host) + ":" + str(port))
         self._peer = (host, port)
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
