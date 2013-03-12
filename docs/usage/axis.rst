@@ -2,7 +2,7 @@
 Axes
 ====
 
-.. module:: control.devices.axes.axis
+.. module:: concert.devices.axes.base
 
 Every control object that moves along single one-dimensional direction is an
 :class:`Axis`:
@@ -22,8 +22,8 @@ to set the position in human-readable units such as meter or milli meter.
     :members:
 
 
-Defined calibrations
---------------------
+Linear calibration
+------------------
 
 .. autoclass:: LinearCalibration
 
@@ -31,6 +31,5 @@ Defined calibrations
 Implementations
 ===============
 
-.. automodule:: control.devices.axes.crio
+.. automodule:: concert.devices.axes.crio
     :members:
-

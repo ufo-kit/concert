@@ -7,7 +7,7 @@ the publish-subscribe analogy. Once a dispatcher object is created, objects can
 subscribe to messages from other objects and are notified when the message is
 sent to the dispatcher::
 
-    from control.events.dispatcher import Dispatcher
+    from concert.events.dispatcher import Dispatcher
 
     def handle_message(sender):
         print("{0} send me a message".format(sender))
@@ -22,10 +22,10 @@ sent to the dispatcher::
 Programming interface
 =====================
 
-.. py:data:: control.events.dispatcher.dispatcher
+.. py:data:: concert.events.dispatcher.dispatcher
 
     A global :py:class:`Dispatcher` instance used by all devices.
 
 
-.. automodule:: control.events.dispatcher
+.. automodule:: concert.events.dispatcher
     :members:

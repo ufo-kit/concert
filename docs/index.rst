@@ -1,6 +1,6 @@
-=====
-Bossa
-=====
+=======
+Concert
+=======
 
 About
 =====
@@ -18,7 +18,7 @@ Usage documentation
 -------------------
 
 .. toctree::
-    :maxdepth: 2
+    :maxdepth: 3
     :glob:
 
     usage/device
