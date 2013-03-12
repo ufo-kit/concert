@@ -1,8 +1,9 @@
+from concert import __version__
 from distutils.core import setup
 
 setup(
     name='concert',
-    version='0.0.1',
+    version=__version__,
     author='John Doe',
     author_email='john.doe@kit.edu',
     packages=['concert',

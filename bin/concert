@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 
+import concert
+
 if __name__ == '__main__':
     try:
         from IPython.frontend.terminal.embed import InteractiveShellEmbed
 
-        shell = InteractiveShellEmbed(banner1="Welcome to Concert",
-                                      exit_msg="Bye.")
+        banner = "Welcome to Concert {0}".format(concert.__version__)
+        shell = InteractiveShellEmbed(banner1=banner)
         shell()
     except ImportError:
         print("You must install IPython to run the Concert shell!")
-
