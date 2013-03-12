@@ -14,6 +14,7 @@ setup(
               'concert/feedback',
               'concert/processes',
               ],
-    scripts=['bin/autofocus'],
+    scripts=['bin/autofocus',
+             'bin/concert'],
     description="Lightweight control of heterogeneous environment",
 )
