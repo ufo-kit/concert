@@ -3,7 +3,7 @@ Created on Mar 5, 2013
 
 @author: farago
 '''
-from concert.devices.storagerings.storagering import StorageRing
+from concert.devices.storagerings.base import StorageRing
 import quantities as pq
 
 

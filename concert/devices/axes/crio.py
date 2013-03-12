@@ -1,7 +1,7 @@
 import logging
 import readline
 import quantities as q
-from concert.devices.axes.axis import Axis, LinearCalibration
+from concert.devices.axes.base import Axis, LinearCalibration
 from concert.connection import SocketConnection
 
 

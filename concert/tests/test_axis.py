@@ -1,8 +1,8 @@
 import unittest
 import quantities as q
 
-from concert.devices.axes.axis import AxisState, LinearCalibration, Axis
-from concert.devices.axes.dummyaxis import DummyAxis, DummyContinuousAxis
+from concert.devices.axes.base import AxisState, LinearCalibration, Axis
+from concert.devices.axes.dummy import DummyAxis, DummyContinuousAxis
 
 
 class TestDummyAxis(unittest.TestCase):

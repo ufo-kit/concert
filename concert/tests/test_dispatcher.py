@@ -1,9 +1,6 @@
 import unittest
 import time
-import quantities as pq
 from concert.events.dispatcher import Dispatcher
-from concert.devices.axes.dummyaxis import DummyAxis
-from concert.devices.axes.axis import LinearCalibration, AxisState
 
 SLEEP_TIME = 0.005
 
