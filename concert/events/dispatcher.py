@@ -34,41 +34,40 @@ class Dispatcher(object):
         server.daemon = True
         server.start()
 
-    def subscribe(self, senders_messages, handler):
+    def subscribe(self, events, handler):
         """Subscribe to a message sent by sender.
 
         When message is sent by sender, handler is called with sender as the
         only argument.
 
         """
-        if senders_messages.__class__ == tuple:
-            senders_messages = [senders_messages]
-
-        for t in senders_messages:
+        for t in events:
             if t in self._subscribers:
                 self._subscribers[t].add(handler)
             else:
                 self._subscribers[t] = set([handler])
+                
+    def unsubscribe(self, events, handler):
+        for t in events:
+            if t in self._subscribers:
+                self._subscribers[t].remove(handler)
 
     def send(self, sender, message):
         """Send message from sender."""
         self._messages.put((sender, message))
 
-    def wait(self, senders_messages, timeout=None):
+    def wait(self, events, timeout=None):
         """Wait until sender sent message."""
         queue = Queue.Queue()
-        
-        if senders_messages.__class__ == tuple:
-            senders_messages = [senders_messages]
             
-        for t in senders_messages:
+        for t in events:
             if t in self._event_queues:
                 self._event_queues[t].add_event(queue)
             else:
                 self._event_queues[t] = LockedEventList([queue])
 
         i = 0
-        while i != len(senders_messages):
+        while i != len(events):
             queue.get(timeout=timeout)
             queue.task_done()
             i += 1
@@ -80,6 +79,9 @@ class Dispatcher(object):
 
             if t in self._subscribers:
                 for callback in self._subscribers[t]:
+                    callback(sender)
+            if (None, message) in self._subscribers:
+                for callback in self._subscribers[(None, message)]:
                     callback(sender)
 
             if t in self._event_queues:

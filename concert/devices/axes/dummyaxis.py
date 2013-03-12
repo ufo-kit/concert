@@ -1,8 +1,8 @@
 import numpy
 import time
 import quantities as q
-from control.devices.axes.axis import Axis, ContinuousAxis
-from control.devices.axes.axis import AxisState, ContinuousAxisState
+from concert.devices.axes.axis import Axis, ContinuousAxis
+from concert.devices.axes.axis import AxisState, ContinuousAxisState
 
 
 class DummyAxis(Axis):

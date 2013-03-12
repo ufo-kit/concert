@@ -1,8 +1,8 @@
 import unittest
 import quantities as q
 
-from control.devices.axes.dummyaxis import *
-from control.devices.axes.axis import AxisState, LinearCalibration
+from concert.devices.axes.axis import AxisState, LinearCalibration, Axis
+from concert.devices.axes.dummyaxis import DummyAxis, DummyContinuousAxis
 
 
 class TestDummyAxis(unittest.TestCase):
@@ -19,7 +19,7 @@ class TestDummyAxis(unittest.TestCase):
     def test_set_position_nonblocking(self):
         position = 1 * q.mm
         self.axis.set_position(position, False)
-        self.axis.wait((self.axis, AxisState.STANDBY))
+        self.axis.wait([(self.axis, AxisState.STANDBY)])
         self.assertEqual(position, self.axis.get_position())
 
     def test_set_positions_nonblocking(self):

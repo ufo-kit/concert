@@ -3,9 +3,10 @@ Created on Mar 5, 2013
 
 @author: farago
 '''
-from control.controlobject import ControlObject
+from concert.concertobject import ConcertObject
 
-class StorageRing(ControlObject):
+
+class StorageRing(ConcertObject):
     """Electron storage ring."""
     @property
     def current(self):

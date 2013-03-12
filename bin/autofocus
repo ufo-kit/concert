@@ -4,9 +4,9 @@ import logging
 import argparse
 import quantities as q
 from gi.repository import Ufo, Uca
-from control.feedback.optimization import Maximizer
-from control.devices.axes.crio import LinearAxis
-from control.processes.gradientmaximizer import GradientMaximizer
+from concert.feedback.optimization import Maximizer
+from concert.devices.axes.crio import LinearAxis
+from concert.processes.gradientmaximizer import GradientMaximizer
 
 
 if __name__ == '__main__':

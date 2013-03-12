@@ -1,7 +1,7 @@
 from threading import Thread
-from control.devices.device import Device, State
-from control.events.dispatcher import dispatcher
-from control.events import type as eventtype
+from concert.devices.device import Device, State
+from concert.events.dispatcher import dispatcher
+from concert.events import type as eventtype
 
 
 class AxisState(State):

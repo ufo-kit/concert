@@ -1,6 +1,6 @@
 import threading
-from control.controlobject import ControlObject
-from control.events import type as eventtype
+from concert.events import type as eventtype
+from concert.concertobject import ConcertObject
 
 
 class UnknownStateError(Exception):
@@ -22,7 +22,7 @@ class State(object):
     ERROR = eventtype.make_event_id()
 
 
-class Device(ControlObject):
+class Device(ConcertObject):
     """Base class for controllable devices for which a set of parameters can be
     set.
 

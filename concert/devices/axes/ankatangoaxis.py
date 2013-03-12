@@ -5,9 +5,9 @@ Created on Mar 5, 2013
 '''
 import time
 import PyTango
-from control.devices.axes.axis import Axis, AxisState
-from control.devices.device import State
-from control.devices.device import UnknownStateError
+from concert.devices.axes.axis import Axis, AxisState
+from concert.devices.device import State
+from concert.devices.device import UnknownStateError
 
 
 SLEEP_TIME = 0.005

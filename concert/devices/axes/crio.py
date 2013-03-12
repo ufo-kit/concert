@@ -1,8 +1,8 @@
 import logging
 import readline
 import quantities as q
-from control.devices.axes.axis import Axis, LinearCalibration
-from control.connection import SocketConnection
+from concert.devices.axes.axis import Axis, LinearCalibration
+from concert.connection import SocketConnection
 
 
 CRIO_HOST = 'cRIO9074-Motion.ka.fzk.de'
