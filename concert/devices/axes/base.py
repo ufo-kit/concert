@@ -24,7 +24,6 @@ class Axis(Device):
     """
 
     def __init__(self, calibration):
-
         super(Axis, self).__init__()
 
         self._state = None
@@ -43,6 +42,11 @@ class Axis(Device):
     def get_position(self):
         """Get the position in user units."""
         return self.get('position')
+
+    def move(self, delta, blocking=False):
+        """Move axis by *delta* user units."""
+        new_position = self.get_position() + delta
+        self.set_position(new_position, blocking)
 
     def stop(self, blocking=False):
         """Stop the motion."""

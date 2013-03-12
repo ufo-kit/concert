@@ -6,4 +6,4 @@ devices like this::
 
     axis = LinearAxis()
     axis.set_position(10 * q.mm)
-    axis.move_by(-5 * q.mm)
+    axis.move(-5 * q.mm)
