@@ -43,8 +43,9 @@ def start_session(args):
 
 def edit_session(args):
     exit_if_not_exists(args.session)
-    subprocess.call([os.environ['EDITOR'],
-                     concert.session.path(args.session)])
+    env = os.environ
+    editor = env['EDITOR'] if 'EDITOR' in env else 'vi'
+    subprocess.call([editor, concert.session.path(args.session)])
 
 
 def show_sessions(args):
