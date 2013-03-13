@@ -127,10 +127,10 @@ class LinearCalibration(Calibration):
         self._offset = offset_in_steps
 
     def to_user(self, value_in_steps):
-        return value_in_steps / self._steps_per_unit + self._offset
+        return value_in_steps / self._steps_per_unit - self._offset
 
     def to_steps(self, value):
-        return (value - self._offset) * self._steps_per_unit
+        return (value + self._offset) * self._steps_per_unit
 
 
 class LimitReached(Exception):
