@@ -8,7 +8,7 @@ class AxisState(State):
     """Axis status."""
     STANDBY = eventtype.make_event_id()
     MOVING = eventtype.make_event_id()
-    POSITION_LIMIT = eventtype.make_event_id()
+#    POSITION_LIMIT = eventtype.make_event_id()
 
 
 class ContinuousAxisState(AxisState):

@@ -1,4 +1,5 @@
-from concert.feedback.optimization import Maximizer, Minimizer
+from concert.optimization.scalar import Maximizer, Minimizer
+
 
 
 def test_maximizer():

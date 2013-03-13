@@ -76,7 +76,7 @@ class Dispatcher(object):
         while True:
             t = self._messages.get()
             sender, message = t
-
+            
             if t in self._subscribers:
                 for callback in self._subscribers[t]:
                     callback(sender)
