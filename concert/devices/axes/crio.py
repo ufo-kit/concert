@@ -17,6 +17,7 @@ class LinearAxis(Axis):
 
         super(LinearAxis, self).__init__(calibration)
 
+        self._steps = None
         self._connection = SocketConnection(CRIO_HOST, CRIO_PORT)
         self._register('position',
                        self._get_position,
@@ -25,9 +26,10 @@ class LinearAxis(Axis):
                        lambda x: x >= 0 * q.mm and x <= 2 * q.mm)
 
     def _get_position(self):
-        raise NotImplementedError
+        return self._steps
 
     def _set_position(self, steps):
+        self._steps = steps
         self._connection.communicate('lin %i\r\n' % steps)
 
 
@@ -35,11 +37,12 @@ class RotationAxis(Axis):
     """A rotational axis based on the CompactRIO controller."""
 
     def __init__(self):
-        calibration = LinearCalibration(50000 / q.mm, -1 * q.mm)
+        calibration = LinearCalibration(50000 / q.mm, 0 * q.mm)
 
         super(RotationAxis, self).__init__(calibration)
 
         self._connection = SocketConnection(CRIO_HOST, CRIO_PORT)
+        self._steps = None
         self._register('position',
                        self._get_position,
                        self._set_position,
@@ -47,9 +50,10 @@ class RotationAxis(Axis):
                        lambda x: x >= 0 * q.mm and x <= 2 * q.mm)
 
     def _get_position(self):
-        raise NotImplementedError
+        return self._steps
 
     def _set_position(self, steps):
+        self._steps = steps
         self._connection.communicate('rot %i\r\n' % steps)
 
 
