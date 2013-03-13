@@ -1,6 +1,6 @@
 import threading
 from concert.events import type as eventtype
-from concert.concertobject import ConcertObject
+from concert.base import ConcertObject
 
 
 class UnknownStateError(Exception):

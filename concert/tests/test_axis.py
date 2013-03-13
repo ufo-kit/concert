@@ -3,6 +3,7 @@ import quantities as q
 
 from concert.devices.axes.base import AxisState, LinearCalibration, Axis
 from concert.devices.axes.dummy import DummyAxis, DummyContinuousAxis
+from concert.events.dispatcher import dispatcher
 
 
 class TestDummyAxis(unittest.TestCase):
@@ -30,10 +31,8 @@ class TestDummyAxis(unittest.TestCase):
 
         self.axis.set_position(position, False)
         axis1.set_position(position1, False)
-
-        self.axis.wait([(self.axis, AxisState.STANDBY),
-                        (axis1, AxisState.STANDBY)])
-
+        dispatcher.wait([(self.axis, AxisState.STANDBY),
+                        (axis1, AxisState.STANDBY)], timeout=1)    
         self.assertEqual(position, self.axis.get_position())
         self.assertEqual(position1, axis1.get_position())
 

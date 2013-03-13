@@ -53,7 +53,7 @@ class ANKATangoDiscreteAxis(Axis):
         time.sleep(SLOW_SLEEP_TIME)
         while self.state == AxisState.MOVING:
             time.sleep(SLEEP_TIME)
-#        if self.in_hard_limit():
+#        if self.is_in_hard_limit():
 #            raise LimitReached("hard")
         
     def _get_position_real(self):
@@ -69,6 +69,6 @@ class ANKATangoDiscreteAxis(Axis):
     def home(self):
         pass
 
-    def in_hard_limit(self):
+    def is_in_hard_limit(self):
         return self._connection.tango_device.BackwardLimitSwitch or\
                 self._connection.tango_device.ForwardLimitSwitch

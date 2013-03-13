@@ -1,5 +1,6 @@
 import threading
 import Queue
+from Queue import Empty
 
 
 class LockedEventList(object):
@@ -68,8 +69,11 @@ class Dispatcher(object):
 
         i = 0
         while i != len(events):
-            queue.get(timeout=timeout)
-            queue.task_done()
+            try:
+                queue.get(timeout=timeout)
+                queue.task_done()
+            except Empty:
+                pass 
             i += 1
 
     def _serve(self):

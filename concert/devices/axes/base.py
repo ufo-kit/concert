@@ -1,6 +1,5 @@
 from threading import Thread
 from concert.devices.device import Device, State
-from concert.events.dispatcher import dispatcher
 from concert.events import type as eventtype
 
 
@@ -8,13 +7,11 @@ class AxisState(State):
     """Axis status."""
     STANDBY = eventtype.make_event_id()
     MOVING = eventtype.make_event_id()
-#    POSITION_LIMIT = eventtype.make_event_id()
 
-
-class ContinuousAxisState(AxisState):
-    """Axis status."""
+class AxisMessage(object):
+    """Axis message."""
+    POSITION_LIMIT = eventtype.make_event_id()
     VELOCITY_LIMIT = eventtype.make_event_id()
-
 
 class Axis(Device):
     """Base class for everything that moves.
@@ -67,7 +64,7 @@ class Axis(Device):
 
     def _set_state(self, state):
         self._state = state
-        dispatcher.send(self, state)
+        self.send(self._state)
 
     def _stop_real(self):
         """Stop the physical axis.
@@ -76,6 +73,9 @@ class Axis(Device):
         events at appropriate times.
 
         """
+        raise NotImplementedError
+    
+    def is_in_hard_limit(self):
         raise NotImplementedError
 
 

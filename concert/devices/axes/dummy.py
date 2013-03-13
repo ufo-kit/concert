@@ -1,8 +1,9 @@
 import numpy
 import time
 import quantities as q
-from concert.devices.axes.base import Axis, ContinuousAxis, LimitReached
-from concert.devices.axes.base import AxisState, ContinuousAxisState
+from concert.devices.axes.base import Axis, ContinuousAxis, LimitReached,\
+    AxisMessage
+from concert.devices.axes.base import AxisState
 
 
 class DummyAxis(Axis):
@@ -20,21 +21,21 @@ class DummyAxis(Axis):
     def _stop_real(self):
         pass
     
-    def in_hard_limit(self):
+    def is_in_hard_limit(self):
         return self._position <= self._hard_limits[0] or\
             self._position >= self._hard_limits[1]
 
     def _set_position(self, position):
         self._set_state(AxisState.MOVING)
 
-#        time.sleep(numpy.random.random() / 2.)
+        time.sleep(numpy.random.random() / 2.)
 
         if position < self._hard_limits[0]:
             self._position = self._hard_limits[0]
-            raise LimitReached("hard")
+            self.send(AxisMessage.POSITION_LIMIT)
         elif position > self._hard_limits[1]:
             self._position = self._hard_limits[1]
-            raise LimitReached("hard")
+            self.send(AxisMessage.POSITION_LIMIT)
         else:
             self._position = position
             self._set_state(AxisState.STANDBY)
@@ -63,7 +64,7 @@ class DummyContinuousAxis(ContinuousAxis):
                        q.m / q.s)
 
     def _stop_real(self):
-        time.sleep(0.5)
+        time.sleep(0.1)
         self._velocity = 0
 
     def _set_position(self, position):
@@ -86,10 +87,10 @@ class DummyContinuousAxis(ContinuousAxis):
 
         if self._velocity < self._velocity_hard_limits[0]:
             self._velocity = self._velocity_hard_limits[0]
-            self._set_state(ContinuousAxisState.VELOCITY_LIMIT)
+            self.send(AxisMessage.VELOCITY_LIMIT)
         elif self._velocity > self._velocity_hard_limits[1]:
             self._velocity = self._velocity_hard_limits[1]
-            self._set_state(ContinuousAxisState.VELOCITY_LIMIT)
+            self.send(AxisMessage.VELOCITY_LIMIT)
         else:
             self._set_state(AxisState.STANDBY)
 
