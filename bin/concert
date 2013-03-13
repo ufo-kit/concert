@@ -31,7 +31,9 @@ def exit_if_not_exists(session):
 
 def init_session(args):
     if concert.session.exists(args.session) and not args.force:
-        print("Session `%s' already exists" % args.session)
+        message = "Session `{0}' already exists."
+        message += " Use --force to create it anyway."
+        print(message.format(args.session))
     else:
         concert.session.create(args.session)
 
@@ -46,6 +48,10 @@ def edit_session(args):
     env = os.environ
     editor = env['EDITOR'] if 'EDITOR' in env else 'vi'
     subprocess.call([editor, concert.session.path(args.session)])
+
+
+def remove_session(args):
+    concert.session.remove(args.session)
 
 
 def show_sessions(args):
@@ -67,25 +73,28 @@ if __name__ == '__main__':
                         action='version',
                         version="Concert v%s " % concert.__version__)
 
+    session_arg = {'session': {'type': str}}
+
+    commands = [('init', "Create a new session", init_session,
+                    {
+                        'session': {'type': str},
+                        '--force': {'action': 'store_true',
+                                    'help': "Overwrite existing sessions"}
+                    }),
+                ('edit', "Edit session details", edit_session, session_arg),
+                ('rm', "Remove a session", remove_session, session_arg),
+                ('start', "Start a session", start_session, session_arg),
+                ('show', "Show existing sessions", show_sessions, {})]
+
     subparsers = parser.add_subparsers(title="Concert commands",
                                        metavar="")
 
-    init_parser = subparsers.add_parser('init', help='Create a new session')
-    init_parser.add_argument('--force', action='store_true',
-                             help="Overwrite existing sessions")
-    init_parser.add_argument('session', type=str)
-    init_parser.set_defaults(func=init_session)
+    for command, help_text, func, args in commands:
+        cmd_parser = subparsers.add_parser(command, help=help_text)
+        cmd_parser.set_defaults(func=func)
 
-    start_parser = subparsers.add_parser('start', help='Start a session')
-    start_parser.add_argument('session', type=str)
-    start_parser.set_defaults(func=start_session)
-
-    edit_parser = subparsers.add_parser('edit', help='Edit session details')
-    edit_parser.add_argument('session', type=str)
-    edit_parser.set_defaults(func=edit_session)
-
-    show_parser = subparsers.add_parser('show', help='Show existing sessions')
-    show_parser.set_defaults(func=show_sessions)
+        for arg in args.keys():
+            cmd_parser.add_argument(arg, **args[arg])
 
     args = parser.parse_args()
     args.func(args)

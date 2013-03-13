@@ -29,6 +29,15 @@ The following session management commands are available:
 
         crio1 = LinearAxis(None)
 
+.. cmdoption:: remove <name>
+
+    Remove a session.
+
+    .. note::
+        
+        Be careful. The session file is unlinked from the file system and no
+        backup is made.
+
 .. cmdoption:: start <name>
 
     Load the session file and launch an IPython shell. Every definition that was
