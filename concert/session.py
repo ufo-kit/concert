@@ -29,11 +29,12 @@ def create(session):
     if not os.path.exists(PATH):
         os.mkdir(PATH)
 
-    with open(path(session), 'w') as fp:
-        fp.write(template)
+    with open(path(session), 'w') as session_file:
+        session_file.write(template)
 
 
 def load(session):
+    """Load *session* and return the module."""
     return imp.load_source('m', path(session))
 
 
