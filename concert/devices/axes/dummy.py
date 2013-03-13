@@ -2,7 +2,7 @@ import numpy
 import time
 import quantities as q
 from concert.devices.axes.base import Axis, ContinuousAxis, LimitReached,\
-    AxisMessage
+    AxisMessage, LinearCalibration
 from concert.devices.axes.base import AxisState
 
 
@@ -16,7 +16,9 @@ class DummyAxis(Axis):
         self._register('position',
                        self._get_position,
                        self._set_position,
-                       q.m)
+                       q.m,
+                       limiter=lambda x: self._hard_limits[0] < x <\
+                                                self._hard_limits[1])
 
     def _stop_real(self):
         pass
