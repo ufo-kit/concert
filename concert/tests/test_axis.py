@@ -22,20 +22,27 @@ class TestDummyAxis(unittest.TestCase):
         self.axis.wait(AxisState.STANDBY)
         self.assertEqual(position, self.axis.get_position())
 
-#    def test_set_positions_nonblocking(self):
-#        self.axis1 = DummyAxis(LinearCalibration(1 / q.mm, 0 * q.mm))
-#
-#        position = 1 * q.mm
-#        position1 = 3 * q.mm
-#
-#        self.axis.set_position(position, False)
-#        self.axis1.set_position(position1, False)
-#
-#        self.axis.wait([(self.axis, AxisState.STANDBY),
-#                        (self.axis1, AxisState.STANDBY)])
-#
-#        self.assertEqual(position, self.axis.get_position())
-#        self.assertEqual(position1, self.axis1.get_position())
+    def test_set_positions_nonblocking(self):
+        axis1 = DummyAxis(LinearCalibration(1 / q.mm, 0 * q.mm))
+
+        position = 1 * q.mm
+        position1 = 3 * q.mm
+
+        self.axis.set_position(position, False)
+        axis1.set_position(position1, False)
+
+        self.axis.wait([(self.axis, AxisState.STANDBY),
+                        (axis1, AxisState.STANDBY)])
+
+        self.assertEqual(position, self.axis.get_position())
+        self.assertEqual(position1, axis1.get_position())
+
+    def test_move(self):
+        position = 1 * q.mm
+        delta = 0.5 * q.mm
+        self.axis.set_position(position, True)
+        self.axis.move(delta, True)
+        self.assertEqual(position + delta, self.axis.get_position())
 
 
 class TestContinuousDummyAxis(unittest.TestCase):

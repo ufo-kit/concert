@@ -8,7 +8,7 @@ extensions = ['sphinx.ext.autodoc']
 source_suffix = '.rst'
 master_doc = 'index'
 
-project = u'bossa'
+project = u'concert'
 copyright = u'2013, Matthias Vogelgesang'
 
 version = '0.0'
@@ -18,7 +18,7 @@ exclude_patterns = ['_build']
 pygments_style = 'sphinx'
 
 # html_static_path = ['_static']
-htmlhelp_basename = 'bossadoc'
+htmlhelp_basename = 'concertdoc'
 
 
 # -- Options for LaTeX output --------------------------------------------------
@@ -34,13 +34,13 @@ latex_elements = {
 }
 
 latex_documents = [
-  ('index', 'bossa.tex', u'bossa Documentation',
+  ('index', 'concert.tex', u'concert Documentation',
    u'Matthias Vogelgesang', 'manual'),
 ]
 
 
 # -- Options for manual page output --------------------------------------------
 man_pages = [
-    ('index', 'bossa', u'bossa Documentation',
+    ('index', 'concert', u'concert Documentation',
      [u'Matthias Vogelgesang'], 1)
 ]

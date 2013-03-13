@@ -21,10 +21,12 @@ class Axis(Device):
 
     An axis is used with a *calibration* that conforms to the
     :class:`Calibration` interface to convert between user and device units.
+
+    Exported parameters:
+        - ``"position"``: Position of the axis
     """
 
     def __init__(self, calibration):
-
         super(Axis, self).__init__()
 
         self._state = None
@@ -43,6 +45,11 @@ class Axis(Device):
     def get_position(self):
         """Get the position in user units."""
         return self.get('position')
+
+    def move(self, delta, blocking=False):
+        """Move axis by *delta* user units."""
+        new_position = self.get_position() + delta
+        self.set_position(new_position, blocking)
 
     def stop(self, blocking=False):
         """Stop the motion."""
@@ -120,10 +127,10 @@ class LinearCalibration(Calibration):
         self._offset = offset_in_steps
 
     def to_user(self, value_in_steps):
-        return value_in_steps / self._steps_per_unit + self._offset
+        return value_in_steps / self._steps_per_unit - self._offset
 
     def to_steps(self, value):
-        return (value - self._offset) * self._steps_per_unit
+        return (value + self._offset) * self._steps_per_unit
 
 
 class LimitReached(Exception):

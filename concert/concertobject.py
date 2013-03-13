@@ -29,10 +29,14 @@ class ConcertObject(object):
 
     def wait(self, message, timeout=None):
         """Wait for a particular list of *events* composed of (sender, message)
-        tuples to happen. When *timeout* is given, the method will give every
-        event *timeout* time to happen. Neither sender nor message can be None.
-        
-        :func:`wait` blocks until either all messages are delivered or timeout,
-        given in seconds, has passed.
+        tuples to happen.
+
+        When *timeout* is given, the method will give every event *timeout* time
+        to happen. Neither sender nor message can be None.
+
+        .. note::
+
+            This method blocks until either all messages are delivered or
+            the timeout has passed.
         """
         dispatcher.wait([(self, message)], timeout)

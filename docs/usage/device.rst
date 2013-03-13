@@ -2,11 +2,15 @@
 Devices
 =======
 
-.. module:: control.devices.device
+.. module:: concert.devices.device
 
-A devices is the fundamental base of a controllable object. It provides a
+A device is the fundamental base of a controllable object. It provides a
 mechanism to set and get arbitrary parameters that can have an associated
-real-world unit. The following base devices are available:
+real-world unit.
+
+
+Pre-defined devices
+===================
 
 .. toctree::
     :maxdepth: 2
@@ -14,22 +18,22 @@ real-world unit. The following base devices are available:
     axis
 
 
-Programming interface
-=====================
+Base device
+===========
 
 .. autoclass:: Device
     :members:
 
 A device is also a control object that automatically uses the global
-:py:data:`control.events.dispatcher.dispatcher` object to send and subscribe
+:py:data:`concert.events.dispatcher.dispatcher` object to send and subscribe
 messages to which interested parties can subscribe to:
 
-.. autoclass:: control.controlobject.ControlObject
+.. autoclass:: concert.concertobject.ConcertObject
     :members:
 
 
 Implementing devices
-====================
+--------------------
 
 .. py:class:: Device
 
