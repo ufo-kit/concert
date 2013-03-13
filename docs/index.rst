@@ -57,5 +57,6 @@ Usage documentation
     :maxdepth: 3
     :glob:
 
+    usage/sessions
     usage/device
     usage/dispatcher
