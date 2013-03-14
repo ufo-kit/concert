@@ -24,7 +24,7 @@ if __name__ == '__main__':
     
     axis = DummyAxis(LinearCalibration(1/pq.mm, 0*pq.mm))
     sharpness = Maximizer(1e-3)
-    measue = DummyGradientMeasure(axis, 17.45*pq.mm)
+    measue = DummyGradientMeasure(axis, 170.45*pq.mm)
     
     focuser = DummyGradientMaximizer(axis, 1.0*pq.mm, 1e-5,
                                      measue.get_gradient)

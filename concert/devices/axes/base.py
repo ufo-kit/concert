@@ -75,7 +75,7 @@ class Axis(Device):
         """
         raise NotImplementedError
     
-    def is_in_hard_limit(self):
+    def hard_position_limit_reached(self):
         raise NotImplementedError
 
 
@@ -131,38 +131,3 @@ class LinearCalibration(Calibration):
 
     def to_steps(self, value):
         return (value + self._offset) * self._steps_per_unit
-
-
-class LimitReached(Exception):
-    """Hard limit exception."""
-    def __init__(self, limit):
-        self._limit = limit
-
-    def __str__(self):
-        return repr(self._limit)
-
-
-class Limit(object):
-    """Limit can be soft (set programatically) or hard (determined by a device
-    while moving).
-
-    """
-    HARD = 0
-    SOFT = 1
-
-    def __init__(self, limit_type):
-        self._type = limit_type
-
-    @property
-    def limit_type(self):
-        return self._type
-
-    def __repr__(self):
-        if self._type == Limit.HARD:
-            limit_type_str = "HARD"
-        else:
-            limit_type_str = "SOFT"
-        return "Limit(type=%s)" % (limit_type_str)
-
-    def __str__(self):
-        return repr(self)

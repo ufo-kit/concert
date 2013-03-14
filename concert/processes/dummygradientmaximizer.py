@@ -5,11 +5,10 @@ Created on Mar 13, 2013
 '''
 from concert.events import type as eventtype
 import logging
-from concert.concertobject import ConcertObject
 from concert.events.dispatcher import dispatcher
 from concert.optimization.scalar import Maximizer
-from concert.devices.axes.base import LimitReached
 from threading import Thread
+from concert.base import ConcertObject
 
 
 class DummyGradientMaximizerState(object):
@@ -36,16 +35,14 @@ class DummyGradientMaximizer(ConcertObject):
         def _focus():
             while True:
                 self._maximizer.value = self._gradient_feedback()
-                try :
-                    self._axis.set_position(self._axis.get_position()+\
-                                    self._direction*self._step, blocking=True)
-                    if not self._maximizer.is_better(self._gradient_feedback()):
-                        self.turn()
-                    elif abs(self._maximizer.value - self._gradient_feedback())\
-                                                                < self._eps:
-                        break
-                except LimitReached:
+                self._axis.set_position(self._axis.get_position()+\
+                                self._direction*self._step, blocking=True)
+                if self._axis.hard_position_limit_reached() or\
+                    not self._maximizer.is_better(self._gradient_feedback()):
                     self.turn()
+                elif abs(self._maximizer.value - self._gradient_feedback())\
+                                                            < self._eps:
+                    break
                 self._logger.debug("Gradient: %g, axis position: %s" %\
                    (self._gradient_feedback(), str(self._axis.get_position())))
             self._logger.info("Maximum gradient: %g found at position: %s" %\

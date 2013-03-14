@@ -60,15 +60,11 @@ class Device(ConcertObject):
 
         if not self._unit_is_compatible(param, value):
             s = "`{0}' can only receive values of unit {1}"
-            self.send(Message.INCOMPATIBLE_UNIT)
-            if blocking:
-                raise ValueError(s.format(param, self._units[param]))
+            raise ValueError(s.format(param, self._units[param]))
 
         if not self._value_is_in_range(param, value):
             s = "Value {0} for `{1}` is out of range"
-            self.send(Message.OUT_OF_RANGE)
-            if blocking:
-                raise ValueError(s.format(value, param))
+            raise ValueError(s.format(value, param))
 
         setter = self._setters[param]
 

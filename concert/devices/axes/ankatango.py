@@ -5,8 +5,7 @@ Created on Mar 5, 2013
 '''
 import time
 import PyTango
-from concert.devices.axes.base import Axis, AxisState, LimitReached, Limit
-from concert.devices.device import State
+from concert.devices.axes.base import Axis, AxisState, AxisMessage
 from concert.devices.device import UnknownStateError
 import quantities as pq
 from threading import Thread
@@ -53,8 +52,8 @@ class ANKATangoDiscreteAxis(Axis):
         time.sleep(SLOW_SLEEP_TIME)
         while self.state == AxisState.MOVING:
             time.sleep(SLEEP_TIME)
-#        if self.is_in_hard_limit():
-#            raise LimitReached("hard")
+        if self.hard_position_limit_reached():
+            self.send(AxisMessage.POSITION_LIMIT)
         
     def _get_position_real(self):
         return self._connection.tango_device.read_attribute("position").value
@@ -69,6 +68,6 @@ class ANKATangoDiscreteAxis(Axis):
     def home(self):
         pass
 
-    def is_in_hard_limit(self):
+    def hard_position_limit_reached(self):
         return self._connection.tango_device.BackwardLimitSwitch or\
                 self._connection.tango_device.ForwardLimitSwitch

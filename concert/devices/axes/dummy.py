@@ -1,8 +1,7 @@
 import numpy
 import time
 import quantities as q
-from concert.devices.axes.base import Axis, ContinuousAxis, LimitReached,\
-    AxisMessage, LinearCalibration
+from concert.devices.axes.base import Axis, ContinuousAxis, AxisMessage
 from concert.devices.axes.base import AxisState
 
 
@@ -16,21 +15,19 @@ class DummyAxis(Axis):
         self._register('position',
                        self._get_position,
                        self._set_position,
-                       q.m,
-                       limiter=lambda x: self._hard_limits[0] < x <\
-                                                self._hard_limits[1])
+                       q.m)
 
     def _stop_real(self):
         pass
     
-    def is_in_hard_limit(self):
+    def hard_position_limit_reached(self):
         return self._position <= self._hard_limits[0] or\
             self._position >= self._hard_limits[1]
 
     def _set_position(self, position):
         self._set_state(AxisState.MOVING)
 
-        time.sleep(numpy.random.random() / 2.)
+        time.sleep(numpy.random.random() / 25.)
 
         if position < self._hard_limits[0]:
             self._position = self._hard_limits[0]
@@ -70,7 +67,7 @@ class DummyContinuousAxis(ContinuousAxis):
         self._velocity = 0
 
     def _set_position(self, position):
-        time.sleep(numpy.random.random() / 2.)
+        time.sleep(numpy.random.random() / 25.)
 
         self._position = position
         if self._position < self._position_hard_limits[0]:
