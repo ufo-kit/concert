@@ -19,6 +19,12 @@ The following session management commands are available:
 
         Create the session even if one already exists with this name.
 
+    .. cmdoption:: --logfile=<filename>
+
+        Specify a log file. This will create a ``__handler__`` variable inside
+        the session and assign a file handler to it. This will then be used
+        instead of the default stderr handler.
+
 .. cmdoption:: edit <name>
 
     Edit the session file by launching ``$EDITOR`` with the associated Python
