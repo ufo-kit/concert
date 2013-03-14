@@ -4,6 +4,7 @@ from concert.tests.decorators import slow
 from concert.devices.axes.base import LinearCalibration
 from concert.measures.dummygradient import DummyGradientMeasure
 from concert.processes.focus import Focuser
+from concert.devices.axes.dummy import DummyAxis, DummyLimiter
 
 
 class TestDummyFocusing(unittest.TestCase):
