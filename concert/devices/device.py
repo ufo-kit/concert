@@ -100,7 +100,7 @@ class Device(ConcertObject):
         else:
             self._setters[param] = setter
 
-    def _register(self, param, getter, setter, unit, limiter=None):
+    def _register(self, param, getter, setter, unit=None, limiter=None):
         if getter:
             self._register_getter(param, getter)
 

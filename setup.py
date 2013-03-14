@@ -10,6 +10,7 @@ setup(
               'concert/controllers',
               'concert/devices',
               'concert/devices/axes',
+              'concert/devices/cameras',
               'concert/devices/storagerings/',
               'concert/events',
               'concert/feedback',
