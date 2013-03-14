@@ -1,3 +1,4 @@
 argparse>=1.2.1
 quantities>=0.10.1
 pyxdg>=0.25
+logbook>=0.4.0

@@ -1,6 +1,9 @@
 import socket
-import logging
 import os
+import logbook
+
+
+log = logbook.Logger(__name__)
 
 
 class Connection(object):
@@ -24,8 +27,6 @@ class SocketConnection(Connection):
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._sock.settimeout(20)
         self._sock.connect(self._peer)
-        self._logger = logging.getLogger(__name__ + "." +
-                                         self.__class__.__name__)
 
     def __del__(self):
         self._sock.close()
@@ -39,15 +40,15 @@ class SocketConnection(Connection):
         :return: reponse from the peer
         """
         to_send = cmd % (args)
-        self._logger.debug('Sending {0}'.format(to_send))
+        log.debug('Sending {0}'.format(to_send))
         self._sock.sendall(to_send.encode('ascii'))
 
         try:
             result = self._sock.recv(1024)
-            self._logger.debug('Received {0}'.format(result))
+            log.debug('Received {0}'.format(result))
             return result
         except socket.timeout:
-            self._logger.warning('Reading from %s:%i timed out' % self._peer)
+            log.warn('Reading from %s:%i timed out' % self._peer)
 
 
 class TangoConnection(Connection):

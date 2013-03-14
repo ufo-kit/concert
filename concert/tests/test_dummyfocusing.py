@@ -1,4 +1,5 @@
 import unittest
+import logbook
 import quantities as q
 from concert.tests.decorators import slow
 from concert.devices.axes.base import LinearCalibration
@@ -15,6 +16,11 @@ class TestDummyFocusing(unittest.TestCase):
                                 self._gradient_feedback.get_gradient)
         self._position_eps = 1e-1*q.mm
         self._gradient_cmp_eps = 1e-1
+        self.handler = logbook.TestHandler()
+        self.handler.push_thread()
+
+    def tearDown(self):
+        self.handler.pop_thread()
 
     def _check_position(self, position, other_position):
         self.assertTrue(other_position -

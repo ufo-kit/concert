@@ -1,5 +1,9 @@
+from logbook import Logger
 from concert.events import type as eventtype
 from concert.base import ConcertObject, launch
+
+
+log = Logger(__name__)
 
 
 class UnknownStateError(Exception):
@@ -60,6 +64,9 @@ class Device(ConcertObject):
         if not self._value_is_in_range(param, value):
             s = "Value {0} for `{1}` is out of range"
             raise ValueError(s.format(value, param))
+
+        msg = "{0}: set {1}='{2}' blocking='{3}'"
+        log.info(msg.format(str(self), param, value, blocking))
 
         setter = self._setters[param]
         launch(setter, (value,), blocking)
