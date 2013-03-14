@@ -19,7 +19,7 @@ class DummyAxis(Axis):
 
     def _stop_real(self):
         pass
-    
+
     def hard_position_limit_reached(self):
         return self._position <= self._hard_limits[0] or\
             self._position >= self._hard_limits[1]

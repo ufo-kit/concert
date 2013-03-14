@@ -37,9 +37,9 @@ class ANKATangoDiscreteAxis(Axis):
             current = AxisState.STANDBY
         else:
             raise UnknownStateError(tango_state)
-        
+
         return current
-        
+
     def _poll_state(self):
         while True:
             current = self._determine_state()
@@ -54,10 +54,10 @@ class ANKATangoDiscreteAxis(Axis):
             time.sleep(SLEEP_TIME)
         if self.hard_position_limit_reached():
             self.send(AxisMessage.POSITION_LIMIT)
-        
+
     def _get_position_real(self):
         return self._connection.tango_device.read_attribute("position").value
-    
+
     def _stop_real(self):
         device = self._connection.tango_device
         device.command_inout("Stop")
@@ -70,4 +70,4 @@ class ANKATangoDiscreteAxis(Axis):
 
     def hard_position_limit_reached(self):
         return self._connection.tango_device.BackwardLimitSwitch or\
-                self._connection.tango_device.ForwardLimitSwitch
+            self._connection.tango_device.ForwardLimitSwitch

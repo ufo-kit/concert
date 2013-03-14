@@ -1,8 +1,9 @@
 import logging
 import sys
+from concert.base import ConcertObject
 
 
-class _ScalarOptimizer(object):
+class _ScalarOptimizer(ConcertObject):
     def __init__(self, default, epsilon):
         self.epsilon = epsilon
         self.value = default
@@ -11,7 +12,6 @@ class _ScalarOptimizer(object):
 
     def set_point_reached(self, value):
         return abs(self.value - value) < self.epsilon
-
 
 class Maximizer(_ScalarOptimizer):
     def __init__(self, epsilon=0.01):
