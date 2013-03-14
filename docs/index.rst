@@ -40,8 +40,8 @@ environment and activate that with ::
 
 Now, you can install Concert's requirements and Concert itself ::
 
-    $ pip install -r requirements.txt
-    $ pip install -e .
+    $ pip install -r path_to_concert/requirements.txt
+    $ pip install -e path_to_concert/
 
 As long as ``my_new_environment`` is active, you can use Concert.
 
