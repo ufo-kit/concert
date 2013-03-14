@@ -8,14 +8,11 @@ A device is the fundamental base of a controllable object. It provides a
 mechanism to set and get arbitrary parameters that can have an associated
 real-world unit.
 
-
-Pre-defined devices
-===================
-
 .. toctree::
     :maxdepth: 2
 
     axis
+    camera
 
 
 Base device

@@ -1,6 +1,6 @@
 import unittest
 import quantities as q
-
+from concert.tests.decorators import slow
 from concert.devices.axes.base import AxisState, LinearCalibration, Axis
 from concert.devices.axes.dummy import DummyAxis, DummyContinuousAxis
 from concert.events.dispatcher import dispatcher
@@ -53,6 +53,7 @@ class TestContinuousDummyAxis(unittest.TestCase):
         self.axis = DummyContinuousAxis(position_calibration,
                                         velocity_calibration)
 
+    @slow
     def test_set_velocity_blocking(self):
         velocity = 1 * q.mm / q.s
         self.axis.set_velocity(velocity, True)

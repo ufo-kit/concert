@@ -14,7 +14,7 @@ setup(
               'concert/devices/storagerings/',
               'concert/events',
               'concert/measures',
-	      'concert/optimization',
+              'concert/optimization',
               'concert/processes',
               ],
     scripts=['bin/autofocus',
