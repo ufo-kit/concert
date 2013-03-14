@@ -2,7 +2,7 @@
 Devices
 =======
 
-.. module:: concert.devices.device
+.. module:: concert.devices.base
 
 A device is the fundamental base of a controllable object. It provides a
 mechanism to set and get arbitrary parameters that can have an associated
