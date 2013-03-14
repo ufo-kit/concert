@@ -33,6 +33,12 @@ def create(session):
         session_file.write(template)
 
 
+def remove(session):
+    """Remove a *session*."""
+    if exists(session):
+        os.unlink(path(session))
+
+
 def load(session):
     """Load *session* and return the module."""
     return imp.load_source('m', path(session))

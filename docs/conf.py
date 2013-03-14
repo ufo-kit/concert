@@ -8,7 +8,7 @@ extensions = ['sphinx.ext.autodoc']
 source_suffix = '.rst'
 master_doc = 'index'
 
-project = u'concert'
+project = u'Concert'
 copyright = u'2013, Matthias Vogelgesang'
 
 version = '0.0'
@@ -34,13 +34,13 @@ latex_elements = {
 }
 
 latex_documents = [
-  ('index', 'concert.tex', u'concert Documentation',
-   u'Matthias Vogelgesang', 'manual'),
+  ('index', 'concert.tex', u'Concert Documentation',
+   u'Matthias~Vogelgesang, Thomas~Farago', 'manual'),
 ]
 
 
 # -- Options for manual page output --------------------------------------------
 man_pages = [
-    ('index', 'concert', u'concert Documentation',
-     [u'Matthias Vogelgesang'], 1)
+    ('index', 'concert', u'Concert Documentation',
+     [u'Matthias Vogelgesang', u'Thomas Farago'], 1)
 ]
