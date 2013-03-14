@@ -1,7 +1,6 @@
 import socket
 import logging
 import os
-import timing
 
 
 class Connection(object):

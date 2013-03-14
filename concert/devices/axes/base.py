@@ -1,4 +1,5 @@
 from threading import Thread
+from concert.base import launch
 from concert.devices.device import Device, State
 from concert.events import type as eventtype
 
@@ -52,13 +53,7 @@ class Axis(Device):
 
     def stop(self, blocking=False):
         """Stop the motion."""
-
-        if blocking:
-            self._stop_real()
-        else:
-            t = Thread(target=self._stop_real)
-            t.daemon = True
-            t.start()
+        launch(self._stop_real, blocking=blocking)
 
     @property
     def state(self):
