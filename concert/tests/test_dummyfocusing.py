@@ -1,12 +1,8 @@
-'''
-Created on Mar 13, 2013
-
-@author: farago
-'''
 import unittest
+import quantities as q
+from concert.tests.decorators import slow
 from concert.devices.axes.dummy import DummyAxis
 from concert.devices.axes.base import LinearCalibration
-import quantities as q
 from concert.measures.dummygradient import DummyGradientMeasure
 from concert.processes.focus import Focuser
 
@@ -30,14 +26,17 @@ class TestDummyFocusing(unittest.TestCase):
                         (self._position_eps) +
                         "from the given position: %s" % (str(cmp_position)))
 
+    @slow
     def test_maximum_in_limits(self):
         self._focuser.focus(1*q.mm, True)
         self._check_position(self._gradient_feedback.max_gradient_position)
 
+    @slow
     def test_huge_step_in_limits(self):
         self._focuser.focus(1000*q.mm, True)
         self._check_position(self._gradient_feedback.max_gradient_position)
 
+    @slow
     def test_maximum_out_of_limits(self):
         # Right.
         self._gradient_feedback.max_gradient_position = \
@@ -51,6 +50,7 @@ class TestDummyFocusing(unittest.TestCase):
         self._focuser.focus(1*q.mm, True)
         self._check_position(self._axis._hard_limits[0]*q.mm)
 
+    @slow
     def test_huge_step_out_of_limits(self):
         # Right.
         self._gradient_feedback.max_gradient_position = \
@@ -68,6 +68,7 @@ class TestDummyFocusing(unittest.TestCase):
         focuser.focus(1000*q.mm, True)
         self._check_position(self._axis._hard_limits[0]*q.mm)
 
+    @slow
     def test_identical_gradients(self):
         # Some gradient level reached and then by moving to another position
         # the same level is reached again, but global gradient maximum
