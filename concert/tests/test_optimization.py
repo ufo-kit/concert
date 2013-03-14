@@ -1,7 +1,6 @@
 from concert.optimization.scalar import Maximizer, Minimizer
 
 
-
 def test_maximizer():
     m = Maximizer()
     m.value = 1.0

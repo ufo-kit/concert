@@ -1,4 +1,3 @@
-import threading
 from concert.events import type as eventtype
 from concert.base import ConcertObject, launch
 
@@ -20,11 +19,6 @@ class State(object):
 
     """
     ERROR = eventtype.make_event_id()
-
-    
-class Message(object):
-    OUT_OF_RANGE = eventtype.make_event_id()
-    INCOMPATIBLE_UNIT = eventtype.make_event_id()
 
 
 class Device(ConcertObject):

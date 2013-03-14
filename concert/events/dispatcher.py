@@ -47,7 +47,7 @@ class Dispatcher(object):
                 self._subscribers[t].add(handler)
             else:
                 self._subscribers[t] = set([handler])
-                
+
     def unsubscribe(self, events, handler):
         for t in events:
             if t in self._subscribers:
@@ -60,7 +60,7 @@ class Dispatcher(object):
     def wait(self, events, timeout=None):
         """Wait until sender sent message."""
         queue = Queue.Queue()
-            
+
         for t in events:
             if t in self._event_queues:
                 self._event_queues[t].add_event(queue)
@@ -73,14 +73,14 @@ class Dispatcher(object):
                 queue.get(timeout=timeout)
                 queue.task_done()
             except Empty:
-                pass 
+                pass
             i += 1
 
     def _serve(self):
         while True:
             t = self._messages.get()
             sender, message = t
-            
+
             if t in self._subscribers:
                 for callback in self._subscribers[t]:
                     callback(sender)

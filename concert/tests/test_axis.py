@@ -32,7 +32,7 @@ class TestDummyAxis(unittest.TestCase):
         self.axis.set_position(position, False)
         axis1.set_position(position1, False)
         dispatcher.wait([(self.axis, AxisState.STANDBY),
-                        (axis1, AxisState.STANDBY)], timeout=1)    
+                        (axis1, AxisState.STANDBY)], timeout=1)
         self.assertEqual(position, self.axis.get_position())
         self.assertEqual(position1, axis1.get_position())
 

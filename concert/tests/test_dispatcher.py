@@ -19,10 +19,10 @@ class TestDispatcher(unittest.TestCase):
         self.dispatcher.send(self, 'foo')
         time.sleep(SLEEP_TIME)
         self.assertTrue(self.visited)
-        
+
     def test_unsubscription(self):
         self.visited = False
-        
+
         def callback(sender):
             self.visited = True
 
@@ -31,15 +31,15 @@ class TestDispatcher(unittest.TestCase):
         self.dispatcher.send(self, 'foo')
         time.sleep(SLEEP_TIME)
         self.assertFalse(self.visited)
-        
+
     def test_multiple_senders(self):
         a1 = 0
         a2 = 1
         self.visited = 0
-        
+
         def callback(sender):
             self.visited += 1
-            
+
         self.dispatcher.subscribe([(None, 'foo')], callback)
         self.dispatcher.send(a1, 'foo')
         self.dispatcher.send(a2, 'foo')

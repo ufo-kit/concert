@@ -24,7 +24,7 @@ class SocketConnection(Connection):
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._sock.settimeout(20)
         self._sock.connect(self._peer)
-        self._logger = logging.getLogger(__name__ + "." +\
+        self._logger = logging.getLogger(__name__ + "." +
                                          self.__class__.__name__)
 
     def __del__(self):

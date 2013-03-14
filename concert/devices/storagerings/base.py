@@ -3,7 +3,7 @@ Created on Mar 5, 2013
 
 @author: farago
 '''
-from concert.concertobject import ConcertObject
+from concert.base import ConcertObject
 
 
 class StorageRing(ConcertObject):

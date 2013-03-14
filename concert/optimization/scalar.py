@@ -13,6 +13,7 @@ class _ScalarOptimizer(ConcertObject):
     def set_point_reached(self, value):
         return abs(self.value - value) < self.epsilon
 
+
 class Maximizer(_ScalarOptimizer):
     def __init__(self, epsilon=0.01):
         super(Maximizer, self).__init__(-sys.float_info.max, epsilon)

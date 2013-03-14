@@ -1,7 +1,6 @@
-from threading import Thread
 from concert.base import launch
-from concert.devices.device import Device, State
 from concert.events import type as eventtype
+from concert.devices.base import State, Device
 
 
 class AxisState(State):

@@ -5,7 +5,7 @@ from concert.devices.axes.base import LinearCalibration
 
 class TestLinearCalibration(unittest.TestCase):
     STEPS_PER_UNIT = 5000 * q.dimensionless
-    OFFSET = 0 * q.mm 
+    OFFSET = 0 * q.mm
 
     def setUp(self):
         self.calibration = LinearCalibration(self.STEPS_PER_UNIT / q.mm,

@@ -1,5 +1,5 @@
 from concert.base import launch
-from concert.devices.device import Device
+from concert.devices.base import Device
 
 
 class Camera(Device):
