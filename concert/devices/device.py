@@ -1,6 +1,6 @@
 import threading
 from concert.events import type as eventtype
-from concert.base import ConcertObject
+from concert.base import ConcertObject, launch
 
 
 class UnknownStateError(Exception):
@@ -20,6 +20,7 @@ class State(object):
 
     """
     ERROR = eventtype.make_event_id()
+
     
 class Message(object):
     OUT_OF_RANGE = eventtype.make_event_id()
@@ -67,13 +68,7 @@ class Device(ConcertObject):
             raise ValueError(s.format(value, param))
 
         setter = self._setters[param]
-
-        if blocking:
-            setter(value)
-        else:
-            t = threading.Thread(target=setter, args=(value,))
-            t.daemon = True
-            t.start()
+        launch(setter, (value,), blocking)
 
     def _unit_is_compatible(self, param, value):
         if not param in self._units:
