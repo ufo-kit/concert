@@ -1,4 +1,5 @@
 import unittest
+import logbook
 import quantities as q
 from concert.tests.decorators import slow
 from concert.devices.axes.base import AxisState, LinearCalibration, Axis
@@ -10,6 +11,11 @@ class TestDummyAxis(unittest.TestCase):
     def setUp(self):
         calibration = LinearCalibration(1 / q.mm, 0 * q.mm)
         self.axis = DummyAxis(calibration)
+        self.handler = logbook.TestHandler()
+        self.handler.push_thread()
+
+    def tearDown(self):
+        self.handler.pop_thread()
 
     def test_set_position_blocking(self):
         position = 1 * q.mm
@@ -53,6 +59,12 @@ class TestContinuousDummyAxis(unittest.TestCase):
         self.axis = DummyContinuousAxis(position_calibration,
                                         velocity_calibration)
 
+        self.handler = logbook.TestHandler()
+        self.handler.push_thread()
+
+    def tearDown(self):
+        self.handler.pop_thread()
+
     @slow
     def test_set_velocity_blocking(self):
         velocity = 1 * q.mm / q.s
@@ -86,6 +98,11 @@ class TestAxisCalibration(unittest.TestCase):
                 return self.position
 
         self.axis = MockAxis()
+        self.handler = logbook.TestHandler()
+        self.handler.push_thread()
+
+    def tearDown(self):
+        self.handler.pop_thread()
 
     def test_set_position(self):
         position = 100 * q.mm
