@@ -25,8 +25,8 @@ class TestDummyAxis(unittest.TestCase):
 
     def test_set_position_nonblocking(self):
         position = 1 * q.mm
-        self.axis.set_position(position, False)
-        self.axis.wait(AxisState.STANDBY)
+        e = self.axis.set_position(position, False)
+        dispatcher.wait([e])
         self.assertEqual(position, self.axis.get_position())
 
     def test_set_positions_nonblocking(self):
@@ -35,10 +35,9 @@ class TestDummyAxis(unittest.TestCase):
         position = 1 * q.mm
         position1 = 3 * q.mm
 
-        self.axis.set_position(position, False)
-        axis1.set_position(position1, False)
-        dispatcher.wait([(self.axis, AxisState.STANDBY),
-                        (axis1, AxisState.STANDBY)], timeout=1)
+        event_1 = self.axis.set_position(position, False)
+        event_2 = axis1.set_position(position1, False)
+        dispatcher.wait([event_1, event_2])
         self.assertEqual(position, self.axis.get_position())
         self.assertEqual(position1, axis1.get_position())
 

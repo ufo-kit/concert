@@ -68,7 +68,7 @@ class Device(ConcertObject):
         log.info(msg.format(str(self), param, value, blocking))
 
         setter = self._setters[param]
-        launch(setter, (value,), blocking)
+        return launch(setter, (value,), blocking)
 
     def _unit_is_compatible(self, param, value):
         if not param in self._units:

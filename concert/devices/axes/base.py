@@ -26,7 +26,7 @@ class Axis(Device):
 
     def set_position(self, position, blocking=False):
         """Set the *position* in user units."""
-        self.set('position', position, blocking)
+        return self.set('position', position, blocking)
 
     def get_position(self):
         """Get the position in user units."""

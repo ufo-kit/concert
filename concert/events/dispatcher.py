@@ -1,25 +1,5 @@
 import threading
 import Queue
-from Queue import Empty
-
-
-class LockedEventList(object):
-    def __init__(self, events=[]):
-        self._lock = threading.Lock()
-        self._queues = events
-
-    def add_event(self, event):
-        self._lock.acquire()
-        self._queues.append(event)
-        self._lock.release()
-
-    def notify_and_clear(self):
-        self._lock.acquire()
-        for queue in self._queues:
-            queue.put(None)
-
-        self._queues = []
-        self._lock.release()
 
 
 class Dispatcher(object):
@@ -59,22 +39,8 @@ class Dispatcher(object):
 
     def wait(self, events, timeout=None):
         """Wait until sender sent message."""
-        queue = Queue.Queue()
-
-        for t in events:
-            if t in self._event_queues:
-                self._event_queues[t].add_event(queue)
-            else:
-                self._event_queues[t] = LockedEventList([queue])
-
-        i = 0
-        while i != len(events):
-            try:
-                queue.get(timeout=timeout)
-                queue.task_done()
-            except Empty:
-                pass
-            i += 1
+        for event in events:
+            event.wait(timeout)
 
     def _serve(self):
         while True:

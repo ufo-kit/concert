@@ -4,3 +4,6 @@
   state check and dispatcher wait method?????
 
 - Event id generation
+- Should we move the parameter settings functionality from device base class to concert object base class?
+- Do we want to serialize setters?
+
