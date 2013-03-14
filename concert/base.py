@@ -48,7 +48,7 @@ def launch(action, args=(), blocking=False):
     arguments that is then unpacked and passed to *action* at launch time.
     """
     if blocking:
-       action(*args)
+        action(*args)
     else:
         thread = threading.Thread(target=action, args=args)
         thread.daemon = True

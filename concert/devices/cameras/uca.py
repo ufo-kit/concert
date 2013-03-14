@@ -5,10 +5,11 @@ from concert.devices.cameras.base import Camera
 
 def _new_setter_wrapper(camera, name):
     def wrapper(value):
-        d = {name: value }
+        d = {name: value}
         camera.set_properties(**d)
-        
+
     return wrapper
+
 
 def _new_getter_wrapper(camera, name):
     def wrapper():
@@ -16,9 +17,10 @@ def _new_getter_wrapper(camera, name):
 
     return wrapper
 
+
 class UcaCamera(Camera):
     """UcaCamera uses libuca to implement cameras.
-    
+
     All properties that are exported by a libuca camera is visible in the
     UcaCamera.
     """
