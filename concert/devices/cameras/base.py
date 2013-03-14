@@ -16,8 +16,15 @@ class Camera(Device):
         """Stop recording frames."""
         launch(self._stop_real, blocking=blocking)
 
+    def trigger(self, blocking=False):
+        """Trigger a frame if possible."""
+        launch(self._trigger_real, blocking=blocking)
+
     def _record_real(self):
         raise NotImplemented
 
     def _stop_real(self):
+        raise NotImplemented
+
+    def _trigger_real(self):
         raise NotImplemented

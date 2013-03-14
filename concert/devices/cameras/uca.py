@@ -1,5 +1,4 @@
 import quantities as q
-from gi.repository import GObject, Uca
 from concert.devices.cameras.base import Camera
 
 
@@ -19,14 +18,18 @@ def _new_getter_wrapper(camera, name):
 
 
 class UcaCamera(Camera):
-    """UcaCamera uses libuca to implement cameras.
+    """Provide a libuca-based camera called *name*.
 
-    All properties that are exported by a libuca camera is visible in the
-    UcaCamera.
+    All properties that are exported by the underlying camera are also visible
+    in :class:`UcaCamera`.
+
+    :raises ValueError: In case camera *name* does not exist.
     """
 
     def __init__(self, name):
         super(UcaCamera, self).__init__()
+
+        from gi.repository import GObject, Uca
 
         self._manager = Uca.PluginManager()
 
