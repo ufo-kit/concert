@@ -1,4 +1,4 @@
-import numpy
+import random
 import time
 import quantities as q
 from concert.devices.axes.base import Axis, ContinuousAxis, AxisMessage
@@ -9,8 +9,8 @@ class DummyAxis(Axis):
     def __init__(self, calibration):
         super(DummyAxis, self).__init__(calibration)
         self._hard_limits = -100, 100
-        self._position = numpy.random.uniform(self._hard_limits[0],
-                                              self._hard_limits[1])
+        self._position = random.uniform(self._hard_limits[0],
+                                        self._hard_limits[1])
 
         self._register('position',
                        self._get_position,
@@ -27,7 +27,7 @@ class DummyAxis(Axis):
     def _set_position(self, position):
         self._set_state(AxisState.MOVING)
 
-        time.sleep(numpy.random.random() / 25.)
+        time.sleep(random.random() / 25.)
 
         if position < self._hard_limits[0]:
             self._position = self._hard_limits[0]
@@ -67,7 +67,7 @@ class DummyContinuousAxis(ContinuousAxis):
         self._velocity = 0
 
     def _set_position(self, position):
-        time.sleep(numpy.random.random() / 25.)
+        time.sleep(random.random() / 25.)
 
         self._position = position
         if self._position < self._position_hard_limits[0]:
@@ -81,7 +81,7 @@ class DummyContinuousAxis(ContinuousAxis):
     def _set_velocity(self, velocity):
         self._set_state(AxisState.MOVING)
 
-        time.sleep(numpy.random.random())
+        time.sleep(random.random())
         self._velocity = velocity
 
         if self._velocity < self._velocity_hard_limits[0]:
