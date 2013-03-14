@@ -35,7 +35,8 @@ def create(session):
 
 def remove(session):
     """Remove a *session*."""
-    os.unlink(path(session))
+    if exists(session):
+        os.unlink(path(session))
 
 
 def load(session):

@@ -29,15 +29,6 @@ The following session management commands are available:
 
         crio1 = LinearAxis(None)
 
-.. cmdoption:: remove <name>
-
-    Remove a session.
-
-    .. note::
-        
-        Be careful. The session file is unlinked from the file system and no
-        backup is made.
-
 .. cmdoption:: start <name>
 
     Load the session file and launch an IPython shell. Every definition that was
@@ -53,6 +44,15 @@ The following session management commands are available:
         In [2]: m.crio1.get_position()
         Out[2]: array(2.23) * mm
 
+.. cmdoption:: rm <name> [<name> ...]
+
+    Remove sessions.
+
+    .. note::
+
+        Be careful. The session file is unlinked from the file system and no
+        backup is made.
+
 .. cmdoption:: show
 
-    List all available session names.
+    List all available sessions.

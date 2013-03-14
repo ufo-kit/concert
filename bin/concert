@@ -51,7 +51,9 @@ def edit_session(args):
 
 
 def remove_session(args):
-    concert.session.remove(args.session)
+    for session in args.sessions:
+        print("Removing {0}...".format(session))
+        concert.session.remove(session)
 
 
 def show_sessions(args):
@@ -74,6 +76,7 @@ if __name__ == '__main__':
                         version="Concert v%s " % concert.__version__)
 
     session_arg = {'session': {'type': str}}
+    session_list = {'sessions': {'type': str, 'nargs': '+', 'metavar': 'session'}}
 
     commands = [('init', "Create a new session", init_session,
                     {
@@ -82,7 +85,7 @@ if __name__ == '__main__':
                                     'help': "Overwrite existing sessions"}
                     }),
                 ('edit', "Edit session details", edit_session, session_arg),
-                ('rm', "Remove a session", remove_session, session_arg),
+                ('rm', "Remove a session", remove_session, session_list),
                 ('start', "Start a session", start_session, session_arg),
                 ('show', "Show existing sessions", show_sessions, {})]
 
