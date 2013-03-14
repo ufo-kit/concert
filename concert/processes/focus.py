@@ -45,27 +45,31 @@ class Focuser(ConcertObject):
             direction = 1
             hits = 0
             while True:
-                self._axis.move(direction*step, True)
-                gradient = self._gradient_feedback()
-                point_reached = self._maximizer.set_point_reached(gradient)
-                if self._axis.hard_position_limit_reached() or\
-                        point_reached or\
-                        not self._maximizer.is_better(gradient):
+                try:
+                    self._axis.move(direction*step, True)
+                    gradient = self._gradient_feedback()
+                    point_reached = self._maximizer.set_point_reached(gradient)
+                    if self._axis.hard_position_limit_reached() or\
+                            point_reached or\
+                            not self._maximizer.is_better(gradient):
+                        direction, step = self._turn(direction, step)
+                    if point_reached:
+                        # Make sure we found the global maximum and not only
+                        # two equal gradients but out of focus. This can happen
+                        # if we are out of focus and by motor movement we go
+                        # to the other side of the image plane with equal
+                        # gradient.
+                        hits += 1
+                    else:
+                        hits = 0
+                    if hits == 2:
+                        break
+                    self._maximizer.value = gradient
+                    self._logger.debug("Gradient: %g, axis position: %s" %
+                                       (gradient,
+                                        str(self._axis.get_position())))
+                except ValueError:
                     direction, step = self._turn(direction, step)
-                if point_reached:
-                    # Make sure we found the global maximum and not only
-                    # two equal gradients but out of focus. This can happen
-                    # if we are out of focus and by motor movement we go
-                    # to the other side of the image plane with equal
-                    # gradient.
-                    hits += 1
-                else:
-                    hits = 0
-                if hits == 2:
-                    break
-                self._maximizer.value = gradient
-                self._logger.debug("Gradient: %g, axis position: %s" %
-                                   (gradient, str(self._axis.get_position())))
             self._logger.info("Maximum gradient: %g found at position: %s" %
                               (gradient, str(self._axis.get_position())))
             self.send(FocuserMessage.FOCUS_FOUND)

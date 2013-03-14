@@ -105,4 +105,8 @@ class Device(ConcertObject):
             self._units[param] = unit
 
         if limiter:
+            if not limiter(self.get(param)):
+                s = "Unable to register limiter. " +\
+                    "Value {0} for `{1}` is already out of range"
+                raise RuntimeError(s.format(self.get(param), param))
             self._limiters[param] = limiter
