@@ -1,18 +1,5 @@
 from concert.base import launch
-from concert.events import type as eventtype
 from concert.devices.base import State, Device
-
-
-class AxisState(State):
-    """Axis status."""
-    STANDBY = eventtype.make_event_id()
-    MOVING = eventtype.make_event_id()
-
-
-class AxisMessage(object):
-    """Axis message."""
-    POSITION_LIMIT = eventtype.make_event_id()
-    VELOCITY_LIMIT = eventtype.make_event_id()
 
 
 class Axis(Device):
@@ -98,6 +85,18 @@ class ContinuousAxis(Axis):
     def get_velocity(self):
         """Get current velocity of the axis."""
         return self.get('velocity')
+
+
+class AxisState(State):
+    """Axis status."""
+    STANDBY = "standby"
+    MOVING = "moving"
+
+
+class AxisMessage(object):
+    """Axis message."""
+    POSITION_LIMIT = "position_limit"
+    VELOCITY_LIMIT = "velocity_limit"
 
 
 class Calibration(object):

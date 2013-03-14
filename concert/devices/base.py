@@ -1,5 +1,4 @@
 from logbook import Logger
-from concert.events import type as eventtype
 from concert.base import ConcertObject, launch
 
 
@@ -16,13 +15,13 @@ class UnknownStateError(Exception):
 
 
 class State(object):
-    """Status of a device.
+    """State of a device.
 
     This is NOT a connection status, but a reflection of a physical device
     status. The implementation should follow this guideline.
 
     """
-    ERROR = eventtype.make_event_id()
+    ERROR = "error"
 
 
 class Device(ConcertObject):
