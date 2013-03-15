@@ -19,7 +19,7 @@ class Focuser(ConcertObject):
         # A function which provides gradient feedback.
         self._gradient_feedback = gradient_feedback
         self._maximizer = Maximizer(epsilon)
-        self._register("focus", None, None)
+        self._register_message("focus")
 
     def _turn(self, direction, step):
         return -direction, step / 2.0
@@ -73,5 +73,4 @@ class Focuser(ConcertObject):
             self._logger.info("Maximum gradient: %g found at position: %s" %
                               (gradient, str(self._axis.get_position())))
 
-        return self._launch(Focuser.FOCUS, _focus, (step,),
-                            blocking)
+        return self._launch("focus", _focus, (step,), blocking)

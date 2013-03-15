@@ -16,7 +16,7 @@ class TestDispatcher(unittest.TestCase):
         def callback(sender):
             self.visited = True
 
-        self.dispatcher.subscribe([(self, 'foo')], callback)
+        self.dispatcher.subscribe(self, 'foo', callback)
         self.dispatcher.send(self, 'foo')
         time.sleep(SLEEP_TIME)
         self.assertTrue(self.visited)
@@ -27,25 +27,11 @@ class TestDispatcher(unittest.TestCase):
         def callback(sender):
             self.visited = True
 
-        self.dispatcher.subscribe([(self, 'foo')], callback)
-        self.dispatcher.unsubscribe([(self, 'foo')], callback)
+        self.dispatcher.subscribe(self, 'foo', callback)
+        self.dispatcher.unsubscribe(self, 'foo', callback)
         self.dispatcher.send(self, 'foo')
         time.sleep(SLEEP_TIME)
         self.assertFalse(self.visited)
-
-    def test_multiple_senders(self):
-        a_1 = 0
-        a_2 = 1
-        self.visited = 0
-
-        def callback(sender):
-            self.visited += 1
-
-        self.dispatcher.subscribe([(None, 'foo')], callback)
-        self.dispatcher.send(a_1, 'foo')
-        self.dispatcher.send(a_2, 'foo')
-        time.sleep(SLEEP_TIME)
-        self.assertEqual(self.visited, 2, "{0} != {1}".format(self.visited, 2))
 
     def test_wait(self):
         device_1 = DummyDevice()

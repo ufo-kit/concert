@@ -86,6 +86,13 @@ class ConcertObject(object):
         else:
             self._setters[param] = setter
 
+    def _register_message(self, param):
+        """Register a message on which one can wait."""
+        if not hasattr(self.__class__, "_MESSAGE_TYPES"):
+            setattr(self.__class__, "_MESSAGE_TYPES", set([param]))
+        else:
+            self.__class__._MESSAGE_TYPES.add(param)
+
     def _register(self, param, getter, setter, unit=None, limiter=None):
         if getter:
             self._register_getter(param, getter)
@@ -103,14 +110,7 @@ class ConcertObject(object):
                 raise RuntimeError(s.format(self.get(param), param))
             self._limiters[param] = limiter
 
-        # Register a message on which one can wait.
-        message_name = param.upper()
-        if not hasattr(self.__class__, message_name):
-            setattr(self.__class__, message_name, param)
-            if not hasattr(self.__class__, "_MESSAGE_TYPES"):
-                setattr(self.__class__, "_MESSAGE_TYPES", set([message_name]))
-            else:
-                self.__class__._MESSAGE_TYPES.add(message_name)
+        self._register_message(param)
 
     @property
     def message_types(self):
@@ -129,7 +129,7 @@ class ConcertObject(object):
 
         *callback* will be called with this object as the first argument.
         """
-        dispatcher.subscribe([(self, message)], callback)
+        dispatcher.subscribe(self, message, callback)
 
     def unsubscribe(self, message, callback):
         """
@@ -153,7 +153,7 @@ class ConcertObject(object):
             """Call action and handle its finish."""
             action(*args)
             event.set()
-            self.send(getattr(self.__class__, param.upper()))
+            self.send(param)
 
         event = Event()
         launch(_action, (event, args), blocking)

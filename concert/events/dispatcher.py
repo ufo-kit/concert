@@ -15,23 +15,23 @@ class Dispatcher(object):
         server.daemon = True
         server.start()
 
-    def subscribe(self, events, handler):
+    def subscribe(self, sender, message, handler):
         """Subscribe to a message sent by sender.
 
         When message is sent by sender, handler is called with sender as the
         only argument.
 
         """
-        for t in events:
-            if t in self._subscribers:
-                self._subscribers[t].add(handler)
-            else:
-                self._subscribers[t] = set([handler])
+        t = sender, message
+        if t in self._subscribers:
+            self._subscribers[t].add(handler)
+        else:
+            self._subscribers[t] = set([handler])
 
-    def unsubscribe(self, events, handler):
-        for t in events:
-            if t in self._subscribers:
-                self._subscribers[t].remove(handler)
+    def unsubscribe(self, sender, message, handler):
+        t = sender, message
+        if t in self._subscribers:
+            self._subscribers[t].remove(handler)
 
     def send(self, sender, message):
         """Send message from sender."""
@@ -49,9 +49,6 @@ class Dispatcher(object):
 
             if t in self._subscribers:
                 for callback in self._subscribers[t]:
-                    callback(sender)
-            if (None, message) in self._subscribers:
-                for callback in self._subscribers[(None, message)]:
                     callback(sender)
 
             if t in self._event_queues:
