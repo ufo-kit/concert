@@ -8,11 +8,8 @@ About
 .. include:: ../README.rst
 
 
-Documentation
-=============
-
 Installation
-------------
+============
 
 Concert uses distutils, so in case you downloaded a source tarball, you can
 simply install it system-wide using::
@@ -28,7 +25,7 @@ __ http://docs.python.org/2/install/index.html
 
 
 Installing into a virtualenv
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+----------------------------
 
 It is sometimes a good idea to install third-party Python modules independent of
 the system installation. This can be achieved easily using pip_ and
@@ -50,8 +47,8 @@ As long as ``my_new_environment`` is active, you can use Concert.
 .. _virtualenv: http://virtualenv.org
 
 
-Usage documentation
--------------------
+User documentation
+==================
 
 .. toctree::
     :maxdepth: 2
@@ -59,4 +56,11 @@ Usage documentation
 
     usage/sessions
     usage/device
+
+
+Developer documentation
+=======================
+.. toctree::
+    :maxdepth: 2
+
     usage/dispatcher
