@@ -74,9 +74,5 @@ class Focuser(ConcertObject):
                               (gradient, str(self._axis.get_position())))
             self.send(FocuserMessage.FOCUS_FOUND)
 
-        if blocking:
-            _focus(step)
-        else:
-            t = Thread(target=_focus, args=(step,))
-            t.daemon = True
-            t.start()
+        return self._launch(FocuserMessage.FOCUS_FOUND, _focus, (step,),
+                            blocking)

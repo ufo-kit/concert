@@ -8,8 +8,9 @@ import quantities as q
 import logging
 from concert.devices.axes.dummy import DummyAxis
 from concert.measures.dummygradient import DummyGradientMeasure
-from concert.processes.focus import Focuser, FocuserMessage
+from concert.processes.focus import Focuser
 from concert.optimization.scalar import Maximizer
+from concert.events.service import wait
 
 
 if __name__ == '__main__':
@@ -22,7 +23,7 @@ if __name__ == '__main__':
     measue = DummyGradientMeasure(axis, 18.75*q.mm)
 
     focuser = Focuser(axis, 1e-5, measue.get_gradient)
-    focuser.focus(10*q.mm, blocking=False)
-    focuser.wait(FocuserMessage.FOCUS_FOUND)
+    event = focuser.focus(10*q.mm, blocking=False)
+    wait([event])
     print "Focus found at %s with gradient %g." % (str(axis.get_position()),
                                                    measue.get_gradient())
