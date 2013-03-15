@@ -104,10 +104,6 @@ def show_sessions(args):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 1:
-        run_shell()
-        sys.exit(0)
-
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--version',
@@ -119,27 +115,28 @@ if __name__ == '__main__':
                                  'nargs': '+',
                                  'metavar': 'session'}}
 
-    commands = [('init', "Create a new session", init_session,
+    commands = [('edit', "Edit a session", edit_session, session_arg),
+                ('init', "Create a new session", init_session,
                     {
                         'session': {'type': str},
                         '--force': {'action': 'store_true',
                                     'help': "Overwrite existing sessions"}
                     }),
-                ('edit', "Edit session details", edit_session, session_arg),
+                ('log', "Show session logs", show_log,
+                    {
+                        'session': {'type': str,
+                                    'nargs': '?'}
+                    }),
                 ('rm', "Remove a session", remove_session, session_list),
+                ('show', "Show existing sessions", show_sessions, {}),
                 ('start', "Start a session", start_session,
                     {
                         'session': {'type': str},
                         '--logto': {'choices': ['stderr', 'file'],
                                     'default': 'file'},
                         '--logfile': {'type': str}
-                    }),
-                ('log', "Show log", show_log,
-                    {
-                        'session': {'type': str,
-                                    'nargs': '?'}
-                    }),
-                ('show', "Show existing sessions", show_sessions, {})]
+                    }
+                )]
 
     subparsers = parser.add_subparsers(title="Concert commands",
                                        metavar="")
@@ -150,6 +147,10 @@ if __name__ == '__main__':
 
         for arg in args.keys():
             cmd_parser.add_argument(arg, **args[arg])
+
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(0)
 
     args = parser.parse_args()
     args.func(args)
