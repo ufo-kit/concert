@@ -3,12 +3,12 @@ Created on Mar 14, 2013
 
 @author: farago
 '''
-from concert.devices.base import Device
 import random
 import time
+from concert.base import ConcertObject
 
 
-class DummyDevice(Device):
+class DummyDevice(ConcertObject):
     """A dummy device."""
     def __init__(self):
         super(DummyDevice, self).__init__()

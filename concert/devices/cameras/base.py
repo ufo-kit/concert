@@ -1,8 +1,7 @@
-from concert.base import launch
-from concert.devices.base import Device
+from concert.base import launch, ConcertObject
 
 
-class Camera(Device):
+class Camera(ConcertObject):
     """Base class for remotely controllable cameras."""
 
     def __init__(self):

@@ -1,7 +1,8 @@
-from concert.devices.base import State, Device
+from concert.devices.base import State
+from concert.base import ConcertObject
 
 
-class Axis(Device):
+class Axis(ConcertObject):
     """Base class for everything that moves.
 
     An axis is used with a *calibration* that conforms to the

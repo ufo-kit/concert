@@ -6,9 +6,9 @@ Created on Mar 5, 2013
 import time
 import PyTango
 from concert.devices.axes.base import Axis, AxisState, AxisMessage
-from concert.devices.device import UnknownStateError
 import quantities as pq
 from threading import Thread
+from concert.devices.base import UnknownStateError
 
 
 SLEEP_TIME = 0.005
