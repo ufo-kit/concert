@@ -5,17 +5,30 @@ from concert.devices.axes.base import Axis, ContinuousAxis, AxisMessage
 from concert.devices.axes.base import AxisState
 
 
+class DummyLimiter(object):
+    def __init__(self, low, high):
+        self.low = low
+        self.high = high
+
+    def __call__(self, value):
+        return self.low < value < self.high
+
+
 class DummyAxis(Axis):
-    def __init__(self, calibration):
+    def __init__(self, calibration, limiter=None):
         super(DummyAxis, self).__init__(calibration)
         self._hard_limits = -100, 100
-        self._position = random.uniform(self._hard_limits[0],
-                                        self._hard_limits[1])
+        if limiter is None:
+            self._position = random.uniform(self._hard_limits[0],
+                                            self._hard_limits[1])
+        else:
+            self._position = random.uniform(limiter.low, limiter.high)
 
         self._register('position',
                        self._get_position,
                        self._set_position,
-                       q.m)
+                       q.m,
+                       limiter)
 
     def _stop_real(self):
         pass

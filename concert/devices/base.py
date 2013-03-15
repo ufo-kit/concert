@@ -66,7 +66,8 @@ class Device(ConcertObject):
             raise ValueError(s.format(value, param))
 
         msg = "{0}: set {1}='{2}' blocking='{3}'"
-        log.info(msg.format(str(self), param, value, blocking))
+        log.info(msg.format(str(self.__class__.__name__),
+                            param, value, blocking))
 
         setter = self._setters[param]
         launch(setter, (value,), blocking)
@@ -112,4 +113,8 @@ class Device(ConcertObject):
             self._units[param] = unit
 
         if limiter:
+            if not limiter(self.get(param)):
+                s = "Unable to register limiter. " +\
+                    "Value {0} for `{1}` is already out of range"
+                raise RuntimeError(s.format(self.get(param), param))
             self._limiters[param] = limiter
