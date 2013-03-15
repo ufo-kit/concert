@@ -1,4 +1,3 @@
-from concert.base import launch
 from concert.devices.base import State, Device
 
 
@@ -39,7 +38,7 @@ class Axis(Device):
 
     def stop(self, blocking=False):
         """Stop the motion."""
-        launch(self._stop_real, blocking=blocking)
+        self._launch(self._stop_real, blocking=blocking)
 
     @property
     def state(self):

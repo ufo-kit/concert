@@ -68,7 +68,7 @@ class Device(ConcertObject):
         log.info(msg.format(str(self), param, value, blocking))
 
         setter = self._setters[param]
-        return launch(setter, (value,), blocking)
+        return self._launch(param, setter, (value,), blocking)
 
     def _unit_is_compatible(self, param, value):
         if not param in self._units:
@@ -101,11 +101,8 @@ class Device(ConcertObject):
             self._setters[param] = setter
 
     def _register(self, param, getter, setter, unit=None, limiter=None):
-        if getter:
-            self._register_getter(param, getter)
-
-        if setter:
-            self._register_setter(param, setter)
+        self._register_getter(param, getter)
+        self._register_setter(param, setter)
 
         if unit:
             self._units[param] = unit
@@ -116,3 +113,8 @@ class Device(ConcertObject):
                     "Value {0} for `{1}` is already out of range"
                 raise RuntimeError(s.format(self.get(param), param))
             self._limiters[param] = limiter
+
+        # Register a message on which one can wait.
+        message_name = param.upper()
+        if not hasattr(self.__class__, message_name):
+            setattr(self.__class__, message_name, param)

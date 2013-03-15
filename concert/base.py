@@ -1,3 +1,6 @@
+"""
+The mother of all bases. The lowest level object definition and functionality.
+"""
 import threading
 from concert.events.dispatcher import dispatcher
 from threading import Event
@@ -27,6 +30,25 @@ class ConcertObject(object):
         """
         dispatcher.unsubscribe([(self, message)], callback)
 
+    def _launch(self, param, action, args=(), blocking=False):
+        """Launch *action* with *args* with message and event handling after
+        the action finishes.
+
+        If *blocking* is ``True``, *action* will be called like an ordinary
+        function otherwise a thread will be started. *args* must be a tuple of
+        arguments that is then unpacked and passed to *action* at _launch time.
+        The *action* itself must be blocking.
+        """
+        def _action(event, args):
+            """Call action and handle its finish."""
+            action(*args)
+            event.set()
+            self.send(getattr(self.__class__, param.upper()))
+
+        event = Event()
+        launch(_action, (event, args), blocking)
+        return event
+
 
 def launch(action, args=(), blocking=False):
     """Launch *action* with *args*.
@@ -34,17 +56,11 @@ def launch(action, args=(), blocking=False):
     If *blocking* is ``True``, *action* will be called like an ordinary
     function otherwise a thread will be started. *args* must be a tuple of
     arguments that is then unpacked and passed to *action* at launch time.
-    *Action* must be blocking.
+    The *action* itself must be blocking.
     """
-    def _action(event, *args):
-        action(*args)
-        event.set()
-
-    event = Event()
     if blocking:
-        _action(event, *args)
+        action(*args)
     else:
-        thread = threading.Thread(target=_action, args=((event,)+args))
+        thread = threading.Thread(target=action, args=args)
         thread.daemon = True
         thread.start()
-    return event

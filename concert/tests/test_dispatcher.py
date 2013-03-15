@@ -1,5 +1,5 @@
 import unittest
-from concert.events.dispatcher import Dispatcher, dispatcher
+from concert.events.dispatcher import Dispatcher
 import time
 from concert.devices.dummy import DummyDevice
 
@@ -48,12 +48,26 @@ class TestDispatcher(unittest.TestCase):
         self.assertEqual(self.visited, 2, "{0} != {1}".format(self.visited, 2))
 
     def test_wait(self):
-        d_1 = DummyDevice()
-        d_2 = DummyDevice()
+        device_1 = DummyDevice()
+        device_2 = DummyDevice()
 
-        e_1 = d_1.set_value(15)
-        e_2 = d_2.set_value(12)
+        event_1 = device_1.set_value(15)
+        event_2 = device_2.set_value(12)
 
-        dispatcher.wait([e_1, e_2])
-        self.assertEqual(d_1.get_value(), 15)
-        self.assertEqual(d_2.get_value(), 12)
+        self.dispatcher.wait([event_1, event_2])
+        self.assertEqual(device_1.get_value(), 15)
+        self.assertEqual(device_2.get_value(), 12)
+
+    def test_serialization(self):
+        device = DummyDevice()
+
+        event = device.set_value(1)
+        self.dispatcher.wait([event])
+        event = device.set_value(2)
+        self.dispatcher.wait([event])
+        event = device.set_value(3)
+        self.dispatcher.wait([event])
+        event = device.set_value(4)
+        self.dispatcher.wait([event])
+
+        self.assertEqual(4, device.get_value())
