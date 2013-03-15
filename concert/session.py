@@ -4,11 +4,12 @@ A session is an ordinary Python module that is stored in a per-user
 directory."""
 import os
 import imp
-import logbook
 import xdg.BaseDirectory
 
 
 PATH = xdg.BaseDirectory.save_data_path('concert')
+
+DEFAULT_LOGFILE = os.path.join(PATH, 'concert.log')
 
 
 def _strip(path):
@@ -20,17 +21,12 @@ def path(session):
     return os.path.join(PATH, session + '.py')
 
 
-def create(session, logfile=None):
+def create(session):
     """Create a template with *session* name and write it
 
     .. note:: This will *always* overwrite session.
     """
     template = 'import quantities as q\n'
-
-    if logfile:
-        template += 'import logbook\n'
-        template += '__handler__ = logbook.FileHandler("%s")\n' % logfile
-
     template += '__doc__ = "This is session %s"\n' % session
 
     if not os.path.exists(PATH):
@@ -38,16 +34,6 @@ def create(session, logfile=None):
 
     with open(path(session), 'w') as session_file:
         session_file.write(template)
-
-
-def get_handler(m):
-    """Return logbook handler if m.__handler__ is one, or a
-    logbook.StderrHandler."""
-    if hasattr(m, '__handler__'):
-        if isinstance(m.__handler__, logbook.Handler):
-            return m.__handler__
-
-    return logbook.StderrHandler()
 
 
 def remove(session):

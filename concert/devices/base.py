@@ -66,7 +66,8 @@ class Device(ConcertObject):
             raise ValueError(s.format(value, param))
 
         msg = "{0}: set {1}='{2}' blocking='{3}'"
-        log.info(msg.format(str(self), param, value, blocking))
+        log.info(msg.format(str(self.__class__.__name__),
+                            param, value, blocking))
 
         setter = self._setters[param]
         launch(setter, (value,), blocking)

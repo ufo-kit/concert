@@ -4,11 +4,12 @@ import sys
 import os
 import argparse
 import subprocess
+import logbook
 import concert
 import concert.session
 
 
-def run_shell(m=None):
+def run_shell(handler, m=None):
     try:
         from IPython import embed
         import quantities as q
@@ -17,7 +18,6 @@ def run_shell(m=None):
             print m.__doc__
 
         banner = "Welcome to Concert {0}".format(concert.__version__)
-        handler = concert.session.get_handler(m)
 
         with handler.applicationbound():
             embed(banner1=banner)
@@ -38,12 +38,32 @@ def init_session(args):
         message += " Use --force to create it anyway."
         print(message.format(args.session))
     else:
-        concert.session.create(args.session, args.logfile)
+        concert.session.create(args.session)
+
+
+def get_log_filename(args):
+    """Return log filename from *args* or session default."""
+    if args.logfile:
+        return args.logfile
+    else:
+        return concert.session.DEFAULT_LOGFILE
 
 
 def start_session(args):
-    exit_if_not_exists(args.session)
-    run_shell(concert.session.load(args.session))
+    session = args.session
+    exit_if_not_exists(session)
+    module = concert.session.load(session)
+    handler = None
+
+    if args.logto == 'file':
+        filename = get_log_filename(args)
+        handler = logbook.FileHandler(filename)
+    else:
+        handler = logbook.StderrHandler()
+
+    handler.format_string = '[{record.time}] {record.level_name}: \
+%s: {record.channel}: {record.message}' % session
+    run_shell(handler, module)
 
 
 def edit_session(args):
@@ -57,6 +77,22 @@ def remove_session(args):
     for session in args.sessions:
         print("Removing {0}...".format(session))
         concert.session.remove(session)
+
+
+def show_log(args):
+    logfile = concert.session.DEFAULT_LOGFILE
+
+    # This is danger zone here because we run subprocess.call with shell=True.
+    # However, the only input that we input is args.session which we check first
+    # and the logfile itself.
+
+    if args.session:
+        exit_if_not_exists(args.session)
+        cmd = 'grep "{0}:" {1} | less'.format(args.session, logfile)
+    else:
+        cmd = 'less {0}'.format(logfile)
+
+    subprocess.call(cmd, shell=True)
 
 
 def show_sessions(args):
@@ -86,13 +122,23 @@ if __name__ == '__main__':
     commands = [('init', "Create a new session", init_session,
                     {
                         'session': {'type': str},
-                        '--logfile': {'type': str},
                         '--force': {'action': 'store_true',
                                     'help': "Overwrite existing sessions"}
                     }),
                 ('edit', "Edit session details", edit_session, session_arg),
                 ('rm', "Remove a session", remove_session, session_list),
-                ('start', "Start a session", start_session, session_arg),
+                ('start', "Start a session", start_session,
+                    {
+                        'session': {'type': str},
+                        '--logto': {'choices': ['stderr', 'file'],
+                                    'default': 'file'},
+                        '--logfile': {'type': str}
+                    }),
+                ('log', "Show log", show_log,
+                    {
+                        'session': {'type': str,
+                                    'nargs': '?'}
+                    }),
                 ('show', "Show existing sessions", show_sessions, {})]
 
     subparsers = parser.add_subparsers(title="Concert commands",

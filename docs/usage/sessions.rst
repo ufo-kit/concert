@@ -19,12 +19,6 @@ The following session management commands are available:
 
         Create the session even if one already exists with this name.
 
-    .. cmdoption:: --logfile=<filename>
-
-        Specify a log file. This will create a ``__handler__`` variable inside
-        the session and assign a file handler to it. This will then be used
-        instead of the default stderr handler.
-
 .. cmdoption:: edit <name>
 
     Edit the session file by launching ``$EDITOR`` with the associated Python
@@ -50,6 +44,18 @@ The following session management commands are available:
         In [2]: m.crio1.get_position()
         Out[2]: array(2.23) * mm
 
+    *Additional options*:
+
+    .. cmdoption:: --logto={stderr, file}
+
+        Specify a method for logging events. If this flag is not specified,
+        ``file`` is used and assumed to be
+        ``$XDG_DATA_HOME/concert/concert.log``.
+
+    .. cmdoption:: --logfile=<filename>
+
+        Specify a log file if ``--logto`` is set to ``file``.
+
 .. cmdoption:: rm <name> [<name> ...]
 
     Remove sessions.
@@ -62,3 +68,8 @@ The following session management commands are available:
 .. cmdoption:: show
 
     List all available sessions.
+
+.. cmdoption:: log [<name>]
+
+    Show log entries. If a *<name>* is not given, the log command shows entries
+    from all sessions.
