@@ -20,5 +20,6 @@ setup(
               ],
     scripts=['bin/autofocus',
              'bin/concert'],
+    data_files=[('/etc/bash_completion.d', ['extras/completion/concert'])],
     description="Lightweight control of heterogeneous environment",
 )
