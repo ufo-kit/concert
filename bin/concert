@@ -1,109 +1,43 @@
 #! python
 
 import sys
-import os
 import argparse
-import subprocess
 import concert
 import concert.session
+import concert.ui.commands as command
 
 
-def run_shell(m=None):
-    try:
-        from IPython import embed
-        import quantities as q
-
-        if m:
-            print m.__doc__
-
-        banner = "Welcome to Concert {0}".format(concert.__version__)
-        handler = concert.session.get_handler(m)
-
-        with handler.applicationbound():
-            embed(banner1=banner)
-    except ImportError as e:
-        print("You must install IPython to run the Concert shell: %s" % e)
-
-
-def exit_if_not_exists(session):
-    if not concert.session.exists(session):
-        message = "Session `{0}' does not exist. Run `concert init {0}' first."
-        print(message.format(session))
-        sys.exit(1)
-
-
-def init_session(args):
-    if concert.session.exists(args.session) and not args.force:
-        message = "Session `{0}' already exists."
-        message += " Use --force to create it anyway."
-        print(message.format(args.session))
-    else:
-        concert.session.create(args.session, args.logfile)
-
-
-def start_session(args):
-    exit_if_not_exists(args.session)
-    run_shell(concert.session.load(args.session))
-
-
-def edit_session(args):
-    exit_if_not_exists(args.session)
-    env = os.environ
-    editor = env['EDITOR'] if 'EDITOR' in env else 'vi'
-    subprocess.call([editor, concert.session.path(args.session)])
-
-
-def remove_session(args):
-    for session in args.sessions:
-        print("Removing {0}...".format(session))
-        concert.session.remove(session)
-
-
-def show_sessions(args):
-    sessions = concert.session.get_existing()
-    print("Available sessions:")
-
-    for session in sessions:
-        print("  %s" % session)
+def _get_docstring_summary(doc):
+    if doc and doc.find('.'):
+        return doc[:doc.find('.')]
+    return doc
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 1:
-        run_shell()
-        sys.exit(0)
-
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--version',
                         action='version',
                         version="Concert v%s " % concert.__version__)
 
-    session_arg = {'session': {'type': str}}
-    session_list = {'sessions': {'type': str,
-                                 'nargs': '+',
-                                 'metavar': 'session'}}
-
-    commands = [('init', "Create a new session", init_session,
-                    {
-                        'session': {'type': str},
-                        '--logfile': {'type': str},
-                        '--force': {'action': 'store_true',
-                                    'help': "Overwrite existing sessions"}
-                    }),
-                ('edit', "Edit session details", edit_session, session_arg),
-                ('rm', "Remove a session", remove_session, session_list),
-                ('start', "Start a session", start_session, session_arg),
-                ('show', "Show existing sessions", show_sessions, {})]
-
     subparsers = parser.add_subparsers(title="Concert commands",
                                        metavar="")
 
-    for command, help_text, func, args in commands:
-        cmd_parser = subparsers.add_parser(command, help=help_text)
+    for cmd_name in command.arguments:
+        func = getattr(command, cmd_name)
+        summary = _get_docstring_summary(func.__doc__)
+        args = command.arguments[cmd_name]
+        cmd_parser = subparsers.add_parser(cmd_name, help=summary)
         cmd_parser.set_defaults(func=func)
 
         for arg in args.keys():
             cmd_parser.add_argument(arg, **args[arg])
 
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(0)
+
     args = parser.parse_args()
-    args.func(args)
+    func = args.func
+    del args.func
+    func(**vars(args))

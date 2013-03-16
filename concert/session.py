@@ -10,6 +10,8 @@ import xdg.BaseDirectory
 
 PATH = xdg.BaseDirectory.save_data_path('concert')
 
+DEFAULT_LOGFILE = os.path.join(PATH, 'concert.log')
+
 
 def _strip(path):
     return os.path.splitext(path)[0]
@@ -26,11 +28,6 @@ def create(session, logfile=None):
     .. note:: This will *always* overwrite session.
     """
     template = 'import quantities as q\n'
-
-    if logfile:
-        template += 'import logbook\n'
-        template += '__handler__ = logbook.FileHandler("%s")\n' % logfile
-
     template += '__doc__ = "This is session %s"\n' % session
 
     if not os.path.exists(PATH):
