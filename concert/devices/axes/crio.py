@@ -1,3 +1,6 @@
+"""
+Axes based on the CompactRIO controller.
+"""
 import logging
 import readline
 import quantities as q
@@ -10,7 +13,7 @@ CRIO_PORT = 6342
 
 
 class LinearAxis(Axis):
-    """A linear axis based on the CompactRIO controller."""
+    """A linear axis that moves in two directions."""
 
     def __init__(self):
         calibration = LinearCalibration(50000 / q.mm, -1 * q.mm)
@@ -34,7 +37,7 @@ class LinearAxis(Axis):
 
 
 class RotationAxis(Axis):
-    """A rotational axis based on the CompactRIO controller."""
+    """A rotational axis."""
 
     def __init__(self):
         calibration = LinearCalibration(50000 / q.mm, 0 * q.mm)

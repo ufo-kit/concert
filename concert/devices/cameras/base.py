@@ -1,3 +1,23 @@
+"""
+A :class:`Camera` can be set via the device-specific properties that can be set
+and read with :meth:`.Device.set` and :meth:`.Device.get`. Moreover, a camera
+provides means to
+
+* :meth:`record` frames,
+* :meth:`stop` the acquisition and
+* :meth:`trigger` a frame capture.
+
+To setup and use a camera in a typical environment, you would do::
+
+    from concert.devices.cameras.uca import UcaCamera
+
+    camera = UcaCamera('pco')
+    camera.set('exposure-time', 0.2 * q.s)
+    camera.record()
+    camera.trigger(blocking=True)
+    camera.stop()
+"""
+
 from concert.base import launch
 from concert.devices.base import Device
 
