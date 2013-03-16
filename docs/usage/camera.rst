@@ -2,15 +2,9 @@
 Cameras
 =======
 
-.. module:: concert.devices.cameras.base
+.. automodule:: concert.devices.cameras.base
 
+The following camera devices are available:
 
-.. autoclass:: Camera
-    :members:
-
-
-Implementations
-===============
-
-.. automodule:: concert.devices.cameras.uca
-    :members:
+*   .. automodule:: concert.devices.cameras.uca
+        :members:

@@ -1,3 +1,7 @@
+"""
+Cameras supported by the libuca library.
+"""
+
 import quantities as q
 from concert.devices.cameras.base import Camera
 
@@ -18,7 +22,7 @@ def _new_getter_wrapper(camera, name):
 
 
 class UcaCamera(Camera):
-    """Provide a libuca-based camera called *name*.
+    """libuca-based camera.
 
     All properties that are exported by the underlying camera are also visible
     in :class:`UcaCamera`.

@@ -1,5 +1,12 @@
-from concert.devices.base import State
+"""
+A :class:`Axis` is a control object that moves along a single one-dimensional
+direction.
+
+Each axis is associated with a :class:`Calibration` that maps arbitrary
+real-world coordinates to devices coordinates.
+"""
 from concert.base import ConcertObject
+from concert.devices.base import State
 
 
 class Axis(ConcertObject):

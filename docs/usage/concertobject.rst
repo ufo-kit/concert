@@ -1,9 +1,26 @@
-=============
-ConcertObject
-=============
+===================
+Controlling devices
+===================
 
 .. automodule:: concert.base
+
+
+Device classes
+==============
+
+.. toctree::
+    :maxdepth: 2
+
+    axis
+    camera
+
+
+Interface
+=========
+
+.. autoclass:: concert.base.ConcertObject
     :members:
+
 
 Implementing objects
 --------------------

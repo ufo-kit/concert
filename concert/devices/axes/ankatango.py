@@ -1,14 +1,20 @@
-'''
-Created on Mar 5, 2013
-
-@author: farago
-'''
+"""
+Tango axes with ANKA specific interfaces.
+"""
 import time
-import PyTango
-from concert.devices.axes.base import Axis, AxisState, AxisMessage
 import quantities as pq
+import logbook
+from concert.devices.axes.base import Axis, AxisState, AxisMessage
+from concert.devices.base import UnknownStateError
 from threading import Thread
 from concert.devices.base import UnknownStateError
+
+log = logbook.Logger(__name__)
+
+try:
+    import PyTango
+except ImportError:
+    log.warn("PyTango is not installed.")
 
 
 SLEEP_TIME = 0.005
@@ -18,6 +24,7 @@ SLOW_SLEEP_TIME = 1.0
 
 
 class ANKATangoDiscreteAxis(Axis):
+    """Tango device that ... need ... more ... information."""
     def __init__(self, connection, calibration, position_limit=None):
         super(ANKATangoDiscreteAxis, self).__init__(calibration)
         self._connection = connection
