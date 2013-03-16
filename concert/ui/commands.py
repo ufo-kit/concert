@@ -122,6 +122,9 @@ def log(session=None):
     """
     logfile = concert.session.DEFAULT_LOGFILE
 
+    if not os.path.exists(logfile):
+        return
+
     # This is danger zone here because we run subprocess.call with shell=True.
     # However, the only input that we input is args.session which we check
     # first and the logfile itself.
