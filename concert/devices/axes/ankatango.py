@@ -7,6 +7,14 @@ import logbook
 from concert.devices.axes.base import Axis, AxisState, AxisMessage
 from concert.devices.base import UnknownStateError
 from threading import Thread
+from concert.devices.base import UnknownStateError
+
+log = logbook.Logger(__name__)
+
+try:
+    import PyTango
+except ImportError:
+    log.warn("PyTango is not installed.")
 
 log = logbook.Logger(__name__)
 

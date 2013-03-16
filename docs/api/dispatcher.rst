@@ -15,7 +15,7 @@ sent to the dispatcher::
     dispatcher = Dispatcher()
 
     obj = {}
-    dispatcher.subscribe([(obj, 'foo')], handle_message)
+    dispatcher.subscribe(obj, 'foo', handle_message)
     dispatcher.send(obj, 'foo')
 
 

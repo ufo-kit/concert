@@ -5,7 +5,6 @@ Created on Mar 13, 2013
 '''
 import logging
 from concert.optimization.scalar import Maximizer
-from threading import Thread
 from concert.base import ConcertObject
 
 
@@ -20,6 +19,7 @@ class Focuser(ConcertObject):
         # A function which provides gradient feedback.
         self._gradient_feedback = gradient_feedback
         self._maximizer = Maximizer(epsilon)
+        self._register_message("focus")
 
     def _turn(self, direction, step):
         return -direction, step / 2.0
@@ -72,11 +72,5 @@ class Focuser(ConcertObject):
                     direction, step = self._turn(direction, step)
             self._logger.info("Maximum gradient: %g found at position: %s" %
                               (gradient, str(self._axis.get_position())))
-            self.send(FocuserMessage.FOCUS_FOUND)
 
-        if blocking:
-            _focus(step)
-        else:
-            t = Thread(target=_focus, args=(step,))
-            t.daemon = True
-            t.start()
+        return self._launch("focus", _focus, (step,), blocking)
