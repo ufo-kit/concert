@@ -1,6 +1,7 @@
 import unittest
-from concert.events.dispatcher import Dispatcher
+import logbook
 import time
+from concert.events.dispatcher import Dispatcher
 from concert.devices.dummy import DummyDevice
 
 SLEEP_TIME = 0.005
@@ -9,6 +10,11 @@ SLEEP_TIME = 0.005
 class TestDispatcher(unittest.TestCase):
     def setUp(self):
         self.dispatcher = Dispatcher()
+        self.handler = logbook.TestHandler()
+        self.handler.push_thread()
+
+    def tearDown(self):
+        self.handler.pop_thread()
 
     def test_subscription(self):
         self.visited = False
