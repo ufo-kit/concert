@@ -1,11 +1,11 @@
 """
 A :class:`Camera` can be set via the device-specific properties that can be set
-and read with :meth:`.Device.set` and :meth:`.Device.get`. Moreover, a camera
-provides means to
+and read with :meth:`.ConcertObject.set` and :meth:`.ConcertObject.get`.
+Moreover, a camera provides means to
 
-* :meth:`record` frames,
-* :meth:`stop` the acquisition and
-* :meth:`trigger` a frame capture.
+* :meth:`Camera.record` frames,
+* :meth:`Camera.stop` the acquisition and
+* :meth:`Camera.trigger` a frame capture.
 
 To setup and use a camera in a typical environment, you would do::
 

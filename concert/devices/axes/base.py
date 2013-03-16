@@ -1,9 +1,22 @@
 """
-A :class:`Axis` is a control object that moves along a single one-dimensional
+An :class:`Axis` is a control object that moves along a single one-dimensional
 direction.
 
 Each axis is associated with a :class:`Calibration` that maps arbitrary
-real-world coordinates to devices coordinates.
+real-world coordinates to devices coordinates. When a calibration is associated
+with an axis, the position can be changed with :meth:`Axis.set_position` and
+:meth:`Axis.move`::
+
+    from concert.devices.base import LinearCalibration
+    from concert.devices.axes.ankatango import ANKATangoDiscreteAxis
+
+    calibration = LinearCalibration(1 / q.mm, 0 * q.mm)
+    axis1 = ANKATangoDiscreteAxis(connection, calibration)
+
+    axis.set_position(2 * q.mm, blocking=True)
+    axis.move(-0.5 * q.mm)
+
+As long as an axis is moving, :meth:`Axis.stop` will stop the motion.
 """
 from concert.base import ConcertObject
 from concert.devices.base import State

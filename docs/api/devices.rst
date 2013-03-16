@@ -1,22 +1,9 @@
-===================
-Controlling devices
-===================
+=================================
+Application Programming Interface
+=================================
 
-.. automodule:: concert.base
-
-
-Device classes
-==============
-
-.. toctree::
-    :maxdepth: 2
-
-    axis
-    camera
-
-
-Interface
-=========
+Base
+====
 
 .. autoclass:: concert.base.ConcertObject
     :members:
@@ -38,3 +25,19 @@ Implementing objects
         setter will be applied in *reverse* order. That means if ``A`` inherits from
         ``Device`` and ``B`` inherits from ``A``, calling ``set`` on an object of
         type ``B`` will actually call ``B.set(A.set(x))``.
+
+Axes
+====
+
+.. autoclass:: concert.devices.axes.base.Axis
+    :members:
+
+.. autoclass:: concert.devices.axes.base.Calibration
+    :members:
+
+
+Cameras
+=======
+
+.. autoclass:: concert.devices.cameras.base.Camera
+    :members:

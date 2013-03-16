@@ -55,7 +55,7 @@ User documentation
     :glob:
 
     usage/sessions
-    usage/concertobject
+    usage/control
 
 
 Developer documentation
@@ -63,4 +63,5 @@ Developer documentation
 .. toctree::
     :maxdepth: 2
 
-    usage/dispatcher
+    api/devices
+    api/dispatcher
