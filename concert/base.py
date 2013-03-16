@@ -1,6 +1,3 @@
-"""
-The mother of all bases. The lowest level object definition and functionality.
-"""
 import threading
 from concert.events.dispatcher import dispatcher
 from threading import Event
@@ -12,13 +9,14 @@ log = Logger(__name__)
 
 class ConcertObject(object):
     """
-    Base class for where a set of parameters can be set. Events are produced
-    when a setter methods is called. The class provides functionality for
+    Base class handling parameters manipulation. Events are produced
+    when a parameter is set. The class provides functionality for
     listening to messages.
 
-    A :class:`Device` consists of optional getters, setters, limiters and units
-    for named parameters. Implementations first call :meth:`__init__` and then
-    :meth:`_register` to add or supplement a parameter.
+    A :class:`ConcertObject` consists of optional getters, setters, limiters
+    and units for named parameters. Implementations first call
+    :meth:`__init__` and then :meth:`_register` to add or supplement
+    a parameter.
     """
     def __init__(self):
         self._setters = {}
