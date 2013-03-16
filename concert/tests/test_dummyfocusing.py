@@ -60,6 +60,7 @@ class TestDummyFocusing(unittest.TestCase):
         self._check_position(self._axis.get_position(),
                              self._axis._hard_limits[0]*q.mm)
 
+    @slow
     def test_maximum_out_of_soft_limits(self):
         # Right.
         axis = DummyAxis(LinearCalibration(1/q.mm, 0*q.mm),
