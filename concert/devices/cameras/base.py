@@ -39,10 +39,10 @@ class Camera(ConcertObject):
         launch(self._trigger_real, blocking=blocking)
 
     def _record_real(self):
-        raise NotImplemented
+        raise NotImplementedError
 
     def _stop_real(self):
-        raise NotImplemented
+        raise NotImplementedError
 
     def _trigger_real(self):
-        raise NotImplemented
+        raise NotImplementedError

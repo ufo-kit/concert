@@ -4,7 +4,7 @@ import quantities as q
 from concert.tests.decorators import slow
 from concert.devices.axes.base import LinearCalibration, Axis
 from concert.devices.axes.dummy import DummyAxis, DummyContinuousAxis
-from concert.events.dispatcher import dispatcher
+from concert.events.dispatcher import dispatcher, wait
 
 
 class TestDummyAxis(unittest.TestCase):
@@ -26,7 +26,7 @@ class TestDummyAxis(unittest.TestCase):
     def test_set_position_nonblocking(self):
         position = 1 * q.mm
         e = self.axis.set_position(position, False)
-        dispatcher.wait([e])
+        wait([e])
         self.assertEqual(position, self.axis.get_position())
 
     def test_set_positions_nonblocking(self):
@@ -37,7 +37,7 @@ class TestDummyAxis(unittest.TestCase):
 
         event_1 = self.axis.set_position(position, False)
         event_2 = axis1.set_position(position1, False)
-        dispatcher.wait([event_1, event_2])
+        wait([event_1, event_2])
         self.assertEqual(position, self.axis.get_position())
         self.assertEqual(position1, axis1.get_position())
 

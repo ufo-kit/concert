@@ -7,18 +7,18 @@ from concert.devices.cameras.base import Camera
 
 
 def _new_setter_wrapper(camera, name):
-    def wrapper(value):
-        d = {name: value}
-        camera.set_properties(**d)
+    def _wrapper(value):
+        dic = {name: value}
+        camera.set_properties(**dic)
 
-    return wrapper
+    return _wrapper
 
 
 def _new_getter_wrapper(camera, name):
-    def wrapper():
+    def _wrapper():
         return camera.get_property(name)
 
-    return wrapper
+    return _wrapper
 
 
 class UcaCamera(Camera):

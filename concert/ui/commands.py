@@ -45,9 +45,9 @@ and to view the log for a specific experiment use ::
 
 .. note::
 
-    When Concert is installed system-wide, a bash completion for the ``concert``
-    tool is installed too. This means, that commands and options will be
-    completed when pressing the :kbd:`Tab` key.
+    When Concert is installed system-wide, a bash completion for the
+    ``concert`` tool is installed too. This means, that commands and options
+    will be completed when pressing the :kbd:`Tab` key.
 
 
 Customizing log output
