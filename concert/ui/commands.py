@@ -69,7 +69,7 @@ import subprocess
 import logbook
 import concert
 
-arguments = {
+ARGUMENTS = {
     'edit': {'session': {'type': str}},
     'init': {'session': {'type': str},
              '--force': {'action': 'store_true',
