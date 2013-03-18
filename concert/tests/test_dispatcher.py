@@ -1,7 +1,7 @@
 import unittest
 import logbook
 import time
-from concert.events.dispatcher import Dispatcher
+from concert.events.dispatcher import Dispatcher, wait
 from concert.devices.dummy import DummyDevice
 
 SLEEP_TIME = 0.005
@@ -46,7 +46,7 @@ class TestDispatcher(unittest.TestCase):
         event_1 = device_1.set_value(15)
         event_2 = device_2.set_value(12)
 
-        self.dispatcher.wait([event_1, event_2])
+        wait([event_1, event_2])
         self.assertEqual(device_1.get_value(), 15)
         self.assertEqual(device_2.get_value(), 12)
 
@@ -54,12 +54,12 @@ class TestDispatcher(unittest.TestCase):
         device = DummyDevice()
 
         event = device.set_value(1)
-        self.dispatcher.wait([event])
+        wait([event])
         event = device.set_value(2)
-        self.dispatcher.wait([event])
+        wait([event])
         event = device.set_value(3)
-        self.dispatcher.wait([event])
+        wait([event])
         event = device.set_value(4)
-        self.dispatcher.wait([event])
+        wait([event])
 
         self.assertEqual(4, device.get_value())
