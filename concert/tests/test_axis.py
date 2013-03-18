@@ -1,7 +1,7 @@
 import unittest
 import logbook
 import quantities as q
-from concert.tests.decorators import slow
+from concert.tests import slow
 from concert.devices.axes.base import LinearCalibration, Axis
 from concert.devices.axes.dummy import DummyAxis, DummyContinuousAxis
 from concert.events.dispatcher import dispatcher, wait

@@ -1,7 +1,7 @@
 import unittest
 import logbook
 import quantities as q
-from concert.tests.decorators import slow
+from concert.tests import slow
 from concert.devices.axes.base import LinearCalibration
 from concert.measures.dummygradient import DummyGradientMeasure
 from concert.processes.focus import Focuser

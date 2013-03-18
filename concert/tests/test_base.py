@@ -2,17 +2,10 @@ import unittest
 import logbook
 import time
 from concert.base import ConcertObject
+from concert.tests import VisitChecker
 
 
 SLEEP_TIME = 0.005
-
-
-class VisitChecker(object):
-    def __init__(self):
-        self.visited = False
-
-    def visit(self, sender):
-        self.visited = True
 
 
 class TestConcertObject(unittest.TestCase):
