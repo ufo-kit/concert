@@ -155,7 +155,7 @@ class ConcertObject(object):
         *callback* is a function which is unsubscribed from a particular
         *message* coming from this object.
         """
-        dispatcher.unsubscribe([(self, message)], callback)
+        dispatcher.unsubscribe(self, message, callback)
 
     def _launch(self, param, action, args=(), blocking=False):
         """Launch *action* with *args* with message and event handling after
