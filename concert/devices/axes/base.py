@@ -136,6 +136,7 @@ class LinearCalibration(Calibration):
     point.
     """
     def __init__(self, steps_per_unit, offset_in_steps):
+        super(LinearCalibration, self).__init__()
         self._steps_per_unit = steps_per_unit
         self._offset = offset_in_steps
 

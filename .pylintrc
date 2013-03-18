@@ -1,3 +1,6 @@
+[MASTER]
+ignore=tests
+
 [BASIC]
 # Do not cry when private methods and functions don't have docstring
 no-docstring-rgx=_[A_Za-z][A-Za-z0-9_]{2,30}$
