@@ -13,16 +13,12 @@ PATH = xdg.BaseDirectory.save_data_path('concert')
 DEFAULT_LOGFILE = os.path.join(PATH, 'concert.log')
 
 
-def _strip(path):
-    return os.path.splitext(path)[0]
-
-
 def path(session):
     """Get absolute path of *session* module."""
     return os.path.join(PATH, session + '.py')
 
 
-def create(session, logfile=None):
+def create(session):
     """Create a template with *session* name and write it
 
     .. note:: This will *always* overwrite session.
@@ -35,16 +31,6 @@ def create(session, logfile=None):
 
     with open(path(session), 'w') as session_file:
         session_file.write(template)
-
-
-def get_handler(m):
-    """Return logbook handler if m.__handler__ is one, or a
-    logbook.StderrHandler."""
-    if hasattr(m, '__handler__'):
-        if isinstance(m.__handler__, logbook.Handler):
-            return m.__handler__
-
-    return logbook.StderrHandler()
 
 
 def remove(session):
@@ -61,7 +47,7 @@ def load(session):
 def get_existing():
     """Get all existing session names."""
     sessions = [f for f in os.listdir(PATH) if f.endswith('.py')]
-    return [_strip(f) for f in sessions]
+    return [os.path.splitext(f)[0] for f in sessions]
 
 
 def exists(session):

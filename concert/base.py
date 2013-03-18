@@ -3,8 +3,8 @@ A device is an abstraction for a piece of hardware that can be controlled.
 
 The main interface to all devices is a generic setter and getter mechanism
 provided by every :class:`ConcertObject`. :meth:`ConcertObject.set` sets a
-parameter to value. Additionally, you can specify a *blocking* parameter to halt
-execution until the value is actually set on the device::
+parameter to value. Additionally, you can specify a *blocking* parameter to
+halt execution until the value is actually set on the device::
 
     axis.set('position', 5.5 * q.mm, blocking=True)
 
@@ -60,12 +60,12 @@ class ConcertObject(object):
             raise NotImplementedError
 
         if not self._unit_is_compatible(param, value):
-            s = "`{0}' can only receive values of unit {1}"
-            raise ValueError(s.format(param, self._units[param]))
+            msg = "`{0}' can only receive values of unit {1}"
+            raise ValueError(msg.format(param, self._units[param]))
 
         if not self._value_is_in_range(param, value):
-            s = "Value {0} for `{1}` is out of range"
-            raise ValueError(s.format(value, param))
+            msg = "Value {0} for `{1}` is out of range"
+            raise ValueError(msg.format(value, param))
 
         msg = "{0}: set {1}='{2}' blocking='{3}'"
         log.info(msg.format(str(self), param, value, blocking))
@@ -80,7 +80,7 @@ class ConcertObject(object):
         try:
             self._units[param] + value
             return True
-        except:
+        except ValueError:
             return False
 
     def _value_is_in_range(self, param, value):

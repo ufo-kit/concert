@@ -68,3 +68,6 @@ class UcaCamera(Camera):
 
     def _stop_real(self):
         self.camera.stop_recording()
+
+    def _trigger_real(self):
+        self.camera.trigger()

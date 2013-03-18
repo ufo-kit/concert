@@ -15,4 +15,3 @@ class VisitChecker(object):
 
     def visit(self, *args, **kwargs):
         self.visited = True
-
