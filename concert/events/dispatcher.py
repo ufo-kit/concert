@@ -71,10 +71,4 @@ class Dispatcher(object):
             self._messages.task_done()
 
 
-def wait(events, timeout=None):
-    """Wait until sender sent message."""
-    for event in events:
-        event.wait(timeout)
-
-
 dispatcher = Dispatcher()

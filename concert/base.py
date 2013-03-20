@@ -166,15 +166,12 @@ class ConcertObject(object):
         arguments that is then unpacked and passed to *action* at _launch time.
         The *action* itself must be blocking.
         """
-        def _action(event, args):
+        def call_action_and_send():
             """Call action and handle its finish."""
             action(*args)
-            event.set()
             self.send(param)
 
-        event = Event()
-        launch(_action, (event, args), blocking)
-        return event
+        return launch(call_action_and_send, (), blocking)
 
 
 def launch(action, args=(), blocking=False):
@@ -184,10 +181,28 @@ def launch(action, args=(), blocking=False):
     function otherwise a thread will be started. *args* must be a tuple of
     arguments that is then unpacked and passed to *action* at launch time.
     The *action* itself must be blocking.
+
+    *launch* returns immediately with an :class:`threading.Event` object that
+    can be used to wait for completion of *action*.
     """
+    event = Event()
+
+    def call_action_and_complete():
+        """Call action and handle its finish."""
+        action(*args)
+        event.set()
+
     if blocking:
         action(*args)
     else:
-        thread = threading.Thread(target=action, args=args)
+        thread = threading.Thread(target=call_action_and_complete, args=args)
         thread.daemon = True
         thread.start()
+
+    return event
+
+
+def wait(events, timeout=None):
+    """Wait until all *events* finished."""
+    for event in events:
+        event.wait(timeout)
