@@ -1,28 +1,66 @@
-'''
-Created on Mar 13, 2013
-
-@author: farago
-'''
-import logging
+"""
+Focus related processes
+"""
+import logbook
 from concert.optimization.scalar import Maximizer
 from concert.base import ConcertObject
+
+
+log = logbook.Logger(__name__)
 
 
 class FocuserMessage(object):
     FOCUS_FOUND = "focus_found"
 
 
+def _focus(axis, feedback, step, epsilon):
+    direction = 1
+    hits = 0
+    maximizer = Maximizer(epsilon)
+
+    def turn(direction, step):
+        return -direction, step / 2.0
+
+    while True:
+        try:
+            axis.move(direction * step, True)
+            gradient = feedback()
+            point_reached = maximizer.set_point_reached(gradient)
+
+            if axis.hard_position_limit_reached() or \
+               point_reached or \
+               not maximizer.is_better(gradient):
+                direction, step = turn(direction, step)
+
+            if point_reached:
+                # Make sure we found the global maximum and not only
+                # two equal gradients but out of focus. This can happen
+                # if we are out of focus and by motor movement we go
+                # to the other side of the image plane with equal
+                # gradient.
+                hits += 1
+            else:
+                hits = 0
+
+            if hits == 2:
+                break
+
+            maximizer.value = gradient
+            log.debug("Gradient: %g, axis position: %s" %
+                      (gradient, str(axis.get_position())))
+        except ValueError:
+            direction, step = turn(direction, step)
+
+    log.info("Maximum gradient: %g found at position: %s" %
+             (gradient, str(axis.get_position())))
+
+
 class Focuser(ConcertObject):
     def __init__(self, axis, epsilon, gradient_feedback):
-        self._logger = logging.getLogger(self.__class__.__name__)
         self._axis = axis
-        # A function which provides gradient feedback.
+        self._epsilon = epsilon
         self._gradient_feedback = gradient_feedback
-        self._maximizer = Maximizer(epsilon)
         self._register_message("focus")
-
-    def _turn(self, direction, step):
-        return -direction, step / 2.0
 
     def focus(self, step, blocking=False):
         """A simple focusing process using gradient as a measure. It maximizes
@@ -41,36 +79,5 @@ class Focuser(ConcertObject):
         position of the global maximum is found, an appropriate message
         is sent.
         """
-        def _focus(step):
-            direction = 1
-            hits = 0
-            while True:
-                try:
-                    self._axis.move(direction*step, True)
-                    gradient = self._gradient_feedback()
-                    point_reached = self._maximizer.set_point_reached(gradient)
-                    if self._axis.hard_position_limit_reached() or\
-                            point_reached or\
-                            not self._maximizer.is_better(gradient):
-                        direction, step = self._turn(direction, step)
-                    if point_reached:
-                        # Make sure we found the global maximum and not only
-                        # two equal gradients but out of focus. This can happen
-                        # if we are out of focus and by motor movement we go
-                        # to the other side of the image plane with equal
-                        # gradient.
-                        hits += 1
-                    else:
-                        hits = 0
-                    if hits == 2:
-                        break
-                    self._maximizer.value = gradient
-                    self._logger.debug("Gradient: %g, axis position: %s" %
-                                       (gradient,
-                                        str(self._axis.get_position())))
-                except ValueError:
-                    direction, step = self._turn(direction, step)
-            self._logger.info("Maximum gradient: %g found at position: %s" %
-                              (gradient, str(self._axis.get_position())))
-
-        return self._launch("focus", _focus, (step,), blocking)
+        params = (self._axis, self._gradient_feedback, step, self._epsilon)
+        return self._launch("focus", _focus, params, blocking)
