@@ -56,6 +56,7 @@ User documentation
 
     usage/sessions
     usage/control
+    usage/processes
 
 
 Developer documentation
