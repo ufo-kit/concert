@@ -23,6 +23,8 @@ class TestScan(unittest.TestCase):
 
         self._axis.subscribe('position', on_set_position)
         ascan([(self._axis, -2 * q.mm, 10 * q.mm)], 4, True)
+
+        self.assertEqual(len(self.positions), 5)
         self.assertEqual(self.positions[0], -2 * q.mm)
         self.assertEqual(self.positions[1], 1 * q.mm)
         self.assertEqual(self.positions[2], 4 * q.mm)
