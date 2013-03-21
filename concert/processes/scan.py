@@ -21,7 +21,7 @@ To be notified when an axis reaches a chosen position, you can do ::
     axis1.subscribe('position', on_axis1_position)
     axis2.subscribe('position', on_axis2_position)
 """
-from concert.base import launch, wait
+from concert.base import launch, wait, MultiContext
 
 
 def ascan(axes, intervals, blocking=False):
@@ -33,14 +33,17 @@ def ascan(axes, intervals, blocking=False):
     data points.
     """
     def do_ascan():
-        for i in range(intervals + 1):
-            events = []
+        axes_list = [tup[0] for tup in axes]
 
-            for axis, start, stop in axes:
-                step = (stop - start) / intervals
-                position = start + i * step
-                events.append(axis.set_position(position))
+        with MultiContext(axes_list):
+            for i in range(intervals + 1):
+                events = []
 
-            wait(events)
+                for axis, start, stop in axes:
+                    step = (stop - start) / intervals
+                    position = start + i * step
+                    events.append(axis.set_position(position))
+
+                wait(events)
 
     return launch(do_ascan, (), blocking)
