@@ -1,7 +1,8 @@
+import time
 import unittest
 import logbook
 import quantities as q
-from concert.devices.axes.base import Axis, LinearCalibration
+from concert.devices.axes.base import LinearCalibration
 from concert.devices.axes.dummy import DummyAxis
 from concert.processes.scan import ascan
 
@@ -23,6 +24,7 @@ class TestScan(unittest.TestCase):
 
         self._axis.subscribe('position', on_set_position)
         ascan([(self._axis, -2 * q.mm, 10 * q.mm)], 4, True)
+        time.sleep(0.05)
 
         self.assertEqual(len(self.positions), 5)
         self.assertEqual(self.positions[0], -2 * q.mm)
@@ -30,5 +32,3 @@ class TestScan(unittest.TestCase):
         self.assertEqual(self.positions[2], 4 * q.mm)
         self.assertEqual(self.positions[3], 7 * q.mm)
         self.assertEqual(self.positions[4], 10 * q.mm)
-
-
