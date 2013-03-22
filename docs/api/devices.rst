@@ -26,13 +26,13 @@ Implementing objects
         ``Device`` and ``B`` inherits from ``A``, calling ``set`` on an object of
         type ``B`` will actually call ``B.set(A.set(x))``.
 
-Axes
-====
+Motors
+======
 
-.. autoclass:: concert.devices.axes.base.Axis
+.. autoclass:: concert.devices.motors.base.Motor
     :members:
 
-.. autoclass:: concert.devices.axes.base.Calibration
+.. autoclass:: concert.devices.motors.base.Calibration
     :members:
 
 

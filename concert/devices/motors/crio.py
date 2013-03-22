@@ -4,7 +4,7 @@ Axes based on the CompactRIO controller.
 import logging
 import readline
 import quantities as q
-from concert.devices.axes.base import Axis, LinearCalibration
+from concert.devices.motors.base import Motor, LinearCalibration
 from concert.connection import SocketConnection
 
 
@@ -12,13 +12,13 @@ CRIO_HOST = 'cRIO9074-Motion.ka.fzk.de'
 CRIO_PORT = 6342
 
 
-class LinearAxis(Axis):
-    """A linear axis that moves in two directions."""
+class LinearMotor(Motor):
+    """A linear motor that moves in two directions."""
 
     def __init__(self):
         calibration = LinearCalibration(50000 / q.mm, -1 * q.mm)
 
-        super(LinearAxis, self).__init__(calibration)
+        super(LinearMotor, self).__init__(calibration)
 
         self._steps = None
         self._connection = SocketConnection(CRIO_HOST, CRIO_PORT)
@@ -36,13 +36,13 @@ class LinearAxis(Axis):
         self._connection.communicate('lin %i\r\n' % steps)
 
 
-class RotationAxis(Axis):
-    """A rotational axis."""
+class RotationMotor(Motor):
+    """A rotational motor."""
 
     def __init__(self):
         calibration = LinearCalibration(50000 / q.mm, 0 * q.mm)
 
-        super(RotationAxis, self).__init__(calibration)
+        super(RotationMotor, self).__init__(calibration)
 
         self._connection = SocketConnection(CRIO_HOST, CRIO_PORT)
         self._steps = None
@@ -67,8 +67,8 @@ if __name__ == '__main__':
 
     readline.parse_and_bind('tab: complete')
 
-    linear_device = LinearAxis()
-    rotation_device = RotationAxis()
+    linear_device = LinearMotor()
+    rotation_device = RotationMotor()
 
     try:
         input = raw_input

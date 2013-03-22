@@ -2,14 +2,14 @@ import time
 import unittest
 import logbook
 import quantities as q
-from concert.devices.axes.base import LinearCalibration
-from concert.devices.axes.dummy import DummyAxis
+from concert.devices.motors.base import LinearCalibration
+from concert.devices.motors.dummy import DummyMotor
 from concert.processes.scan import ascan
 
 
 class TestScan(unittest.TestCase):
     def setUp(self):
-        self._axis = DummyAxis(LinearCalibration(1 / q.mm, 0 * q.mm))
+        self._motor = DummyMotor(LinearCalibration(1 / q.mm, 0 * q.mm))
         self.handler = logbook.TestHandler()
         self.handler.push_thread()
 
@@ -19,11 +19,11 @@ class TestScan(unittest.TestCase):
     def test_ascan(self):
         self.positions = []
 
-        def on_set_position(axis):
-            self.positions.append(axis.get_position())
+        def on_set_position(motor):
+            self.positions.append(motor.get_position())
 
-        self._axis.subscribe('position', on_set_position)
-        ascan([(self._axis, -2 * q.mm, 10 * q.mm)], 4, True)
+        self._motor.subscribe('position', on_set_position)
+        ascan([(self._motor, -2 * q.mm, 10 * q.mm)], 4, True)
         time.sleep(0.05)
 
         self.assertEqual(len(self.positions), 5)

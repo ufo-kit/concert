@@ -8,17 +8,17 @@ Controlling devices
 Device classes
 ==============
 
-Axes
-----
+Motors
+------
 
-.. automodule:: concert.devices.axes.base
+.. automodule:: concert.devices.motors.base
 
-The following axis devices are available:
+The following motor devices are available:
 
-*   .. automodule:: concert.devices.axes.ankatango
+*   .. automodule:: concert.devices.motors.ankatango
         :members:
 
-*   .. automodule:: concert.devices.axes.crio
+*   .. automodule:: concert.devices.motors.crio
         :members:
 
 

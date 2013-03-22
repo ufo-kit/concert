@@ -1,6 +1,6 @@
 import unittest
 import quantities as q
-from concert.devices.axes.base import LinearCalibration
+from concert.devices.motors.base import LinearCalibration
 
 
 class TestLinearCalibration(unittest.TestCase):

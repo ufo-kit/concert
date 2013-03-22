@@ -1,36 +1,36 @@
 """
-Each axis is associated with a :class:`Calibration` that maps arbitrary
+Each motor is associated with a :class:`Calibration` that maps arbitrary
 real-world coordinates to devices coordinates. When a calibration is associated
-with an axis, the position can be changed with :meth:`Axis.set_position` and
-:meth:`Axis.move`::
+with an motor, the position can be changed with :meth:`Motor.set_position` and
+:meth:`Motor.move`::
 
     from concert.devices.base import LinearCalibration
-    from concert.devices.axes.ankatango import ANKATangoDiscreteAxis
+    from concert.devices.motors.ankatango import ANKATangoDiscreteMotor
 
     calibration = LinearCalibration(1 / q.mm, 0 * q.mm)
-    axis1 = ANKATangoDiscreteAxis(connection, calibration)
+    motor1 = ANKATangoDiscreteMotor(connection, calibration)
 
-    axis.set_position(2 * q.mm, blocking=True)
-    axis.move(-0.5 * q.mm)
+    motor.set_position(2 * q.mm, blocking=True)
+    motor.move(-0.5 * q.mm)
 
-As long as an axis is moving, :meth:`Axis.stop` will stop the motion.
+As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 """
 from concert.base import ConcertObject
 from concert.devices.base import State
 
 
-class Axis(ConcertObject):
+class Motor(ConcertObject):
     """Base class for everything that moves.
 
-    An axis is used with a *calibration* that conforms to the
+    An motor is used with a *calibration* that conforms to the
     :class:`Calibration` interface to convert between user and device units.
 
     Exported parameters:
-        - ``"position"``: Position of the axis
+        - ``"position"``: Position of the motor
     """
 
     def __init__(self, calibration):
-        super(Axis, self).__init__()
+        super(Motor, self).__init__()
 
         self._state = None
         self._register('position',
@@ -50,7 +50,7 @@ class Axis(ConcertObject):
         return self.get('position')
 
     def move(self, delta, blocking=False):
-        """Move axis by *delta* user units."""
+        """Move motor by *delta* user units."""
         new_position = self.get_position() + delta
         self.set_position(new_position, blocking)
 
@@ -67,7 +67,7 @@ class Axis(ConcertObject):
         self.send(self._state)
 
     def _stop_real(self):
-        """Stop the physical axis.
+        """Stop the physical motor.
 
         This method must be always blocking in order to provide appropriate
         events at appropriate times.
@@ -79,14 +79,14 @@ class Axis(ConcertObject):
         raise NotImplementedError
 
 
-class ContinuousAxis(Axis):
+class ContinuousMotor(Motor):
     """A movable on which one can set velocity.
 
     This class is inherently capable of discrete movement.
 
     """
     def __init__(self, position_calibration, velocity_calibration):
-        super(ContinuousAxis, self).__init__(position_calibration)
+        super(ContinuousMotor, self).__init__(position_calibration)
         self._velocity = None
         self._velocity_calibration = velocity_calibration
 
@@ -96,22 +96,22 @@ class ContinuousAxis(Axis):
                        None)
 
     def set_velocity(self, velocity, blocking=False):
-        """Set *velocity* of the axis."""
+        """Set *velocity* of the motor."""
         self.set('velocity', velocity, blocking)
 
     def get_velocity(self):
-        """Get current velocity of the axis."""
+        """Get current velocity of the motor."""
         return self.get('velocity')
 
 
-class AxisState(State):
-    """Axis status."""
+class MotorState(State):
+    """Motor status."""
     STANDBY = "standby"
     MOVING = "moving"
 
 
-class AxisMessage(object):
-    """Axis message."""
+class MotorMessage(object):
+    """Motor message."""
     POSITION_LIMIT = "position_limit"
     VELOCITY_LIMIT = "velocity_limit"
 

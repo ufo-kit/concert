@@ -1,11 +1,11 @@
 """
-Tango axes with ANKA specific interfaces.
+Tango motors with ANKA specific interfaces.
 """
 import time
 import quantities as pq
 import logbook
 from threading import Thread
-from concert.devices.axes.base import Axis, AxisState, AxisMessage
+from concert.devices.motors.base import Motor, MotorState, MotorMessage
 from concert.devices.base import UnknownStateError
 
 log = logbook.Logger(__name__)
@@ -22,10 +22,10 @@ SLEEP_TIME = 0.005
 SLOW_SLEEP_TIME = 1.0
 
 
-class ANKATangoDiscreteAxis(Axis):
+class ANKATangoDiscreteMotor(Motor):
     """Tango device that ... need ... more ... information."""
     def __init__(self, connection, calibration, position_limit=None):
-        super(ANKATangoDiscreteAxis, self).__init__(calibration)
+        super(ANKATangoDiscreteMotor, self).__init__(calibration)
         self._connection = connection
         self._register("position", self._get_position_real,
                        self._set_position_real, pq.mm)
@@ -38,9 +38,9 @@ class ANKATangoDiscreteAxis(Axis):
     def _determine_state(self):
         tango_state = self._connection.tango_device.state()
         if tango_state == PyTango.DevState.MOVING:
-            current = AxisState.MOVING
+            current = MotorState.MOVING
         elif tango_state == PyTango.DevState.STANDBY:
-            current = AxisState.STANDBY
+            current = MotorState.STANDBY
         else:
             raise UnknownStateError(tango_state)
 
@@ -56,10 +56,10 @@ class ANKATangoDiscreteAxis(Axis):
     def _set_position_real(self, position):
         self._connection.tango_device.write_attribute("position", position)
         time.sleep(SLOW_SLEEP_TIME)
-        while self.state == AxisState.MOVING:
+        while self.state == MotorState.MOVING:
             time.sleep(SLEEP_TIME)
         if self.hard_position_limit_reached():
-            self.send(AxisMessage.POSITION_LIMIT)
+            self.send(MotorMessage.POSITION_LIMIT)
 
     def _get_position_real(self):
         return self._connection.tango_device.read_attribute("position").value
