@@ -70,19 +70,22 @@ import logbook
 import concert
 
 ARGUMENTS = {
-    'edit': {'session': {'type': str}},
-    'init': {'session': {'type': str},
-             '--force': {'action': 'store_true',
-                         'help': "Overwrite existing sessions"}},
-    'log':  {'session': {'type': str,
-                         'nargs': '?'}},
-    'start': {'session': {'type': str},
-              '--logto': {'choices': ['stderr', 'file'],
-                          'default': 'file'},
-              '--logfile': {'type': str}},
-    'rm':   {'sessions': {'type': str,
-                          'nargs': '+',
-                          'metavar': 'session'}},
+    'edit': {'session':     {'type': str}},
+    'init': {'session':     {'type': str},
+             '--force':     {'action': 'store_true',
+                             'help': "Overwrite existing sessions"},
+             '--imports':   {'help': "Pre-import processes",
+                             'metavar': 'modules',
+                             'default': []}},
+    'log':  {'session':     {'type': str,
+                             'nargs': '?'}},
+    'start': {'session':    {'type': str},
+              '--logto':    {'choices': ['stderr', 'file'],
+                             'default': 'file'},
+              '--logfile':  {'type': str}},
+    'rm':   {'sessions':    {'type': str,
+                             'nargs': '+',
+                             'metavar': 'session'}},
     'show': {}
 }
 
@@ -104,7 +107,7 @@ def edit(session=None):
     subprocess.call([editor, concert.session.path(session)])
 
 
-def init(session=None, force=False):
+def init(session=None, imports=[], force=False):
     """Create a new session.
 
     *Additional options*:
@@ -113,12 +116,13 @@ def init(session=None, force=False):
 
         Create the session even if one already exists with this name.
     """
+    print imports
     if concert.session.exists(session) and not force:
         message = "Session `{0}' already exists."
         message += " Use --force to create it anyway."
         print(message.format(session))
     else:
-        concert.session.create(session)
+        concert.session.create(session, imports.split())
 
 
 def log(session=None):

@@ -37,14 +37,8 @@ def ascan(motors, n_intervals, start_positions=None, blocking=False):
     *motors* containing start positions from where scanning for each motor
     should begin.
     """
-    def do_ascan(start_positions=None):
+    def do_ascan(start_positions):
         motors_list = [tup[0] for tup in motors]
-
-        if start_positions:
-            if len(motors) != len(start_positions):
-                raise ValueError("*start_positions* must match *motors*")
-        else:
-            start_positions = [0 * q.mm] * len(motors)
 
         positioned_motors = map(lambda (tup, single): tup + (single,),
                                 zip(motors, start_positions))
@@ -59,6 +53,12 @@ def ascan(motors, n_intervals, start_positions=None, blocking=False):
                     events.append(motor.set_position(position))
 
                 wait(events)
+
+    if start_positions:
+        if len(motors) != len(start_positions):
+            raise ValueError("*start_positions* must match *motors*")
+    else:
+        start_positions = [0 * q.mm] * len(motors)
 
     return launch(do_ascan, (start_positions,), blocking)
 
