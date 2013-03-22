@@ -80,6 +80,12 @@ class ConcertObject(object):
     def __exit__(self, type, value, traceback):
         self._lock.release()
 
+    def __str__(self):
+        s = ""
+        for param, get in self._getters.iteritems():
+            s += "{0} = {1}".format(param, get())
+        return s
+
     def get(self, param):
         """Return the value of *param*."""
         if param not in self._getters:
