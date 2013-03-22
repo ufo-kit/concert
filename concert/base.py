@@ -230,7 +230,7 @@ def launch(action, args=(), blocking=False):
     """
     event = Event()
 
-    def call_action_and_complete():
+    def call_action_and_complete(args=()):
         """Call action and handle its finish."""
         action(*args)
         event.set()
@@ -238,7 +238,7 @@ def launch(action, args=(), blocking=False):
     if blocking:
         action(*args)
     else:
-        thread = threading.Thread(target=call_action_and_complete, args=args)
+        thread = threading.Thread(target=call_action_and_complete, args=(args,))
         thread.daemon = True
         thread.start()
 
