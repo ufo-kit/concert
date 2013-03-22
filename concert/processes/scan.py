@@ -6,44 +6,71 @@ of motors in intervals ::
     import quantities as q
     from concert.processes.scan import ascan
 
-    ascan([(axis1, 0 * q.mm, 25 * q.mm),
-           (axis2, -2 * q.cm, 4 * q.cm)],
+    ascan([(motor1, 0 * q.mm, 25 * q.mm),
+           (motor2, -2 * q.cm, 4 * q.cm)],
           10)
 
-To be notified when an axis reaches a chosen position, you can do ::
+To be notified when an motor reaches a chosen position, you can do ::
 
-    def on_axis1_position(axis):
-        print("axis1 reached position " + str(axis.get_position))
+    def on_motor1_position(motor):
+        print("motor1 reached position " + str(motor.get_position))
 
-    def on_axis2_position(axis):
-        print("axis2 reached position " + str(axis.get_position))
+    def on_motor2_position(motor):
+        print("motor2 reached position " + str(motor.get_position))
 
-    axis1.subscribe('position', on_axis1_position)
-    axis2.subscribe('position', on_axis2_position)
+    motor1.subscribe('position', on_motor1_position)
+    motor2.subscribe('position', on_motor2_position)
 """
+import quantities as q
 from concert.base import launch, wait, MultiContext
 
 
-def ascan(axes, intervals, blocking=False):
+def ascan(motors, n_intervals, start_positions=None, blocking=False):
     """
-    For each *(axis, start, stop)* in the *axes* list, move the axis in
-    interval steps of *(stop - start) / intervals*.
+    For each *(motor, start, stop)* in the *motors* list, move the motor in
+    interval steps of *(stop - start) / n_intervals*.
 
-    Each axis moves the same number of intervals, totalling in *intervals + 1*
-    data points.
+    Each motor moves the same number of intervals, totalling in *n_intervals +
+    1* data points.
+
+    If *start_positions* is given, it must be a list with the same length as
+    *motors* containing start positions from where scanning for each motor
+    should begin.
     """
-    def do_ascan():
-        axes_list = [tup[0] for tup in axes]
+    def do_ascan(start_positions=None):
+        motors_list = [tup[0] for tup in motors]
 
-        with MultiContext(axes_list):
-            for i in range(intervals + 1):
+        if start_positions:
+            if len(motors) != len(start_positions):
+                raise ValueError("*start_positions* must match *motors*")
+        else:
+            start_positions = [0 * q.mm] * len(motors)
+
+        positioned_motors = map(lambda (tup, single): tup + (single,),
+                                zip(motors, start_positions))
+
+        with MultiContext(motors_list):
+            for i in range(n_intervals + 1):
                 events = []
 
-                for axis, start, stop in axes:
-                    step = (stop - start) / intervals
-                    position = start + i * step
-                    events.append(axis.set_position(position))
+                for motor, start, stop, init in positioned_motors:
+                    step = (stop - start) / n_intervals
+                    position = init + start + i * step
+                    events.append(motor.set_position(position))
 
                 wait(events)
 
-    return launch(do_ascan, (), blocking)
+    return launch(do_ascan, (start_positions,), blocking)
+
+
+def dscan(motors, n_intervals, blocking=False):
+    """
+    For each *(motor, start, stop)* in the *motors* list, move the motor in
+    interval steps of *(stop - start) / intervals* relative to the motors'
+    initial position.
+
+    Each motor moves the same number of intervals, totalling in *intervals + 1*
+    data points.
+    """
+    start_positions = [m[0].get_position() for m in motors]
+    return ascan(motors, n_intervals, start_positions, blocking)
