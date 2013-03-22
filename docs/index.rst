@@ -11,8 +11,13 @@ About
 Installation
 ============
 
-Concert uses distutils, so in case you downloaded a source tarball, you can
-simply install it system-wide using::
+It is recommended to use pip for installing Concert. Once, a release tarball was
+downloaded it can be installed system-wide with:: 
+
+    $ sudo pip install concert-x.y.z.tar.gz
+
+If you haven't have pip_ available, you can extract the tarball and install using
+this method::
 
     $ tar xfz concert-x.y.z.tar.gz
     $ cd concert-x.y.z
@@ -28,16 +33,15 @@ Installing into a virtualenv
 ----------------------------
 
 It is sometimes a good idea to install third-party Python modules independent of
-the system installation. This can be achieved easily using pip_ and
-virtualenv_. Once pip and virtualenv is installed, create a new empty
-environment and activate that with ::
+the system installation. This can be achieved easily using pip_ and virtualenv_.
+When virtualenv is installed, create a new empty environment and activate that
+with ::
 
     $ virtualenv my_new_environment
     $ . my_new_environment/bin/activate
 
 Now, you can install Concert's requirements and Concert itself ::
 
-    $ pip install -r path_to_concert/requirements.txt
     $ pip install -e path_to_concert/
 
 As long as ``my_new_environment`` is active, you can use Concert.

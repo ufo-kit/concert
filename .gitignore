@@ -1,4 +1,6 @@
 build/
+dist/
 docs/_build
 *.orig
 *.egg-info
+MANIFEST

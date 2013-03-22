@@ -1,5 +1,14 @@
+import os
 from concert import __version__
 from distutils.core import setup
+
+
+# Install Bash completion script only if installation is run as root
+if os.geteuid() != 0:
+    data_files = []
+else:
+    data_files = [('/etc/bash_completion.d', ['extras/completion/concert'])]
+
 
 setup(
     name='concert',
@@ -20,6 +29,11 @@ setup(
               ],
     scripts=['bin/autofocus',
              'bin/concert'],
-    data_files=[('/etc/bash_completion.d', ['extras/completion/concert'])],
+    data_files=data_files,
+    exclude_package_data={'': ['README.rst']},
     description="Lightweight control of heterogeneous environment",
+    install_requires=['argparse',
+                      'quantities',
+                      'pyxdg',
+                      'logbook']
 )
