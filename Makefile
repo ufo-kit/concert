@@ -6,6 +6,9 @@ RUNTEST = nosetests -v
 
 all: build
 
+install: clean build
+	$(SETUP) install
+
 build:
 	$(SETUP) build
 

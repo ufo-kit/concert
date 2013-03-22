@@ -5,3 +5,4 @@ logbook>=0.4.0
 Sphinx
 nose
 numpy
+ipython>=0.13.0
