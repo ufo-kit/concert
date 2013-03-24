@@ -1,6 +1,7 @@
 import unittest
 import logbook
 import quantities as q
+import random
 from concert.tests import slow
 from concert.devices.motors.base import LinearCalibration
 from concert.measures.dummygradient import DummyGradientMeasure
@@ -64,7 +65,8 @@ class TestDummyFocusing(unittest.TestCase):
     def test_maximum_out_of_soft_limits(self):
         # Right.
         motor = DummyMotor(LinearCalibration(1/q.mm, 0*q.mm),
-                         limiter=DummyLimiter(25, 75))
+                           limiter=DummyLimiter(25, 75),
+                           position=random.uniform(25, 75))
         gradient_feedback = DummyGradientMeasure(motor, 80*q.mm)
         focuser = Focuser(motor, 1e-3, gradient_feedback.get_gradient)
         focuser.focus(10*q.mm, True)
