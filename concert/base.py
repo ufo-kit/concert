@@ -81,7 +81,7 @@ class ConcertObject(object):
         self._lock.release()
 
     def __str__(self):
-        s = ""
+        s = str(self.__class__) + " "
         for param, get in self._getters.iteritems():
             s += "{0} = {1}".format(param, get())
         return s
@@ -110,8 +110,9 @@ class ConcertObject(object):
             msg = "Value {0} for `{1}` is out of range"
             raise ValueError(msg.format(value, param))
 
+        class_name = self.__class__.__name__
         msg = "{0}: set {1}='{2}' blocking='{3}'"
-        log.info(msg.format(str(self), param, value, blocking))
+        log.info(msg.format(class_name, param, value, blocking))
 
         setter = self._setters[param]
         return self._launch(param, setter, (value,), blocking)
@@ -238,7 +239,8 @@ def launch(action, args=(), blocking=False):
     if blocking:
         action(*args)
     else:
-        thread = threading.Thread(target=call_action_and_complete, args=(args,))
+        thread = threading.Thread(target=call_action_and_complete,
+                                  args=(args,))
         thread.daemon = True
         thread.start()
 

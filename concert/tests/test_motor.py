@@ -48,6 +48,15 @@ class TestDummyMotor(unittest.TestCase):
         self.motor.move(delta, True)
         self.assertEqual(position + delta, self.motor.get_position())
 
+    def test_log_output(self):
+        self.motor.set_position(0 * q.mm, True)
+        info = "DummyMotor: set position='0.0 mm' blocking='True'"
+        self.assertTrue(self.handler.has_info(info))
+
+        self.motor.set_position(2 * q.mm, False).wait()
+        info = "DummyMotor: set position='2.0 mm' blocking='False'"
+        self.assertTrue(self.handler.has_info(info))
+
 
 class TestContinuousDummyMotor(unittest.TestCase):
     def setUp(self):
@@ -56,7 +65,7 @@ class TestContinuousDummyMotor(unittest.TestCase):
                                                  0 * (q.mm / q.s))
 
         self.motor = DummyContinuousMotor(position_calibration,
-                                        velocity_calibration)
+                                          velocity_calibration)
 
         self.handler = logbook.TestHandler()
         self.handler.push_thread()
