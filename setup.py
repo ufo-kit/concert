@@ -1,6 +1,6 @@
 import os
 from concert import __version__
-from distutils.core import setup
+from setuptools import setup
 
 
 # Install Bash completion script only if installation is run as root
@@ -35,5 +35,6 @@ setup(
     install_requires=['argparse',
                       'quantities',
                       'pyxdg',
-                      'logbook']
+                      'logbook'],
+    test_suite='concert.tests'
 )

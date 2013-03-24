@@ -1,6 +1,6 @@
 PYTHON = python
 SETUP = $(PYTHON) setup.py
-RUNTEST = nosetests -v
+RUNTEST = nosetests
 
 .PHONY: clean check check-fast
 
