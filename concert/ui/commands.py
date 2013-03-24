@@ -68,6 +68,7 @@ import os
 import subprocess
 import logbook
 import concert
+from concert.base import UnitError, LimitError
 
 ARGUMENTS = {
     'edit': {'session':     {'type': str}},
@@ -224,8 +225,12 @@ def start(session=None, logto='file', logfile=None):
 
 
 def _run_shell(handler, m=None):
+    def exception_handler(shell, etype, evalue, tb, tb_offset=None):
+        print("Sorry, but {0}".format(str(evalue)))
+        return None
+
     try:
-        from IPython import embed
+        from IPython.frontend.terminal.embed import InteractiveShellEmbed
         import quantities as q
 
         if m:
@@ -234,7 +239,9 @@ def _run_shell(handler, m=None):
         banner = "Welcome to Concert {0}".format(concert.__version__)
 
         with handler.applicationbound():
-            embed(banner1=banner)
+            shell = InteractiveShellEmbed(banner1=banner)
+            shell.set_custom_exc((UnitError, LimitError,), exception_handler)
+            shell()
     except ImportError as e:
         print("You must install IPython to run the Concert shell: %s" % e)
 

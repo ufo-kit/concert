@@ -27,6 +27,16 @@ from logbook import Logger
 log = Logger(__name__)
 
 
+class UnitError(ValueError):
+    """Raised when an operation is passed value with an incompatible unit"""
+    pass
+
+
+class LimitError(ValueError):
+    """Raised when an operation is passed a value that exceeds a limit"""
+    pass
+
+
 class MultiContext(object):
     """Multi context manager to be used in a Python `with` management.
 
@@ -104,11 +114,11 @@ class ConcertObject(object):
 
         if not self._unit_is_compatible(param, value):
             msg = "`{0}' can only receive values of unit {1}"
-            raise ValueError(msg.format(param, self._units[param]))
+            raise UnitError(msg.format(param, self._units[param]))
 
         if not self._value_is_in_range(param, value):
-            msg = "Value {0} for `{1}` is out of range"
-            raise ValueError(msg.format(value, param))
+            msg = "{0} for `{1}` is out of range"
+            raise LimitError(msg.format(value, param))
 
         class_name = self.__class__.__name__
         msg = "{0}: set {1}='{2}' blocking='{3}'"

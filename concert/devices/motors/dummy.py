@@ -18,11 +18,8 @@ class DummyMotor(Motor):
     def __init__(self, calibration, limiter=None):
         super(DummyMotor, self).__init__(calibration)
         self._hard_limits = -100, 100
-        if limiter is None:
-            self._position = random.uniform(self._hard_limits[0],
-                                            self._hard_limits[1])
-        else:
-            self._position = random.uniform(limiter.low, limiter.high)
+        self._position = random.uniform(self._hard_limits[0],
+                                        self._hard_limits[1])
 
         self._register('position',
                        self._get_position,
