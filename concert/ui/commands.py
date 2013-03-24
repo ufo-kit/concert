@@ -86,7 +86,10 @@ ARGUMENTS = {
     'rm':   {'sessions':    {'type': str,
                              'nargs': '+',
                              'metavar': 'session'}},
-    'show': {}
+    'show': {'session':     {'type': str,
+                             'nargs': '?',
+                             'default': None,
+                             'help': "Show details"}}
 }
 
 
@@ -163,13 +166,17 @@ def rm(sessions=[]):
         concert.session.remove(session)
 
 
-def show():
-    """Show available sessions."""
-    sessions = concert.session.get_existing()
-    print("Available sessions:")
+def show(session=None):
+    """Show available sessions or details of a given *session*."""
+    if session:
+        module = concert.session.load(session)
+        print(module.__doc__)
+    else:
+        sessions = concert.session.get_existing()
+        print("Available sessions:")
 
-    for session in sessions:
-        print("  %s" % session)
+        for session in sessions:
+            print("  %s" % session)
 
 
 def start(session=None, logto='file', logfile=None):
