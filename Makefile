@@ -2,7 +2,7 @@ PYTHON = python
 SETUP = $(PYTHON) setup.py
 RUNTEST = nosetests
 
-.PHONY: clean check check-fast
+.PHONY: build clean check check-fast init install
 
 all: build
 
@@ -12,6 +12,9 @@ install: clean build
 build:
 	$(SETUP) build
 
+dist:
+	$(SETUP) sdist
+
 check:
 	$(RUNTEST)
 
@@ -20,3 +23,6 @@ check-fast:
 
 clean:
 	$(SETUP) clean --all
+
+init:
+	pip install -r ./requirements.txt
