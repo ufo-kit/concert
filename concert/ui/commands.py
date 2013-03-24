@@ -224,7 +224,12 @@ def start(session=None, logto='file', logfile=None):
     _run_shell(handler, module)
 
 
-def _run_shell(handler, m=None):
+def _get_module_variables(module):
+    attrs = [attr for attr in dir(module) if not attr.startswith('_')]
+    return dict((attr, getattr(module, attr)) for attr in attrs)
+
+
+def _run_shell(handler, module=None):
     def exception_handler(shell, etype, evalue, tb, tb_offset=None):
         print("Sorry, but {0}".format(str(evalue)))
         return None
@@ -233,13 +238,15 @@ def _run_shell(handler, m=None):
         from IPython.frontend.terminal.embed import InteractiveShellEmbed
         import quantities as q
 
-        if m:
-            print m.__doc__
+        print("Welcome to Concert {0}".format(concert.__version__))
 
-        banner = "Welcome to Concert {0}".format(concert.__version__)
+        if module:
+            print(module.__doc__)
+
+        globals().update(_get_module_variables(module))
 
         with handler.applicationbound():
-            shell = InteractiveShellEmbed(banner1=banner)
+            shell = InteractiveShellEmbed(banner1='')
             shell.set_custom_exc((UnitError, LimitError,), exception_handler)
             shell()
     except ImportError as e:
