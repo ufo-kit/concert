@@ -167,11 +167,14 @@ class ConcertObject(object):
         self._lock.release()
 
     def __str__(self):
-        s = str(self.__class__) + " "
+        s = ""
+        params = []
         for name, param in self._params.iteritems():
             if param.is_readable():
-                s += "{0} = {1}".format(name, param.get())
-        return s
+                params.append((name, param.get()))
+
+        params.sort()
+        return '\n'.join("%s = %s" % p for p in params)
 
     def get(self, param):
         """Return the value of parameter *name*."""
