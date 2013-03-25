@@ -77,7 +77,7 @@ ARGUMENTS = {
                              'help': "Overwrite existing sessions"},
              '--imports':   {'help': "Pre-import processes",
                              'metavar': 'modules',
-                             'default': []}},
+                             'default': ''}},
     'log':  {'session':     {'type': str,
                              'nargs': '?'}},
     'start': {'session':    {'type': str},
@@ -111,7 +111,7 @@ def edit(session=None):
     subprocess.call([editor, concert.session.path(session)])
 
 
-def init(session=None, imports=[], force=False):
+def init(session=None, imports="", force=False):
     """Create a new session.
 
     *Additional options*:
@@ -120,7 +120,6 @@ def init(session=None, imports=[], force=False):
 
         Create the session even if one already exists with this name.
     """
-    print imports
     if concert.session.exists(session) and not force:
         message = "Session `{0}' already exists."
         message += " Use --force to create it anyway."
