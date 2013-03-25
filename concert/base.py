@@ -201,6 +201,7 @@ class ConcertObject(object):
     def add_parameter(self, parameter):
         self._params[parameter.name] = parameter
         self._register_message(parameter.name)
+        setattr(self, parameter.name.replace('-', '_'), parameter.name)
 
     def _register_message(self, param):
         """Register a message on which one can wait."""

@@ -25,52 +25,52 @@ import quantities as q
 from concert.base import launch, wait, MultiContext
 
 
-def ascan(motors, n_intervals, start_positions=None, blocking=False):
+def ascan(devices, n_intervals, initial_values=None, blocking=False):
     """
-    For each *(motor, start, stop)* in the *motors* list, move the motor in
-    interval steps of *(stop - start) / n_intervals*.
+    For each *(device, parameter, start, stop)* in the *devices* list, call
+    ``device.set(parameter, x)`` where ``x`` is an interval *(stop - start) /
+    n_intervals*.
 
-    Each motor moves the same number of intervals, totalling in *n_intervals +
+    Each device gets the same number of intervals, totalling in *n_intervals +
     1* data points.
 
-    If *start_positions* is given, it must be a list with the same length as
-    *motors* containing start positions from where scanning for each motor
-    should begin.
+    If *initial_values* is given, it must be a list with the same length as
+    *devices* containing start values from where each device is scanned.
     """
-    def do_ascan(start_positions):
-        motors_list = [tup[0] for tup in motors]
+    def do_ascan(initial_values):
+        device_list = [tup[0] for tup in devices]
 
-        positioned_motors = map(lambda (tup, single): tup + (single,),
-                                zip(motors, start_positions))
+        positioned_devices = map(lambda (tup, single): tup + (single,),
+                                 zip(devices, initial_values))
 
-        with MultiContext(motors_list):
+        with MultiContext(device_list):
             for i in range(n_intervals + 1):
                 events = []
 
-                for motor, start, stop, init in positioned_motors:
+                for device, param, start, stop, init in positioned_devices:
                     step = (stop - start) / n_intervals
-                    position = init + start + i * step
-                    events.append(motor.set_position(position))
+                    value = init + start + i * step
+                    events.append(device.set(param, value))
 
                 wait(events)
 
-    if start_positions:
-        if len(motors) != len(start_positions):
+    if initial_values:
+        if len(devices) != len(initial_values):
             raise ValueError("*start_positions* must match *motors*")
     else:
-        start_positions = [0 * q.mm] * len(motors)
+        initial_values = [0 * q.mm] * len(devices)
 
-    return launch(do_ascan, (start_positions,), blocking)
+    return launch(do_ascan, (initial_values,), blocking)
 
 
-def dscan(motors, n_intervals, blocking=False):
+def dscan(devices, n_intervals, blocking=False):
     """
-    For each *(motor, start, stop)* in the *motors* list, move the motor in
+    For each *(motor, start, stop)* in the *devices* list, move the motor in
     interval steps of *(stop - start) / intervals* relative to the motors'
     initial position.
 
     Each motor moves the same number of intervals, totalling in *intervals + 1*
     data points.
     """
-    start_positions = [m[0].get_position() for m in motors]
-    return ascan(motors, n_intervals, start_positions, blocking)
+    initial_values = [d[0].get(d[1]) for d in devices]
+    return ascan(devices, n_intervals, initial_values, blocking)

@@ -23,7 +23,8 @@ class TestScan(unittest.TestCase):
             self.positions.append(motor.get_position())
 
         self._motor.subscribe('position', on_set_position)
-        ascan([(self._motor, -2 * q.mm, 10 * q.mm)], 4, blocking=True)
+        ascan([(self._motor, self._motor.position, -2 * q.mm, 10 * q.mm)], 4,
+              blocking=True)
         time.sleep(0.05)
 
         self.assertEqual(len(self.positions), 5)
@@ -45,7 +46,8 @@ class TestScan(unittest.TestCase):
         time.sleep(0.05)
 
         self._motor.subscribe('position', on_set_position)
-        dscan([(self._motor, 2 * q.mm, 10 * q.mm)], 4, blocking=True)
+        dscan([(self._motor, self._motor.position, 2 * q.mm, 10 * q.mm)], 4,
+              blocking=True)
         time.sleep(0.05)
 
         self.assertEqual(len(self.positions), 5)
