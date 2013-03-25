@@ -3,7 +3,7 @@ Focus related processes
 """
 import logbook
 from concert.optimization.scalar import Maximizer
-from concert.base import ConcertObject
+from concert.base import ConcertObject, LimitError
 
 
 log = logbook.Logger(__name__)
@@ -48,7 +48,7 @@ def _focus(axis, feedback, step, epsilon):
             maximizer.value = gradient
             log.debug("Gradient: %g, axis position: %s" %
                       (gradient, str(axis.get_position())))
-        except ValueError:
+        except LimitError as e:
             direction, step = turn(direction, step)
 
     log.info("Maximum gradient: %g found at position: %s" %

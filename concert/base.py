@@ -37,6 +37,20 @@ class LimitError(ValueError):
     pass
 
 
+class ReadAccessError(Exception):
+    """Raised when user tries to change a parameter that cannot be written"""
+    def __init__(self, parameter):
+        msg = "Parameter {0} cannot be read".format(parameter)
+        super(ReadAccessError, self).__init__(msg)
+
+
+class WriteAccessError(Exception):
+    """Raised when user tries to read a parameter that cannot be read"""
+    def __init__(self, parameter):
+        msg = "Parameter {0} cannot be written".format(parameter)
+        super(WriteAccessError, self).__init__(msg)
+
+
 class MultiContext(object):
     """Multi context manager to be used in a Python `with` management.
 
@@ -66,6 +80,82 @@ class MultiContext(object):
                     for obj in self.objs])
 
 
+def value_compatible(value, unit):
+    """Check if a *value* of a quantity is compatible with *unit* and return
+    ``True``."""
+    try:
+        unit + value
+        return True
+    except ValueError:
+        return False
+
+
+class Parameter(object):
+    """A parameter with a *name* and an optional *unit* and *limiter*."""
+    def __init__(self, name, fget=None, fset=None,
+                 unit=None, limiter=None,
+                 doc=None):
+        self._name = name
+        self._setter = fset
+        self._getter = fget
+        self._unit = unit
+        self._limiter = limiter
+        self.__doc__ = doc
+
+    def get(self):
+        """Try to read and return the current value.
+
+        If the parameter cannot be read, :py:class:`ReadAccessError` is raised.
+        """
+        if not self.is_readable():
+            raise ReadAccessError(self._name)
+
+        return self._getter()
+
+    def set(self, value):
+        """Try to write *value*.
+
+        If the parameter cannot be written, :py:class:`WriteAccessError` is
+        raised.
+        """
+        if not self.is_writable():
+            raise WriteAccessError(self._name)
+
+        if self._unit and not value_compatible(value, self._unit):
+            msg = "`{0}' can only receive values of unit {1} but got {2}"
+            raise UnitError(msg.format(self._name, self._unit, value))
+
+        if self._limiter and not self._limiter(value):
+            msg = "{0} for `{1}` is out of range"
+            raise LimitError(msg.format(value, self._name))
+
+        self._setter(value)
+
+    def patch_getter(self, fget):
+        """Patch getter."""
+        if self._getter:
+            transform = self._getter
+            self._getter = lambda: transform(fget())
+        else:
+            self._getter = fget
+
+    def patch_setter(self, fset):
+        """Patch setter."""
+        if self._setter:
+            transform = self._setter
+            self._setter = lambda arg: fset(transform(arg))
+        else:
+            self._setter = fset
+
+    def is_readable(self):
+        """Return `True` if parameter can be read."""
+        return self._getter is not None
+
+    def is_writable(self):
+        """Return `True` if parameter can be written."""
+        return self._setter is not None
+
+
 class ConcertObject(object):
     """
     Base class handling parameters manipulation. Events are produced
@@ -78,10 +168,7 @@ class ConcertObject(object):
     a parameter.
     """
     def __init__(self):
-        self._setters = {}
-        self._getters = {}
-        self._limiters = {}
-        self._units = {}
+        self._params = {}
         self._lock = threading.Lock()
 
     def __enter__(self):
@@ -92,16 +179,17 @@ class ConcertObject(object):
 
     def __str__(self):
         s = str(self.__class__) + " "
-        for param, get in self._getters.iteritems():
-            s += "{0} = {1}".format(param, get())
+        for name, param in self._params.iteritems():
+            if param.is_readable():
+                s += "{0} = {1}".format(name, param.get())
         return s
 
     def get(self, param):
-        """Return the value of *param*."""
-        if param not in self._getters:
-            raise NotImplementedError
+        """Return the value of parameter *name*."""
+        if param not in self._params:
+            raise ValueError("{0} is not a parameter".format(param))
 
-        return self._getters[param]()
+        return self._params[param].get()
 
     def set(self, param, value, blocking=False):
         """Set *param* to *value*.
@@ -109,53 +197,14 @@ class ConcertObject(object):
         When *blocking* is true, execution stops until the hardware parameter
         is set to *value*.
         """
-        if param not in self._setters:
-            raise NotImplementedError
-
-        if not self._unit_is_compatible(param, value):
-            msg = "`{0}' can only receive values of unit {1}"
-            raise UnitError(msg.format(param, self._units[param]))
-
-        if not self._value_is_in_range(param, value):
-            msg = "{0} for `{1}` is out of range"
-            raise LimitError(msg.format(value, param))
+        if param not in self._params:
+            raise ValueError("{0} is not a parameter".format(param))
 
         class_name = self.__class__.__name__
         msg = "{0}: set {1}='{2}' blocking='{3}'"
         log.info(msg.format(class_name, param, value, blocking))
 
-        setter = self._setters[param]
-        return self._launch(param, setter, (value,), blocking)
-
-    def _unit_is_compatible(self, param, value):
-        if not param in self._units:
-            return True
-
-        try:
-            self._units[param] + value
-            return True
-        except ValueError:
-            return False
-
-    def _value_is_in_range(self, param, value):
-        if param in self._limiters:
-            return self._limiters[param](value)
-
-        return True
-
-    def _register_getter(self, param, getter):
-        if param in self._getters:
-            transform = self._getters[param]
-            self._getters[param] = lambda: transform(getter())
-        else:
-            self._getters[param] = getter
-
-    def _register_setter(self, param, setter):
-        if param in self._setters:
-            transform = self._setters[param]
-            self._setters[param] = lambda arg: setter(transform(arg))
-        else:
-            self._setters[param] = setter
+        return self._launch(param, self._params[param].set, (value,), blocking)
 
     def _register_message(self, param):
         """Register a message on which one can wait."""
@@ -165,21 +214,28 @@ class ConcertObject(object):
             self.__class__._MESSAGE_TYPES.add(param)
 
     def _register(self, param, getter, setter, unit=None, limiter=None):
-        if getter:
-            self._register_getter(param, getter)
+        if param in self._params:
+            parameter = self._params[param]
 
-        if setter:
-            self._register_setter(param, setter)
+            if getter:
+                parameter.patch_getter(getter)
 
-        if unit:
-            self._units[param] = unit
+            if setter:
+                parameter.patch_setter(setter)
 
-        if limiter:
-            if not limiter(self.get(param)):
-                s = "Unable to register limiter. " +\
-                    "Value {0} for `{1}` is already out of range"
-                raise RuntimeError(s.format(self.get(param), param))
-            self._limiters[param] = limiter
+            # Argh ... this is not cool
+            if limiter:
+                parameter._limiter = limiter
+        else:
+            parameter = Parameter(param, getter, setter, unit, limiter)
+            self._params[param] = parameter
+
+        # if limiter:
+        #     if not limiter(self.get(param)):
+        #         s = "Unable to register limiter. " +\
+        #             "Value {0} for `{1}` is already out of range"
+        #         raise RuntimeError(s.format(self.get(param), param))
+        #     self._limiters[param] = limiter
 
         self._register_message(param)
 
