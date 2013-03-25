@@ -32,7 +32,7 @@ class UnitError(ValueError):
     pass
 
 
-class LimitError(ValueError):
+class LimitError(Exception):
     """Raised when an operation is passed a value that exceeds a limit"""
     pass
 
@@ -126,7 +126,7 @@ class Parameter(object):
             raise UnitError(msg.format(self.name, self._unit, value))
 
         if self._limiter and not self._limiter(value):
-            msg = "{0} for `{1}` is out of range"
+            msg = "{0} for `{1}' is out of range"
             raise LimitError(msg.format(value, self.name))
 
         self._setter(value)
