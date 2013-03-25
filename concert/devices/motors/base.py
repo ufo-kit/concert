@@ -15,8 +15,29 @@ with an motor, the position can be changed with :meth:`Motor.set_position` and
 
 As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 """
-from concert.base import ConcertObject
+import quantities as q
+from concert.base import ConcertObject, Parameter
 from concert.devices.base import State
+
+
+class CalibratedParameter(Parameter):
+    def __init__(self, name, calibration,
+                 fget=None, fset=None,
+                 unit=None, limiter=None,
+                 doc=None):
+        self._calibration = calibration
+        super(CalibratedParameter, self).__init__(name, fget=fget, fset=fset,
+                                                  unit=q.dimensionless,
+                                                  limiter=limiter,
+                                                  doc=doc)
+
+    def get(self):
+        value = super(CalibratedParameter, self).get()
+        return self._calibration.to_user(value)
+
+    def set(self, value):
+        calibrated = self._calibration.to_steps(value)
+        super(CalibratedParameter, self).set(calibrated)
 
 
 class Motor(ConcertObject):
@@ -29,14 +50,14 @@ class Motor(ConcertObject):
         - ``"position"``: Position of the motor
     """
 
-    def __init__(self, calibration):
-        super(Motor, self).__init__()
+    def __init__(self, calibration, limiter=None):
+        params = [CalibratedParameter('position', calibration,
+                                      self._get_position, self._set_position,
+                                      q.m, limiter,
+                                      "Position of the motor")]
 
+        super(Motor, self).__init__(params)
         self._state = None
-        self._register('position',
-                       calibration.to_user,
-                       calibration.to_steps,
-                       None)
 
     def __del__(self):
         self.stop()
@@ -75,6 +96,12 @@ class Motor(ConcertObject):
         """
         raise NotImplementedError
 
+    def _get_position(self):
+        raise NotImplementedError
+
+    def _set_position(self, position):
+        raise NotImplementedError
+
     def hard_position_limit_reached(self):
         raise NotImplementedError
 
@@ -85,15 +112,16 @@ class ContinuousMotor(Motor):
     This class is inherently capable of discrete movement.
 
     """
-    def __init__(self, position_calibration, velocity_calibration):
-        super(ContinuousMotor, self).__init__(position_calibration)
-        self._velocity = None
-        self._velocity_calibration = velocity_calibration
+    def __init__(self, position_calibration, velocity_calibration,
+                 position_limiter=None, velocity_limiter=None):
+        super(ContinuousMotor, self).__init__(position_calibration,
+                                              position_limiter)
 
-        self._register('velocity',
-                       velocity_calibration.to_user,
-                       velocity_calibration.to_steps,
-                       None)
+        param = CalibratedParameter('velocity', velocity_calibration,
+                                    self._get_velocity, self._set_velocity,
+                                    q.m / q.s, velocity_limiter,
+                                    "Velocity of the motor")
+        self.add_parameter(param)
 
     def set_velocity(self, velocity, blocking=False):
         """Set *velocity* of the motor."""
@@ -102,6 +130,12 @@ class ContinuousMotor(Motor):
     def get_velocity(self):
         """Get current velocity of the motor."""
         return self.get('velocity')
+
+    def _get_velocity(self):
+        raise NotImplementedError
+
+    def _set_velocity(self, velocity):
+        raise NotImplementedError
 
 
 class MotorState(State):

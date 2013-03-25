@@ -3,6 +3,7 @@ Cameras supported by the libuca library.
 """
 
 import quantities as q
+from concert.base import Parameter
 from concert.devices.cameras.base import Camera
 
 
@@ -14,9 +15,14 @@ def _new_setter_wrapper(camera, name):
     return _wrapper
 
 
-def _new_getter_wrapper(camera, name):
+def _new_getter_wrapper(camera, name, unit=None):
     def _wrapper():
-        return camera.get_property(name)
+        value = camera.get_property(name)
+
+        if unit:
+            return value * unit
+
+        return value
 
     return _wrapper
 
@@ -50,18 +56,19 @@ class UcaCamera(Camera):
         for prop in self.camera.props:
             getter, setter, unit = None, None, None
 
-            if prop.flags & GObject.ParamFlags.READABLE:
-                getter = _new_getter_wrapper(self.camera, prop.name)
-
-            if prop.flags & GObject.ParamFlags.WRITABLE:
-                setter = _new_setter_wrapper(self.camera, prop.name)
-
             uca_unit = self.camera.get_unit(prop.name)
 
             if uca_unit in units:
                 unit = units[uca_unit]
 
-            self._register(prop.name, getter, setter, unit)
+            if prop.flags & GObject.ParamFlags.READABLE:
+                getter = _new_getter_wrapper(self.camera, prop.name, unit)
+
+            if prop.flags & GObject.ParamFlags.WRITABLE:
+                setter = _new_setter_wrapper(self.camera, prop.name)
+
+            parameter = Parameter(prop.name, getter, setter, unit)
+            self.add_parameter(parameter)
 
     def _record_real(self):
         self.camera.start_recording()

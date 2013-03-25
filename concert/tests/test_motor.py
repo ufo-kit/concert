@@ -89,21 +89,16 @@ class TestMotorCalibration(unittest.TestCase):
         class MockMotor(Motor):
             def __init__(self):
                 super(MockMotor, self).__init__(calibration)
-
-                self.position = 0 * q.dimensionless
-                self._register('position',
-                               self._get_position,
-                               self._set_position,
-                               q.m)
+                self._position = 0 * q.dimensionless
 
             def _stop_real(self):
                 pass
 
             def _set_position(self, position):
-                self.position = position
+                self._position = position
 
             def _get_position(self):
-                return self.position
+                return self._position
 
         self.motor = MockMotor()
         self.handler = logbook.TestHandler()
@@ -117,5 +112,5 @@ class TestMotorCalibration(unittest.TestCase):
         steps = position * self.steps_per_mm
 
         self.motor.set_position(position, True)
-        self.assertEqual(self.motor.position, steps)
+        self.assertEqual(self.motor._position, steps)
         self.assertEqual(self.motor.get_position(), position)

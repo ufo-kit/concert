@@ -5,14 +5,14 @@ Created on Mar 14, 2013
 '''
 import random
 import time
-from concert.base import ConcertObject
+from concert.base import ConcertObject, Parameter
 
 
 class DummyDevice(ConcertObject):
     """A dummy device."""
     def __init__(self):
-        super(DummyDevice, self).__init__()
-        self._register("value", self._get_value, self._set_value)
+        parameter = Parameter('value', self._get_value, self._set_value)
+        super(DummyDevice, self).__init__([parameter])
         self._value = None
 
     def _get_value(self):
@@ -21,7 +21,7 @@ class DummyDevice(ConcertObject):
 
     def _set_value(self, value):
         """The real value setter."""
-        time.sleep(random.random()/50.)
+        time.sleep(random.random() / 50.)
         self._value = value
 
     def get_value(self):

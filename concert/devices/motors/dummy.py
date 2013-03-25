@@ -16,19 +16,13 @@ class DummyLimiter(object):
 
 class DummyMotor(Motor):
     def __init__(self, calibration, limiter=None, position=None):
-        super(DummyMotor, self).__init__(calibration)
+        super(DummyMotor, self).__init__(calibration, limiter)
         self._hard_limits = -100, 100
         if not limiter:
             self._position = random.uniform(self._hard_limits[0],
                                             self._hard_limits[1])
         else:
             self._position = position
-
-        self._register('position',
-                       self._get_position,
-                       self._set_position,
-                       q.m,
-                       limiter)
 
     def _stop_real(self):
         pass
@@ -59,21 +53,11 @@ class DummyMotor(Motor):
 class DummyContinuousMotor(ContinuousMotor):
     def __init__(self, position_calibration, velocity_calibration):
         super(DummyContinuousMotor, self).__init__(position_calibration,
-                                                  velocity_calibration)
+                                                   velocity_calibration)
         self._position_hard_limits = -10, 10
         self._velocity_hard_limits = -100, 100
         self._position = 0
         self._velocity = 0
-
-        self._register('position',
-                       self._get_position,
-                       self._set_position,
-                       q.m)
-
-        self._register('velocity',
-                       self._get_velocity,
-                       self._set_velocity,
-                       q.m / q.s)
 
     def _stop_real(self):
         time.sleep(0.1)
