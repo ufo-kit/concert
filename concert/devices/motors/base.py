@@ -16,7 +16,7 @@ with an motor, the position can be changed with :meth:`Motor.set_position` and
 As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 """
 import quantities as q
-from concert.base import ConcertObject, Parameter
+from concert.base import ConcertObject, Parameter, UnitError
 from concert.devices.base import State
 
 
@@ -36,8 +36,11 @@ class CalibratedParameter(Parameter):
         return self._calibration.to_user(value)
 
     def set(self, value):
-        calibrated = self._calibration.to_steps(value)
-        super(CalibratedParameter, self).set(calibrated)
+        try:
+            calibrated = self._calibration.to_steps(value)
+            super(CalibratedParameter, self).set(calibrated)
+        except ValueError as error:
+            raise UnitError("`{0}' cannot be {1}".format(self.name, value))
 
 
 class Motor(ConcertObject):

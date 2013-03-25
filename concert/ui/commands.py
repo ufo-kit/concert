@@ -246,7 +246,7 @@ def _run_shell(handler, module=None):
 
         with handler.applicationbound():
             shell = InteractiveShellEmbed(banner1='')
-            shell.set_custom_exc((UnitError, LimitError,), exception_handler)
+            shell.set_custom_exc((UnitError, LimitError), exception_handler)
             shell()
     except ImportError as e:
         print("You must install IPython to run the Concert shell: %s" % e)
