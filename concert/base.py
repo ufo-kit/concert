@@ -167,11 +167,9 @@ class ConcertObject(object):
         self._lock.release()
 
     def __str__(self):
-        s = ""
-        params = []
-        for name, param in self._params.iteritems():
-            if param.is_readable():
-                params.append((name, param.get()))
+        params = [(name, param.get()) for name, param
+                  in self._params.iteritems()
+                  if param.is_readable()]
 
         params.sort()
         return '\n'.join("%s = %s" % p for p in params)
