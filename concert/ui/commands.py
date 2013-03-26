@@ -209,7 +209,6 @@ def start(session=None, logto='file', logfile=None):
 
     """
     _exit_if_not_exists(session)
-    module = concert.session.load(session)
     handler = None
 
     if logto == 'file':
@@ -220,6 +219,10 @@ def start(session=None, logto='file', logfile=None):
 
     handler.format_string = '[{record.time}] {record.level_name}: \
 %s: {record.channel}: {record.message}' % session
+
+    # Add session path, so that sessions can import other sessions
+    sys.path.append(concert.session.PATH)
+    module = concert.session.load(session)
     _run_shell(handler, module)
 
 
