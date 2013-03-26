@@ -37,6 +37,13 @@ class LimitError(Exception):
     pass
 
 
+class ParameterError(Exception):
+    """Raised when a parameter is accessed that does not exists"""
+    def __init__(self, parameter):
+        msg = "{0} is not a parameter".format(parameter)
+        super(ParameterError, self).__init__(msg)
+
+
 class ReadAccessError(Exception):
     """Raised when user tries to change a parameter that cannot be written"""
     def __init__(self, parameter):
@@ -186,10 +193,7 @@ class ConcertObject(object):
 
     def get(self, param):
         """Return the value of parameter *name*."""
-        if param not in self._params:
-            raise ValueError("{0} is not a parameter".format(param))
-
-        return self._params[param].get()
+        return self.get_parameter(param).get()
 
     def set(self, param, value, blocking=False):
         """Set *param* to *value*.
@@ -210,6 +214,13 @@ class ConcertObject(object):
         self._params[parameter.name] = parameter
         self._register_message(parameter.name)
         setattr(self, parameter.name.replace('-', '_'), parameter.name)
+
+    def get_parameter(self, name):
+        """Get the parameter object *name*."""
+        if name not in self._params:
+            raise ParameterError(name)
+
+        return self._params[name]
 
     def _register_message(self, param):
         """Register a message on which one can wait."""
