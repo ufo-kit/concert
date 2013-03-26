@@ -17,16 +17,12 @@ class LinearMotor(Motor):
 
     def __init__(self):
         calibration = LinearCalibration(50000 / q.mm, -1 * q.mm)
-
         super(LinearMotor, self).__init__(calibration)
 
-        self._steps = None
+        self._steps = 0
         self._connection = SocketConnection(CRIO_HOST, CRIO_PORT)
-        self._register('position',
-                       self._get_position,
-                       self._set_position,
-                       q.m,
-                       lambda x: x >= 0 * q.mm and x <= 2 * q.mm)
+        param = self.get_parameter('position')
+        param.limiter = lambda x: x >= -50000 and x <= 50000
 
     def _get_position(self):
         return self._steps
@@ -41,16 +37,12 @@ class RotationMotor(Motor):
 
     def __init__(self):
         calibration = LinearCalibration(50000 / q.mm, 0 * q.mm)
-
         super(RotationMotor, self).__init__(calibration)
 
+        self._steps = 0
         self._connection = SocketConnection(CRIO_HOST, CRIO_PORT)
-        self._steps = None
-        self._register('position',
-                       self._get_position,
-                       self._set_position,
-                       q.m,
-                       lambda x: x >= 0 * q.mm and x <= 2 * q.mm)
+        param = self.get_parameter('position')
+        param.limiter = lambda x: x >= -50000 and x <= 50000
 
     def _get_position(self):
         return self._steps
@@ -60,7 +52,7 @@ class RotationMotor(Motor):
         self._connection.communicate('rot %i\r\n' % steps)
 
 
-if __name__ == '__main__':
+def main():
     logger = logging.getLogger('crio')
     logger.addHandler(logging.StreamHandler())
     logger.setLevel(logging.DEBUG)
@@ -88,3 +80,7 @@ if __name__ == '__main__':
                 linear_device.set_position(float(value) * q.mm)
         except ValueError:
             print("Commands: `r [NUM]`, `m [NUM]`, `q`")
+
+
+if __name__ == '__main__':
+    main()
