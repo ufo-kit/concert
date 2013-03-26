@@ -51,19 +51,17 @@ class SocketConnection(Connection):
             log.warn('Reading from %s:%i timed out' % self._peer)
 
 
-class TangoConnection(Connection):
+class TangoConnection(object):
     """A connection to a Tango device."""
     def __init__(self, uri, tango_host=None, tango_port=None):
-        super(TangoConnection, self).__init__(uri)
-
         import PyTango
         # Set the host and port for connecting to the Tango database.
         # TODO: check if there is a way to adjust the host in PyTango.
         if tango_host is not None and tango_port is not None:
             os.environ["TANGO_HOST"] = "%s:%d" % (tango_host, tango_port)
 
-        self._tango_device = PyTango.DeviceProxy(self._uri)
+        self._tango_device = PyTango.DeviceProxy(uri)
 
-    @property
-    def tango_device(self):
-        return self._tango_device
+    def read_value(self, attribute):
+        """Read TANGO *attribute* value."""
+        return self._tango_device.read_attribute(attribute).value
