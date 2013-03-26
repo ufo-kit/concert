@@ -103,10 +103,10 @@ class Parameter(object):
                  unit=None, limiter=None,
                  doc=None):
         self.name = name
+        self.limiter = limiter
         self._setter = fset
         self._getter = fget
         self._unit = unit
-        self._limiter = limiter
         self.__doc__ = doc
 
     def get(self):
@@ -132,7 +132,7 @@ class Parameter(object):
             msg = "`{0}' can only receive values of unit {1} but got {2}"
             raise UnitError(msg.format(self.name, self._unit, value))
 
-        if self._limiter and not self._limiter(value):
+        if self.limiter and not self.limiter(value):
             msg = "{0} for `{1}' is out of range"
             raise LimitError(msg.format(value, self.name))
 
