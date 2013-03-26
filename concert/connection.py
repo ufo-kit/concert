@@ -1,3 +1,6 @@
+"""
+A collection of connection methods.
+"""
 import socket
 import os
 import logbook
@@ -6,23 +9,10 @@ import logbook
 log = logbook.Logger(__name__)
 
 
-class Connection(object):
-    def __init__(self, uri):
-        self._uri = uri
-
-    @property
-    def uri(self):
-        return self._uri
-
-    def communicate(self, cmd, *args):
-        raise NotImplementedError
-
-
-class SocketConnection(Connection):
+class SocketConnection(object):
     """A two-way socket connection."""
 
     def __init__(self, host, port):
-        super(SocketConnection, self).__init__(str(host) + ":" + str(port))
         self._peer = (host, port)
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._sock.settimeout(20)
@@ -31,18 +21,12 @@ class SocketConnection(Connection):
     def __del__(self):
         self._sock.close()
 
-    def communicate(self, cmd, *args):
-        """Send *cmd* to the peer.
+    def send(self, data):
+        """Send *data* to the peer."""
+        log.debug('Sending {0}'.format(data))
+        self._sock.sendall(data.encode('ascii'))
 
-        :param cmd: command to send
-        :param data: data to send
-
-        :return: reponse from the peer
-        """
-        to_send = cmd % (args)
-        log.debug('Sending {0}'.format(to_send))
-        self._sock.sendall(to_send.encode('ascii'))
-
+    def recv(self):
         try:
             result = self._sock.recv(1024)
             log.debug('Received {0}'.format(result))

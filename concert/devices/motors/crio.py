@@ -29,7 +29,8 @@ class LinearMotor(Motor):
 
     def _set_position(self, steps):
         self._steps = steps
-        self._connection.communicate('lin %i\r\n' % steps)
+        self._connection.send('lin %i\r\n' % steps)
+        self._connection.recv()
 
 
 class RotationMotor(Motor):
@@ -49,7 +50,8 @@ class RotationMotor(Motor):
 
     def _set_position(self, steps):
         self._steps = steps
-        self._connection.communicate('rot %i\r\n' % steps)
+        self._connection.send('rot %i\r\n' % steps)
+        self._connection.recv()
 
 
 def main():
