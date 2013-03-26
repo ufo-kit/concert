@@ -146,9 +146,17 @@ class ConcertObject(object):
     when a parameter is set. The class provides functionality for
     listening to messages.
 
+    A :class:`ConcertObject` is iterable and returns its parameters of type
+    :class:`Parameter` ::
+
+        for param in device:
+            msg = "{0} readable={1}, writable={2}"
+            print(msg.format(param.name,
+                             param.is_readable(), param.is_writable())
+
     A :class:`ConcertObject` consists of optional getters, setters, limiters
     and units for named parameters. Implementations first call
-    :meth:`__init__` and then :meth:`_register` to add or supplement
+    :meth:`__init__` and then :meth:`add_parameter` to add or supplement
     a parameter.
     """
     def __init__(self, parameters=None):
@@ -167,12 +175,14 @@ class ConcertObject(object):
         self._lock.release()
 
     def __str__(self):
-        params = [(name, param.get()) for name, param
-                  in self._params.iteritems()
+        params = [(param.name, param.get()) for param in self
                   if param.is_readable()]
-
         params.sort()
         return '\n'.join("%s = %s" % p for p in params)
+
+    def __iter__(self):
+        for param in self._params.values():
+            yield param
 
     def get(self, param):
         """Return the value of parameter *name*."""
