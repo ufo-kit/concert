@@ -68,7 +68,7 @@ import os
 import subprocess
 import logbook
 import concert
-from concert.base import UnitError, LimitError
+from concert.base import UnitError, LimitError, ParameterError
 
 ARGUMENTS = {
     'edit': {'session':     {'type': str}},
@@ -249,7 +249,9 @@ def _run_shell(handler, module=None):
 
         with handler.applicationbound():
             shell = InteractiveShellEmbed(banner1='')
-            shell.set_custom_exc((UnitError, LimitError), exception_handler)
+
+            exceptions = (UnitError, LimitError, ParameterError)
+            shell.set_custom_exc(exceptions, exception_handler)
             shell()
     except ImportError as e:
         print("You must install IPython to run the Concert shell: %s" % e)
