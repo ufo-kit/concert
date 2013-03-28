@@ -103,7 +103,7 @@ class TestDummyFocusing(unittest.TestCase):
         # Some gradient level reached and then by moving to another position
         # the same level is reached again, but global gradient maximum
         # is not at this motor position.
-        self._motor.set_position(-0.00001*q.mm, True)
+        self._motor.set_position(-0.00001*q.mm)
         self._focuser.focus(10*q.mm, True)
         self._check_position(self._motor.get_position(),
                              self._gradient_feedback.max_gradient_position)

@@ -4,10 +4,10 @@ Created on Mar 5, 2013
 @author: farago
 '''
 import quantities as q
-from concert.base import ConcertObject, Parameter
+from concert.base import Device, Parameter
 
 
-class StorageRing(ConcertObject):
+class StorageRing(Device):
     def __init__(self):
         params = [Parameter('current',
                             self._get_current,

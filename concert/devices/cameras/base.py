@@ -17,7 +17,7 @@ To setup and use a camera in a typical environment, you would do::
     camera.trigger(blocking=True)
     camera.stop()
 """
-from concert.base import launch, ConcertObject
+from concert.base import Device
 
 
 class Camera(ConcertObject):
@@ -26,17 +26,17 @@ class Camera(ConcertObject):
     def __init__(self):
         super(Camera, self).__init__()
 
-    def record(self, blocking=False):
+    def record(self):
         """Start recording frames."""
-        launch(self._record_real, blocking=blocking)
+        self._record_real
 
-    def stop(self, blocking=False):
+    def stop(self):
         """Stop recording frames."""
-        launch(self._stop_real, blocking=blocking)
+        self._stop_real
 
-    def trigger(self, blocking=False):
+    def trigger(self):
         """Trigger a frame if possible."""
-        launch(self._trigger_real, blocking=blocking)
+        self._trigger_real
 
     def _record_real(self):
         raise NotImplementedError

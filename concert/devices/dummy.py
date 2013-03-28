@@ -5,10 +5,10 @@ Created on Mar 14, 2013
 '''
 import random
 import time
-from concert.base import ConcertObject, Parameter
+from concert.base import Device, Parameter
 
 
-class DummyDevice(ConcertObject):
+class DummyDevice(Device):
     """A dummy device."""
     def __init__(self):
         parameter = Parameter('value', self._get_value, self._set_value)

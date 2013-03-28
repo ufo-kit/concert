@@ -47,6 +47,7 @@ class ParameterError(Exception):
 class ReadAccessError(Exception):
     """Raised when user tries to change a parameter that cannot be written"""
     def __init__(self, parameter):
+        log.warn("Invalid read access on {0}".format(parameter))
         msg = "Parameter {0} cannot be read".format(parameter)
         super(ReadAccessError, self).__init__(msg)
 
@@ -54,6 +55,7 @@ class ReadAccessError(Exception):
 class WriteAccessError(Exception):
     """Raised when user tries to read a parameter that cannot be read"""
     def __init__(self, parameter):
+        log.warn("Invalid write access on {0}".format(parameter))
         msg = "Parameter {0} cannot be written".format(parameter)
         super(WriteAccessError, self).__init__(msg)
 
@@ -101,12 +103,15 @@ class Parameter(object):
     """A parameter with a *name* and an optional *unit* and *limiter*."""
     def __init__(self, name, fget=None, fset=None,
                  unit=None, limiter=None,
-                 doc=None):
+                 doc=None, owner=None, owner_only=False):
         self.name = name
         self.limiter = limiter
-        self._setter = fset
-        self._getter = fget
+        self.owner = owner
+        self._owner_only = owner_only
+        self._fset = fset
+        self._fget = fget
         self._unit = unit
+        self._callbacks = []
         self.__doc__ = doc
 
     def get(self):
@@ -117,15 +122,19 @@ class Parameter(object):
         if not self.is_readable():
             raise ReadAccessError(self.name)
 
-        return self._getter()
+        return self._fget()
 
-    def set(self, value):
+    def set(self, value, owner=None):
         """Try to write *value*.
 
         If the parameter cannot be written, :py:class:`WriteAccessError` is
-        raised.
+        raised. Once the value has been written on the device, all associated
+        callbacks are called and a message is placed on the dispatcher bus.
         """
-        if not self.is_writable():
+        owner_only = self._owner_only and owner == self.owner
+        writable = self.is_writable() and not owner_only
+
+        if not writable:
             raise WriteAccessError(self.name)
 
         if self._unit and not value_compatible(value, self._unit):
@@ -136,35 +145,56 @@ class Parameter(object):
             msg = "{0} for `{1}' is out of range"
             raise LimitError(msg.format(value, self.name))
 
-        self._setter(value)
+        def log_access(what):
+            msg = "{0}: {1} {2}='{3}'"
+            name = self.owner.__class__.__name__
+            log.info(msg.format(name, what, self.name, value))
+
+        log_access('try')
+        self._fset(value)
+        log_access('set')
+
+        for callback in self._callbacks:
+            callback(self)
+
+        dispatcher.send(self, self.name + ':changed')
 
     def is_readable(self):
         """Return `True` if parameter can be read."""
-        return self._getter is not None
+        return self._fget is not None
 
     def is_writable(self):
         """Return `True` if parameter can be written."""
-        return self._setter is not None
+        return self._fset is not None
+
+    def subscribe(self, callback):
+        """Add *callback* that is notified after a new value is set."""
+        self._callbacks.append(callback)
 
 
-class ConcertObject(object):
+class _ProppedParameter(object):
+    def __init__(self, parameter):
+        self.parameter = parameter
+
+    def __get__(self, instance, owner):
+        return self.parameter.get()
+
+    def __set__(self, instance, value):
+        self.parameter.set(value)
+
+
+class Device(object):
     """
-    Base class handling parameters manipulation. Events are produced
-    when a parameter is set. The class provides functionality for
-    listening to messages.
+    The :class:`Device` provides synchronous access to a real hardware device,
+    such as a motor, a pump or a camera.
 
-    A :class:`ConcertObject` is iterable and returns its parameters of type
+    A :class:`Device` is iterable and returns its parameters of type
     :class:`Parameter` ::
 
         for param in device:
             msg = "{0} readable={1}, writable={2}"
             print(msg.format(param.name,
                              param.is_readable(), param.is_writable())
-
-    A :class:`ConcertObject` consists of optional getters, setters, limiters
-    and units for named parameters. Implementations first call
-    :meth:`__init__` and then :meth:`add_parameter` to add or supplement
-    a parameter.
     """
     def __init__(self, parameters=None):
         self._params = {}
@@ -195,25 +225,19 @@ class ConcertObject(object):
         """Return the value of parameter *name*."""
         return self.get_parameter(param).get()
 
-    def set(self, param, value, blocking=False):
-        """Set *param* to *value*.
-
-        When *blocking* is true, execution stops until the hardware parameter
-        is set to *value*.
-        """
+    def set(self, param, value):
+        """Set *param* to *value*."""
         if param not in self._params:
             raise ValueError("{0} is not a parameter".format(param))
 
-        class_name = self.__class__.__name__
-        msg = "{0}: set {1}='{2}' blocking='{3}'"
-        log.info(msg.format(class_name, param, value, blocking))
-
-        return self._launch(param, self._params[param].set, (value,), blocking)
+        self.get_parameter(param).set(value)
 
     def add_parameter(self, parameter):
+        """Add *parameter* to device and install a property of the same name
+        for reading and/or writing it."""
         self._params[parameter.name] = parameter
-        self._register_message(parameter.name)
-        setattr(self, parameter.name.replace('-', '_'), parameter.name)
+        parameter.owner = self
+        setattr(self.__class__, parameter.name, _ProppedParameter(parameter))
 
     def get_parameter(self, name):
         """Get the parameter object *name*."""
@@ -221,6 +245,29 @@ class ConcertObject(object):
             raise ParameterError(name)
 
         return self._params[name]
+
+
+class ConcertObject(object):
+    """
+    Base class handling parameters manipulation. Events are produced
+    when a parameter is set. The class provides functionality for
+    listening to messages.
+
+    A :class:`ConcertObject` is iterable and returns its parameters of type
+    :class:`Parameter` ::
+
+        for param in device:
+            msg = "{0} readable={1}, writable={2}"
+            print(msg.format(param.name,
+                             param.is_readable(), param.is_writable())
+
+    A :class:`ConcertObject` consists of optional getters, setters, limiters
+    and units for named parameters. Implementations first call
+    :meth:`__init__` and then :meth:`add_parameter` to add or supplement
+    a parameter.
+    """
+    def __init__(self):
+        pass
 
     def _register_message(self, param):
         """Register a message on which one can wait."""

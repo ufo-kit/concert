@@ -32,19 +32,18 @@ class DummyMotor(Motor):
             self._position >= self._hard_limits[1]
 
     def _set_position(self, position):
-        self._set_state(MotorState.MOVING)
-
+        # self._set_state(MotorState.MOVING)
         time.sleep(random.random() / 25.)
 
         if position < self._hard_limits[0]:
             self._position = self._hard_limits[0]
-            self.send(MotorMessage.POSITION_LIMIT)
+            # self.send(MotorMessage.POSITION_LIMIT)
         elif position > self._hard_limits[1]:
             self._position = self._hard_limits[1]
-            self.send(MotorMessage.POSITION_LIMIT)
+            # self.send(MotorMessage.POSITION_LIMIT)
         else:
             self._position = position
-            self._set_state(MotorState.STANDBY)
+            # self._set_state(MotorState.STANDBY)
 
     def _get_position(self):
         return self._position
@@ -76,7 +75,7 @@ class DummyContinuousMotor(ContinuousMotor):
         return self._position
 
     def _set_velocity(self, velocity):
-        self._set_state(MotorState.MOVING)
+        # self._set_state(MotorState.MOVING)
 
         time.sleep(random.random())
         self._velocity = velocity
@@ -88,7 +87,8 @@ class DummyContinuousMotor(ContinuousMotor):
             self._velocity = self._velocity_hard_limits[1]
             self.send(MotorMessage.VELOCITY_LIMIT)
         else:
-            self._set_state(MotorState.STANDBY)
+            pass
+            # self._set_state(MotorState.STANDBY)
 
     def _get_velocity(self):
         return self._velocity

@@ -23,7 +23,7 @@ def _focus(axis, feedback, step, epsilon):
 
     while True:
         try:
-            axis.move(direction * step, True)
+            axis.move(direction * step)
             gradient = feedback()
             point_reached = maximizer.set_point_reached(gradient)
 

@@ -19,18 +19,20 @@ class LinearMotor(Motor):
         calibration = LinearCalibration(50000 / q.mm, -1 * q.mm)
         super(LinearMotor, self).__init__(calibration)
 
-        self._steps = 0
         self._connection = SocketConnection(CRIO_HOST, CRIO_PORT)
         param = self.get_parameter('position')
-        param.limiter = lambda x: x >= -50000 and x <= 50000
+        param.limiter = lambda x: x >= 0 * q.mm and x <= 2 * q.mm
+
+        self._set_position(0)
+        self._steps = 0
 
     def _get_position(self):
         return self._steps
 
     def _set_position(self, steps):
-        self._steps = steps
         self._connection.send('lin %i\r\n' % steps)
         self._connection.recv()
+        self._steps = steps
 
 
 class RotationMotor(Motor):

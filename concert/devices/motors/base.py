@@ -10,40 +10,21 @@ with an motor, the position can be changed with :meth:`Motor.set_position` and
     calibration = LinearCalibration(1 / q.mm, 0 * q.mm)
     motor1 = ANKATangoDiscreteMotor(connection, calibration)
 
-    motor.set_position(2 * q.mm, blocking=True)
+    motor.position = 2 * q.mm
     motor.move(-0.5 * q.mm)
 
 As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 """
 import quantities as q
-from concert.base import ConcertObject, Parameter, UnitError
+import logbook
+from concert.base import Device, Parameter
 from concert.devices.base import State
 
 
-class CalibratedParameter(Parameter):
-    def __init__(self, name, calibration,
-                 fget=None, fset=None,
-                 unit=None, limiter=None,
-                 doc=None):
-        self._calibration = calibration
-        super(CalibratedParameter, self).__init__(name, fget=fget, fset=fset,
-                                                  unit=q.dimensionless,
-                                                  limiter=limiter,
-                                                  doc=doc)
-
-    def get(self):
-        value = super(CalibratedParameter, self).get()
-        return self._calibration.to_user(value)
-
-    def set(self, value):
-        try:
-            calibrated = self._calibration.to_steps(value)
-            super(CalibratedParameter, self).set(calibrated)
-        except ValueError as error:
-            raise UnitError("`{0}' cannot be {1}".format(self.name, value))
+log = logbook.Logger(__name__)
 
 
-class Motor(ConcertObject):
+class Motor(Device):
     """Base class for everything that moves.
 
     An motor is used with a *calibration* that conforms to the
@@ -53,57 +34,71 @@ class Motor(ConcertObject):
         - ``"position"``: Position of the motor
     """
 
+    STANDBY = 'standby'
+    MOVING = 'moving'
+
     def __init__(self, calibration, limiter=None):
-        params = [CalibratedParameter('position', calibration,
-                                      self._get_position, self._set_position,
-                                      q.m, limiter,
-                                      "Position of the motor")]
+        params = [Parameter('position',
+                            self._get_calibrated_position,
+                            self._set_calibrated_position,
+                            q.m, limiter,
+                            "Position of the motor"),
+                  Parameter('state',
+                            self._get_state,
+                            self._set_state,
+                            owner_only=True,
+                            owner=self)]
 
         super(Motor, self).__init__(params)
-        self._state = None
+        self._calibration = calibration
+        self._state = self.STANDBY
+        self._states = [self.MOVING, self.STANDBY]
 
     def __del__(self):
         self.stop()
 
-    def set_position(self, position, blocking=False):
+    def set_position(self, position):
         """Set the *position* in user units."""
-        return self.set('position', position, blocking)
+        self.set('position', position)
 
     def get_position(self):
         """Get the position in user units."""
         return self.get('position')
 
-    def move(self, delta, blocking=False):
+    def move(self, delta):
         """Move motor by *delta* user units."""
-        new_position = self.get_position() + delta
-        self.set_position(new_position, blocking)
+        self.position += delta
 
     def stop(self, blocking=False):
         """Stop the motion."""
         self._launch(self._stop_real, blocking=blocking)
 
-    @property
-    def state(self):
-        return self._state
-
-    def _set_state(self, state):
-        self._state = state
-        self.send(self._state)
-
     def _stop_real(self):
-        """Stop the physical motor.
-
-        This method must be always blocking in order to provide appropriate
-        events at appropriate times.
-
-        """
         raise NotImplementedError
+
+    def _get_calibrated_position(self):
+        return self._calibration.to_user(self._get_position())
+
+    def _set_calibrated_position(self, position):
+        self.state = self.MOVING
+        self._set_position(self._calibration.to_steps(position))
+        self.state = self.STANDBY
 
     def _get_position(self):
         raise NotImplementedError
 
     def _set_position(self, position):
         raise NotImplementedError
+
+    def _get_state(self):
+        return self._state
+
+    def _set_state(self, state):
+        if state in self._states:
+            self._state = state
+        else:
+            log.warn("State {0} unknown.".format(state))
+
 
     def hard_position_limit_reached(self):
         raise NotImplementedError
@@ -120,19 +115,28 @@ class ContinuousMotor(Motor):
         super(ContinuousMotor, self).__init__(position_calibration,
                                               position_limiter)
 
-        param = CalibratedParameter('velocity', velocity_calibration,
-                                    self._get_velocity, self._set_velocity,
-                                    q.m / q.s, velocity_limiter,
-                                    "Velocity of the motor")
-        self.add_parameter(param)
+        param = Parameter('velocity',
+                          self._get_calibrated_velocity,
+                          self._set_calibrated_velocity,
+                          q.m / q.s, velocity_limiter,
+                          "Velocity of the motor")
 
-    def set_velocity(self, velocity, blocking=False):
+        self.add_parameter(param)
+        self._calibration = velocity_calibration
+
+    def set_velocity(self, velocity):
         """Set *velocity* of the motor."""
-        self.set('velocity', velocity, blocking)
+        self.set('velocity', velocity)
 
     def get_velocity(self):
         """Get current velocity of the motor."""
         return self.get('velocity')
+
+    def _get_calibrated_velocity(self):
+        return self._calibration.to_user(self._get_velocity())
+
+    def _set_calibrated_velocity(self, velocity):
+        self._set_velocity(self._calibration.to_steps(velocity))
 
     def _get_velocity(self):
         raise NotImplementedError
