@@ -21,6 +21,7 @@ class StorageRing(Device):
                             self._get_lifetime,
                             unit=q.h,
                             doc="Lifetime of the ring")]
+
         super(StorageRing, self).__init__(params)
 
     def _get_current(self):

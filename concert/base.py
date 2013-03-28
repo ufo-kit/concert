@@ -103,10 +103,10 @@ class Parameter(object):
     """A parameter with a *name* and an optional *unit* and *limiter*."""
     def __init__(self, name, fget=None, fset=None,
                  unit=None, limiter=None,
-                 doc=None, owner=None, owner_only=False):
+                 doc=None, owner_only=False):
         self.name = name
         self.limiter = limiter
-        self.owner = owner
+        self.owner = None
         self._owner_only = owner_only
         self._fset = fset
         self._fget = fget
@@ -204,6 +204,7 @@ class Device(object):
 
         if parameters:
             for parameter in parameters:
+                parameter.owner = self
                 self.add_parameter(parameter)
 
         self._lock = threading.Lock()

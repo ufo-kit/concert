@@ -45,8 +45,7 @@ class Motor(Device):
                   Parameter('state',
                             self._get_state,
                             self._set_state,
-                            owner_only=True,
-                            owner=self)]
+                            owner_only=True)]
 
         super(Motor, self).__init__(params)
         self._calibration = calibration
