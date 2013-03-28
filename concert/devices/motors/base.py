@@ -18,7 +18,6 @@ As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 import quantities as q
 import logbook
 from concert.base import Device, Parameter
-from concert.devices.base import State
 
 
 log = logbook.Logger(__name__)
@@ -135,12 +134,6 @@ class ContinuousMotor(Motor):
 
     def _set_velocity(self, velocity):
         raise NotImplementedError
-
-
-class MotorState(State):
-    """Motor status."""
-    STANDBY = "standby"
-    MOVING = "moving"
 
 
 class MotorMessage(object):

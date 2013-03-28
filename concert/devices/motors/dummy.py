@@ -2,7 +2,6 @@ import random
 import time
 import quantities as q
 from concert.devices.motors.base import Motor, ContinuousMotor, MotorMessage
-from concert.devices.motors.base import MotorState
 
 
 class DummyLimiter(object):
@@ -36,10 +35,8 @@ class DummyMotor(Motor):
 
         if position < self._hard_limits[0]:
             self._position = self._hard_limits[0]
-            # self.send(MotorMessage.POSITION_LIMIT)
         elif position > self._hard_limits[1]:
             self._position = self._hard_limits[1]
-            # self.send(MotorMessage.POSITION_LIMIT)
         else:
             self._position = position
 
@@ -73,8 +70,6 @@ class DummyContinuousMotor(ContinuousMotor):
         return self._position
 
     def _set_velocity(self, velocity):
-        # self._set_state(MotorState.MOVING)
-
         time.sleep(random.random())
         self._velocity = velocity
 
@@ -84,9 +79,6 @@ class DummyContinuousMotor(ContinuousMotor):
         elif self._velocity > self._velocity_hard_limits[1]:
             self._velocity = self._velocity_hard_limits[1]
             self.send(MotorMessage.VELOCITY_LIMIT)
-        else:
-            pass
-            # self._set_state(MotorState.STANDBY)
 
     def _get_velocity(self):
         return self._velocity
