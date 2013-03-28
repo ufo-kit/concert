@@ -20,7 +20,7 @@ To setup and use a camera in a typical environment, you would do::
 from concert.base import Device
 
 
-class Camera(ConcertObject):
+class Camera(Device):
     """Base class for remotely controllable cameras."""
 
     def __init__(self):
@@ -28,15 +28,15 @@ class Camera(ConcertObject):
 
     def record(self):
         """Start recording frames."""
-        self._record_real
+        self._record_real()
 
     def stop(self):
         """Stop recording frames."""
-        self._stop_real
+        self._stop_real()
 
     def trigger(self):
         """Trigger a frame if possible."""
-        self._trigger_real
+        self._trigger_real()
 
     def _record_real(self):
         raise NotImplementedError
