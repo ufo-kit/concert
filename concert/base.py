@@ -131,10 +131,10 @@ class Parameter(object):
         raised. Once the value has been written on the device, all associated
         callbacks are called and a message is placed on the dispatcher bus.
         """
-        owner_only = self._owner_only and owner == self.owner
-        writable = self.is_writable() and not owner_only
+        if self._owner_only and owner != self.owner:
+            raise WriteAccessError(self.name)
 
-        if not writable:
+        if not self.is_writable():
             raise WriteAccessError(self.name)
 
         if self._unit and not value_compatible(value, self._unit):
