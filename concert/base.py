@@ -195,6 +195,17 @@ class Device(object):
             msg = "{0} readable={1}, writable={2}"
             print(msg.format(param.name,
                              param.is_readable(), param.is_writable())
+
+    To access a single name parameter object, you can use the ``[]`` operator::
+
+        param = device['position']
+        print param.is_readable()
+
+    Each parameter value is accessible as a property. If a device has a
+    position it can be read and written with::
+
+        param.position = 0 * q.mm
+        print param.position
     """
     def __init__(self, parameters=None):
         self._params = {}
@@ -221,16 +232,22 @@ class Device(object):
         for param in self._params.values():
             yield param
 
+    def __getitem__(self, param):
+        if param not in self._params:
+            raise ParameterError(name)
+
+        return self._params[param]
+
     def get(self, param):
         """Return the value of parameter *name*."""
-        return self.get_parameter(param).get()
+        return self[param].get()
 
     def set(self, param, value):
         """Set *param* to *value*."""
         if param not in self._params:
             raise ValueError("{0} is not a parameter".format(param))
 
-        self.get_parameter(param).set(value)
+        self[param].set(value)
 
     def add_parameter(self, parameter):
         """Add *parameter* to device and install a property of the same name
@@ -238,13 +255,6 @@ class Device(object):
         self._params[parameter.name] = parameter
         parameter.owner = self
         setattr(self.__class__, parameter.name, _ProppedParameter(parameter))
-
-    def get_parameter(self, name):
-        """Get the parameter object *name*."""
-        if name not in self._params:
-            raise ParameterError(name)
-
-        return self._params[name]
 
 
 class ConcertObject(object):
