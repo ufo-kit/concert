@@ -68,7 +68,11 @@ import os
 import subprocess
 import logbook
 import concert
-from concert.base import UnitError, LimitError, ParameterError
+from concert.base import (UnitError,
+                          LimitError,
+                          ParameterError,
+                          ReadAccessError,
+                          WriteAccessError)
 
 ARGUMENTS = {
     'edit': {'session':     {'type': str}},
@@ -250,7 +254,11 @@ def _run_shell(handler, module=None):
         with handler.applicationbound():
             shell = InteractiveShellEmbed(banner1='')
 
-            exceptions = (UnitError, LimitError, ParameterError)
+            exceptions = (UnitError,
+                          LimitError,
+                          ParameterError,
+                          ReadAccessError,
+                          WriteAccessError)
             shell.set_custom_exc(exceptions, exception_handler)
             shell()
     except ImportError as e:

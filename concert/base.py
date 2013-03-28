@@ -40,7 +40,7 @@ class LimitError(Exception):
 class ParameterError(Exception):
     """Raised when a parameter is accessed that does not exists"""
     def __init__(self, parameter):
-        msg = "{0} is not a parameter".format(parameter)
+        msg = "`{0}' is not a parameter".format(parameter)
         super(ParameterError, self).__init__(msg)
 
 
@@ -48,7 +48,7 @@ class ReadAccessError(Exception):
     """Raised when user tries to change a parameter that cannot be written"""
     def __init__(self, parameter):
         log.warn("Invalid read access on {0}".format(parameter))
-        msg = "Parameter {0} cannot be read".format(parameter)
+        msg = "parameter `{0}' cannot be read".format(parameter)
         super(ReadAccessError, self).__init__(msg)
 
 
@@ -56,7 +56,7 @@ class WriteAccessError(Exception):
     """Raised when user tries to read a parameter that cannot be read"""
     def __init__(self, parameter):
         log.warn("Invalid write access on {0}".format(parameter))
-        msg = "Parameter {0} cannot be written".format(parameter)
+        msg = "parameter `{0}' cannot be written".format(parameter)
         super(WriteAccessError, self).__init__(msg)
 
 
@@ -234,7 +234,7 @@ class Device(object):
 
     def __getitem__(self, param):
         if param not in self._params:
-            raise ParameterError(name)
+            raise ParameterError(param)
 
         return self._params[param]
 
