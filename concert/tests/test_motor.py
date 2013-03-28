@@ -19,23 +19,22 @@ class TestDummyMotor(unittest.TestCase):
 
     def test_set_position(self):
         position = 1 * q.mm
-        self.motor.set_position(position)
-        new_position = self.motor.get_position()
-        self.assertEqual(position, new_position)
+        self.motor.position = position
+        self.assertEqual(position, self.motor.position)
 
     def test_move(self):
         position = 1 * q.mm
         delta = 0.5 * q.mm
-        self.motor.set_position(position)
+        self.motor.position = position
         self.motor.move(delta)
-        self.assertEqual(position + delta, self.motor.get_position())
+        self.assertEqual(position + delta, self.motor.position)
 
     def test_log_output(self):
-        self.motor.set_position(0 * q.mm)
+        self.motor.position = 0 * q.mm
         info = "DummyMotor: try position='0.0 mm'"
         self.assertTrue(self.handler.has_info(info))
 
-        self.motor.set_position(2 * q.mm)
+        self.motor.position = 2 * q.mm
         info = "DummyMotor: try position='2.0 mm'"
         self.assertTrue(self.handler.has_info(info))
 
@@ -55,12 +54,10 @@ class TestContinuousDummyMotor(unittest.TestCase):
     def tearDown(self):
         self.handler.pop_thread()
 
-    @slow
-    def test_set_velocity_blocking(self):
+    def test_set_velocity(self):
         velocity = 1 * q.mm / q.s
-        self.motor.set_velocity(velocity)
-        new_velocity = self.motor.get_velocity()
-        self.assertEqual(velocity, new_velocity)
+        self.motor.velocity = velocity
+        self.assertEqual(velocity, self.motor.velocity)
 
 
 class TestMotorCalibration(unittest.TestCase):
@@ -93,6 +90,6 @@ class TestMotorCalibration(unittest.TestCase):
         position = 100 * q.mm
         steps = position * self.steps_per_mm
 
-        self.motor.set_position(position)
+        self.motor.position = position
         self.assertEqual(self.motor._position, steps)
-        self.assertEqual(self.motor.get_position(), position)
+        self.assertEqual(self.motor.position, position)

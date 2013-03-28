@@ -57,14 +57,6 @@ class Motor(Device):
     def __del__(self):
         self.stop()
 
-    def set_position(self, position):
-        """Set the *position* in user units."""
-        self.set('position', position)
-
-    def get_position(self):
-        """Get the position in user units."""
-        return self.get('position')
-
     def move(self, delta):
         """Move motor by *delta* user units."""
         self.position += delta

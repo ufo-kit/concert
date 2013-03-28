@@ -17,7 +17,7 @@ class DummyGradientMeasure(object):
 
     def get_gradient(self):
         # Simple quadratic function with its maximum at a set position.
-        position = self._axis.get_position().rescale(
+        position = self._axis.position.rescale(
             self.max_gradient_position.units).magnitude
         return self._max_gradient -\
             (position - self.max_gradient_position.magnitude)**2

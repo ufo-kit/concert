@@ -47,12 +47,12 @@ def _focus(axis, feedback, step, epsilon):
 
             maximizer.value = gradient
             log.debug("Gradient: %g, axis position: %s" %
-                      (gradient, str(axis.get_position())))
+                      (gradient, str(axis.position)))
         except LimitError as e:
             direction, step = turn(direction, step)
 
     log.info("Maximum gradient: %g found at position: %s" %
-             (gradient, str(axis.get_position())))
+             (gradient, str(axis.position)))
 
 
 class Focuser(ConcertObject):

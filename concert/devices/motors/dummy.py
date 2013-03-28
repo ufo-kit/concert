@@ -32,7 +32,6 @@ class DummyMotor(Motor):
             self._position >= self._hard_limits[1]
 
     def _set_position(self, position):
-        # self._set_state(MotorState.MOVING)
         time.sleep(random.random() / 25.)
 
         if position < self._hard_limits[0]:
@@ -43,7 +42,6 @@ class DummyMotor(Motor):
             # self.send(MotorMessage.POSITION_LIMIT)
         else:
             self._position = position
-            # self._set_state(MotorState.STANDBY)
 
     def _get_position(self):
         return self._position

@@ -230,17 +230,6 @@ class Device(object):
 
         return self._params[param]
 
-    def get(self, param):
-        """Return the value of parameter *name*."""
-        return self[param].get()
-
-    def set(self, param, value):
-        """Set *param* to *value*."""
-        if param not in self._params:
-            raise ValueError("{0} is not a parameter".format(param))
-
-        self[param].set(value)
-
     def add_parameter(self, parameter):
         """Add *parameter* to device and install a property of the same name
         for reading and/or writing it."""
