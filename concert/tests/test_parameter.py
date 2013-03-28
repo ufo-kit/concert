@@ -63,28 +63,3 @@ class TestParameter(unittest.TestCase):
 
         with ShouldRaise(LimitError):
             parameter.set(1.5)
-
-    def test_callback(self):
-        args = []
-
-        class Collector(object):
-            def setter(self, value):
-                self.value = value
-
-            def getter(self):
-                return self.value
-
-        def callback(parameter):
-            args.append(parameter.get())
-
-        collector = Collector()
-        parameter = Parameter('foo',
-                              fget=collector.getter,
-                              fset=collector.setter)
-        parameter.subscribe(callback)
-
-        parameter.set(0.0)
-        parameter.set(1.0)
-        parameter.set(2.3)
-
-        compare(args, [0.0, 1.0, 2.3])

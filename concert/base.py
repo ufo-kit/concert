@@ -111,7 +111,6 @@ class Parameter(object):
         self._fset = fset
         self._fget = fget
         self._unit = unit
-        self._callbacks = []
         self.__doc__ = doc
 
     def get(self):
@@ -154,9 +153,6 @@ class Parameter(object):
         self._fset(value)
         log_access('set')
 
-        for callback in self._callbacks:
-            callback(self)
-
         dispatcher.send(self, self.name + ':changed')
 
     def is_readable(self):
@@ -166,10 +162,6 @@ class Parameter(object):
     def is_writable(self):
         """Return `True` if parameter can be written."""
         return self._fset is not None
-
-    def subscribe(self, callback):
-        """Add *callback* that is notified after a new value is set."""
-        self._callbacks.append(callback)
 
 
 class _ProppedParameter(object):
