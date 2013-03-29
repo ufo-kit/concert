@@ -108,12 +108,12 @@ class Parameter(object):
                  unit=None, limiter=None,
                  doc=None, owner_only=False):
         self.name = name
+        self.unit = unit
         self.limiter = limiter
         self.owner = None
         self._owner_only = owner_only
         self._fset = fset
         self._fget = fget
-        self._unit = unit
         self.__doc__ = doc
 
     def get(self):
@@ -139,9 +139,9 @@ class Parameter(object):
         if not self.is_writable():
             raise WriteAccessError(self.name)
 
-        if self._unit and not value_compatible(value, self._unit):
+        if self.unit and not value_compatible(value, self.unit):
             msg = "`{0}' can only receive values of unit {1} but got {2}"
-            raise UnitError(msg.format(self.name, self._unit, value))
+            raise UnitError(msg.format(self.name, self.unit, value))
 
         if self.limiter and not self.limiter(value):
             msg = "{0} for `{1}' is out of range"

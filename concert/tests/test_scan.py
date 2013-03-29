@@ -7,36 +7,40 @@ from concert.devices.motors.dummy import DummyMotor
 from concert.processes.scan import ascan, dscan
 
 
+def compare_sequences(first_sequence, second_sequence, assertion):
+    for x, y in zip(first_sequence, second_sequence):
+        assertion(x, y)
+
+
 class TestScan(unittest.TestCase):
     def setUp(self):
-        self._motor = DummyMotor(LinearCalibration(1 / q.mm, 0 * q.mm))
+        self.motor = DummyMotor(LinearCalibration(1 / q.mm, 0 * q.mm))
         self.handler = logbook.TestHandler()
         self.handler.push_thread()
 
     def tearDown(self):
         self.handler.pop_thread()
 
+    def handle_scan(self, parameters):
+        self.positions.append(parameters[0].get())
+
     def test_ascan(self):
         self.positions = []
 
-#         ascan([(self._motor, 'position', -2 * q.mm, 10 * q.mm)], 4)
+        ascan([(self.motor['position'], -2 * q.mm, 10 * q.mm)],
+              n_intervals=4,
+              handler=self.handle_scan)
 
-#         self.assertEqual(len(self.positions), 5)
-#         self.assertEqual(self.positions[0], -2 * q.mm)
-#         self.assertEqual(self.positions[1], 1 * q.mm)
-#         self.assertEqual(self.positions[2], 4 * q.mm)
-#         self.assertEqual(self.positions[3], 7 * q.mm)
-#         self.assertEqual(self.positions[4], 10 * q.mm)
+        expected = [-2 * q.mm, 1 * q.mm, 4 * q.mm, 7 * q.mm, 10 * q.mm]
+        compare_sequences(self.positions, expected, self.assertAlmostEqual)
 
     def test_dscan(self):
         self.positions = []
 
-#         self._motor.set_position(2 * q.mm)
-#         dscan([(self._motor, 'position', 2 * q.mm, 10 * q.mm)], 4)
+        self.motor.position = 2 * q.mm
+        dscan([(self.motor['position'], 2 * q.mm, 10 * q.mm)],
+              n_intervals=4,
+              handler=self.handle_scan)
 
-#         self.assertEqual(len(self.positions), 5)
-#         self.assertEqual(self.positions[0], 4 * q.mm)
-#         self.assertEqual(self.positions[1], 6 * q.mm)
-#         self.assertEqual(self.positions[2], 8 * q.mm)
-#         self.assertEqual(self.positions[3], 10 * q.mm)
-#         self.assertEqual(self.positions[4], 12 * q.mm)
+        expected = [4 * q.mm, 6 * q.mm, 8 * q.mm, 10 * q.mm, 12 * q.mm]
+        compare_sequences(self.positions, expected, self.assertAlmostEqual)
