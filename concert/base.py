@@ -101,6 +101,9 @@ def value_compatible(value, unit):
 
 class Parameter(object):
     """A parameter with a *name* and an optional *unit* and *limiter*."""
+
+    CHANGED = 'changed'
+
     def __init__(self, name, fget=None, fset=None,
                  unit=None, limiter=None,
                  doc=None, owner_only=False):
@@ -152,8 +155,11 @@ class Parameter(object):
         log_access('try')
         self._fset(value)
         log_access('set')
+        self.notify()
 
-        dispatcher.send(self, self.name + ':changed')
+    def notify(self):
+        """Notify that the parameter value has changed."""
+        dispatcher.send(self, self.CHANGED)
 
     def is_readable(self):
         """Return `True` if parameter can be read."""

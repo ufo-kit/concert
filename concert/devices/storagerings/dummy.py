@@ -25,8 +25,8 @@ class DummyRing(StorageRing):
                 # We want to tell everyone, that the parameters are updated.
                 # Now we abuse the fact that the parameters are owner_only and
                 # the setter doesn't do anything.
-                self['energy'].set(self.energy, self)
-                self['current'].set(self.current, self)
+                self['energy'].notify()
+                self['current'].notify()
 
         self.monitor = threading.Thread(target=update)
         self.monitor.daemon = True
