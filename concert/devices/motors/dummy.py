@@ -70,7 +70,7 @@ class DummyContinuousMotor(ContinuousMotor):
         return self._position
 
     def _set_velocity(self, velocity):
-        time.sleep(random.random())
+        time.sleep(random.random() / 25.)
         self._velocity = velocity
 
         if self._velocity < self._velocity_hard_limits[0]:

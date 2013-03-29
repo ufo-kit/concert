@@ -6,7 +6,7 @@ from concert.base import wait
 from concert.events.dispatcher import Dispatcher
 from concert.devices.dummy import DummyDevice
 
-SLEEP_TIME = 0.005
+SLEEP_TIME = 0.0005
 
 
 class TestDispatcher(unittest.TestCase):
