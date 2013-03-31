@@ -18,10 +18,10 @@ class TestDummyFocusing(unittest.TestCase):
         self._position_eps = 1e-1*q.mm
         self._gradient_cmp_eps = 1e-1
         self.handler = logbook.TestHandler()
-        self.handler.push_thread()
+        self.handler.push_application()
 
     def tearDown(self):
-        self.handler.pop_thread()
+        self.handler.pop_application()
 
     def _check_position(self, position, other_position):
         self.assertTrue(other_position -

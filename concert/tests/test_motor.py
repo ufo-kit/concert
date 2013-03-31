@@ -12,10 +12,10 @@ class TestDummyMotor(unittest.TestCase):
         calibration = LinearCalibration(1 / q.mm, 0 * q.mm)
         self.motor = DummyMotor(calibration)
         self.handler = logbook.TestHandler()
-        self.handler.push_thread()
+        self.handler.push_application()
 
     def tearDown(self):
-        self.handler.pop_thread()
+        self.handler.pop_application()
 
     def test_set_position(self):
         position = 1 * q.mm
@@ -49,10 +49,10 @@ class TestContinuousDummyMotor(unittest.TestCase):
                                           velocity_calibration)
 
         self.handler = logbook.TestHandler()
-        self.handler.push_thread()
+        self.handler.push_application()
 
     def tearDown(self):
-        self.handler.pop_thread()
+        self.handler.pop_application()
 
     def test_set_velocity(self):
         velocity = 1 * q.mm / q.s
@@ -81,10 +81,10 @@ class TestMotorCalibration(unittest.TestCase):
 
         self.motor = MockMotor()
         self.handler = logbook.TestHandler()
-        self.handler.push_thread()
+        self.handler.push_application()
 
     def tearDown(self):
-        self.handler.pop_thread()
+        self.handler.pop_application()
 
     def test_set_position(self):
         position = 100 * q.mm

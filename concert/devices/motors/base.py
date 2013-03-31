@@ -70,9 +70,9 @@ class Motor(Device):
         return self._calibration.to_user(self._get_position())
 
     def _set_calibrated_position(self, position):
-        self['state'].set(self.MOVING, self)
+        self['state'].set(self.MOVING, self).result()
         self._set_position(self._calibration.to_steps(position))
-        self['state'].set(self.STANDBY, self)
+        self['state'].set(self.STANDBY, self).result()
 
     def _get_position(self):
         raise NotImplementedError

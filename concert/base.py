@@ -19,10 +19,13 @@ position on an axis, you can also use :meth:`.Axis.set_position`.
 """
 
 import threading
+from concurrent.futures import ThreadPoolExecutor, wait
 from concert.events.dispatcher import dispatcher
 from threading import Event
 from logbook import Logger
 
+
+executor = ThreadPoolExecutor(max_workers=2)
 
 log = Logger(__name__)
 
@@ -124,7 +127,7 @@ class Parameter(object):
         if not self.is_readable():
             raise ReadAccessError(self.name)
 
-        return self._fget()
+        return executor.submit(self._fget)
 
     def set(self, value, owner=None):
         """Try to write *value*.
@@ -152,10 +155,14 @@ class Parameter(object):
             name = self.owner.__class__.__name__
             log.info(msg.format(name, what, self.name, value))
 
+        def finish_setting(future):
+            log_access('set')
+            self.notify()
+
         log_access('try')
-        self._fset(value)
-        log_access('set')
-        self.notify()
+        future = executor.submit(self._fset, value)
+        future.add_done_callback(finish_setting)
+        return future
 
     def notify(self):
         """Notify that the parameter value has changed."""
@@ -175,10 +182,12 @@ class _ProppedParameter(object):
         self.parameter = parameter
 
     def __get__(self, instance, owner):
-        return self.parameter.get()
+        future = self.parameter.get()
+        return future.result()
 
     def __set__(self, instance, value):
-        self.parameter.set(value)
+        future = self.parameter.set(value)
+        wait([future])
 
 
 class Device(object):
@@ -222,7 +231,8 @@ class Device(object):
         self._lock.release()
 
     def __str__(self):
-        params = [(param.name, param.get()) for param in self
+        params = [(param.name, param.get().result())
+                  for param in self
                   if param.is_readable()]
         params.sort()
         return '\n'.join("%s = %s" % p for p in params)
@@ -348,7 +358,7 @@ def launch(action, args=(), blocking=False):
     return event
 
 
-def wait(events, timeout=None):
-    """Wait until all *events* finished."""
-    for event in events:
-        event.wait(timeout)
+# def wait(events, timeout=None):
+#     """Wait until all *events* finished."""
+#     for event in events:
+#         event.wait(timeout)

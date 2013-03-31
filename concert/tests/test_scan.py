@@ -16,13 +16,13 @@ class TestScan(unittest.TestCase):
     def setUp(self):
         self.motor = DummyMotor(LinearCalibration(1 / q.mm, 0 * q.mm))
         self.handler = logbook.TestHandler()
-        self.handler.push_thread()
+        self.handler.push_application()
 
     def tearDown(self):
-        self.handler.pop_thread()
+        self.handler.pop_application()
 
     def handle_scan(self, parameters):
-        self.positions.append(parameters[0].get())
+        self.positions.append(parameters[0].get().result())
 
     def test_ascan(self):
         self.positions = []

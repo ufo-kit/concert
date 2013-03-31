@@ -35,6 +35,7 @@ setup(
     install_requires=['argparse',
                       'quantities',
                       'pyxdg',
-                      'logbook'],
+                      'logbook',
+                      'futures'],
     test_suite='concert.tests'
 )

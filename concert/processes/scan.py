@@ -21,6 +21,7 @@ To be notified when an motor reaches a chosen position, you can do ::
     motor1.subscribe('position', on_motor1_position)
     motor2.subscribe('position', on_motor2_position)
 """
+from concurrent.futures import wait
 
 
 def _pull_first(tuple_list):
@@ -49,11 +50,14 @@ def ascan(parameter_list, n_intervals, handler, initial_values=None):
                                  zip(parameter_list, initial_values))
 
         for i in range(n_intervals + 1):
+            futures = []
+
             for param, start, stop, init in initialized_params:
                 step = (stop - start) / n_intervals
                 value = init + start + i * step
-                param.set(value)
+                futures.append(param.set(value))
 
+            wait(futures)
             handler(parameters)
 
     if initial_values:
@@ -74,7 +78,7 @@ def dscan(parameter_list, n_intervals, handler):
     Each motor moves the same number of intervals, totalling in *intervals + 1*
     data points.
     """
-    initial_values = [param.get()
+    initial_values = [param.get().result()
                       for param in _pull_first(parameter_list)]
 
     return ascan(parameter_list, n_intervals, handler, initial_values)

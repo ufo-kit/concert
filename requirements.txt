@@ -7,3 +7,4 @@ nose
 numpy
 ipython>=0.13.0
 testfixtures
+futures
