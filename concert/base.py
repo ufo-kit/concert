@@ -254,6 +254,12 @@ class Device(object):
         parameter.owner = self
         setattr(self.__class__, parameter.name, _ProppedParameter(parameter))
 
+        if parameter.is_readable():
+            setattr(self.__class__, 'get_%s' % parameter.name, parameter.get)
+
+        if parameter.is_writable():
+            setattr(self.__class__, 'set_%s' % parameter.name, parameter.set)
+
 
 class ConcertObject(object):
     """

@@ -28,6 +28,10 @@ class TestDevice(unittest.TestCase):
     def tearDown(self):
         self.handler.pop_thread()
 
+    def test_accessor_functions(self):
+        compare(self.device.get_readonly().result(), 1)
+        self.device.set_writeonly(None)
+
     def test_iterable(self):
         for param in self.device:
             self.assertTrue(param.name in ('readonly', 'writeonly'))
