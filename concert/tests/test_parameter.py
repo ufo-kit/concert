@@ -13,6 +13,16 @@ class TestParameter(unittest.TestCase):
     def tearDown(self):
         self.handler.pop_application()
 
+    def test_names(self):
+        with ShouldRaise(ValueError):
+            Parameter('1pm')
+
+        with ShouldRaise(ValueError):
+            Parameter('current position')
+
+        Parameter('this-is-correct')
+        Parameter('this_too')
+
     def test_read_only_parameter(self):
         def getter():
             return 0

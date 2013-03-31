@@ -17,7 +17,7 @@ position on an axis, you can also use :meth:`.Axis.set_position`.
 
 :meth:`ConcertObject.get` simply returns the current value.
 """
-
+import re
 import threading
 from concurrent.futures import ThreadPoolExecutor, wait
 from concert.events.dispatcher import dispatcher
@@ -102,6 +102,12 @@ def value_compatible(value, unit):
         return False
 
 
+def parameter_name_valid(name):
+    """Check if a parameter *name* is correct and return ``True`` if so."""
+    expr = r'^[a-zA-Z]+[a-zA-Z0-9_-]*$'
+    return re.match(expr, name) is not None
+
+
 class Parameter(object):
     """A parameter with a *name* and an optional *unit* and *limiter*."""
 
@@ -110,6 +116,10 @@ class Parameter(object):
     def __init__(self, name, fget=None, fset=None,
                  unit=None, limiter=None,
                  doc=None, owner_only=False):
+
+        if not parameter_name_valid(name):
+            raise ValueError('{0} is not a valid parameter name'.format(name))
+
         self.name = name
         self.unit = unit
         self.limiter = limiter
@@ -254,11 +264,13 @@ class Device(object):
         parameter.owner = self
         setattr(self.__class__, parameter.name, _ProppedParameter(parameter))
 
+        method_name = parameter.name.replace('-', '_')
+
         if parameter.is_readable():
-            setattr(self.__class__, 'get_%s' % parameter.name, parameter.get)
+            setattr(self.__class__, 'get_%s' % method_name, parameter.get)
 
         if parameter.is_writable():
-            setattr(self.__class__, 'set_%s' % parameter.name, parameter.set)
+            setattr(self.__class__, 'set_%s' % method_name, parameter.set)
 
 
 class ConcertObject(object):
