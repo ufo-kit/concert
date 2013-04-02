@@ -44,7 +44,6 @@ class Motor(Device):
                             "Position of the motor"),
                   Parameter('state',
                             self._get_state,
-                            self._set_state,
                             owner_only=True)]
 
         super(Motor, self).__init__(params)
@@ -70,9 +69,9 @@ class Motor(Device):
         return self._calibration.to_user(self._get_position())
 
     def _set_calibrated_position(self, position):
-        self['state'].set(self.MOVING, self).result()
+        self._set_state(self.MOVING)
         self._set_position(self._calibration.to_steps(position))
-        self['state'].set(self.STANDBY, self).result()
+        self._set_state(self.STANDBY)
 
     def _get_position(self):
         raise NotImplementedError
@@ -86,6 +85,7 @@ class Motor(Device):
     def _set_state(self, state):
         if state in self._states:
             self._state = state
+            self['state'].notify()
         else:
             log.warn("State {0} unknown.".format(state))
 
