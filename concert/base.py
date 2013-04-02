@@ -48,6 +48,9 @@ from concert.events.dispatcher import dispatcher
 from concert.ui import get_default_table
 
 
+executor = ThreadPoolExecutor(max_workers=10)
+
+
 log = Logger(__name__)
 
 
@@ -349,16 +352,6 @@ class ConcertObject(object):
         dispatcher.unsubscribe(self, message, callback)
 
 
-_executor = ThreadPoolExecutor(max_workers=10)
-
-
-def async(func):
-    """Execute a function *func* asynchronously."""
-    def _async_wrapper(*args, **kwargs):
-        return _executor.submit(func, *args, **kwargs)
-    return _async_wrapper
-
-
 class AsyncWrapper(object):
     """Asynchronous wrapper for whole whole classes."""
     def __init__(self, instance):
@@ -372,7 +365,9 @@ class AsyncWrapper(object):
     def __getattr__(self, attr):
         orig_attr = self._inst.__getattribute__(attr)
         if callable(orig_attr):
-            return async(orig_attr)
+            def _async_wrapper(*args, **kwargs):
+                return executor.submit(orig_attr, *args, **kwargs)
+            return _async_wrapper
         else:
             return orig_attr
 
