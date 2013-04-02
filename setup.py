@@ -37,6 +37,7 @@ setup(
                       'numpy',
                       'pyxdg',
                       'logbook',
-                      'futures'],
+                      'futures',
+                      'prettytable'],
     test_suite='concert.tests'
 )

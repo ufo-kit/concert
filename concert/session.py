@@ -5,11 +5,93 @@ directory."""
 import os
 import imp
 import xdg.BaseDirectory
+import prettytable
+from inspect import getdoc
 
 
 PATH = xdg.BaseDirectory.save_data_path('concert')
-
 DEFAULT_LOGFILE = os.path.join(PATH, 'concert.log')
+
+
+def _create_styled_table(field_names):
+    table = prettytable.PrettyTable(field_names)
+    table.border = True
+    table.hrules = prettytable.ALL
+    table.vertical_char = ' '
+    table.junction_char = '-'
+    for name in field_names:
+        table.align[name] = 'l'
+    return table
+
+
+def _get_param_description_table(motor):
+    field_names = ["Name", "Access", "Unit", "Description"]
+    table = _create_styled_table(field_names)
+    table.border = False
+    table.header = True
+
+    def access_nick(parameter):
+        result = 'r' if parameter.is_readable() else ''
+        result += 'w' if parameter.is_writable() else ''
+        return result
+
+    for param in motor:
+        dims = param.unit.dimensionality.string if param.unit else None
+        row = [param.name, access_nick(param), str(dims), getdoc(param)]
+        table.add_row(row)
+
+    return table.get_string()
+
+
+def _get_param_value_table(motor):
+    field_names = ["Name", "Value"]
+    table = _create_styled_table(field_names)
+    table.border = False
+    table.header = False
+
+    for param in motor:
+        if param.is_readable():
+            table.add_row([param.name, str(param.get().result())])
+
+    return table.get_string()
+
+
+class DeviceDocumentation(list):
+    """Render device documentation."""
+    def __repr__(self):
+        field_names = ["Name", "Description", "Parameters"]
+        table = _create_styled_table(field_names)
+
+        for device in self:
+            doc = _get_param_description_table(device)
+            table.add_row([device.__class__.__name__, getdoc(device), doc])
+
+        return table.get_string()
+
+
+class ProcessDocumentation(list):
+    """Render process documentation."""
+    def __repr__(self):
+        field_names = ["Name", "Description"]
+        table = _create_styled_table(field_names)
+
+        for process in self:
+            table.add_row([process.__name__, getdoc(process)])
+
+        return table.get_string()
+
+
+class DeviceState(list):
+    """Render device state in a table."""
+    def __repr__(self):
+        field_names = ["Name", "Parameters"]
+        table = _create_styled_table(field_names)
+
+        for device in self:
+            values = _get_param_value_table(device)
+            table.add_row([device.__class__.__name__, values])
+
+        return table.get_string()
 
 
 def path(session):
@@ -70,3 +152,8 @@ def get_existing():
 def exists(session):
     """Check if *session* already exists."""
     return os.access(path(session), os.R_OK)
+
+
+ddoc = DeviceDocumentation()
+pdoc = ProcessDocumentation()
+dstate = DeviceState()
