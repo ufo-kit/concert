@@ -48,8 +48,6 @@ from concert.events.dispatcher import dispatcher
 from concert.ui import get_default_table
 
 
-executor = ThreadPoolExecutor(max_workers=2)
-
 log = Logger(__name__)
 
 
@@ -160,7 +158,7 @@ class Parameter(object):
         if not self.is_readable():
             raise ReadAccessError(self.name)
 
-        return executor.submit(self._fget)
+        return self._fget()
 
     def set(self, value, owner=None):
         """Try to write *value*.
@@ -188,14 +186,10 @@ class Parameter(object):
             name = self.owner.__class__.__name__
             log.info(msg.format(name, what, self.name, value))
 
-        def finish_setting(future):
-            log_access('set')
-            self.notify()
-
         log_access('try')
-        future = executor.submit(self._fset, value)
-        future.add_done_callback(finish_setting)
-        return future
+        self._fset(value)
+        log_access('set')
+        self.notify()
 
     def notify(self):
         """Notify that the parameter value has changed."""
@@ -215,12 +209,10 @@ class _ProppedParameter(object):
         self.parameter = parameter
 
     def __get__(self, instance, owner):
-        future = self.parameter.get()
-        return future.result()
+        return self.parameter.get()
 
     def __set__(self, instance, value):
-        future = self.parameter.set(value)
-        wait([future])
+        self.parameter.set(value)
 
 
 class Device(object):
@@ -356,53 +348,33 @@ class ConcertObject(object):
         """
         dispatcher.unsubscribe(self, message, callback)
 
-    def _launch(self, param, action, args=(), blocking=False):
-        """Launch *action* with *args* with message and event handling after
-        the action finishes.
 
-        If *blocking* is ``True``, *action* will be called like an ordinary
-        function otherwise a thread will be started. *args* must be a tuple of
-        arguments that is then unpacked and passed to *action* at _launch time.
-        The *action* itself must be blocking.
+_executor = ThreadPoolExecutor(max_workers=10)
+
+
+def async(func):
+    """Execute a function *func* asynchronously."""
+    def _async_wrapper(*args, **kwargs):
+        return _executor.submit(func, *args, **kwargs)
+    return _async_wrapper
+
+
+class AsyncWrapper(object):
+    """Asynchronous wrapper for whole whole classes."""
+    def __init__(self, instance):
+        """Constructor.
+
+        *instance* is the object being wrapped.
+
         """
-        def call_action_and_send():
-            """Call action and handle its finish."""
-            action(*args)
-            self.send(param)
+        super.__setattr__(self, "_inst", instance)
 
-        return launch(call_action_and_send, (), blocking)
+    def __getattr__(self, attr):
+        orig_attr = self._inst.__getattribute__(attr)
+        if callable(orig_attr):
+            return async(orig_attr)
+        else:
+            return orig_attr
 
-
-def launch(action, args=(), blocking=False):
-    """Launch *action* with *args*.
-
-    If *blocking* is ``True``, *action* will be called like an ordinary
-    function otherwise a thread will be started. *args* must be a tuple of
-    arguments that is then unpacked and passed to *action* at launch time.
-    The *action* itself must be blocking.
-
-    *launch* returns immediately with an :class:`threading.Event` object that
-    can be used to wait for completion of *action*.
-    """
-    event = Event()
-
-    def call_action_and_complete(args=()):
-        """Call action and handle its finish."""
-        action(*args)
-        event.set()
-
-    if blocking:
-        action(*args)
-    else:
-        thread = threading.Thread(target=call_action_and_complete,
-                                  args=(args,))
-        thread.daemon = True
-        thread.start()
-
-    return event
-
-
-# def wait(events, timeout=None):
-#     """Wait until all *events* finished."""
-#     for event in events:
-#         event.wait(timeout)
+    def __setattr__(self, name, value):
+        self._inst.__setattr__(name, value)

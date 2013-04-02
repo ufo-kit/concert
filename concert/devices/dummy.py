@@ -5,7 +5,8 @@ Created on Mar 14, 2013
 '''
 import random
 import time
-from concert.base import Device, Parameter
+from concert.base import Device, Parameter, AsyncWrapper
+from concurrent import futures
 
 
 class DummyDevice(Device):
@@ -21,13 +22,26 @@ class DummyDevice(Device):
 
     def _set_value(self, value):
         """The real value setter."""
-        time.sleep(random.random() / 50.)
+        time.sleep(random.random())
         self._value = value
 
-    def get_value(self):
-        """Get value."""
-        return self.get("value")
+    def do_nothing(self):
+        time.sleep(random.random())
 
-    def set_value(self, value):
-        """Set *value*."""
-        return self.set("value", value)
+
+if __name__ == '__main__':
+    # Property.
+    ad = AsyncWrapper(DummyDevice())
+    ad.value = 12
+    print ad.value
+
+    # Parameter.
+    future = ad.set_value(180)
+    futures.wait([future])
+    print ad.get_value().result()
+
+    print "Asynchronous operation."
+    future = ad.do_nothing()
+    print "Waiting for asynchronous operation to finish."
+    futures.wait([future])
+    print "Done."
