@@ -1,7 +1,7 @@
 """
 Cameras supported by the libuca library.
 """
-
+import numpy as np
 import quantities as q
 from concert.base import Parameter
 from concert.devices.cameras.base import Camera
@@ -42,6 +42,8 @@ class UcaCamera(Camera):
         from gi.repository import GObject, Uca
 
         self._manager = Uca.PluginManager()
+        self._data = None
+        self._array = None
 
         try:
             self.camera = self._manager.get_camerav(name, [])
@@ -71,6 +73,12 @@ class UcaCamera(Camera):
             self.add_parameter(parameter)
 
     def _record_real(self):
+        bits = self.camera.props.sensor_bitdepth
+        dtype = np.uint16 if bits > 8 else np.uint8
+        dims = self.camera.props.roi_height, self.camera.props.roi_width
+        self._array = np.zeros(dims, dtype=dtype)
+        self._data = self._array.__array_interface__['data'][0]
+
         self.camera.start_recording()
 
     def _stop_real(self):
@@ -78,3 +86,7 @@ class UcaCamera(Camera):
 
     def _trigger_real(self):
         self.camera.trigger()
+
+    def _grab_real(self):
+        self.camera.grab(self._data)
+        return self._array
