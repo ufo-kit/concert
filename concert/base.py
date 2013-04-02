@@ -1,21 +1,42 @@
 # -*- coding: utf-8 -*-
 """
-A device is an abstraction for a piece of hardware that can be controlled.
+A *device* is a software abstraction for a piece of hardware that can be
+controlled.
 
-The main interface to all devices is a generic setter and getter mechanism
-provided by every :class:`ConcertObject`. :meth:`ConcertObject.set` sets a
-parameter to value. Additionally, you can specify a *blocking* parameter to
-halt execution until the value is actually set on the device::
+Each device consists of a set of named :class:`Parameter` instances and
+device-specific methods. If you know the parameter name, you can get a reference
+to the parameter object by using the index operator::
 
-    axis.set('position', 5.5 * q.mm, blocking=True)
+    pos_parameter = motor['position']
 
-    # This will be set once axis.set() has finished
-    camera.set('exposure-time', 12.2 * q.s)
+To set and get parameters explicitly , you can use the :meth:`Parameter.get` and
+:meth:`Parameter.set` methods::
 
-Some devices will provide convenience accessor methods. For example, to set the
-position on an axis, you can also use :meth:`.Axis.set_position`.
+    pos_parameter.set(1 * q.mm)
+    print (pos_parameter.get())
 
-:meth:`ConcertObject.get` simply returns the current value.
+.. note::
+
+    Setting and getting values from a parameter are synchronous operations
+    and will block execution until the value is set or returned.
+
+Parameters are tied to devices as properties and can be accessed in a more
+convenient way::
+
+    motor.position = 1 * q.mm
+    print (motor.position)
+
+Parameter objects are not only used to communicate with a device but also carry
+meta data information about the parameter. The most important ones are
+:attr:`Parameter.name`, :attr:`Parameter.unit` and :attr:`Parameter.limiter` as
+well as the doc string describing the parameter. Moreover, parameters can be
+queried for access rights using :meth:`Parameter.is_readable` and
+:meth:`Parameter.is_writable`.
+
+To get all parameters of an object, you can iterate over the device itself ::
+
+    for param in motor:
+        print("{0} => {1}".format(param.unit, param.name))
 """
 import re
 import threading
@@ -132,7 +153,7 @@ class Parameter(object):
     def get(self):
         """Try to read and return the current value.
 
-        If the parameter cannot be read, :py:class:`ReadAccessError` is raised.
+        If the parameter cannot be read, :class:`ReadAccessError` is raised.
         """
         if not self.is_readable():
             raise ReadAccessError(self.name)
@@ -142,7 +163,7 @@ class Parameter(object):
     def set(self, value, owner=None):
         """Try to write *value*.
 
-        If the parameter cannot be written, :py:class:`WriteAccessError` is
+        If the parameter cannot be written, :class:`WriteAccessError` is
         raised. Once the value has been written on the device, all associated
         callbacks are called and a message is placed on the dispatcher bus.
         """

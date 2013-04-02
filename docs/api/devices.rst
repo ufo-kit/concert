@@ -2,29 +2,32 @@
 Application Programming Interface
 =================================
 
-Base
-====
+Base objects
+============
 
-.. autoclass:: concert.base.ConcertObject
+Parameters
+----------
+
+.. autoclass:: concert.base.Parameter
     :members:
 
 
-Implementing objects
---------------------
+Devices
+-------
 
-.. py:class:: ConcertObject
+.. autoclass:: concert.base.Device
+    :members:
 
-    .. py:method:: _register(param, getter, setter, unit, limiter=None)
 
-        Registers a parameter name `param`.
+Exceptions
+----------
 
-    .. note::
+.. autoclass:: concert.base.UnitError
+.. autoclass:: concert.base.LimitError
+.. autoclass:: concert.base.ParameterError
+.. autoclass:: concert.base.ReadAccessError
+.. autoclass:: concert.base.WriteAccessError
 
-        :meth:`_register` can be called several times along the inheritance
-        hierarchy. Each time a new setter is registered with the same name, the
-        setter will be applied in *reverse* order. That means if ``A`` inherits from
-        ``Device`` and ``B`` inherits from ``A``, calling ``set`` on an object of
-        type ``B`` will actually call ``B.set(A.set(x))``.
 
 Motors
 ======

@@ -5,8 +5,7 @@ import time
 import quantities as pq
 import logbook
 from threading import Thread
-from concert.devices.motors.base import Motor, MotorState, MotorMessage
-from concert.devices.base import UnknownStateError
+from concert.devices.motors.base import Motor, MotorMessage
 
 log = logbook.Logger(__name__)
 
@@ -36,15 +35,16 @@ class ANKATangoDiscreteMotor(Motor):
         self._poller.start()
 
     def _determine_state(self):
-        tango_state = self._connection.tango_device.state()
-        if tango_state == PyTango.DevState.MOVING:
-            current = MotorState.MOVING
-        elif tango_state == PyTango.DevState.STANDBY:
-            current = MotorState.STANDBY
-        else:
-            raise UnknownStateError(tango_state)
+        # tango_state = self._connection.tango_device.state()
+        # if tango_state == PyTango.DevState.MOVING:
+        #     current = MotorState.MOVING
+        # elif tango_state == PyTango.DevState.STANDBY:
+        #     current = MotorState.STANDBY
+        # else:
+        #     raise UnknownStateError(tango_state)
 
-        return current
+        # return current
+        return None
 
     def _poll_state(self):
         while True:
@@ -56,8 +56,8 @@ class ANKATangoDiscreteMotor(Motor):
     def _set_position_real(self, position):
         self._connection.tango_device.write_attribute("position", position)
         time.sleep(SLOW_SLEEP_TIME)
-        while self.state == MotorState.MOVING:
-            time.sleep(SLEEP_TIME)
+        # while self.state == MotorState.MOVING:
+        #     time.sleep(SLEEP_TIME)
         if self.hard_position_limit_reached():
             self.send(MotorMessage.POSITION_LIMIT)
 
