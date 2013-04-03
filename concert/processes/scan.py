@@ -64,7 +64,13 @@ def ascan(parameter_list, n_intervals, handler, initial_values=None):
         if len(parameter_list) != len(initial_values):
             raise ValueError("*initial_values* must match *parameter_list*")
     else:
-        initial_values = [0 * param.unit for param in parameters]
+        initial_values = []
+
+        for param in parameters:
+            if param.unit:
+                initial_values.append(0 * param.unit)
+            else:
+                initial_values.append(0)
 
     do_ascan(initial_values)
 
