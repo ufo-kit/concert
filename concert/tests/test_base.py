@@ -3,6 +3,7 @@ import logbook
 import time
 from testfixtures import ShouldRaise, compare
 from concert.base import Device, Parameter, ParameterError
+from concert.ui import get_default_table
 
 
 class MockDevice(Device):
@@ -45,4 +46,8 @@ class TestDevice(unittest.TestCase):
             param = self.device['foo']
 
     def test_str(self):
-        compare(str(self.device), "readonly = 1")
+        table = get_default_table(["Parameter", "Value"])
+        table.border = False
+        table.add_row(["readonly", "1"])
+
+        compare(str(self.device), table.get_string())
