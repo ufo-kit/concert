@@ -40,10 +40,12 @@ To get all parameters of an object, you can iterate over the device itself ::
 """
 import re
 import threading
-from concurrent.futures import ThreadPoolExecutor, wait
-from concert.events.dispatcher import dispatcher
+import prettytable
 from threading import Event
 from logbook import Logger
+from concurrent.futures import ThreadPoolExecutor, wait
+from concert.events.dispatcher import dispatcher
+from concert.ui import get_default_table
 
 
 executor = ThreadPoolExecutor(max_workers=2)
@@ -262,11 +264,14 @@ class Device(object):
         self._lock.release()
 
     def __str__(self):
-        params = [(param.name, param.get().result())
-                  for param in self
-                  if param.is_readable()]
-        params.sort()
-        return '\n'.join("%s = %s" % p for p in params)
+        table = get_default_table(["Parameter", "Value"])
+        table.border = False
+        readable = (param for param in self if param.is_readable())
+
+        for param in readable:
+            table.add_row([param.name, str(param.get().result())])
+
+        return table.get_string(sortby="Parameter")
 
     def __iter__(self):
         for param in self._params.values():

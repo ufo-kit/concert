@@ -113,9 +113,10 @@ Show information
 To get information about the state of a device, you can simply print it::
 
     >>> print(ring)
-    current = 99.25 mA
-    energy = 4.25 MeV
-    lifetime = 15.0 h
+     Parameter  Value
+     current    99.45 mA
+     energy     4.45 MeV
+     lifetime   11.0 h
 
 This can become tiresome if you have several devices. To fix this, we can use a
 session's ``ddoc`` and ``dstate`` list. All you have to do is adding the desired

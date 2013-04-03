@@ -7,26 +7,17 @@ import imp
 import xdg.BaseDirectory
 import prettytable
 from inspect import getdoc
+from concert.ui import get_default_table
 
 
 PATH = xdg.BaseDirectory.save_data_path('concert')
 DEFAULT_LOGFILE = os.path.join(PATH, 'concert.log')
 
 
-def _create_styled_table(field_names):
-    table = prettytable.PrettyTable(field_names)
-    table.border = True
-    table.hrules = prettytable.ALL
-    table.vertical_char = ' '
-    table.junction_char = '-'
-    for name in field_names:
-        table.align[name] = 'l'
-    return table
-
 
 def _get_param_description_table(motor):
     field_names = ["Name", "Access", "Unit", "Description"]
-    table = _create_styled_table(field_names)
+    table = get_default_table(field_names)
     table.border = False
     table.header = True
 
@@ -45,7 +36,7 @@ def _get_param_description_table(motor):
 
 def _get_param_value_table(motor):
     field_names = ["Name", "Value"]
-    table = _create_styled_table(field_names)
+    table = get_default_table(field_names)
     table.border = False
     table.header = False
 
@@ -60,7 +51,7 @@ class DeviceDocumentation(list):
     """Render device documentation."""
     def __repr__(self):
         field_names = ["Name", "Description", "Parameters"]
-        table = _create_styled_table(field_names)
+        table = get_default_table(field_names)
 
         for device in self:
             doc = _get_param_description_table(device)
@@ -73,7 +64,7 @@ class ProcessDocumentation(list):
     """Render process documentation."""
     def __repr__(self):
         field_names = ["Name", "Description"]
-        table = _create_styled_table(field_names)
+        table = get_default_table(field_names)
 
         for process in self:
             table.add_row([process.__name__, getdoc(process)])
@@ -85,7 +76,7 @@ class DeviceState(list):
     """Render device state in a table."""
     def __repr__(self):
         field_names = ["Name", "Parameters"]
-        table = _create_styled_table(field_names)
+        table = get_default_table(field_names)
 
         for device in self:
             values = _get_param_value_table(device)
