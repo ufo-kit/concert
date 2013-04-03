@@ -1,3 +1,5 @@
+.. _controlling-devices:
+
 ===================
 Controlling devices
 ===================
