@@ -39,11 +39,11 @@ the value or scan along a "trajectory"::
 
 .. _Ufo project: http://ufo.kit.edu
 """
-from concert.base import Device, Parameter
+from concert.base import Parameterizable, Parameter
 from concert.asynchronous import executor
 
 
-class UfoProcess(Device):
+class UfoProcess(Parameterizable):
     """Wraps a Ufo task graph and export selected node properties.
 
     *graph* must be a Ufo task graph. *node_map* is a dictionary that maps

@@ -12,6 +12,13 @@ Parameters
     :members:
 
 
+Collection of parameters
+------------------------
+
+.. autoclass:: concert.base.Parameterizable
+    :members:
+
+
 Devices
 -------
 

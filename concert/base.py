@@ -116,7 +116,7 @@ def value_compatible(value, unit):
     """Check if a *value* of a quantity is compatible with *unit* and return
     ``True``."""
     try:
-        unit + value
+        _ = unit + value
         return True
     except ValueError:
         return False
@@ -131,7 +131,7 @@ def parameter_name_valid(name):
 class Parameter(object):
     """
     A parameter with a *name* and an optional *unit* and *limiter*.
-    
+
     .. py:attribute:: name
 
         The name of the parameter.
@@ -183,7 +183,7 @@ class Parameter(object):
         If the parameter cannot be written, :class:`.WriteAccessError` is
         raised. If :attr:`unit` is set and not compatible with *value*,
         :class:`.UnitError` is raised.
-        
+
         Once the value has been written on the device, all associated
         callbacks are called and a message is placed on the dispatcher bus.
         """
@@ -224,23 +224,10 @@ class Parameter(object):
         return self._fset is not None
 
 
-class _ProppedParameter(object):
-    def __init__(self, parameter):
-        self.parameter = parameter
+class Parameterizable(object):
+    """Collection of parameters.
 
-    def __get__(self, instance, owner):
-        return self.parameter.get().result()
-
-    def __set__(self, instance, value):
-        self.parameter.set(value).wait()
-
-
-class Device(object):
-    """
-    The :class:`Device` provides synchronous access to a real hardware device,
-    such as a motor, a pump or a camera.
-
-    A :class:`Device` is iterable and returns its parameters of type
+    A :class:`Parameterizable` is iterable and returns its parameters of type
     :class:`Parameter` ::
 
         for param in device:
@@ -269,14 +256,6 @@ class Device(object):
                 parameter.owner = self
                 self.add_parameter(parameter)
 
-        self._lock = threading.Lock()
-
-    def __enter__(self):
-        self._lock.acquire()
-
-    def __exit__(self, type, value, traceback):
-        self._lock.release()
-
     def __str__(self):
         table = get_default_table(["Parameter", "Value"])
         table.border = False
@@ -298,16 +277,53 @@ class Device(object):
         return self._params[param]
 
     def add_parameter(self, parameter):
-        """Add *parameter* to device and install a property of the same name
-        for reading and/or writing it."""
+        """Add *parameter*.
+
+        This will install a property :attr:`.Parameter.name` with its getter
+        set to :meth:`.Parameter.get` and the setter set to
+        :meth:`.Parameter.get`.  The name will only consist of underscores.
+
+        Furthermore, two functions `set_parameter_name` and
+        `get_parameter_name` will be installed that are asynchronous.
+        """
         self._params[parameter.name] = parameter
         parameter.owner = self
         underscored = parameter.name.replace('-', '_')
 
-        setattr(self.__class__, underscored, _ProppedParameter(parameter))
+        def _getter(self):
+            return parameter.get().result()
+
+        def _setter(self, value):
+            parameter.set(value).wait()
+
+        setattr(self.__class__, underscored, property(_getter, _setter))
 
         if parameter.is_readable():
             setattr(self.__class__, 'get_%s' % underscored, parameter.get)
 
         if parameter.is_writable():
             setattr(self.__class__, 'set_%s' % underscored, parameter.set)
+
+
+class Device(Parameterizable):
+    """
+    :class:`Device` provides locked access to a real-world device.
+
+    It implements the context protocol and can thus be used like this ::
+
+        with device:
+            # device is locked
+            device.parameter = 1 * q.m
+            ...
+
+        # device is unlocked again
+    """
+    def __init__(self, parameters=None):
+        super(Device, self).__init__(parameters)
+        self._lock = threading.Lock()
+
+    def __enter__(self):
+        self._lock.acquire()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._lock.release()
