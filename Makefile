@@ -2,7 +2,7 @@ PYTHON = python
 SETUP = $(PYTHON) setup.py
 RUNTEST = nosetests
 
-.PHONY: build clean check check-fast init install
+.PHONY: build clean check check-fast dist init install
 
 all: build
 
