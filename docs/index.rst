@@ -28,4 +28,4 @@ Developer documentation
     :maxdepth: 2
 
     api/devices
-    api/dispatcher
+    api/async

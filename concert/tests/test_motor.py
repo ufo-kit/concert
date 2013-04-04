@@ -1,8 +1,6 @@
 import unittest
 import logbook
 import quantities as q
-from concert.tests import slow
-from concert.base import wait
 from concert.devices.motors.base import LinearCalibration, Motor
 from concert.devices.motors.dummy import DummyMotor, DummyContinuousMotor
 

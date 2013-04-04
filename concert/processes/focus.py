@@ -3,56 +3,13 @@ Focus related processes
 """
 import logbook
 from concert.optimization.scalar import Maximizer
-from concert.base import ConcertObject, LimitError
+from concert.base import LimitError, ConcertObject
+from concert.asynchronous import async
 
 
 log = logbook.Logger(__name__)
 
-
-class FocuserMessage(object):
-    FOCUS_FOUND = "focus_found"
-
-
-def _focus(axis, feedback, step, epsilon):
-    direction = 1
-    hits = 0
-    maximizer = Maximizer(epsilon)
-
-    def turn(direction, step):
-        return -direction, step / 2.0
-
-    while True:
-        try:
-            axis.move(direction * step)
-            gradient = feedback()
-            point_reached = maximizer.set_point_reached(gradient)
-
-            if axis.hard_position_limit_reached() or \
-               point_reached or \
-               not maximizer.is_better(gradient):
-                direction, step = turn(direction, step)
-
-            if point_reached:
-                # Make sure we found the global maximum and not only
-                # two equal gradients but out of focus. This can happen
-                # if we are out of focus and by motor movement we go
-                # to the other side of the image plane with equal
-                # gradient.
-                hits += 1
-            else:
-                hits = 0
-
-            if hits == 2:
-                break
-
-            maximizer.value = gradient
-            log.debug("Gradient: %g, axis position: %s" %
-                      (gradient, str(axis.position)))
-        except LimitError as e:
-            direction, step = turn(direction, step)
-
-    log.info("Maximum gradient: %g found at position: %s" %
-             (gradient, str(axis.position)))
+FOCUS_FOUND = "focus_found"
 
 
 class Focuser(ConcertObject):
@@ -62,7 +19,8 @@ class Focuser(ConcertObject):
         self._gradient_feedback = gradient_feedback
         self._register_message("focus")
 
-    def focus(self, step, blocking=False):
+    @async
+    def focus(self, step):
         """A simple focusing process using gradient as a measure. It maximizes
         it and if the difference between to consequently taken points is
         smaller than an epsilon it stops the process. The gradient function,
@@ -79,5 +37,43 @@ class Focuser(ConcertObject):
         position of the global maximum is found, an appropriate message
         is sent.
         """
-        params = (self._axis, self._gradient_feedback, step, self._epsilon)
-        return self._launch("focus", _focus, params, blocking)
+        direction = 1
+        hits = 0
+        maximizer = Maximizer(self._epsilon)
+
+        def turn(direction, step):
+            return -direction, step / 2.0
+
+        while True:
+            try:
+                self._axis.move(direction * step)
+                gradient = self._gradient_feedback()
+                point_reached = maximizer.set_point_reached(gradient)
+
+                if self._axis.hard_position_limit_reached() or \
+                   point_reached or \
+                   not maximizer.is_better(gradient):
+                    direction, step = turn(direction, step)
+
+                if point_reached:
+                    # Make sure we found the global maximum and not only
+                    # two equal gradients but out of focus. This can happen
+                    # if we are out of focus and by motor movement we go
+                    # to the other side of the image plane with equal
+                    # gradient.
+                    hits += 1
+                else:
+                    hits = 0
+
+                if hits == 2:
+                    break
+
+                maximizer.value = gradient
+                log.debug("Gradient: %g, axis position: %s" %
+                          (gradient, str(self._axis.position)))
+            except LimitError as e:
+                direction, step = turn(direction, step)
+
+        self.send(FOCUS_FOUND)
+        log.info("Maximum gradient: %g found at position: %s" %
+                 (gradient, str(self._axis.position)))

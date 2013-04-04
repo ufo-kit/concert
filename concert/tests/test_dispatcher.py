@@ -2,9 +2,7 @@ import unittest
 import logbook
 import time
 from concert.tests import VisitChecker
-from concert.base import wait
-from concert.events.dispatcher import Dispatcher
-from concert.devices.dummy import DummyDevice
+from concert.asynchronous import Dispatcher
 
 SLEEP_TIME = 0.0005
 

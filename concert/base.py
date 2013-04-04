@@ -4,12 +4,13 @@ A *device* is a software abstraction for a piece of hardware that can be
 controlled.
 
 Each device consists of a set of named :class:`Parameter` instances and
-device-specific methods. If you know the parameter name, you can get a reference
-to the parameter object by using the index operator::
+device-specific methods. If you know the parameter name, you can get
+a reference to the parameter object by using the index operator::
 
     pos_parameter = motor['position']
 
-To set and get parameters explicitly , you can use the :meth:`Parameter.get` and
+To set and get parameters explicitly , you can use the :meth:`Parameter.get`
+and
 :meth:`Parameter.set` methods::
 
     pos_parameter.set(1 * q.mm)
@@ -40,15 +41,10 @@ To get all parameters of an object, you can iterate over the device itself ::
 """
 import re
 import threading
-import prettytable
-from threading import Event
 from logbook import Logger
-from concurrent.futures import ThreadPoolExecutor, wait
-from concert.events.dispatcher import dispatcher
+from concert.asynchronous import dispatcher
 from concert.ui import get_default_table
-
-
-executor = ThreadPoolExecutor(max_workers=10)
+from concert.asynchronous import async
 
 
 log = Logger(__name__)
@@ -134,7 +130,6 @@ def parameter_name_valid(name):
 
 class Parameter(object):
     """A parameter with a *name* and an optional *unit* and *limiter*."""
-
     CHANGED = 'changed'
 
     def __init__(self, name, fget=None, fset=None,
@@ -153,6 +148,7 @@ class Parameter(object):
         self._fget = fget
         self.__doc__ = doc
 
+    @async
     def get(self):
         """Try to read and return the current value.
 
@@ -163,6 +159,7 @@ class Parameter(object):
 
         return self._fget()
 
+    @async
     def set(self, value, owner=None):
         """Try to write *value*.
 
@@ -212,10 +209,10 @@ class _ProppedParameter(object):
         self.parameter = parameter
 
     def __get__(self, instance, owner):
-        return self.parameter.get()
+        return self.parameter.get().result()
 
     def __set__(self, instance, value):
-        self.parameter.set(value)
+        self.parameter.set(value).wait()
 
 
 class Device(object):
@@ -350,26 +347,3 @@ class ConcertObject(object):
         *message* coming from this object.
         """
         dispatcher.unsubscribe(self, message, callback)
-
-
-class AsyncWrapper(object):
-    """Asynchronous wrapper for whole whole classes."""
-    def __init__(self, instance):
-        """Constructor.
-
-        *instance* is the object being wrapped.
-
-        """
-        super.__setattr__(self, "_inst", instance)
-
-    def __getattr__(self, attr):
-        orig_attr = self._inst.__getattribute__(attr)
-        if callable(orig_attr):
-            def _async_wrapper(*args, **kwargs):
-                return executor.submit(orig_attr, *args, **kwargs)
-            return _async_wrapper
-        else:
-            return orig_attr
-
-    def __setattr__(self, name, value):
-        self._inst.__setattr__(name, value)

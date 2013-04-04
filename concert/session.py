@@ -14,7 +14,6 @@ PATH = xdg.BaseDirectory.save_data_path('concert')
 DEFAULT_LOGFILE = os.path.join(PATH, 'concert.log')
 
 
-
 def _get_param_description_table(motor):
     field_names = ["Name", "Access", "Unit", "Description"]
     table = get_default_table(field_names)

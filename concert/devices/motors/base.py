@@ -89,7 +89,6 @@ class Motor(Device):
         else:
             log.warn("State {0} unknown.".format(state))
 
-
     def hard_position_limit_reached(self):
         raise NotImplementedError
 

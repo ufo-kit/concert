@@ -5,8 +5,8 @@ Created on Mar 14, 2013
 '''
 import random
 import time
-from concert.base import Device, Parameter, AsyncWrapper
-from concurrent import futures
+from concert.base import Device, Parameter
+from concert.asynchronous import async
 
 
 class DummyDevice(Device):
@@ -25,23 +25,6 @@ class DummyDevice(Device):
         time.sleep(random.random())
         self._value = value
 
+    @async
     def do_nothing(self):
-        time.sleep(random.random())
-
-
-if __name__ == '__main__':
-    # Property.
-    ad = AsyncWrapper(DummyDevice())
-    ad.value = 12
-    print ad.value
-
-    # Parameter.
-    future = ad.set_value(180)
-    futures.wait([future])
-    print ad.get_value().result()
-
-    print "Asynchronous operation."
-    future = ad.do_nothing()
-    print "Waiting for asynchronous operation to finish."
-    futures.wait([future])
-    print "Done."
+        pass

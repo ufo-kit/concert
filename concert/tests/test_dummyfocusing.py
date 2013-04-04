@@ -35,13 +35,13 @@ class TestDummyFocusing(unittest.TestCase):
 
     @slow
     def test_maximum_in_limits(self):
-        self._focuser.focus(1*q.mm, True)
+        self._focuser.focus(1*q.mm).wait()
         self._check_position(self._motor.position,
                              self._gradient_feedback.max_gradient_position)
 
     @slow
     def test_huge_step_in_limits(self):
-        self._focuser.focus(1000*q.mm, True)
+        self._focuser.focus(1000*q.mm).wait()
         self._check_position(self._motor.position,
                              self._gradient_feedback.max_gradient_position)
 
@@ -50,14 +50,14 @@ class TestDummyFocusing(unittest.TestCase):
         # Right.
         self._gradient_feedback.max_gradient_position = \
             (self._motor._hard_limits[1]+50)*q.mm
-        self._focuser.focus(1*q.mm, True)
+        self._focuser.focus(1*q.mm).wait()
         self._check_position(self._motor.position,
                              self._motor._hard_limits[1]*q.mm)
 
         # Left.
         self._gradient_feedback.max_gradient_position = \
             (self._motor._hard_limits[0]-50)*q.mm
-        self._focuser.focus(1*q.mm, True)
+        self._focuser.focus(1*q.mm).wait()
         self._check_position(self._motor.position,
                              self._motor._hard_limits[0]*q.mm)
 
@@ -69,13 +69,13 @@ class TestDummyFocusing(unittest.TestCase):
                            position=random.uniform(25, 75))
         gradient_feedback = DummyGradientMeasure(motor, 80*q.mm)
         focuser = Focuser(motor, 1e-3, gradient_feedback.get_gradient)
-        focuser.focus(10*q.mm, True)
+        focuser.focus(10*q.mm).wait()
         self._check_position(motor.position, 75*q.mm)
 
         # Left.
         gradient_feedback = DummyGradientMeasure(motor, 20*q.mm)
         focuser = Focuser(motor, 1e-3, gradient_feedback.get_gradient)
-        focuser.focus(10*q.mm, True)
+        focuser.focus(10*q.mm).wait()
         self._check_position(motor.position, 25*q.mm)
 
     @slow
@@ -85,7 +85,7 @@ class TestDummyFocusing(unittest.TestCase):
             (self._motor._hard_limits[1]+50)*q.mm
         focuser = Focuser(self._motor, 1e-3,
                           self._gradient_feedback.get_gradient)
-        focuser.focus(1000*q.mm, True)
+        focuser.focus(1000*q.mm).wait()
         self._check_position(self._motor.position,
                              self._motor._hard_limits[1]*q.mm)
 
@@ -94,7 +94,7 @@ class TestDummyFocusing(unittest.TestCase):
             (self._motor._hard_limits[0]-50)*q.mm
         focuser = Focuser(self._motor, 1e-3,
                           self._gradient_feedback.get_gradient)
-        focuser.focus(1000*q.mm, True)
+        focuser.focus(1000*q.mm).wait()
         self._check_position(self._motor.position,
                              self._motor._hard_limits[0]*q.mm)
 
@@ -104,6 +104,6 @@ class TestDummyFocusing(unittest.TestCase):
         # the same level is reached again, but global gradient maximum
         # is not at this motor position.
         self._motor.position = -0.00001*q.mm
-        self._focuser.focus(10*q.mm, True)
+        self._focuser.focus(10*q.mm).wait()
         self._check_position(self._motor.position,
                              self._gradient_feedback.max_gradient_position)
