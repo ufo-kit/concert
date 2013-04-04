@@ -34,7 +34,6 @@ setup(
     description="Lightweight control of heterogeneous environment",
     install_requires=['argparse',
                       'quantities',
-                      'numpy',
                       'pyxdg',
                       'logbook',
                       'futures',
