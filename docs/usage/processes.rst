@@ -12,8 +12,8 @@ processes are serialized from an outside point of view but run
 asynchronously each on its own.
 
 
-Scanning motors
-===============
+Scanning
+========
 
 .. automodule:: concert.processes.scan
     :members:
