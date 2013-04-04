@@ -3,21 +3,21 @@ Focus related processes
 """
 import logbook
 from concert.optimization.scalar import Maximizer
-from concert.base import LimitError, ConcertObject
-from concert.asynchronous import async
+from concert.base import LimitError
+from concert.asynchronous import async, dispatcher
 
 
 log = logbook.Logger(__name__)
 
-FOCUS_FOUND = "focus_found"
 
+class Focuser(object):
 
-class Focuser(ConcertObject):
+    FOUND = 'focus-found'
+
     def __init__(self, axis, epsilon, gradient_feedback):
         self._axis = axis
         self._epsilon = epsilon
         self._gradient_feedback = gradient_feedback
-        self._register_message("focus")
 
     @async
     def focus(self, step):
@@ -74,6 +74,6 @@ class Focuser(ConcertObject):
             except LimitError as e:
                 direction, step = turn(direction, step)
 
-        self.send(FOCUS_FOUND)
+        dispatcher.send(self, self.FOUND)
         log.info("Maximum gradient: %g found at position: %s" %
                  (gradient, str(self._axis.position)))

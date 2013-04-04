@@ -1,9 +1,8 @@
 import logging
 import sys
-from concert.base import ConcertObject
 
 
-class _ScalarOptimizer(ConcertObject):
+class _ScalarOptimizer(object):
     def __init__(self, default, epsilon):
         self.epsilon = epsilon
         self.value = default
