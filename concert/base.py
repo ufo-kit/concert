@@ -302,15 +302,15 @@ class Device(object):
         for reading and/or writing it."""
         self._params[parameter.name] = parameter
         parameter.owner = self
-        setattr(self.__class__, parameter.name, _ProppedParameter(parameter))
+        underscored = parameter.name.replace('-', '_')
 
-        method_name = parameter.name.replace('-', '_')
+        setattr(self.__class__, underscored, _ProppedParameter(parameter))
 
         if parameter.is_readable():
-            setattr(self.__class__, 'get_%s' % method_name, parameter.get)
+            setattr(self.__class__, 'get_%s' % underscored, parameter.get)
 
         if parameter.is_writable():
-            setattr(self.__class__, 'set_%s' % method_name, parameter.set)
+            setattr(self.__class__, 'set_%s' % underscored, parameter.set)
 
 
 class ConcertObject(object):
