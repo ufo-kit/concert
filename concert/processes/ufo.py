@@ -44,8 +44,15 @@ from concert.asynchronous import executor
 
 
 class UfoProcess(Device):
-    """Process data using a Ufo task graph and export selected node
-    properties."""
+    """Wraps a Ufo task graph and export selected node properties.
+
+    *graph* must be a Ufo task graph. *node_map* is a dictionary that maps
+    nodes that are connected within *graph* to its properties. Each property is
+    then exposed as a parameter of the class.
+
+    :meth:`run` executes *graph* with its own scheduler instance. Use the
+    *config* parameter to pass a UfoConfiguration to the scheduler.
+    """
 
     def __init__(self, graph, node_map, config=None):
         self._graph = graph
@@ -68,7 +75,7 @@ class UfoProcess(Device):
             from gi.repository import GObject
 
             getter, setter = None, None
-            
+
             if prop.flags & GObject.ParamFlags.READABLE:
                 getter = _create_getter(node, prop.name)
 
@@ -90,6 +97,7 @@ class UfoProcess(Device):
         super(UfoProcess, self).__init__(params)
 
     def run(self):
+        """Execute the graph."""
         from gi.repository import Ufo
 
         if self._config:
