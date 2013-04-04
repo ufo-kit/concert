@@ -27,5 +27,6 @@ Developer documentation
 .. toctree::
     :maxdepth: 2
 
+    api/tutorial
     api/devices
     api/async

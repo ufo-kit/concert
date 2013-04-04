@@ -129,7 +129,24 @@ def parameter_name_valid(name):
 
 
 class Parameter(object):
-    """A parameter with a *name* and an optional *unit* and *limiter*."""
+    """
+    A parameter with a *name* and an optional *unit* and *limiter*.
+    
+    .. py:attribute:: name
+
+        The name of the parameter.
+
+    .. py:attribute:: unit
+
+        The unit that is expected when setting a value and that is returned. If
+        a unit is not compatible, a :class:`.UnitError` will be raised.
+
+    .. py:attribute:: limiter
+
+        A callable that receives the value and returns True or False, depending
+        if the value is out of limits or not.
+    """
+
     CHANGED = 'changed'
 
     def __init__(self, name, fget=None, fset=None,
@@ -150,9 +167,9 @@ class Parameter(object):
 
     @async
     def get(self):
-        """Try to read and return the current value.
+        """Read and return the current value.
 
-        If the parameter cannot be read, :class:`ReadAccessError` is raised.
+        If the parameter cannot be read, :class:`.ReadAccessError` is raised.
         """
         if not self.is_readable():
             raise ReadAccessError(self.name)
@@ -161,10 +178,13 @@ class Parameter(object):
 
     @async
     def set(self, value, owner=None):
-        """Try to write *value*.
+        """Write *value*.
 
-        If the parameter cannot be written, :class:`WriteAccessError` is
-        raised. Once the value has been written on the device, all associated
+        If the parameter cannot be written, :class:`.WriteAccessError` is
+        raised. If :attr:`unit` is set and not compatible with *value*,
+        :class:`.UnitError` is raised.
+        
+        Once the value has been written on the device, all associated
         callbacks are called and a message is placed on the dispatcher bus.
         """
         if self._owner_only and owner != self.owner:
@@ -232,6 +252,8 @@ class Device(object):
 
         param = device['position']
         print param.is_readable()
+
+    If the parameter name does not exist, a :class:`.ParameterError` is raised.
 
     Each parameter value is accessible as a property. If a device has a
     position it can be read and written with::
