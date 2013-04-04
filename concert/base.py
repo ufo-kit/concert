@@ -10,22 +10,24 @@ a reference to the parameter object by using the index operator::
     pos_parameter = motor['position']
 
 To set and get parameters explicitly , you can use the :meth:`Parameter.get`
-and
-:meth:`Parameter.set` methods::
+and :meth:`Parameter.set` methods::
 
     pos_parameter.set(1 * q.mm)
-    print (pos_parameter.get())
+    print (pos_parameter.get().result())
 
-.. note::
+Both methods will return a *Future*. A future is a promise that a result will
+be delivered when asked for. In the mean time other things can and should
+happen concurrently. As you can see, to get the result of a future you call its
+``result()`` method.
 
-    Setting and getting values from a parameter are synchronous operations
-    and will block execution until the value is set or returned.
-
-Parameters are tied to devices as properties and can be accessed in a more
-convenient way::
+An easier way to set and get parameter values are properties via the
+dot-name-notation::
 
     motor.position = 1 * q.mm
     print (motor.position)
+
+As you can see, accessing parameters this way will *always be synchronous* and
+*block* execution until the value is set or fetched.
 
 Parameter objects are not only used to communicate with a device but also carry
 meta data information about the parameter. The most important ones are

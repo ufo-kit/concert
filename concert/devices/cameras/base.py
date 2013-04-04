@@ -4,8 +4,9 @@ and read with :meth:`.ConcertObject.set` and :meth:`.ConcertObject.get`.
 Moreover, a camera provides means to
 
 * :meth:`Camera.record` frames,
-* :meth:`Camera.stop` the acquisition and
-* :meth:`Camera.trigger` a frame capture.
+* :meth:`Camera.stop` the acquisition,
+* :meth:`Camera.trigger` a frame capture and
+* :meth:`Camera.grab` to get the last frame.
 
 To setup and use a camera in a typical environment, you would do::
 

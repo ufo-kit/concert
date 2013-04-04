@@ -2,6 +2,22 @@
 Getting started
 ===============
 
+Get the code
+============
+
+Concert is developed using `Git`_. To clone the repository call::
+
+    $ git clone http://ufo.kit.edu/git/concert
+
+To get started you are encouraged to install the *development* dependencies via
+pip::
+
+    $ cd concert
+    $ pip install -r requirements.txt
+
+.. _Git: http://git-scm.com
+
+
 Basic concepts
 ==============
 
@@ -11,7 +27,7 @@ Moreover, a parameter can have units and limiters associated with it.
 
 The modules related to device creation are found here ::
 
-    concert/ 
+    concert/
     |-- base.py
     `-- devices
         |-- base.py
@@ -40,7 +56,7 @@ new module called ``fancy.py`` in the ``concert/devices/motors`` directory
 package. In the ``fancy.py`` module, we first import the base class ::
 
     from concert.devices.motors.base import Motor, LinearCalibration
-    
+
 Because a user can only set the motor position in units of meter, the device
 itself must convert between motor units and meters. For this purpose, the base
 class expects a :class:`.Calibration` object, such as the pre-defined
