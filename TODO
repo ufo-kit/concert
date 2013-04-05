@@ -1,9 +1,0 @@
-- Basic hygiene in package and module structure and naming consensus.
-
-> Axis wait_for method: what if the desired state change happens between
-  state check and dispatcher wait method?????
-
-- Event id generation
-- Should we move the parameter settings functionality from device base class to concert object base class?
-- Do we want to serialize setters?
-
