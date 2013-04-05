@@ -1,6 +1,8 @@
 """
 Command functions used by the ``concert`` command-line interface tool.
 """
+from __future__ import print_function
+
 import sys
 import os
 import subprocess

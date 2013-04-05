@@ -1,8 +1,12 @@
 """The :mod:`.asynchronous` module provides mechanisms for asynchronous
 execution and messaging.
 """
+try:
+    import Queue as queue
+except ImportError:
+    import queue
+
 import threading
-import Queue
 from concurrent.futures import ThreadPoolExecutor, Future
 
 
@@ -45,7 +49,7 @@ class Dispatcher(object):
 
     def __init__(self):
         self._subscribers = {}
-        self._messages = Queue.Queue()
+        self._messages = queue.Queue()
         self._event_queues = {}
         self._lock = threading.Lock()
 
