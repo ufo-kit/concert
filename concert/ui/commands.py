@@ -111,8 +111,13 @@ def rm(sessions=[]):
 def show(session=None):
     """Show available sessions or details of a given *session*."""
     if session:
-        module = concert.session.load(session)
-        print(module.__doc__)
+        try:
+            module = concert.session.load(session)
+            print(module.__doc__)
+        except IOError:
+            print("Cannot find {0}".format(session))
+        except ImportError as exception:
+            print("Cannot import {0}: {1}".format(session, exception))
     else:
         sessions = concert.session.get_existing()
         print("Available sessions:")
