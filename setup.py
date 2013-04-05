@@ -21,7 +21,6 @@ setup(
               'concert/devices/cameras',
               'concert/devices/motors',
               'concert/devices/storagerings/',
-              'concert/events',
               'concert/measures',
               'concert/optimization',
               'concert/processes',
