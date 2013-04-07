@@ -14,13 +14,13 @@ executor = ThreadPoolExecutor(max_workers=10)
 
 
 def _patch_futures():
-    def wait(self, timeout=None):
+    def _wait(self, timeout=None):
         self.result()
         return self
-    Future.wait = wait
+    Future.wait = _wait
 
 
-def async(func, *args, **kwargs):
+def async(func):
     """This function is intended to be used as a decorator for functions
     which are supposed to be executed asynchronously."""
     def _async(*args, **kwargs):

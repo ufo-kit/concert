@@ -181,8 +181,8 @@ def _get_module_variables(module):
 
 
 def _run_shell(handler, module=None):
-    def exception_handler(shell, etype, evalue, tb, tb_offset=None):
-        print("Sorry, but {0}".format(str(evalue)))
+    def _handler(shell, etype, evalue, traceback, tb_offset=None):
+        print("Sorry, {0}".format(str(evalue)))
         return None
 
     try:
@@ -204,10 +204,11 @@ def _run_shell(handler, module=None):
                           ParameterError,
                           ReadAccessError,
                           WriteAccessError)
-            shell.set_custom_exc(exceptions, exception_handler)
+            shell.set_custom_exc(exceptions, _handler)
             shell()
-    except ImportError as e:
-        print("You must install IPython to run the Concert shell: %s" % e)
+    except ImportError as exception:
+        msg = "You must install IPython to run the Concert shell: {0}"
+        print(msg.format(exception))
 
 
 def _exit_if_not_exists(session):

@@ -27,6 +27,7 @@ class SocketConnection(object):
         self._sock.sendall(data.encode('ascii'))
 
     def recv(self):
+        """Read data from the socket."""
         try:
             result = self._sock.recv(1024)
             log.debug('Received {0}'.format(result))

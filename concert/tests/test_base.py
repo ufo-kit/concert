@@ -1,6 +1,5 @@
 import unittest
 import logbook
-import time
 from testfixtures import ShouldRaise, compare
 from concert.base import Device, Parameter, ParameterError
 from concert.ui import get_default_table
@@ -24,14 +23,14 @@ class TestDevice(unittest.TestCase):
     def setUp(self):
         self.device = MockDevice()
         self.handler = logbook.TestHandler()
-        self.handler.push_thread()
+        self.handler.push_application()
 
     def tearDown(self):
-        self.handler.pop_thread()
+        self.handler.pop_application()
 
     def test_accessor_functions(self):
         compare(self.device.get_readonly().result(), 1)
-        self.device.set_writeonly(None)
+        self.device.set_writeonly(None).wait()
 
     def test_iterable(self):
         for param in self.device:
@@ -44,6 +43,7 @@ class TestDevice(unittest.TestCase):
     def test_invalid_paramter(self):
         with ShouldRaise(ParameterError):
             param = self.device['foo']
+            compare(param, None)
 
     def test_str(self):
         table = get_default_table(["Parameter", "Value"])

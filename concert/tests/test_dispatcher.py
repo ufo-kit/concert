@@ -12,10 +12,10 @@ class TestDispatcher(unittest.TestCase):
         self.dispatcher = Dispatcher()
         self.checker = VisitChecker()
         self.handler = logbook.TestHandler()
-        self.handler.push_thread()
+        self.handler.push_application()
 
     def tearDown(self):
-        self.handler.pop_thread()
+        self.handler.pop_application()
 
     def test_subscription(self):
         self.dispatcher.subscribe(self, 'foo', self.checker.visit)

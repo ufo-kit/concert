@@ -33,6 +33,9 @@ class LinearMotor(Motor):
         self._connection.recv()
         self._steps = steps
 
+    def _stop_real(self):
+        pass
+
 
 class RotationMotor(Motor):
     """A rotational motor."""
@@ -53,6 +56,9 @@ class RotationMotor(Motor):
         self._connection.send('rot %i\r\n' % steps)
         self._connection.recv()
 
+    def _stop_real(self):
+        pass
+
 
 def main():
     logger = logging.getLogger('crio')
@@ -63,11 +69,6 @@ def main():
 
     linear_device = LinearMotor()
     rotation_device = RotationMotor()
-
-    try:
-        input = raw_input
-    except:
-        pass
 
     while True:
         line = input('> ')

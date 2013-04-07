@@ -29,10 +29,10 @@ class TestAsync(unittest.TestCase):
     def setUp(self):
         self.device = DummyDevice()
         self.handler = logbook.TestHandler()
-        self.handler.push_thread()
+        self.handler.push_application()
 
     def tearDown(self):
-        self.handler.pop_thread()
+        self.handler.pop_application()
 
     @slow
     def test_wait(self):
