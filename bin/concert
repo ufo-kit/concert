@@ -1,7 +1,6 @@
 #! python
 
 import sys
-import os
 import argparse
 import concert
 import concert.session
