@@ -4,13 +4,21 @@ A session is an ordinary Python module that is stored in a per-user
 directory."""
 import os
 import imp
-import xdg.BaseDirectory
 import prettytable
 from inspect import getdoc
 from concert.ui import get_default_table
 
 
-PATH = xdg.BaseDirectory.save_data_path('concert')
+def _get_save_data_path():
+    env = os.environ
+    if "VIRTUAL_ENV" in env:
+        env["XDG_DATA_HOME"] = os.path.join(env["VIRTUAL_ENV"], "share")
+    
+    import xdg.BaseDirectory
+    return xdg.BaseDirectory.save_data_path('concert')
+
+
+PATH = _get_save_data_path()
 DEFAULT_LOGFILE = os.path.join(PATH, 'concert.log')
 
 
