@@ -98,6 +98,11 @@ def create(session, imports=[]):
     .. note:: This will *always* overwrite session.
     """
     template = 'import quantities as q\n'
+    template += '\n'
+    template += 'from concert.session import ddoc\n'
+    template += 'from concert.session import dstate\n'
+    template += 'from concert.session import pdoc\n'
+    template += '\n'
     template += '__doc__ = "This is session %s"\n' % session
 
     def _module_exists(module_name):
