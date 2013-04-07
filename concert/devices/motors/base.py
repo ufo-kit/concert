@@ -18,6 +18,7 @@ As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 import quantities as q
 import logbook
 from concert.base import Device, Parameter
+from concert.asynchronous import async
 
 
 log = logbook.Logger(__name__)
@@ -51,19 +52,15 @@ class Motor(Device):
         self._state = self.STANDBY
         self._states = [self.MOVING, self.STANDBY]
 
-    def __del__(self):
-        self.stop()
-
+    @async
     def move(self, delta):
         """Move motor by *delta* user units."""
         self.position += delta
 
+    @async
     def stop(self, blocking=False):
         """Stop the motion."""
-        self._launch(self._stop_real, blocking=blocking)
-
-    def _stop_real(self):
-        raise NotImplementedError
+        self._stop_real()
 
     def _get_calibrated_position(self):
         return self._calibration.to_user(self._get_position())
@@ -89,7 +86,7 @@ class Motor(Device):
         else:
             log.warn("State {0} unknown.".format(state))
 
-    def hard_position_limit_reached(self):
+    def _stop_real(self):
         raise NotImplementedError
 
 
@@ -112,14 +109,6 @@ class ContinuousMotor(Motor):
 
         self.add_parameter(param)
         self._calibration = velocity_calibration
-
-    def set_velocity(self, velocity):
-        """Set *velocity* of the motor."""
-        self.set('velocity', velocity)
-
-    def get_velocity(self):
-        """Get current velocity of the motor."""
-        return self.get('velocity')
 
     def _get_calibrated_velocity(self):
         return self._calibration.to_user(self._get_velocity())

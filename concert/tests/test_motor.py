@@ -24,7 +24,7 @@ class TestDummyMotor(unittest.TestCase):
         position = 1 * q.mm
         delta = 0.5 * q.mm
         self.motor.position = position
-        self.motor.move(delta)
+        self.motor.move(delta).wait()
         self.assertEqual(position + delta, self.motor.position)
 
     def test_log_output(self):

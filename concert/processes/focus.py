@@ -46,7 +46,7 @@ class Focuser(object):
 
         while True:
             try:
-                self._axis.move(direction * step)
+                self._axis.move(direction * step).wait()
                 gradient = self._gradient_feedback()
                 point_reached = maximizer.set_point_reached(gradient)
 
