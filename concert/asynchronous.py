@@ -8,6 +8,7 @@ except ImportError:
 
 import threading
 from concurrent.futures import ThreadPoolExecutor, Future
+from functools import wraps
 
 
 executor = ThreadPoolExecutor(max_workers=10)
@@ -23,6 +24,7 @@ def _patch_futures():
 def async(func):
     """This function is intended to be used as a decorator for functions
     which are supposed to be executed asynchronously."""
+    @wraps(func)
     def _async(*args, **kwargs):
         return executor.submit(func, *args, **kwargs)
 

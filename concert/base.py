@@ -169,7 +169,9 @@ class Parameter(object):
 
     @async
     def get(self):
-        """Read and return the current value.
+        """
+        get()
+        Read and return the current value.
 
         If the parameter cannot be read, :class:`.ReadAccessError` is raised.
         """
@@ -180,7 +182,9 @@ class Parameter(object):
 
     @async
     def set(self, value, owner=None):
-        """Write *value*.
+        """
+        set()
+        Write *value*.
 
         If the parameter cannot be written, :class:`.WriteAccessError` is
         raised. If :attr:`unit` is set and not compatible with *value*,

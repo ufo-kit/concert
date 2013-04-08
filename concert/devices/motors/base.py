@@ -55,12 +55,16 @@ class Motor(Device):
 
     @async
     def move(self, delta):
-        """Move motor by *delta* user units."""
+        """
+        move(delta)
+        Move motor by *delta* user units."""
         self.position += delta
 
     @async
     def stop(self, blocking=False):
-        """Stop the motion."""
+        """
+        stop(blocking=False)
+        Stop the motion."""
         self._stop_real()
 
     def _get_calibrated_position(self):

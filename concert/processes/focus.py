@@ -21,7 +21,9 @@ class Focuser(object):
 
     @async
     def focus(self, step):
-        """A simple focusing process using gradient as a measure. It maximizes
+        """
+        focus(step)
+        A simple focusing process using gradient as a measure. It maximizes
         it and if the difference between to consequently taken points is
         smaller than an epsilon it stops the process. The gradient function,
         which depends on the position is not monotonic, thus the following
