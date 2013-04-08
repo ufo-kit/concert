@@ -2,16 +2,40 @@
 Sessions
 ========
 
-Each beamline has a certain set of motors that are used in typical experiments.
-Such a group of motors can be managed with the session mechanism that is
-provided by Concert and the ``concert`` command line tool. If you run the tool
-without any arguments, a regular IPython shell will appear.
+Each beamline consists of many devices, of which only a subset is useful in a
+particular experiment. To group this subset in a meaningful way, Concert
+provides a session mechanism managed by the ``concert`` command line tool.
 
 
 Three-minute tour
 =================
 
-To create a new session, use the ``init`` command with a session name::
+The ``concert`` tool is run from the command line.  Without any arguments, its
+help is shown::
+
+    $ concert
+    usage: concert [-h] [--version]  ...
+
+    optional arguments:
+      -h, --help  show this help message and exit
+      --version   show program's version number and exit
+
+    Concert commands:
+
+        log       Show session logs
+        show      Show available sessions or details of a given *session*
+        edit      Edit a session
+        start     Start a session
+        init      Create a new session
+        rm        Remove one or more sessions
+
+The tool is command-driven, that means you call it with a command as its first
+argument. To read command-specific help, use::
+
+    $ concert [command] -h
+
+Now, let's get started and create a new session. For this, we use the ``init``
+command with a name for our new session::
 
     concert init experiment
 
@@ -19,6 +43,19 @@ This creates a new session *experiment*. If such a session already exists,
 Concert will warn you. You can overwrite the existing session with ::
 
     concert init --force experiment
+
+
+.. note::
+
+    The location of the session files depends on the chosen installation method.
+    If you installed into a virtual environment ``venv``, the files will be
+    stored in ``/path/to/venv/share/concert``. If you have installed Concert
+    system-wide our without using a virtual environment, it is installed into
+    ``$XDG_DATA_HOME/concert`` or ``$HOME/.local/share/concert`` if the former
+    is not set. See the `XDG Base Directory Specification
+    <http://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html>`_
+    for further information. It is probably a *very* good idea to put the
+    session directory under version control.
 
 A session is already populated with useful imports, but you will most likely
 add more definitions. For this ::
