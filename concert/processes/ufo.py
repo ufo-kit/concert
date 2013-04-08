@@ -18,13 +18,14 @@ assume, we have the following task description ::
     graph.connect_nodes(reader, bp)
     graph.connect_nodes(bp, writer)
 
-To expose Ufo node properties as Concert parameters, we have to provide a map,
-that translates from nodes to a list of property names. In the following
-example, we want to make the axis position available to the control system ::
+To expose Ufo node properties as Concert parameters, we have to pass the graph,
+the node and the node's property name to the :class:`UfoProcess` constructor.
+In the following example, we make the axis position available to the control
+system ::
 
     from concert.processes.ufo import UfoProcess
 
-    process = UfoProcess(graph, {bp: ['axis-pos']})
+    process = UfoProcess(graph, bp, 'axis-pos')
 
 Now, we can use ``process`` like any other regular device, for example print
 the value or scan along a "trajectory"::
@@ -46,18 +47,17 @@ from concert.asynchronous import executor
 class UfoProcess(Parameterizable):
     """Wraps a Ufo task graph and export selected node properties.
 
-    *graph* must be a Ufo task graph. *node_map* is a dictionary that maps
-    nodes that are connected within *graph* to its properties. Each property is
-    then exposed as a parameter of the class.
+    *graph* must be a Ufo task graph. *node* is a node that is connected inside
+    *graph* *prop_name* is a property name of *node* and used to expose this
+    property.
 
     :meth:`run` executes *graph* with its own scheduler instance. Use the
     *config* parameter to pass a UfoConfiguration to the scheduler.
     """
 
-    def __init__(self, graph, node_map, config=None):
+    def __init__(self, graph, node, prop_name, config=None):
         self._graph = graph
         self._config = config
-        params = []
 
         def _create_getter(node, param):
             def _wrapper():
@@ -85,16 +85,14 @@ class UfoProcess(Parameterizable):
             param = Parameter(prop.name, getter, setter, doc=prop.blurb)
             return param
 
-        for node, prop_names in node_map.items():
-            for prop_name in prop_names:
-                prop = [p for p in node.props if p.name == prop_name]
-                if prop:
-                    params.append(_create_parameter(node, prop[0]))
-                else:
-                    msg = "Parameter {0} not in {1}".format(prop_name, node)
-                    raise ValueError(msg)
+        prop = [p for p in node.props if p.name == prop_name]
 
-        super(UfoProcess, self).__init__(params)
+        if prop:
+            parameter = _create_parameter(node, prop[0])
+            super(UfoProcess, self).__init__([parameter])
+        else:
+            msg = "Parameter {0} not in {1}".format(prop_name, node)
+            raise ValueError(msg)
 
     def run(self):
         """Execute the graph."""
