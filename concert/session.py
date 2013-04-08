@@ -4,7 +4,6 @@ A session is an ordinary Python module that is stored in a per-user
 directory."""
 import os
 import imp
-import prettytable
 from inspect import getdoc
 from concert.ui import get_default_table
 
@@ -13,7 +12,7 @@ def _get_save_data_path():
     env = os.environ
     if "VIRTUAL_ENV" in env:
         env["XDG_DATA_HOME"] = os.path.join(env["VIRTUAL_ENV"], "share")
-    
+
     import xdg.BaseDirectory
     return xdg.BaseDirectory.save_data_path('concert')
 
@@ -28,14 +27,14 @@ def _get_param_description_table(motor):
     table.border = False
     table.header = True
 
-    def access_nick(parameter):
+    def _access(parameter):
         result = 'r' if parameter.is_readable() else ''
         result += 'w' if parameter.is_writable() else ''
         return result
 
     for param in motor:
         dims = param.unit.dimensionality.string if param.unit else None
-        row = [param.name, access_nick(param), str(dims), getdoc(param)]
+        row = [param.name, _access(param), str(dims), getdoc(param)]
         table.add_row(row)
 
     return table.get_string()
@@ -107,9 +106,7 @@ def create(session, imports=[]):
     """
     template = 'import quantities as q\n'
     template += '\n'
-    template += 'from concert.session import ddoc\n'
-    template += 'from concert.session import dstate\n'
-    template += 'from concert.session import pdoc\n'
+    template += 'from concert.session import ddoc, dstate, pdoc\n'
     template += '\n'
     template += '__doc__ = "This is session %s"\n' % session
 
