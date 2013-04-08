@@ -9,7 +9,7 @@ class DummyCamera(Camera):
     """Simple camera.
 
     *background* can be an array-like that will be used to generate the frame
-    when calling :meth:`.grab`. The final image will be the background + 
+    when calling :meth:`.grab`. The final image will be the background +
     poisson depending on the currently set exposure time.
 
     :py:attribute:: exposure_time
@@ -58,7 +58,7 @@ class DummyCamera(Camera):
         pass
 
     def _trigger_real(self):
-        self.camera.trigger()
+        pass
 
     def _grab_real(self):
         noise = np.random.poisson(1.0, (self._width, self._height))
