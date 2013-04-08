@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import sys, os
+from concert import __version__
 
 _authors = [u'Matthias Vogelgesang',
             u'Tomas Farago']
@@ -14,8 +15,8 @@ master_doc = 'index'
 project = u'Concert'
 copyright = u'2013, ' + u', '.join(_authors)
 
-version = '0.0'
-release = '0.0.1'
+version = __version__[:__version__.rfind('.')]
+release = __version__
 
 exclude_patterns = ['_build']
 pygments_style = 'sphinx'
