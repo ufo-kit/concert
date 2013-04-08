@@ -6,7 +6,8 @@ _authors = [u'Matthias Vogelgesang',
 
 sys.path.insert(0, os.path.abspath('..'))
 
-extensions = ['sphinx.ext.autodoc']
+extensions = ['sphinx.ext.autodoc',
+              'sphinx.ext.intersphinx']
 source_suffix = '.rst'
 master_doc = 'index'
 
@@ -22,6 +23,9 @@ pygments_style = 'sphinx'
 # html_static_path = ['_static']
 htmlhelp_basename = 'concertdoc'
 
+intersphinx_mapping = {
+    'python': ('http://python.readthedocs.org/en/latest/', None),
+}
 
 # -- Options for LaTeX output --------------------------------------------------
 latex_elements = {

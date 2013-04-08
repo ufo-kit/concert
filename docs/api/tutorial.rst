@@ -18,6 +18,27 @@ pip::
 .. _Git: http://git-scm.com
 
 
+Run the tests
+-------------
+
+The core of Concert is tested using Python's standard library :mod:`unittest`
+module, the `TestFixtures`_ package and `nose`_. To run all tests, you can call
+nose directly in the root directory or run make with the ``check`` argument ::
+
+    $ make check
+
+Some tests take a lot of time to complete and are marked with the ``@slow``
+decorator. To skip them during regular development cycles, you can run ::
+
+    $ make check-fast
+
+You are highly encouraged to add new tests when you are adding a new feature to
+the core or fixing a known bug.
+
+.. _TestFixtures: http://pythonhosted.org/testfixtures/
+.. _nose: https://nose.readthedocs.org/en/latest/
+
+
 Basic concepts
 ==============
 
