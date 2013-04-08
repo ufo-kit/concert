@@ -30,8 +30,9 @@ class Motor(Device):
     An motor is used with a *calibration* that conforms to the
     :class:`Calibration` interface to convert between user and device units.
 
-    Exported parameters:
-        - ``"position"``: Position of the motor
+    .. py:attribute:: position
+
+        Motor position
     """
 
     STANDBY = 'standby'

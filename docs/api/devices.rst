@@ -51,3 +51,10 @@ Cameras
 
 .. autoclass:: concert.devices.cameras.base.Camera
     :members:
+
+
+Storage rings
+=============
+
+.. autoclass:: concert.devices.storagerings.base.StorageRing
+    :members:
