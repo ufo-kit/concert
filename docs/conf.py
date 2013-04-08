@@ -1,15 +1,17 @@
 # -*- coding: utf-8 -*-
 import sys, os
 
+_authors = [u'Matthias Vogelgesang',
+            u'Tomas Farago']
+
 sys.path.insert(0, os.path.abspath('..'))
 
 extensions = ['sphinx.ext.autodoc']
-# templates_path = ['_templates']
 source_suffix = '.rst'
 master_doc = 'index'
 
 project = u'Concert'
-copyright = u'2013, Matthias Vogelgesang'
+copyright = u'2013, ' + u', '.join(_authors)
 
 version = '0.0'
 release = '0.0.1'
@@ -35,12 +37,11 @@ latex_elements = {
 
 latex_documents = [
   ('index', 'concert.tex', u'Concert Documentation',
-   u'Matthias~Vogelgesang, Thomas~Farago', 'manual'),
+   u', '.join(author.replace(' ', '~') for author in _authors),
+   'manual'),
 ]
 
-
-# -- Options for manual page output --------------------------------------------
 man_pages = [
     ('index', 'concert', u'Concert Documentation',
-     [u'Matthias Vogelgesang', u'Thomas Farago'], 1)
+     _authors, 1)
 ]
