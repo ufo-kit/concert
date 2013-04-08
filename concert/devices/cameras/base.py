@@ -14,9 +14,9 @@ To setup and use a camera in a typical environment, you would do::
     from concert.devices.cameras.uca import UcaCamera
 
     camera = UcaCamera('pco')
-    camera.set('exposure-time', 0.2 * q.s)
-    camera.record()
-    camera.trigger(blocking=True)
+    camera.exposure_time = 0.2 * q.s
+    camera.record().wait()
+    camera.trigger().wait()
     data = camera.grab()
     camera.stop()
 
@@ -28,8 +28,8 @@ from concert.base import Device
 class Camera(Device):
     """Base class for remotely controllable cameras."""
 
-    def __init__(self):
-        super(Camera, self).__init__()
+    def __init__(self, params):
+        super(Camera, self).__init__(params)
 
     def record(self):
         """Start recording frames."""

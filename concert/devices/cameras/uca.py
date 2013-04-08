@@ -37,8 +37,6 @@ class UcaCamera(Camera):
     """
 
     def __init__(self, name):
-        super(UcaCamera, self).__init__()
-
         from gi.repository import GObject, Uca
 
         self._manager = Uca.PluginManager()
@@ -55,6 +53,8 @@ class UcaCamera(Camera):
             Uca.Unit.SECOND: q.s
         }
 
+        parameters = []
+
         for prop in self.camera.props:
             getter, setter, unit = None, None, None
 
@@ -70,7 +70,9 @@ class UcaCamera(Camera):
                 setter = _new_setter_wrapper(self.camera, prop.name)
 
             parameter = Parameter(prop.name, getter, setter, unit)
-            self.add_parameter(parameter)
+            parameters.append(parameter)
+
+        super(UcaCamera, self).__init__(parameters)
 
     def _record_real(self):
         bits = self.camera.props.sensor_bitdepth
