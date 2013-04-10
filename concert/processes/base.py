@@ -20,7 +20,7 @@ class Process(Parameterizable):
 class Feedback(object):
     """Provide a feedback."""
 
-    def evaluate(self):
+    def __call__(self):
         """This must return a value. Any kind of value."""
         raise NotImplementedError
 
@@ -38,6 +38,7 @@ class Scanner(Process):
                   Parameter('intervals', doc="Number of intervals")]
 
         super(Scanner, self).__init__(params)
+        self.intervals = 64
         self._param = param
         self._feedback = feedback
 
@@ -48,7 +49,7 @@ class Scanner(Process):
 
         for i, x in enumerate(xs):
             self._param.set(x).wait()
-            ys[i] = self._feedback.evaluate()
+            ys[i] = self._feedback()
 
         return (xs, ys)
 

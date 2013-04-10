@@ -11,7 +11,7 @@ class FrameMean(Feedback):
     def __init__(self, camera):
         self.camera = camera
 
-    def evaluate(self):
+    def __call__(self):
         frame = self.camera.grab()
 
         # Should this be over whole frame or just those pixels above 0?
@@ -29,6 +29,6 @@ class PhotonTransfer(Feedback):
         self.camera = camera
         self.dark_frame = dark_frame
 
-    def evaluate(self):
+    def __call__(self):
         frame = self.camera.grab()
         return np.log(np.sum(np.abs(frame - self.dark_frame)))
