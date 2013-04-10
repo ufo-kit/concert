@@ -165,6 +165,7 @@ class Parameter(object):
         self._owner_only = owner_only
         self._fset = fset
         self._fget = fget
+        self._value = None
         self.__doc__ = doc
 
     @async
@@ -177,6 +178,9 @@ class Parameter(object):
         """
         if not self.is_readable():
             raise ReadAccessError(self.name)
+
+        if self._is_simple():
+            return self._value
 
         return self._fget()
 
@@ -213,7 +217,12 @@ class Parameter(object):
             log.info(msg.format(name, what, self.name, value))
 
         log_access('try')
-        self._fset(value)
+
+        if self._is_simple():
+            self._value = value
+        else:
+            self._fset(value)
+
         log_access('set')
         self.notify()
 
@@ -221,13 +230,16 @@ class Parameter(object):
         """Notify that the parameter value has changed."""
         dispatcher.send(self, self.CHANGED)
 
+    def _is_simple(self):
+        return self._fget is None and self._fset is None
+
     def is_readable(self):
         """Return `True` if parameter can be read."""
-        return self._fget is not None
+        return self._fget is not None or self._is_simple()
 
     def is_writable(self):
         """Return `True` if parameter can be written."""
-        return self._fset is not None
+        return self._fset is not None or self._is_simple()
 
 
 class Parameterizable(object):
