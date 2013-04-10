@@ -30,7 +30,8 @@ class DeviceWidget(tk.Toplevel):
                 value = tk.DoubleVar()
                 value.set(param.get().result())
 
-                entry = tk.Entry(self, textvariable=value)
+                state = tk.NORMAL if param.is_writable() else 'readonly'
+                entry = tk.Entry(self, textvariable=value, state=state)
                 entry.grid(row=i, column=1, **grid_opts)
 
                 self.queues[param] = Queue.Queue()
