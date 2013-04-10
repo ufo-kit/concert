@@ -45,6 +45,6 @@ class DummyCamera(Camera):
         pass
 
     def _grab_real(self):
-        noise = np.random.poisson(1.0, (self._width, self._height))
+        noise = np.random.poisson(1.0, (self.roi_width, self.roi_height))
         time = self.exposure_time.rescale(q.s).magnitude
         return self._background + time * noise
