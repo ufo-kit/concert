@@ -28,16 +28,14 @@ def async(func):
     def _async(*args, **kwargs):
         return executor.submit(func, *args, **kwargs)
 
-    res = _async
-    res.__name__ = func.__name__
-    res.__dict__["_async"] = True
+    _async.__dict__["_async"] = True
 
-    return res
+    return _async
 
 
 def is_async(func):
     """returns *True* if the given function *func* is asynchronous."""
-    return hasattr(func, "_async")
+    return hasattr(func, "_async") and getattr(func, "_async") == True
 
 
 def wait(futures):

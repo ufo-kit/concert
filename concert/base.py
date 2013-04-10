@@ -187,7 +187,7 @@ class Parameter(object):
     @async
     def set(self, value, owner=None):
         """
-        set()
+        set(value, owner=None)
         Write *value*.
 
         If the parameter cannot be written, :class:`.WriteAccessError` is
