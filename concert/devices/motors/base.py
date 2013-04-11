@@ -127,13 +127,13 @@ class ContinuousMotor(Motor):
                           "Velocity of the motor")
 
         self.add_parameter(param)
-        self._calibration = velocity_calibration
+        self._velocity_calibration = velocity_calibration
 
     def _get_calibrated_velocity(self):
-        return self._calibration.to_user(self._get_velocity())
+        return self._velocity_calibration.to_user(self._get_velocity())
 
     def _set_calibrated_velocity(self, velocity):
-        self._set_velocity(self._calibration.to_steps(velocity))
+        self._set_velocity(self._velocity_calibration.to_steps(velocity))
 
     def _get_velocity(self):
         raise NotImplementedError

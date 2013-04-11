@@ -47,9 +47,16 @@ class TangoConnection(object):
 
         self._tango_device = PyTango.DeviceProxy(uri)
 
+    @property
+    def tango_device(self):
+        return self._tango_device
+
     def read_value(self, attribute):
         """Read TANGO *attribute* value."""
         return self._tango_device.read_attribute(attribute).value
+    
+    def write_value(self, attribute, value):
+        self._tango_device.write_attribute(attribute, value)
     
 class AerotechConnection(SocketConnection):
     EOS_CHAR = "\n" # string termination character
@@ -60,8 +67,10 @@ class AerotechConnection(SocketConnection):
     def _interpret_response(self, hle_response):
         if (hle_response[0] == AerotechConnection.ACK_CHAR) :
             # return the data
-            return hle_response[1:\
+            res = hle_response[1:\
                             hle_response.index(AerotechConnection.EOS_CHAR)]
+            log.debug("Interpreted response {0}.".format(res))
+            return res
         if (hle_response[0] == AerotechConnection.NAK_CHAR) :
             raise ValueError("Invalid command or parameter")
         if (hle_response[0] == AerotechConnection.FAULT_CHAR) :
@@ -69,12 +78,24 @@ class AerotechConnection(SocketConnection):
         
     def send(self, data):
         """Add eos special character after the command."""
-        super(AerotechConnection, self).send(data.upper() +\
+        try:
+            super(AerotechConnection, self).send(data.upper() +\
                                              AerotechConnection.EOS_CHAR)
+        except socket.error as e:
+            if e.errno == socket.errno.ECONNRESET:
+                log.debug("Connection reset by peer, reconnecting...")
+                self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self._sock.settimeout(20)
+                self._sock.connect(self._peer)
+                # Try again.
+                super(AerotechConnection, self).send(data.upper() +\
+                                             AerotechConnection.EOS_CHAR)
+                
         
     def recv(self):
         """Return properly interpreted answer from the controller."""
-        return self._interpret_response(super(AerotechConnection, self).recv())
+        res = super(AerotechConnection, self).recv()
+        return self._interpret_response(res)
     
     def execute(self, data):
         """Execute command and wait for response."""

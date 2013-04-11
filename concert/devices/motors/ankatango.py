@@ -3,7 +3,7 @@ Tango motors with ANKA specific interfaces.
 """
 import time
 import logbook
-from concert.devices.motors.base import Motor, MotorMessage
+from concert.devices.motors.base import Motor, MotorMessage, LinearCalibration
 
 log = logbook.Logger(__name__)
 
@@ -24,7 +24,6 @@ class Discrete(Motor):
     def __init__(self, connection, calibration, position_limit=None):
         super(Discrete, self).__init__(calibration)
         self._connection = connection
-        self._state = self._determine_state()
 
     def _query_state(self):
         tango_state = self._connection.tango_device.state()
@@ -38,15 +37,17 @@ class Discrete(Motor):
         return current
 
     def _set_position(self, position):
-        self._connection.tango_device.write_attribute("position", position)
+        self._connection.write_value("position", position)
         time.sleep(SLOW_SLEEP_TIME)
-        # while self.state == MotorState.MOVING:
-        #     time.sleep(SLEEP_TIME)
+        
+        while self._query_state() == Motor.MOVING:
+            time.sleep(SLEEP_TIME)
+        
         if self.hard_position_limit_reached():
             self.send(MotorMessage.POSITION_LIMIT)
 
     def _get_position(self):
-        return self._connection.tango_device.read_attribute("position").value
+        return self._connection.read_value("position")
 
     def _stop(self):
         device = self._connection.tango_device
