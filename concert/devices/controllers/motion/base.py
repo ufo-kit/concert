@@ -3,10 +3,10 @@ Created on Apr 11, 2013
 
 @author: farago
 '''
-from concert.base import Parameterizable, Parameter
+from concert.base import Device, Parameter
 
 
-class MotorController(Parameterizable):
+class MotorController(Device):
     """Base class for motor controllers."""
     def __init__(self):
         params = [Parameter("motors", self._get_motors)]
