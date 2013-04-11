@@ -50,3 +50,33 @@ class TangoConnection(object):
     def read_value(self, attribute):
         """Read TANGO *attribute* value."""
         return self._tango_device.read_attribute(attribute).value
+    
+class AerotechConnection(SocketConnection):
+    EOS_CHAR = "\n" # string termination character
+    ACK_CHAR = "%" # acknowledge
+    NAK_CHAR = "!" # not acknowledge (wrong parameters, etc.)
+    FAULT_CHAR = "#" # task fault
+    
+    def _interpret_response(self, hle_response):
+        if (hle_response[0] == AerotechConnection.ACK_CHAR) :
+            # return the data
+            return hle_response[1:\
+                            hle_response.index(AerotechConnection.EOS_CHAR)]
+        if (hle_response[0] == AerotechConnection.NAK_CHAR) :
+            raise ValueError("Invalid command or parameter")
+        if (hle_response[0] == AerotechConnection.FAULT_CHAR) :
+            raise RuntimeError("Controller task error.")
+        
+    def send(self, data):
+        """Add eos special character after the command."""
+        super(AerotechConnection, self).send(data.upper() +\
+                                             AerotechConnection.EOS_CHAR)
+        
+    def recv(self):
+        """Return properly interpreted answer from the controller."""
+        return self._interpret_response(super(AerotechConnection, self).recv())
+    
+    def execute(self, data):
+        """Execute command and wait for response."""
+        self.send(data)
+        return self.recv()

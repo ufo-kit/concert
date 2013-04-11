@@ -22,7 +22,7 @@ class LinearMotor(Motor):
         self._connection = SocketConnection(CRIO_HOST, CRIO_PORT)
         self['position'].limiter = lambda x: x >= 0 * q.mm and x <= 2 * q.mm
 
-        self._set_position(0)
+        self._home()
         self._steps = 0
 
     def _get_position(self):
@@ -33,8 +33,11 @@ class LinearMotor(Motor):
         self._connection.recv()
         self._steps = steps
 
-    def _stop_real(self):
+    def _stop(self):
         pass
+    
+    def _home(self):
+        self._set_position(0)
 
 
 class RotationMotor(Motor):
@@ -56,7 +59,7 @@ class RotationMotor(Motor):
         self._connection.send('rot %i\r\n' % steps)
         self._connection.recv()
 
-    def _stop_real(self):
+    def _stop(self):
         pass
 
 

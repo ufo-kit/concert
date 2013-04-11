@@ -1,6 +1,7 @@
 import random
 import time
-from concert.devices.motors.base import Motor, ContinuousMotor
+from concert.devices.motors.base import Motor, ContinuousMotor,\
+    LinearCalibration
 
 
 class DummyLimiter(object):

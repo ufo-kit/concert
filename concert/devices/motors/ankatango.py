@@ -2,9 +2,7 @@
 Tango motors with ANKA specific interfaces.
 """
 import time
-import quantities as pq
 import logbook
-from threading import Thread
 from concert.devices.motors.base import Motor, MotorMessage
 
 log = logbook.Logger(__name__)
@@ -21,39 +19,25 @@ SLEEP_TIME = 0.005
 SLOW_SLEEP_TIME = 1.0
 
 
-class ANKATangoDiscreteMotor(Motor):
-    """Tango device that ... need ... more ... information."""
+class Discrete(Motor):
+    """A motor based on ANKA Tango motor interface."""
     def __init__(self, connection, calibration, position_limit=None):
-        super(ANKATangoDiscreteMotor, self).__init__(calibration)
+        super(Discrete, self).__init__(calibration)
         self._connection = connection
-        self._register("position", self._get_position_real,
-                       self._set_position_real, pq.mm)
         self._state = self._determine_state()
-        # State polling.
-        self._poller = Thread(target=self._poll_state)
-        self._poller.daemon = True
-        self._poller.start()
 
-    def _determine_state(self):
-        # tango_state = self._connection.tango_device.state()
-        # if tango_state == PyTango.DevState.MOVING:
-        #     current = MotorState.MOVING
-        # elif tango_state == PyTango.DevState.STANDBY:
-        #     current = MotorState.STANDBY
-        # else:
-        #     raise UnknownStateError(tango_state)
+    def _query_state(self):
+        tango_state = self._connection.tango_device.state()
+        if tango_state == PyTango.DevState.MOVING:
+            current = Motor.MOVING
+        elif tango_state == PyTango.DevState.STANDBY:
+            current = Motor.STANDBY
+        else:
+            current = None
+        
+        return current
 
-        # return current
-        return None
-
-    def _poll_state(self):
-        while True:
-            current = self._determine_state()
-            if current != self._state:
-                self._set_state(current)
-            time.sleep(SLEEP_TIME)
-
-    def _set_position_real(self, position):
+    def _set_position(self, position):
         self._connection.tango_device.write_attribute("position", position)
         time.sleep(SLOW_SLEEP_TIME)
         # while self.state == MotorState.MOVING:
@@ -61,17 +45,17 @@ class ANKATangoDiscreteMotor(Motor):
         if self.hard_position_limit_reached():
             self.send(MotorMessage.POSITION_LIMIT)
 
-    def _get_position_real(self):
+    def _get_position(self):
         return self._connection.tango_device.read_attribute("position").value
 
-    def _stop_real(self):
+    def _stop(self):
         device = self._connection.tango_device
         device.command_inout("Stop")
 
         while device.state() == PyTango.DevState.RUNNING:
             time.sleep(SLEEP_TIME)
 
-    def home(self):
+    def _home(self):
         pass
 
     def hard_position_limit_reached(self):

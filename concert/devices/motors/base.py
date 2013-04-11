@@ -57,15 +57,26 @@ class Motor(Device):
     def move(self, delta):
         """
         move(delta)
+        
         Move motor by *delta* user units."""
         self.position += delta
 
     @async
-    def stop(self, blocking=False):
+    def stop(self):
         """
         stop(blocking=False)
+        
         Stop the motion."""
-        self._stop_real()
+        self._stop()
+        
+    @async
+    def home(self):
+        """
+        home()
+        
+        Home motor.
+        """
+        self._home()
 
     def _get_calibrated_position(self):
         return self._calibration.to_user(self._get_position())
@@ -80,6 +91,12 @@ class Motor(Device):
 
     def _set_position(self, position):
         raise NotImplementedError
+    
+    def _stop(self):
+        raise NotImplementedError
+    
+    def _home(self):
+        raise NotImplementedError
 
     def _get_state(self):
         return self._state
@@ -90,9 +107,6 @@ class Motor(Device):
             self['state'].notify()
         else:
             log.warn("State {0} unknown.".format(state))
-
-    def _stop_real(self):
-        raise NotImplementedError
 
 
 class ContinuousMotor(Motor):
