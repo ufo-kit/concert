@@ -30,21 +30,19 @@ system ::
 Now, we can use ``process`` like any other regular device, for example print
 the value or scan along a "trajectory"::
 
-    from concert.processes.scan import ascan
+    from concert.processes.base import Scanner
 
-    def handle(parameters):
-        print("Set point reached, inspect data")
-
-    print(process['axis-pos'])
-    ascan([(process['axis-pos'], 0, 1024)], 30, handle)
+    scanner = Scanner(process['axis-pos'], feedback)
+    x, y = scanner.run().result()
 
 .. _Ufo project: http://ufo.kit.edu
 """
-from concert.base import Parameterizable, Parameter
-from concert.asynchronous import executor
+from concert.base import Parameter
+from concert.processes.base import Process
+from concert.asynchronous import async
 
 
-class UfoProcess(Parameterizable):
+class UfoProcess(Process):
     """Wraps a Ufo task graph and export selected node properties.
 
     *graph* must be a Ufo task graph. *node* is a node that is connected inside
@@ -94,6 +92,7 @@ class UfoProcess(Parameterizable):
             msg = "Parameter {0} not in {1}".format(prop_name, node)
             raise ValueError(msg)
 
+    @async
     def run(self):
         """Execute the graph."""
         from gi.repository import Ufo
@@ -103,4 +102,4 @@ class UfoProcess(Parameterizable):
         else:
             sched = Ufo.Scheduler()
 
-        return executor.submit(sched.run, self._graph)
+        sched.run(self._graph)
