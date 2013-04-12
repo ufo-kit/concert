@@ -20,6 +20,9 @@ class Shutter(Device):
     def close(self):
         self._close()
 
+    def is_open(self):
+        raise NotImplementedError
+
     def _open(self):
         raise NotImplementedError
 

@@ -16,13 +16,20 @@ class Shutter(base.Shutter):
         self._connection = TangoConnection("iss/toto/rato_toto",
                                            "anka-tango", 10018)
         self._index = index
+        self._opened = None
+        self.close().wait()
 
     @property
     def index(self):
         return self._index
 
+    def is_open(self):
+        return self._opened
+
     def _open(self):
         self._connection.device.DoSPECTextCommand("shopen %d" % (self.index))
+        self._opened = True
 
     def _close(self):
         self._connection.device.DoSPECTextCommand("shclose %d" % (self.index))
+        self._opened = False
