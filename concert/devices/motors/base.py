@@ -47,7 +47,6 @@ class Motor(Device):
 
         super(Motor, self).__init__(params)
         self._calibration = calibration
-        
 
     @async
     def move(self, delta):

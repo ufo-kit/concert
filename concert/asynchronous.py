@@ -35,7 +35,7 @@ def async(func):
 
 def is_async(func):
     """returns *True* if the given function *func* is asynchronous."""
-    return hasattr(func, "_async") and getattr(func, "_async") == True
+    return hasattr(func, "_async") and getattr(func, "_async")
 
 
 def wait(futures):

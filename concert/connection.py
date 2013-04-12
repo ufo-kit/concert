@@ -85,13 +85,12 @@ class AerotechConnection(SocketConnection):
                 self._sock.settimeout(20)
                 self._sock.connect(self._peer)
                 # Try again.
-                super(AerotechConnection, self).send(data.upper() +
-                                                     AerotechConnection.EOS_CHAR)
+                super(AerotechConnection, self).\
+                    send(data.upper() + AerotechConnection.EOS_CHAR)
 
     def recv(self):
         """Return properly interpreted answer from the controller."""
-        res = super(AerotechConnection, self).recv()
-        return self._interpret_response(res)
+        return self._interpret_response(super(AerotechConnection, self).recv())
 
     def execute(self, data):
         """Execute command and wait for response."""

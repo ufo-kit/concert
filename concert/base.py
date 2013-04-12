@@ -336,9 +336,9 @@ class Device(Parameterizable):
 
         # device is unlocked again
     """
-    
+
     NA = "n/a"
-    
+
     def __init__(self, parameters=None):
         super(Device, self).__init__(parameters)
         self.add_parameter(Parameter('state', self._get_state,
@@ -351,7 +351,7 @@ class Device(Parameterizable):
 
     def __exit__(self, exc_type, exc_value, traceback):
         self._lock.release()
-        
+
     def _get_state(self):
         return Device.NA
 

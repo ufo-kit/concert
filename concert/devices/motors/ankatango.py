@@ -38,7 +38,7 @@ class Discrete(Motor):
 
     def _set_position(self, position):
         self._connection.write_value("position", position)
-        
+
         time.sleep(SLOW_SLEEP_TIME)
 
         while self._get_state() == Motor.MOVING:
@@ -50,8 +50,7 @@ class Discrete(Motor):
     def _stop(self):
         self._connection.device.command_inout("Stop")
 
-        while self._connection.device.state() ==\
-                            PyTango.DevState.RUNNING:
+        while self._connection.device.state() == PyTango.DevState.RUNNING:
             time.sleep(SLEEP_TIME)
 
     def _home(self):

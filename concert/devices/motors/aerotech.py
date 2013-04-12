@@ -37,7 +37,7 @@ class Aerorot(ContinuousMotor):
 
         self._connection = AerotechConnection(Aerorot.HOST, Aerorot.PORT)
         self._connection.execute("ENABLE %s" % (Aerorot.AXIS))
-        
+
     def __del__(self):
         self._connection.execute("DISABLE %s" % (Aerorot.AXIS))
 
@@ -70,7 +70,7 @@ class Aerorot(ContinuousMotor):
             state = Motor.STANDBY
         else:
             state = Motor.NA
-            
+
         return state
 
     def _stop(self):
