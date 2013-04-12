@@ -43,15 +43,11 @@ class Motor(Device):
                             self._get_calibrated_position,
                             self._set_calibrated_position,
                             q.m, limiter,
-                            "Position of the motor"),
-                  Parameter('state',
-                            self._get_state,
-                            owner_only=True)]
+                            "Position of the motor")]
 
         super(Motor, self).__init__(params)
         self._calibration = calibration
-        self._state = self.STANDBY
-        self._states = [self.MOVING, self.STANDBY]
+        
 
     @async
     def move(self, delta):
@@ -97,16 +93,6 @@ class Motor(Device):
 
     def _home(self):
         raise NotImplementedError
-
-    def _get_state(self):
-        return self._state
-
-    def _set_state(self, state):
-        if state in self._states:
-            self._state = state
-            self['state'].notify()
-        else:
-            log.warn("State {0} unknown.".format(state))
 
 
 class ContinuousMotor(Motor):

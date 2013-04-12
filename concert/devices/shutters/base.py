@@ -9,6 +9,9 @@ from concert.asynchronous import async
 
 class Shutter(Device):
     """Shutter device."""
+    def __init__(self):
+        super(Shutter, self).__init__()
+    
     @async
     def open(self):
         self._open()

@@ -336,12 +336,28 @@ class Device(Parameterizable):
 
         # device is unlocked again
     """
+    
+    NA = "n/a"
+    
     def __init__(self, parameters=None):
         super(Device, self).__init__(parameters)
+        self.add_parameter(Parameter('state', self._get_state,
+                                     owner_only=True))
         self._lock = threading.Lock()
+        self._states = set([self.NA])
 
     def __enter__(self):
         self._lock.acquire()
 
     def __exit__(self, exc_type, exc_value, traceback):
         self._lock.release()
+        
+    def _get_state(self):
+        return Device.NA
+
+    def _set_state(self, state):
+        if state in self._states:
+            self._state = state
+            self['state'].notify()
+        else:
+            log.warn("State {0} unknown.".format(state))

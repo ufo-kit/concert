@@ -45,18 +45,14 @@ class TangoConnection(object):
         if tango_host is not None and tango_port is not None:
             os.environ["TANGO_HOST"] = "%s:%d" % (tango_host, tango_port)
 
-        self._tango_device = PyTango.DeviceProxy(uri)
-
-    @property
-    def tango_device(self):
-        return self._tango_device
+        self.device = PyTango.DeviceProxy(uri)
 
     def read_value(self, attribute):
         """Read TANGO *attribute* value."""
-        return self._tango_device.read_attribute(attribute).value
+        return self.device.read_attribute(attribute).value
 
     def write_value(self, attribute, value):
-        self._tango_device.write_attribute(attribute, value)
+        self.device.write_attribute(attribute, value)
 
 
 class AerotechConnection(SocketConnection):
