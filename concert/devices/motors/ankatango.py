@@ -33,16 +33,16 @@ class Discrete(Motor):
             current = Motor.STANDBY
         else:
             current = None
-        
+
         return current
 
     def _set_position(self, position):
         self._connection.write_value("position", position)
         time.sleep(SLOW_SLEEP_TIME)
-        
+
         while self._query_state() == Motor.MOVING:
             time.sleep(SLEEP_TIME)
-        
+
         if self.hard_position_limit_reached():
             self.send(MotorMessage.POSITION_LIMIT)
 

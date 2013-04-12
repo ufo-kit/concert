@@ -57,7 +57,7 @@ class Motor(Device):
     def move(self, delta):
         """
         move(delta)
-        
+
         Move motor by *delta* user units."""
         self.position += delta
 
@@ -65,15 +65,15 @@ class Motor(Device):
     def stop(self):
         """
         stop(blocking=False)
-        
+
         Stop the motion."""
         self._stop()
-        
+
     @async
     def home(self):
         """
         home()
-        
+
         Home motor.
         """
         self._home()
@@ -91,10 +91,10 @@ class Motor(Device):
 
     def _set_position(self, position):
         raise NotImplementedError
-    
+
     def _stop(self):
         raise NotImplementedError
-    
+
     def _home(self):
         raise NotImplementedError
 

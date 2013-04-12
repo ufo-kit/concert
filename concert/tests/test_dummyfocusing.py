@@ -12,7 +12,8 @@ from concert.devices.motors.dummy import DummyMotor, DummyLimiter
 class TestDummyFocusing(unittest.TestCase):
     def setUp(self):
         self._motor = DummyMotor(LinearCalibration(1/q.mm, 0*q.mm))
-        self._feedback = DummyGradientMeasure(self._motor['position'], 18.75*q.mm)
+        self._feedback = DummyGradientMeasure(
+            self._motor['position'], 18.75*q.mm)
         self._focuser = Focuser(self._motor, 1e-3, self._feedback)
         self._position_eps = 1e-1*q.mm
         self._gradient_cmp_eps = 1e-1

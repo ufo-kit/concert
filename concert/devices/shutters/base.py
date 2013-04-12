@@ -12,13 +12,13 @@ class Shutter(Device):
     @async
     def open(self):
         self._open()
-        
+
     @async
     def close(self):
         self._close()
 
     def _open(self):
         raise NotImplementedError
-    
+
     def _close(self):
         raise NotImplementedError

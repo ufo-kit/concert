@@ -54,33 +54,34 @@ class TangoConnection(object):
     def read_value(self, attribute):
         """Read TANGO *attribute* value."""
         return self._tango_device.read_attribute(attribute).value
-    
+
     def write_value(self, attribute, value):
         self._tango_device.write_attribute(attribute, value)
-    
+
+
 class AerotechConnection(SocketConnection):
-    EOS_CHAR = "\n" # string termination character
-    ACK_CHAR = "%" # acknowledge
-    NAK_CHAR = "!" # not acknowledge (wrong parameters, etc.)
-    FAULT_CHAR = "#" # task fault
-    
+    EOS_CHAR = "\n"  # string termination character
+    ACK_CHAR = "%"  # acknowledge
+    NAK_CHAR = "!"  # not acknowledge (wrong parameters, etc.)
+    FAULT_CHAR = "#"  # task fault
+
     def _interpret_response(self, hle_response):
-        if (hle_response[0] == AerotechConnection.ACK_CHAR) :
+        if (hle_response[0] == AerotechConnection.ACK_CHAR):
             # return the data
-            res = hle_response[1:\
-                            hle_response.index(AerotechConnection.EOS_CHAR)]
+            res = hle_response[1:
+                               hle_response.index(AerotechConnection.EOS_CHAR)]
             log.debug("Interpreted response {0}.".format(res))
             return res
-        if (hle_response[0] == AerotechConnection.NAK_CHAR) :
+        if (hle_response[0] == AerotechConnection.NAK_CHAR):
             raise ValueError("Invalid command or parameter")
-        if (hle_response[0] == AerotechConnection.FAULT_CHAR) :
+        if (hle_response[0] == AerotechConnection.FAULT_CHAR):
             raise RuntimeError("Controller task error.")
-        
+
     def send(self, data):
         """Add eos special character after the command."""
         try:
-            super(AerotechConnection, self).send(data.upper() +\
-                                             AerotechConnection.EOS_CHAR)
+            super(AerotechConnection, self).send(data.upper() +
+                                                 AerotechConnection.EOS_CHAR)
         except socket.error as e:
             if e.errno == socket.errno.ECONNRESET:
                 log.debug("Connection reset by peer, reconnecting...")
@@ -88,15 +89,14 @@ class AerotechConnection(SocketConnection):
                 self._sock.settimeout(20)
                 self._sock.connect(self._peer)
                 # Try again.
-                super(AerotechConnection, self).send(data.upper() +\
-                                             AerotechConnection.EOS_CHAR)
-                
-        
+                super(AerotechConnection, self).send(data.upper() +
+                                                     AerotechConnection.EOS_CHAR)
+
     def recv(self):
         """Return properly interpreted answer from the controller."""
         res = super(AerotechConnection, self).recv()
         return self._interpret_response(res)
-    
+
     def execute(self, data):
         """Execute command and wait for response."""
         self.send(data)

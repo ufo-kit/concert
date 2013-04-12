@@ -11,6 +11,6 @@ class MotorController(Device):
     def __init__(self):
         params = [Parameter("motors", self._get_motors)]
         super(MotorController, self).__init__(params)
-        
+
     def _get_motors(self):
         raise NotImplementedError

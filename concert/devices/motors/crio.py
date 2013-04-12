@@ -35,7 +35,7 @@ class LinearMotor(Motor):
 
     def _stop(self):
         pass
-    
+
     def _home(self):
         self._set_position(0)
 
