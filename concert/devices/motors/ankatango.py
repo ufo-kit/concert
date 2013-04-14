@@ -3,7 +3,7 @@ Tango motors with ANKA specific interfaces.
 """
 import time
 import logbook
-from concert.devices.motors.base import Motor
+from concert.devices.motors import base
 
 log = logbook.Logger(__name__)
 
@@ -19,20 +19,20 @@ SLEEP_TIME = 0.01
 SLOW_SLEEP_TIME = 1.0
 
 
-class Discrete(Motor):
+class Motor(base.Motor):
     """A motor based on ANKA Tango motor interface."""
     def __init__(self, device, calibration, position_limit=None):
-        super(Discrete, self).__init__(calibration)
+        super(Motor, self).__init__(calibration)
         self._device = device
 
     def _get_state(self):
         tango_state = self.device.state()
         if tango_state == PyTango.DevState.MOVING:
-            state = Motor.MOVING
+            state = base.Motor.MOVING
         elif tango_state == PyTango.DevState.STANDBY:
-            state = Motor.STANDBY
+            state = base.Motor.STANDBY
         else:
-            state = Motor.NA
+            state = base.Motor.NA
 
         return state
 
@@ -41,7 +41,7 @@ class Discrete(Motor):
 
         time.sleep(SLOW_SLEEP_TIME)
 
-        while self._get_state() == Motor.MOVING:
+        while self._get_state() == base.Motor.MOVING:
             time.sleep(SLEEP_TIME)
 
     def _get_position(self):
