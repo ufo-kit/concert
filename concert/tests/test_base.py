@@ -34,7 +34,7 @@ class TestDevice(unittest.TestCase):
 
     def test_iterable(self):
         for param in self.device:
-            self.assertTrue(param.name in ('readonly', 'writeonly'))
+            self.assertTrue(param.name in ('readonly', 'writeonly', 'state'))
 
     def test_get_parameter(self):
         compare(self.device['readonly'], self.device.params[0])
@@ -49,5 +49,6 @@ class TestDevice(unittest.TestCase):
         table = get_default_table(["Parameter", "Value"])
         table.border = False
         table.add_row(["readonly", "1"])
+        table.add_row(["state", Device.NA])
 
         compare(str(self.device), table.get_string())

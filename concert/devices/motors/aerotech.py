@@ -6,8 +6,8 @@ Created on Apr 10, 2013
 from concert.devices.motors.base import ContinuousMotor, LinearCalibration,\
     Motor
 import quantities as q
-from concert.connection import AerotechConnection
 import time
+from concert.connections.socket import Aerotech
 
 
 class Aerorot(ContinuousMotor):
@@ -35,7 +35,7 @@ class Aerorot(ContinuousMotor):
         self["position"].unit = q.deg
         self["velocity"].unit = q.deg/q.sec
 
-        self._connection = AerotechConnection(Aerorot.HOST, Aerorot.PORT)
+        self._connection = Aerotech(Aerorot.HOST, Aerorot.PORT)
         self._connection.execute("ENABLE %s" % (Aerorot.AXIS))
 
     def __del__(self):

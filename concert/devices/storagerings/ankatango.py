@@ -3,18 +3,20 @@ ANKA storage ring access via TANGO.
 """
 from concert.devices.storagerings.base import StorageRing
 import quantities as q
+from concert.connections.tango import TopoTomo
 
 
-class ANKATangoStorageRing(StorageRing):
-    def __init__(self, tango_connection):
-        super(ANKATangoStorageRing, self).__init__()
-        self._connection = tango_connection
+class StorageRing(StorageRing):
+    def __init__(self):
+        super(StorageRing, self).__init__()
+        # TODO: find non-beam line specific storage ring device
+        self._device = TopoTomo().get_device("iss/pvss/ANKAStatus")
 
     def _get_current(self):
-        return self._connection.read_value("ECurrent") * q.mA
+        return self._device.ECurrent * q.mA
 
     def _get_energy(self):
-        return self._connection.read_value("Energy") * q.MeV
+        return self._device.Energy * q.MeV
 
     def _get_lifetime(self):
-        return self._connection.read_value("Lifetime") * q.hour
+        return self._device.Lifetime * q.hour

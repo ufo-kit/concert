@@ -21,12 +21,12 @@ SLOW_SLEEP_TIME = 1.0
 
 class Discrete(Motor):
     """A motor based on ANKA Tango motor interface."""
-    def __init__(self, connection, calibration, position_limit=None):
+    def __init__(self, device, calibration, position_limit=None):
         super(Discrete, self).__init__(calibration)
-        self._connection = connection
+        self._device = device
 
     def _get_state(self):
-        tango_state = self._connection.device.state()
+        tango_state = self.device.state()
         if tango_state == PyTango.DevState.MOVING:
             state = Motor.MOVING
         elif tango_state == PyTango.DevState.STANDBY:
@@ -37,7 +37,7 @@ class Discrete(Motor):
         return state
 
     def _set_position(self, position):
-        self._connection.write_value("position", position)
+        self._device.position = position
 
         time.sleep(SLOW_SLEEP_TIME)
 
@@ -45,17 +45,17 @@ class Discrete(Motor):
             time.sleep(SLEEP_TIME)
 
     def _get_position(self):
-        return self._connection.read_value("position")
+        return self._device.position
 
     def _stop(self):
-        self._connection.device.command_inout("Stop")
+        self._device.Stop()
 
-        while self._connection.device.state() == PyTango.DevState.RUNNING:
+        while self._device.state() == PyTango.DevState.RUNNING:
             time.sleep(SLEEP_TIME)
 
     def _home(self):
         pass
 
     def hard_position_limit_reached(self):
-        return self._connection.device.BackwardLimitSwitch or\
-            self._connection.device.ForwardLimitSwitch
+        return self._device.BackwardLimitSwitch or\
+            self._device.ForwardLimitSwitch

@@ -1,9 +1,5 @@
-"""
-A collection of connection methods.
-"""
-import socket
-import os
 import logbook
+import socket
 
 
 log = logbook.Logger(__name__)
@@ -36,48 +32,29 @@ class SocketConnection(object):
             log.warn('Reading from %s:%i timed out' % self._peer)
 
 
-class TangoConnection(object):
-    """A connection to a Tango device."""
-    def __init__(self, uri, tango_host=None, tango_port=None):
-        import PyTango
-        # Set the host and port for connecting to the Tango database.
-        # TODO: check if there is a way to adjust the host in PyTango.
-        if tango_host is not None and tango_port is not None:
-            os.environ["TANGO_HOST"] = "%s:%d" % (tango_host, tango_port)
-
-        self.device = PyTango.DeviceProxy(uri)
-
-    def read_value(self, attribute):
-        """Read TANGO *attribute* value."""
-        return self.device.read_attribute(attribute).value
-
-    def write_value(self, attribute, value):
-        self.device.write_attribute(attribute, value)
-
-
-class AerotechConnection(SocketConnection):
+class Aerotech(SocketConnection):
     EOS_CHAR = "\n"  # string termination character
     ACK_CHAR = "%"  # acknowledge
     NAK_CHAR = "!"  # not acknowledge (wrong parameters, etc.)
     FAULT_CHAR = "#"  # task fault
 
     def _interpret_response(self, hle_response):
-        if (hle_response[0] == AerotechConnection.ACK_CHAR):
+        if (hle_response[0] == Aerotech.ACK_CHAR):
             # return the data
             res = hle_response[1:
-                               hle_response.index(AerotechConnection.EOS_CHAR)]
+                               hle_response.index(Aerotech.EOS_CHAR)]
             log.debug("Interpreted response {0}.".format(res))
             return res
-        if (hle_response[0] == AerotechConnection.NAK_CHAR):
+        if (hle_response[0] == Aerotech.NAK_CHAR):
             raise ValueError("Invalid command or parameter")
-        if (hle_response[0] == AerotechConnection.FAULT_CHAR):
+        if (hle_response[0] == Aerotech.FAULT_CHAR):
             raise RuntimeError("Controller task error.")
 
     def send(self, data):
         """Add eos special character after the command."""
         try:
-            super(AerotechConnection, self).send(data.upper() +
-                                                 AerotechConnection.EOS_CHAR)
+            super(Aerotech, self).send(data.upper() +
+                                       Aerotech.EOS_CHAR)
         except socket.error as e:
             if e.errno == socket.errno.ECONNRESET:
                 log.debug("Connection reset by peer, reconnecting...")
@@ -85,12 +62,12 @@ class AerotechConnection(SocketConnection):
                 self._sock.settimeout(20)
                 self._sock.connect(self._peer)
                 # Try again.
-                super(AerotechConnection, self).\
-                    send(data.upper() + AerotechConnection.EOS_CHAR)
+                super(Aerotech, self).\
+                    send(data.upper() + Aerotech.EOS_CHAR)
 
     def recv(self):
         """Return properly interpreted answer from the controller."""
-        return self._interpret_response(super(AerotechConnection, self).recv())
+        return self._interpret_response(super(Aerotech, self).recv())
 
     def execute(self, data):
         """Execute command and wait for response."""

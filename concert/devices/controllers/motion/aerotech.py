@@ -4,8 +4,8 @@ Created on Apr 11, 2013
 @author: farago
 '''
 from concert.base import Device
-from concert.connection import AerotechConnection
 from concert.devices.motors.aerotech import Aerorot
+from concert.connections.socket import Aerotech
 
 
 class HLe(Device):
@@ -14,7 +14,7 @@ class HLe(Device):
     PORT = 0
 
     def __init__(self):
-        self._connection = AerotechConnection(HLe.HOST, HLe.PORT)
+        self._connection = Aerotech(HLe.HOST, HLe.PORT)
         self._motors = [Aerorot()]
 
     def _get_motors(self):
@@ -28,7 +28,7 @@ class HLe(Device):
 
         while not linked:
             try:
-                self._connection = AerotechConnection(HLe.HOST, HLe.PORT)
+                self._connection = Aerotech(HLe.HOST, HLe.PORT)
             except:
                 pass
             else:

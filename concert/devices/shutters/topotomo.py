@@ -4,7 +4,7 @@ Created on Apr 12, 2013
 @author: farago
 '''
 from concert.devices.shutters import base
-from concert.connection import TangoConnection
+from concert.connections.tango import TopoTomo
 
 
 class Shutter(base.Shutter):
@@ -13,8 +13,7 @@ class Shutter(base.Shutter):
             raise ValueError("Index must be in range [0-2].")
 
         super(Shutter, self).__init__()
-        self._connection = TangoConnection("iss/toto/rato_toto",
-                                           "anka-tango", 10018)
+        self._device = TopoTomo().get_device("iss/toto/rato_toto")
         self._index = index
         self._opened = None
         self.close().wait()
@@ -27,9 +26,9 @@ class Shutter(base.Shutter):
         return self._opened
 
     def _open(self):
-        self._connection.device.DoSPECTextCommand("shopen %d" % (self.index))
+        self._device.DoSPECTextCommand("shopen %d" % (self.index))
         self._opened = True
 
     def _close(self):
-        self._connection.device.DoSPECTextCommand("shclose %d" % (self.index))
+        self._device.DoSPECTextCommand("shclose %d" % (self.index))
         self._opened = False
