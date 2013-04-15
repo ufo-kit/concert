@@ -26,6 +26,12 @@ def _new_getter_wrapper(camera, name, unit=None):
 
     return _wrapper
 
+def _create_data_array(camera):
+    bits = camera.props.sensor_bitdepth
+    dtype = np.uint16 if bits > 8 else np.uint8
+    dims = camera.props.roi_height, camera.props.roi_width
+    array = np.zeros(dims, dtype=dtype)
+    return (array, array.__array_interface__['data'][0])
 
 class UcaCamera(Camera):
     """libuca-based camera.
@@ -77,12 +83,7 @@ class UcaCamera(Camera):
         super(UcaCamera, self).__init__(parameters)
 
     def _record_real(self):
-        bits = self.camera.props.sensor_bitdepth
-        dtype = np.uint16 if bits > 8 else np.uint8
-        dims = self.camera.props.roi_height, self.camera.props.roi_width
-        self._array = np.zeros(dims, dtype=dtype)
-        self._data = self._array.__array_interface__['data'][0]
-
+        self._array, self._data = _create_data_array(self.camera)
         self.camera.start_recording()
 
     def _stop_real(self):
@@ -92,5 +93,8 @@ class UcaCamera(Camera):
         self.camera.trigger()
 
     def _grab_real(self):
+        if not self._data:
+            self._array, self._data = _create_data_array(self.camera)
+
         self.camera.grab(self._data)
         return self._array
