@@ -81,7 +81,7 @@ package. In the ``fancy.py`` module, we first import the base class ::
 Because a user can only set the motor position in units of meter, the device
 itself must convert between motor units and meters. For this purpose, the base
 class expects a :class:`.Calibration` object, such as the pre-defined
-:class:`.LinearCalibration`. Now, let's sub-class :class:`.Motor`::
+:class:`.LinearCalibration`. Now, let's sub-class :class:`~.base.Motor`::
 
     class FancyMotor(Motor):
         """This is a docstring that can be looked up at run-time by the `ddoc`
@@ -127,7 +127,8 @@ First, we create a new ``base.py`` into the new ``concert/devices/pumps``
 directory and import everything that we need::
 
     import quantities as q
-    from concert.base import Device, Parameter
+    from concert.base import Parameter
+    from concert.devices.base import Device
 
 The :class:`.Device` handles the nitty-gritty details of messaging and parameter
 handling, so our base pump device must inherit from it. Furthermore, we have to

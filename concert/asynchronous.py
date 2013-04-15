@@ -22,8 +22,8 @@ def _patch_futures():
 
 
 def async(func):
-    """This function is intended to be used as a decorator for functions
-    which are supposed to be executed asynchronously."""
+    """A decorator for functions which are supposed to be executed
+    asynchronously."""
     @wraps(func)
     def _async(*args, **kwargs):
         return executor.submit(func, *args, **kwargs)
@@ -34,12 +34,13 @@ def async(func):
 
 
 def is_async(func):
-    """returns *True* if the given function *func* is asynchronous."""
+    """Returns *True* if the given function *func* is asynchronous."""
     return hasattr(func, "_async") and getattr(func, "_async")
 
 
 def wait(futures):
-    """Wait for the list of *futures* to finish with checking exceptions."""
+    """Wait for the list of *futures* to finish and raise exceptions if
+    happened."""
     for future in futures:
         future.result()
 

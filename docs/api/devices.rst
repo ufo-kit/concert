@@ -22,7 +22,7 @@ Collection of parameters
 Devices
 -------
 
-.. autoclass:: concert.base.Device
+.. autoclass:: concert.devices.base.Device
     :members:
 
 
@@ -50,6 +50,20 @@ Cameras
 =======
 
 .. autoclass:: concert.devices.cameras.base.Camera
+    :members:
+
+
+Monochromators
+==============
+
+.. autoclass:: concert.devices.monochromators.base.Monochromator
+    :members:
+
+
+Shutters
+========
+
+.. autoclass:: concert.devices.shutters.base.Shutter
     :members:
 
 

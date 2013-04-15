@@ -3,10 +3,10 @@ A :class:`Camera` can be set via the device-specific properties that can be set
 and read with :meth:`.ConcertObject.set` and :meth:`.ConcertObject.get`.
 Moreover, a camera provides means to
 
-* :meth:`Camera.record` frames,
-* :meth:`Camera.stop` the acquisition,
-* :meth:`Camera.trigger` a frame capture and
-* :meth:`Camera.grab` to get the last frame.
+* :meth:`~Camera.start_recording` frames,
+* :meth:`~Camera.stop_recording` the acquisition,
+* :meth:`~Camera.trigger` a frame capture and
+* :meth:`~Camera.grab` to get the last frame.
 
 To setup and use a camera in a typical environment, you would do::
 
@@ -15,10 +15,10 @@ To setup and use a camera in a typical environment, you would do::
 
     camera = UcaCamera('pco')
     camera.exposure_time = 0.2 * q.s
-    camera.record().wait()
+    camera.start_recording().wait()
     camera.trigger().wait()
     data = camera.grab()
-    camera.stop()
+    camera.stop_recording()
 
     print("mean=%f, stddev=%f" % (np.mean(data), np.std(data))
 """
