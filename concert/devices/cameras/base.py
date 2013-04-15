@@ -31,11 +31,11 @@ class Camera(Device):
     def __init__(self, params):
         super(Camera, self).__init__(params)
 
-    def record(self):
+    def start_recording(self):
         """Start recording frames."""
         self._record_real()
 
-    def stop(self):
+    def stop_recording(self):
         """Stop recording frames."""
         self._stop_real()
 
