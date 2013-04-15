@@ -22,7 +22,7 @@ To setup and use a camera in a typical environment, you would do::
 
     print("mean=%f, stddev=%f" % (np.mean(data), np.std(data))
 """
-from concert.base import Device
+from concert.devices.base import Device
 
 
 class Camera(Device):

@@ -3,8 +3,9 @@ Created on Apr 11, 2013
 
 @author: farago
 '''
-from concert.base import Device, Parameter
 import quantities as q
+from concert.base import Parameter
+from concert.devices.base import Device
 
 
 def energy_to_wavelength(energy):

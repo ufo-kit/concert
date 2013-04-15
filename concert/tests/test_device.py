@@ -1,7 +1,8 @@
 import unittest
 import logbook
 from testfixtures import ShouldRaise, compare
-from concert.base import Device, Parameter, ParameterError
+from concert.base import Parameter, ParameterError
+from concert.devices.base import Device
 from concert.ui import get_default_table
 
 

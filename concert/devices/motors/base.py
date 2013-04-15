@@ -17,7 +17,7 @@ As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 """
 import quantities as q
 import logbook
-from concert.base import Device, Parameter
+from concert.devices.base import Device, Parameter
 from concert.asynchronous import async
 
 

@@ -16,3 +16,49 @@ position on an axis, you can also use :meth:`.Axis.set_position`.
 
 :meth:`Device.get` simply returns the current value.
 """
+import threading
+from logbook import Logger
+from concert.base import Parameterizable, Parameter
+
+
+log = Logger(__name__)
+
+
+class Device(Parameterizable):
+    """
+    :class:`Device` provides locked access to a real-world device.
+
+    It implements the context protocol and can thus be used like this ::
+
+        with device:
+            # device is locked
+            device.parameter = 1 * q.m
+            ...
+
+        # device is unlocked again
+    """
+
+    NA = "n/a"
+
+    def __init__(self, parameters=None):
+        super(Device, self).__init__(parameters)
+        self.add_parameter(Parameter('state', self._get_state,
+                                     owner_only=True))
+        self._lock = threading.Lock()
+        self._states = set([self.NA])
+
+    def __enter__(self):
+        self._lock.acquire()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._lock.release()
+
+    def _get_state(self):
+        return Device.NA
+
+    def _set_state(self, state):
+        if state in self._states:
+            self._state = state
+            self['state'].notify()
+        else:
+            log.warn("State {0} unknown.".format(state))

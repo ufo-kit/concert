@@ -42,7 +42,6 @@ To get all parameters of an object, you can iterate over the device itself ::
         print("{0} => {1}".format(param.unit, param.name))
 """
 import re
-import threading
 from logbook import Logger
 from concert.asynchronous import dispatcher
 from concert.ui import get_default_table
@@ -325,43 +324,3 @@ class Parameterizable(object):
 
         if parameter.is_writable():
             setattr(self.__class__, 'set_%s' % underscored, parameter.set)
-
-
-class Device(Parameterizable):
-    """
-    :class:`Device` provides locked access to a real-world device.
-
-    It implements the context protocol and can thus be used like this ::
-
-        with device:
-            # device is locked
-            device.parameter = 1 * q.m
-            ...
-
-        # device is unlocked again
-    """
-
-    NA = "n/a"
-
-    def __init__(self, parameters=None):
-        super(Device, self).__init__(parameters)
-        self.add_parameter(Parameter('state', self._get_state,
-                                     owner_only=True))
-        self._lock = threading.Lock()
-        self._states = set([self.NA])
-
-    def __enter__(self):
-        self._lock.acquire()
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self._lock.release()
-
-    def _get_state(self):
-        return Device.NA
-
-    def _set_state(self, state):
-        if state in self._states:
-            self._state = state
-            self['state'].notify()
-        else:
-            log.warn("State {0} unknown.".format(state))

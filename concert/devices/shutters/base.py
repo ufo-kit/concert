@@ -3,7 +3,7 @@ Created on Apr 11, 2013
 
 @author: farago
 '''
-from concert.base import Device
+from concert.devices.base import Device
 from concert.asynchronous import async
 
 

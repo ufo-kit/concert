@@ -5,7 +5,8 @@ Created on Mar 14, 2013
 '''
 import random
 import time
-from concert.base import Device, Parameter
+from concert.base import Parameter
+from concert.devices.base import Device
 from concert.asynchronous import async
 
 
