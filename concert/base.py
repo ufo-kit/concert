@@ -284,6 +284,10 @@ class Parameterizable(object):
 
         return table.get_string(sortby="Parameter")
 
+    def __repr__(self):
+        return '\n'.join([super(Parameterizable, self).__repr__(),
+                         str(self)])
+
     def __iter__(self):
         for param in self._params.values():
             yield param
