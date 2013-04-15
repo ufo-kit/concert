@@ -7,7 +7,7 @@ from setuptools import setup
 if os.geteuid() != 0:
     data_files = []
 else:
-    data_files = [('/etc/bash_completion.d', ['extras/completion/concert'])]
+    data_files = [('/etc/bash_completion.d', ['extras/completion/concert.sh'])]
 
 
 setup(
