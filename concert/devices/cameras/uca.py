@@ -50,7 +50,8 @@ class UcaCamera(Camera):
 
         units = {
             Uca.Unit.METER: q.m,
-            Uca.Unit.SECOND: q.s
+            Uca.Unit.SECOND: q.s,
+            Uca.Unit.DEGREE_CELSIUS: q.Celsius
         }
 
         parameters = []
