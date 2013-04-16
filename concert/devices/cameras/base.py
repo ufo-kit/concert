@@ -1,7 +1,7 @@
 """
 A :class:`Camera` can be set via the device-specific properties that can be set
-and read with :meth:`.ConcertObject.set` and :meth:`.ConcertObject.get`.
-Moreover, a camera provides means to
+and read with :meth:`.Parameter.set` and :meth:`.Parameter.get`.  Moreover, a
+camera provides means to
 
 * :meth:`~Camera.start_recording` frames,
 * :meth:`~Camera.stop_recording` the acquisition,

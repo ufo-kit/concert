@@ -3,7 +3,8 @@ Process control
 ===============
 
 .. automodule:: concert.processes.base
-    :members:
+
+.. autoclass:: concert.processes.base.Scanner
 
 
 Feedbacks

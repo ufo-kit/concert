@@ -1,8 +1,33 @@
-"""This module provides processing capabilities.
+"""
+*Processes* are software abstractions to control devices in a more
+sophisticated way than just manipulating their parameters by hand. Each process
+that is defined in this module provides one :meth:`run` method that is executed
+asynchronously and returns whatever is appropriate for the process.
 
-Just like a :class:`.Device`, a :class:`Process` is a :class:`.Parameterizable`
-object with a generic method :meth:`~Process.run` that is executed
-asynchronously.
+
+Scanning
+--------
+
+A typical process is a scan of a parameter and evaluation of a dependent
+variable ::
+
+    from concert.processes.base import Scanner
+
+    motor = Motor()
+    camera = Camera()
+    scanner = Scanner(motor['position'], lambda: camera.grab())
+    scanner.minimum = 0 * q.mm
+    scanner.maximum = 2 * q.mm
+
+    x, y = scanner.run().result()
+
+As you can see, we vary the position of *motor* and take one frame at each
+interval point. Because processes run asynchronously, we call :meth:`result` on
+the future that is returned by :meth:`run`. This yields a tuple with x and y
+values, corresponding to positions and frames.
+
+For some tasks, feedbacks (such as the frame grabbing in the example above) are
+pre-defined in the :mod:`concert.processes.camera` module.
 """
 
 import numpy as np
@@ -28,12 +53,7 @@ class Scanner(Process):
     """A scan process.
 
     :meth:`.Scanner.run` sets *param* to :attr:`.intervals` data points and
-    calls `feedback()` on each data point::
-
-        motor = Motor()
-        camera = Camera()
-        scanner = Scanner(motor['position'], lambda: camera.grab())
-        x, y = scanner.run().result()
+    calls `feedback()` on each data point.
 
     .. py:attribute:: param
 
