@@ -155,20 +155,15 @@ To get information about the state of a device, you can simply print it::
      energy     4.45 MeV
      lifetime   11.0 h
 
-This can become tiresome if you have several devices. To fix this, we can use a
-session's ``ddoc`` and ``dstate`` list. All you have to do is adding the desired
-devices to these lists::
+This can become tiresome if you have multiple devices. To fix this, we can use a
+session's ``ddoc`` and ``dstate`` functions::
 
     from concert.session import ddoc, dstate
 
-    devices = [motor, ring]
-    ddoc.extend(devices)
-    dstate.extend(devices)
+Now, you simple get the state and information about all devices via ``dstate()``
+and ``ddoc()`` ::
 
-Now, you simple get the state and information about all devices via ``dstate``
-and ``ddoc`` ::
-
-    >>> dstate
+    >>> dstate()
     ---------------------------------------------
       Name         Parameters
     ---------------------------------------------
@@ -180,7 +175,7 @@ and ``ddoc`` ::
                     energy    4.45 MeV
     ---------------------------------------------
 
-    >>> ddoc
+    >>> ddoc()
     ------------------------------------------------------------------------------
       Name         Description   Parameters
     ------------------------------------------------------------------------------
