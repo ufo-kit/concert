@@ -25,6 +25,10 @@ class Motor(base.Motor):
         super(Motor, self).__init__(calibration)
         self._device = device
 
+    def in_hard_limit(self):
+        return self._device.BackwardLimitSwitch or \
+            self._device.ForwardLimitSwitch
+
     def _get_state(self):
         tango_state = self.device.state()
         if tango_state == PyTango.DevState.MOVING:
@@ -55,7 +59,3 @@ class Motor(base.Motor):
 
     def _home(self):
         pass
-
-    def hard_position_limit_reached(self):
-        return self._device.BackwardLimitSwitch or\
-            self._device.ForwardLimitSwitch

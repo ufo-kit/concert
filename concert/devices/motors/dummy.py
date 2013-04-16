@@ -23,12 +23,12 @@ class DummyMotor(Motor):
         else:
             self._position = position
 
-    def _stop_real(self):
-        pass
-
-    def hard_position_limit_reached(self):
+    def in_hard_limit(self):
         return self._position <= self._hard_limits[0] or\
             self._position >= self._hard_limits[1]
+
+    def _stop_real(self):
+        pass
 
     def _set_position(self, position):
         time.sleep(random.random() / 25.)

@@ -52,24 +52,29 @@ log = Logger(__name__)
 
 
 class UnitError(ValueError):
-    """Raised when an operation is passed value with an incompatible unit"""
+    """Raised when an operation is passed value with an incompatible unit."""
     pass
 
 
 class LimitError(Exception):
-    """Raised when an operation is passed a value that exceeds a limit"""
+    """Raised when an operation is passed a value that exceeds a limit."""
+    pass
+
+
+class HardlimitError(LimitError):
+    """Raised when a hard limit is hit on the device."""
     pass
 
 
 class ParameterError(Exception):
-    """Raised when a parameter is accessed that does not exists"""
+    """Raised when a parameter is accessed that does not exists."""
     def __init__(self, parameter):
         msg = "`{0}' is not a parameter".format(parameter)
         super(ParameterError, self).__init__(msg)
 
 
 class ReadAccessError(Exception):
-    """Raised when user tries to change a parameter that cannot be written"""
+    """Raised when user tries to change a parameter that cannot be written."""
     def __init__(self, parameter):
         log.warn("Invalid read access on {0}".format(parameter))
         msg = "parameter `{0}' cannot be read".format(parameter)
@@ -77,7 +82,7 @@ class ReadAccessError(Exception):
 
 
 class WriteAccessError(Exception):
-    """Raised when user tries to read a parameter that cannot be read"""
+    """Raised when user tries to read a parameter that cannot be read."""
     def __init__(self, parameter):
         log.warn("Invalid write access on {0}".format(parameter))
         msg = "parameter `{0}' cannot be written".format(parameter)

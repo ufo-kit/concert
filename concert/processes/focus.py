@@ -51,7 +51,7 @@ class Focuser(object):
                 self._axis.move(direction * step).wait()
                 gradient = self._gradient_feedback()
                 point_reached = maximizer.set_point_reached(gradient)
-                limit_reached = self._axis.hard_position_limit_reached()
+                limit_reached = self._axis.in_hard_limit()
                 worse = not maximizer.is_better(gradient)
 
                 if point_reached or limit_reached or worse:

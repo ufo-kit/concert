@@ -17,6 +17,7 @@ As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 """
 import quantities as q
 import logbook
+from concert.base import HardlimitError
 from concert.devices.base import Device, Parameter
 from concert.asynchronous import async
 
@@ -37,6 +38,7 @@ class Motor(Device):
 
     STANDBY = 'standby'
     MOVING = 'moving'
+    LIMIT = 'limit'
 
     def __init__(self, calibration, limiter=None):
         params = [Parameter('position',
@@ -73,12 +75,22 @@ class Motor(Device):
         """
         self._home()
 
+    def in_hard_limit(self):
+        """Return *True* if motor device is in a limit state, otherwise
+        *False*."""
+        return False
+
     def _get_calibrated_position(self):
         return self._calibration.to_user(self._get_position())
 
     def _set_calibrated_position(self, position):
         self._set_state(self.MOVING)
         self._set_position(self._calibration.to_steps(position))
+
+        if self.in_hard_limit():
+            self._set_state(self.LIMIT)
+            raise HardlimitError("Hard limit reached")
+
         self._set_state(self.STANDBY)
 
     def _get_position(self):
