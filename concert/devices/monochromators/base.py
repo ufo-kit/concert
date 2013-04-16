@@ -4,20 +4,21 @@ Created on Apr 11, 2013
 @author: farago
 '''
 import quantities as q
+import quantities.constants.quantum as cq
 from concert.base import Parameter
 from concert.devices.base import Device
 
 
 def energy_to_wavelength(energy):
     """Convert *energy* [eV-like] to wavelength [m]."""
-    res = q.constants.quantum.h*q.velocity.c/energy
+    res = cq.h * q.velocity.c / energy
 
     return res.rescale(q.m)
 
 
 def wavelength_to_energy(wavelength):
     """Convert wavelength [m-like] to energy [eV]."""
-    res = q.constants.quantum.h*q.velocity.c/wavelength
+    res = cq.h * q.velocity.c / wavelength
 
     return res.rescale(q.eV)
 
@@ -25,6 +26,14 @@ def wavelength_to_energy(wavelength):
 class Monochromator(Device):
     """Monochromator device which is used to filter the beam in order to
     get a very narrow energy bandwidth.
+
+    .. py:attribute:: energy
+
+        Monochromatic energy in electron volts.
+
+    .. py:attribute:: wavelength
+
+        Monochromatic wavelength in meters.
     """
     def __init__(self, calibration):
         params = [Parameter("energy", self._get_energy, self._set_energy,

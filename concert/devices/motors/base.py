@@ -59,7 +59,7 @@ class Motor(Device):
     @async
     def stop(self):
         """
-        stop(blocking=False)
+        stop()
 
         Stop the motion."""
         self._stop()

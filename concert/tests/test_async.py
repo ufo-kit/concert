@@ -49,6 +49,7 @@ class TestAsync(unittest.TestCase):
         for future in futs:
             self.assertTrue(future.done(), "Not all futures finished.")
 
+    def test_exceptions(self):
         with ShouldRaise(TypeError):
             wait([func(0)])
 

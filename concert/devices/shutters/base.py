@@ -14,13 +14,20 @@ class Shutter(Device):
 
     @async
     def open(self):
+        """open()
+
+        Open the shutter."""
         self._open()
 
     @async
     def close(self):
+        """close()
+
+        Close the shutter."""
         self._close()
 
     def is_open(self):
+        """Return *True* if shutter is open, otherwise *False*."""
         raise NotImplementedError
 
     def _open(self):

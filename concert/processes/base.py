@@ -1,3 +1,10 @@
+"""This module provides processing capabilities.
+
+Just like a :class:`.Device`, a :class:`Process` is a :class:`.Parameterizable`
+object with a generic method :meth:`~Process.run` that is executed
+asynchronously.
+"""
+
 import numpy as np
 from concert.base import Parameterizable, Parameter
 from concert.asynchronous import async
@@ -10,26 +17,45 @@ class Process(Parameterizable):
 
     @async
     def run(self):
-        """Run the process.
+        """run()
 
-        The result depends on the actual process.
+        Run the process. The result depends on the actual process.
         """
         raise NotImplementedError
 
 
-class Feedback(object):
-    """Provide a feedback."""
-
-    def __call__(self):
-        """This must return a value. Any kind of value."""
-        raise NotImplementedError
-
-
 class Scanner(Process):
-    """A scanner process.
+    """A scan process.
 
-    Calling :meth:`.run` will set *param* to *intervals* data points and
-    call :meth:`.evaluate`.
+    :meth:`.Scanner.run` sets *param* to :attr:`.intervals` data points and
+    calls `feedback()` on each data point::
+
+        motor = Motor()
+        camera = Camera()
+        scanner = Scanner(motor['position'], lambda: camera.grab())
+        x, y = scanner.run().result()
+
+    .. py:attribute:: param
+
+        The scanned :class:`.Parameter`. It must have the same unit as
+        :attr:`minimum` and :attr:`maximum`.
+
+    .. py:attribute:: feedback
+
+        A callable that must return a scalar value. It is called for each data
+        point.
+
+    .. py:attribute:: minimum
+
+        The lower bound of the scannable range.
+
+    .. py:attribute:: maximum
+
+        The upper bound of the scannable range.
+
+    .. py:attribute:: intervals
+
+        The number of intervals that are scanned.
     """
 
     def __init__(self, param, feedback):
@@ -39,11 +65,17 @@ class Scanner(Process):
 
         super(Scanner, self).__init__(params)
         self.intervals = 64
-        self._param = param
-        self._feedback = feedback
+        self.param = param
+        self.feedback = feedback
 
     @async
     def run(self):
+        """run()
+
+        Set :attr:`param` to values between :attr:`minimum` and :attr:`maximum`
+        and call :attr:`feedback` on each data point.
+        """
+
         xs = np.linspace(self.minimum, self.maximum, self.intervals)
         ys = np.zeros(xs.shape)
 
@@ -54,11 +86,11 @@ class Scanner(Process):
         return (xs, ys)
 
     def show(self):
-        """Show the result of the scan with Matplotlib."""
+        """Call :meth:`run` and show the result of the scan with Matplotlib.
+
+        The method returns the plot object.
+        """
         import matplotlib.pyplot as plt
         x, y = self.run().result()
         plt.xlabel(self._param.name)
-        plt.plot(x, y)
-
-    def evaluate(self):
-        raise NotImplementedError
+        return plt.plot(x, y)

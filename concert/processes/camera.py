@@ -1,9 +1,23 @@
+"""Camera-related feedbacks to be used with a :class:`.Scanner` process.
+
+To evaluate the mean according to different exposure times you can setup a
+process like this ::
+
+    camera = Camera()
+    feedback = FrameMean(camera)
+    scanner = Scanner(camera['exposure-time'],
+                      FrameMean)
+    scanner.minimum = 1 * q.ms
+    scanner.maximum = 1 * q.s
+
+    x, y = scanner.run().result()
+"""
+
 import numpy as np
-from concert.processes.base import Feedback, Scanner
 
 
-class FrameMean(Feedback):
-    """Calculate the noise level depending on a variable parameter.
+class FrameMean(object):
+    """Grab a frame and calculate the mean.
 
     *camera* is a camera object that supports :meth:`.grab`, *param_name*
     is a parameter name of *camera* that should be varied according.
@@ -18,7 +32,7 @@ class FrameMean(Feedback):
         return np.mean(frame)
 
 
-class PhotonTransfer(Feedback):
+class PhotonTransfer(object):
     """Calculate the photon transfer according to procedure described by M.
     Caselle and F. Beckmann.
 
