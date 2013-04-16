@@ -4,8 +4,10 @@ A session is an ordinary Python module that is stored in a per-user
 directory."""
 import os
 import imp
-from inspect import getdoc
+import inspect
 from concert.ui import get_default_table
+from concert.devices.base import Device
+from concert.processes.base import Process
 
 
 def _get_save_data_path():
@@ -34,7 +36,7 @@ def _get_param_description_table(motor):
 
     for param in motor:
         dims = param.unit.dimensionality.string if param.unit else None
-        row = [param.name, _access(param), str(dims), getdoc(param)]
+        row = [param.name, _access(param), str(dims), inspect.getdoc(param)]
         table.add_row(row)
 
     return table.get_string()
@@ -53,42 +55,49 @@ def _get_param_value_table(motor):
     return table.get_string()
 
 
-class DeviceDocumentation(list):
-    """Render device documentation."""
-    def __repr__(self):
-        field_names = ["Name", "Description", "Parameters"]
-        table = get_default_table(field_names)
+def _current_instances(instance_type):
+    # Get the second frame to skip caller who called us
+    frame = inspect.stack()[2]
+    instances = frame[0].f_globals
 
-        for device in self:
-            doc = _get_param_description_table(device)
-            table.add_row([device.__class__.__name__, getdoc(device), doc])
-
-        return table.get_string()
+    return ((name, obj) for (name, obj)
+            in instances.items()
+            if isinstance(obj, instance_type))
 
 
-class ProcessDocumentation(list):
-    """Render process documentation."""
-    def __repr__(self):
-        field_names = ["Name", "Description"]
-        table = get_default_table(field_names)
-
-        for process in self:
-            table.add_row([process.__name__, getdoc(process)])
-
-        return table.get_string()
-
-
-class DeviceState(list):
+def dstate():
     """Render device state in a table."""
-    def __repr__(self):
-        field_names = ["Name", "Parameters"]
-        table = get_default_table(field_names)
+    field_names = ["Name", "Parameters"]
+    table = get_default_table(field_names)
 
-        for device in self:
-            values = _get_param_value_table(device)
-            table.add_row([device.__class__.__name__, values])
+    for name, device in _current_instances(Device):
+        values = _get_param_value_table(device)
+        table.add_row([name, values])
 
-        return table.get_string()
+    print table.get_string()
+
+
+def ddoc():
+    """Render device documentation."""
+    field_names = ["Name", "Description", "Parameters"]
+    table = get_default_table(field_names)
+
+    for name, device in _current_instances(Device):
+        doc = _get_param_description_table(device)
+        table.add_row([name, inspect.getdoc(device), doc])
+
+    print table.get_string()
+
+
+def pdoc():
+    """Render process documentation."""
+    field_names = ["Name", "Description"]
+    table = get_default_table(field_names)
+
+    for name, process in _current_instances(Process):
+        table.add_row([name, inspect.getdoc(process)])
+
+    print table.get_string()
 
 
 def path(session):
@@ -152,8 +161,3 @@ def get_existing():
 def exists(session):
     """Check if *session* already exists."""
     return os.access(path(session), os.R_OK)
-
-
-ddoc = DeviceDocumentation()
-pdoc = ProcessDocumentation()
-dstate = DeviceState()
