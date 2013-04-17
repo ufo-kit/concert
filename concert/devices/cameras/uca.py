@@ -7,8 +7,11 @@ from concert.base import Parameter
 from concert.devices.cameras.base import Camera
 
 
-def _new_setter_wrapper(camera, name):
+def _new_setter_wrapper(camera, name, unit=None):
     def _wrapper(value):
+        if unit:
+            value = value.rescale(unit)
+
         dic = {name: value}
         camera.set_properties(**dic)
 
@@ -26,12 +29,14 @@ def _new_getter_wrapper(camera, name, unit=None):
 
     return _wrapper
 
+
 def _create_data_array(camera):
     bits = camera.props.sensor_bitdepth
     dtype = np.uint16 if bits > 8 else np.uint8
     dims = camera.props.roi_height, camera.props.roi_width
     array = np.zeros(dims, dtype=dtype)
     return (array, array.__array_interface__['data'][0])
+
 
 class UcaCamera(Camera):
     """libuca-based camera.
@@ -75,7 +80,7 @@ class UcaCamera(Camera):
                 getter = _new_getter_wrapper(self.camera, prop.name, unit)
 
             if prop.flags & GObject.ParamFlags.WRITABLE:
-                setter = _new_setter_wrapper(self.camera, prop.name)
+                setter = _new_setter_wrapper(self.camera, prop.name, unit)
 
             parameter = Parameter(prop.name, getter, setter, unit)
             parameters.append(parameter)
