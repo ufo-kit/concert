@@ -100,8 +100,8 @@ class Scanner(Process):
         ys = np.zeros(xs.shape)
 
         for i, x in enumerate(xs):
-            self._param.set(x).wait()
-            ys[i] = self._feedback()
+            self.param.set(x).wait()
+            ys[i] = self.feedback()
 
         return (xs, ys)
 
@@ -112,5 +112,5 @@ class Scanner(Process):
         """
         import matplotlib.pyplot as plt
         x, y = self.run().result()
-        plt.xlabel(self._param.name)
+        plt.xlabel(self.param.name)
         return plt.plot(x, y)

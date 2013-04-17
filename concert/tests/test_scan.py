@@ -4,6 +4,7 @@ import logbook
 import quantities as q
 from concert.devices.motors.base import LinearCalibration
 from concert.devices.motors.dummy import DummyMotor
+from concert.processes.base import Scanner
 from concert.processes.scan import ascan, dscan
 
 
@@ -44,3 +45,14 @@ class TestScan(unittest.TestCase):
 
         expected = [4 * q.mm, 6 * q.mm, 8 * q.mm, 10 * q.mm, 12 * q.mm]
         compare_sequences(self.positions, expected, self.assertAlmostEqual)
+
+    def test_process(self):
+        def feedback():
+            return self.motor.position
+
+        scanner = Scanner(self.motor['position'], feedback)
+        scanner.minimum = 1 * q.mm
+        scanner.maximum = 10 * q.mm
+        scanner.intervals = 10
+        x, y = scanner.run().result()
+        compare_sequences(x, y, self.assertEqual)
