@@ -52,6 +52,7 @@ class Device(Parameterizable):
                                      owner_only=True))
         self._lock = threading.Lock()
         self._states = set([self.NA])
+        self._state = self.NA
 
     def __enter__(self):
         self._lock.acquire()
