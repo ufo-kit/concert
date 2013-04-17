@@ -26,9 +26,11 @@ log = Logger(__name__)
 
 class Device(Parameterizable):
     """
-    :class:`Device` provides locked access to a real-world device.
+    A :class:`Device` provides locked access to a real-world device and
+    provides a :attr:`state` :class:`.Parameter`.
 
-    It implements the context protocol and can thus be used like this ::
+    A implements the context protocol to provide locking and can be used like
+    this ::
 
         with device:
             # device is locked
@@ -36,6 +38,10 @@ class Device(Parameterizable):
             ...
 
         # device is unlocked again
+
+    .. py:attribute:: state
+
+        Current state of the device.
     """
 
     NA = "n/a"
@@ -54,7 +60,7 @@ class Device(Parameterizable):
         self._lock.release()
 
     def _get_state(self):
-        return Device.NA
+        return self.NA
 
     def _set_state(self, state):
         if state in self._states:
