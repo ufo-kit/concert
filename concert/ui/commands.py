@@ -171,7 +171,12 @@ def start(session=None, logto='file', logfile=None):
 
     # Add session path, so that sessions can import other sessions
     sys.path.append(concert.session.PATH)
-    module = concert.session.load(session)
+    try:
+        module = concert.session.load(session)
+    except Exception as exception:
+        print("Error initializing Concert: {0}".format(exception))
+        sys.exit(1)
+
     _run_shell(handler, module)
 
 
