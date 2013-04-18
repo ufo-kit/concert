@@ -37,6 +37,7 @@ the value or scan along a "trajectory"::
 
 .. _Ufo project: http://ufo.kit.edu
 """
+import multiprocessing
 from concert.base import Parameter
 from concert.processes.base import Process
 from concert.asynchronous import async
@@ -95,11 +96,16 @@ class UfoProcess(Process):
     @async
     def run(self):
         """Execute the graph."""
-        from gi.repository import Ufo
+        def target():
+            from gi.repository import Ufo
 
-        if self._config:
-            sched = Ufo.Scheduler(config=self._config)
-        else:
-            sched = Ufo.Scheduler()
+            if self._config:
+                sched = Ufo.Scheduler(config=self._config)
+            else:
+                sched = Ufo.Scheduler()
 
-        sched.run(self._graph)
+            sched.run(self._graph)
+
+        proc = multiprocessing.Process(target=target)
+        proc.start()
+        proc.join()
