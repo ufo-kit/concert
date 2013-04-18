@@ -4,7 +4,7 @@ Created on Apr 12, 2013
 @author: farago
 '''
 import unittest
-from concert.devices.shutters.dummy import DummyShutter
+from concert.devices.shutters.dummy import Shutter as DummyShutter
 
 
 class TestDummyShutter(unittest.TestCase):

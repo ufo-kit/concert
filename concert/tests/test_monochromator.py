@@ -6,7 +6,8 @@ Created on Apr 11, 2013
 import unittest
 from concert.devices.motors.base import LinearCalibration
 import quantities as q
-from concert.devices.monochromators.dummy import DummyMonochromator
+from concert.devices.monochromators.dummy import\
+    Monochromator as DummyMonochromator
 from concert.devices.monochromators import base
 
 

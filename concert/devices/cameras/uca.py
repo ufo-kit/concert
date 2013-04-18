@@ -4,7 +4,7 @@ Cameras supported by the libuca library.
 import numpy as np
 import quantities as q
 from concert.base import Parameter
-from concert.devices.cameras.base import Camera
+from concert.devices.cameras import base
 
 
 def _new_setter_wrapper(camera, name, unit=None):
@@ -38,7 +38,7 @@ def _create_data_array(camera):
     return (array, array.__array_interface__['data'][0])
 
 
-class UcaCamera(Camera):
+class Camera(base.Camera):
     """libuca-based camera.
 
     All properties that are exported by the underlying camera are also visible
@@ -85,7 +85,7 @@ class UcaCamera(Camera):
             parameter = Parameter(prop.name, getter, setter, unit)
             parameters.append(parameter)
 
-        super(UcaCamera, self).__init__(parameters)
+        super(Camera, self).__init__(parameters)
 
     def _record_real(self):
         self._array, self._data = _create_data_array(self.camera)

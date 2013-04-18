@@ -5,7 +5,7 @@ import socket
 log = logbook.Logger(__name__)
 
 
-class SocketConnection(object):
+class Connection(object):
     """A two-way socket connection."""
 
     def __init__(self, host, port):
@@ -32,7 +32,7 @@ class SocketConnection(object):
             log.warn('Reading from %s:%i timed out' % self._peer)
 
 
-class Aerotech(SocketConnection):
+class Aerotech(Connection):
     EOS_CHAR = "\n"  # string termination character
     ACK_CHAR = "%"  # acknowledge
     NAK_CHAR = "!"  # not acknowledge (wrong parameters, etc.)

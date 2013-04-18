@@ -3,12 +3,12 @@ Created on Apr 12, 2013
 
 @author: farago
 '''
-from concert.devices.shutters.base import Shutter
+from concert.devices.shutters import base
 
 
-class DummyShutter(Shutter):
+class Shutter(base.Shutter):
     def __init__(self):
-        super(DummyShutter, self).__init__()
+        super(Shutter, self).__init__()
         self._opened = None
         self.close().wait()
 

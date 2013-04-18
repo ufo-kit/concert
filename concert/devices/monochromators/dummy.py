@@ -3,12 +3,12 @@ Created on Apr 11, 2013
 
 @author: farago
 '''
-from concert.devices.monochromators.base import Monochromator
+from concert.devices.monochromators import base
 
 
-class DummyMonochromator(Monochromator):
+class Monochromator(base.Monochromator):
     def __init__(self, calibration):
-        super(DummyMonochromator, self).__init__(calibration)
+        super(Monochromator, self).__init__(calibration)
         self._energy = None
 
     def _get_energy(self):

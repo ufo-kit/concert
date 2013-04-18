@@ -2,7 +2,8 @@ import unittest
 import logbook
 import quantities as q
 from concert.devices.motors.base import LinearCalibration, Motor
-from concert.devices.motors.dummy import DummyMotor, DummyContinuousMotor
+from concert.devices.motors.dummy import Motor as DummyMotor,\
+    ContinuousMotor as DummyContinuousMotor
 
 
 class TestDummyMotor(unittest.TestCase):
@@ -28,11 +29,11 @@ class TestDummyMotor(unittest.TestCase):
 
     def test_log_output(self):
         self.motor.position = 0 * q.mm
-        info = "DummyMotor: try position='0.0 mm'"
+        info = "Motor: try position='0.0 mm'"
         self.assertTrue(self.handler.has_info(info))
 
         self.motor.position = 2 * q.mm
-        info = "DummyMotor: try position='2.0 mm'"
+        info = "Motor: try position='2.0 mm'"
         self.assertTrue(self.handler.has_info(info))
 
 

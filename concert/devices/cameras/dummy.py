@@ -2,10 +2,10 @@
 import numpy as np
 import quantities as q
 from concert.base import Parameter
-from concert.devices.cameras.base import Camera
+from concert.devices.cameras import base
 
 
-class DummyCamera(Camera):
+class Camera(base.Camera):
     """Simple camera.
 
     *background* can be an array-like that will be used to generate the frame
@@ -22,7 +22,7 @@ class DummyCamera(Camera):
                   Parameter('roi-width'),
                   Parameter('roi-height')]
 
-        super(DummyCamera, self).__init__(params)
+        super(Camera, self).__init__(params)
 
         self.exposure_time = 1 * q.ms
 

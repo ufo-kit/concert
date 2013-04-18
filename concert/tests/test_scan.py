@@ -3,7 +3,7 @@ import unittest
 import logbook
 import quantities as q
 from concert.devices.motors.base import LinearCalibration
-from concert.devices.motors.dummy import DummyMotor
+from concert.devices.motors.dummy import Motor as DummyMotor
 from concert.processes.scan import Scanner, ascan, dscan
 
 
@@ -14,7 +14,7 @@ def compare_sequences(first_sequence, second_sequence, assertion):
 
 class TestScan(unittest.TestCase):
     def setUp(self):
-        self.motor = DummyMotor(LinearCalibration(1 / q.mm, 0 * q.mm))
+        self.motor = DummyMotor()
         self.handler = logbook.TestHandler()
         self.handler.push_application()
 
