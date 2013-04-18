@@ -1,7 +1,29 @@
 """
-The :mod:`.scan` module provides process functions to change parameters along
-pre-computed "trajectories". For example, you can use :func:`ascan` to move a
-set of motors in intervals similar to SPEC's ascan ::
+The :mod:`.scan` module provides process classes and functions to change
+parameters along pre-computed "trajectories".
+
+:class:`Scanner` objects scan a parameter and evaluate a dependent variable ::
+
+    from concert.processes.base import Scanner
+
+    motor = Motor()
+    camera = Camera()
+    scanner = Scanner(motor['position'], lambda: camera.grab())
+    scanner.minimum = 0 * q.mm
+    scanner.maximum = 2 * q.mm
+
+    x, y = scanner.run().result()
+
+As you can see, the position of *motor* is varied and a frame at each interval
+point is taken. Because processes run asynchronously, we call :meth:`result` on
+the future that is returned by :meth:`~.Scanner.run`. This yields a tuple with x
+and y values, corresponding to positions and frames.
+
+For some tasks, feedbacks (such as the frame grabbing in the example above) are
+pre-defined in the :mod:`concert.processes.camera` module.
+
+:func:`ascan` and :func:`dscan` are used to scan multiple parameters
+in a similar way as SPEC::
 
     import quantities as q
     from concert.processes.scan import ascan
@@ -13,8 +35,82 @@ set of motors in intervals similar to SPEC's ascan ::
     ascan([(motor1['position'], 0 * q.mm, 25 * q.mm),
            (motor2['position'], -2 * q.cm, 4 * q.cm)],
            n_intervals=10, handler=do_something)
+
 """
+import numpy as np
 from concurrent.futures import wait
+from concert.base import Parameter
+from concert.asynchronous import async
+from concert.processes.base import Process
+
+
+class Scanner(Process):
+    """A scan process.
+
+    :meth:`.Scanner.run` sets *param* to :attr:`.intervals` data points and
+    calls `feedback()` on each data point.
+
+    .. py:attribute:: param
+
+        The scanned :class:`.Parameter`. It must have the same unit as
+        :attr:`minimum` and :attr:`maximum`.
+
+    .. py:attribute:: feedback
+
+        A callable that must return a scalar value. It is called for each data
+        point.
+
+    .. py:attribute:: minimum
+
+        The lower bound of the scannable range.
+
+    .. py:attribute:: maximum
+
+        The upper bound of the scannable range.
+
+    .. py:attribute:: intervals
+
+        The number of intervals that are scanned.
+    """
+
+    def __init__(self, param, feedback):
+        params = [Parameter('minimum', doc="Left bound of the interval"),
+                  Parameter('maximum', doc="Right bound of the interval"),
+                  Parameter('intervals', doc="Number of intervals")]
+
+        super(Scanner, self).__init__(params)
+        self.intervals = 64
+        self.param = param
+        self.feedback = feedback
+
+    @async
+    def run(self):
+        """run()
+
+        Set :attr:`param` to values between :attr:`minimum` and
+        :attr:`maximum`, call :attr:`feedback` on each data point and return a
+        future with the value tuple.
+
+        The result tuple *(x, y)* contains two array-likes with the same shape.
+        *x* contains the values that :attr:`param` has taken during the scan
+        whereas *y* contains the values evaluated by :attr:`feedback`.
+        """
+        xs = np.linspace(self.minimum, self.maximum, self.intervals)
+        ys = np.zeros(xs.shape)
+
+        for i, x in enumerate(xs):
+            self.param.set(x).wait()
+            ys[i] = self.feedback()
+
+        return (xs, ys)
+
+    def show(self):
+        """Call :meth:`run`, show the result of the scan with Matplotlib and
+        return the plot object."""
+        import matplotlib.pyplot as plt
+        x, y = self.run().result()
+        plt.xlabel(self.param.name)
+        return plt.plot(x, y)
 
 
 def _pull_first(tuple_list):

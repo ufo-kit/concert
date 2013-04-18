@@ -4,20 +4,18 @@ Process control
 
 .. automodule:: concert.processes.base
 
-.. autoclass:: concert.processes.base.Scanner
+
+Scanning
+========
+
+.. automodule:: concert.processes.scan
+    :members:
 
 
 Feedbacks
 =========
 
 .. automodule:: concert.processes.camera
-    :members:
-
-
-Scanning
-========
-
-.. automodule:: concert.processes.scan
     :members:
 
 
