@@ -2,6 +2,7 @@ import random
 import time
 from concert.devices.motors.base import Motor, ContinuousMotor,\
     LinearCalibration
+import quantities as q
 
 
 class DummyLimiter(object):
@@ -14,8 +15,9 @@ class DummyLimiter(object):
 
 
 class DummyMotor(Motor):
-    def __init__(self, calibration, limiter=None, position=None):
-        super(DummyMotor, self).__init__(calibration, limiter)
+    def __init__(self, limiter=None, position=None):
+        super(DummyMotor, self).__init__(LinearCalibration(1 / q.mm, 0 * q.mm),
+                                         limiter)
         self._hard_limits = -100, 100
         if not limiter:
             self._position = random.uniform(self._hard_limits[0],

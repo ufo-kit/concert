@@ -7,8 +7,7 @@ from concert.devices.motors.dummy import DummyMotor, DummyContinuousMotor
 
 class TestDummyMotor(unittest.TestCase):
     def setUp(self):
-        calibration = LinearCalibration(1 / q.mm, 0 * q.mm)
-        self.motor = DummyMotor(calibration)
+        self.motor = DummyMotor()
         self.handler = logbook.TestHandler()
         self.handler.push_application()
 
