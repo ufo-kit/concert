@@ -5,8 +5,7 @@ process like this ::
 
     camera = Camera()
     feedback = FrameMean(camera)
-    scanner = Scanner(camera['exposure-time'],
-                      FrameMean)
+    scanner = Scanner(camera['exposure-time'], feedback)
     scanner.minimum = 1 * q.ms
     scanner.maximum = 1 * q.s
 

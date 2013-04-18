@@ -20,7 +20,7 @@ the future that is returned by :meth:`~.Scanner.run`. This yields a tuple with x
 and y values, corresponding to positions and frames.
 
 For some tasks, feedbacks (such as the frame grabbing in the example above) are
-pre-defined in the :mod:`concert.processes.camera` module.
+pre-defined in the :mod:`concert.feedbacks.camera` module.
 
 :func:`ascan` and :func:`dscan` are used to scan multiple parameters
 in a similar way as SPEC::
