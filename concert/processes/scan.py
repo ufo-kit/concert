@@ -16,8 +16,8 @@ parameters along pre-computed "trajectories".
 
 As you can see, the position of *motor* is varied and a frame at each interval
 point is taken. Because processes run asynchronously, we call :meth:`result` on
-the future that is returned by :meth:`~.Scanner.run`. This yields a tuple with x
-and y values, corresponding to positions and frames.
+the future that is returned by :meth:`~.Scanner.run`. This yields a tuple
+with x and y values, corresponding to positions and frames.
 
 For some tasks, feedbacks (such as the frame grabbing in the example above) are
 pre-defined in the :mod:`concert.feedbacks.camera` module.

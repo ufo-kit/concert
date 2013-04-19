@@ -45,6 +45,7 @@ class Camera(base.Camera):
         pass
 
     def _grab_real(self):
-        noise = np.random.poisson(1.0, (self.roi_width, self.roi_height))
         time = self.exposure_time.rescale(q.s).magnitude
-        return self._background + time * noise
+
+        # 1e5 is a dummy correlation between exposure time and emitted e-.
+        return np.random.poisson(self._background + time*1e5)
