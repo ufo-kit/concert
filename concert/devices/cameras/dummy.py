@@ -48,4 +48,13 @@ class Camera(base.Camera):
         time = self.exposure_time.rescale(q.s).magnitude
 
         # 1e5 is a dummy correlation between exposure time and emitted e-.
-        return np.random.poisson(self._background + time*1e5)
+        tmp = self._background + time*1e5
+        max_value = np.iinfo(np.uint16).max
+        # Cut values beyond the bit-depth.
+        tmp[tmp > max_value] = max_value
+
+        tmp = np.random.poisson(tmp)
+        # Cut them again in order to prevent overflowing.
+        tmp[tmp > max_value] = max_value
+
+        return np.cast[np.uint16](tmp)
