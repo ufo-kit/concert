@@ -15,6 +15,7 @@ class DummyLimiter(object):
 
 
 class Motor(base.Motor):
+    """Dummy Motor class implementation."""
     def __init__(self, limiter=None, position=None):
         super(Motor, self).__init__(LinearCalibration(1 / q.mm, 0 * q.mm),
                                     limiter)
@@ -47,6 +48,7 @@ class Motor(base.Motor):
 
 
 class ContinuousMotor(base.ContinuousMotor):
+    """Dummy ContinuousMotor class implementation."""
     def __init__(self, position_calibration, velocity_calibration):
         super(ContinuousMotor, self).__init__(position_calibration,
                                               velocity_calibration)

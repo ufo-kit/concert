@@ -3,7 +3,8 @@ Created on Apr 11, 2013
 
 @author: farago
 '''
-from concert.base import Device, Parameter
+from concert.devices.base import Device
+from concert.base import Parameter
 
 
 class MotorController(Device):

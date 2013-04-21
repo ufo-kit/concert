@@ -19,6 +19,7 @@ setup(
               'concert/devices',
               'concert/devices/cameras',
               'concert/devices/controllers',
+              'concert/devices/io',
               'concert/devices/motors',
               'concert/devices/storagerings',
               'concert/devices/shutters',

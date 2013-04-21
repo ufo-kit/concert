@@ -1,8 +1,3 @@
-'''
-Created on Apr 12, 2013
-
-@author: farago
-'''
 import unittest
 from concert.devices.shutters.dummy import Shutter as DummyShutter
 
