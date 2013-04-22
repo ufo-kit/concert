@@ -11,8 +11,10 @@ class IO(base.IO):
                  Port(2, "acq_enable", None, self._write_port,
                       "Acquisition enable flag.")]
         super(IO, self).__init__(ports)
-        self._ports = {port.port_id: 0
-                       for port in filter(lambda x: x.__class__ == Port, self)}
+
+        self._ports = dict((port.port_id, 0)
+                           for port
+                           in filter(lambda x: x.__class__ == Port, self))
 
         self._ports[self["busy"].port_id] = 1
 
