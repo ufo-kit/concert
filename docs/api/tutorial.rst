@@ -2,6 +2,8 @@
 Getting started
 ===============
 
+.. _get-the-code:
+
 Get the code
 ============
 
@@ -14,6 +16,10 @@ pip::
 
     $ cd concert
     $ pip install -r requirements.txt
+
+After that you can simply install the development source with ::
+
+    $ make install
 
 .. _Git: http://git-scm.com
 

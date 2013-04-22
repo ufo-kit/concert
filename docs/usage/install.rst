@@ -14,6 +14,9 @@ this method::
     $ cd concert-x.y.z
     $ sudo python setup.py install
 
+To get the latest source follow the instructions given in the :ref:`developer
+documentation <get-the-code>`.
+
 More information on installing Concert using the ``setup.py`` script, can be
 found in the official `Python documentation`__.
 
