@@ -13,8 +13,7 @@ class IO(base.IO):
         super(IO, self).__init__(ports)
 
         self._ports = dict((port.port_id, 0)
-                           for port
-                           in filter(lambda x: x.__class__ == Port, self))
+                           for port in self if isinstance(port, Port))
 
         self._ports[self["busy"].port_id] = 1
 
