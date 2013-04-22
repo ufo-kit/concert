@@ -16,6 +16,7 @@ setup(
     author='John Doe',
     author_email='john.doe@kit.edu',
     packages=['concert',
+	      'concert/connections',
               'concert/devices',
               'concert/devices/cameras',
               'concert/devices/controllers',
