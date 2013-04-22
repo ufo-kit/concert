@@ -50,11 +50,8 @@ class Camera(base.Camera):
         # 1e5 is a dummy correlation between exposure time and emitted e-.
         tmp = self._background + time*1e5
         max_value = np.iinfo(np.uint16).max
-        # Cut values beyond the bit-depth.
-        tmp[tmp > max_value] = max_value
-
         tmp = np.random.poisson(tmp)
-        # Cut them again in order to prevent overflowing.
+        # Cut values beyond the bit-depth.
         tmp[tmp > max_value] = max_value
 
         return np.cast[np.uint16](tmp)
