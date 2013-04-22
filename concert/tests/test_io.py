@@ -1,4 +1,5 @@
 import unittest
+import logbook
 from concert.devices.io.dummy import IO
 from concert.base import ReadAccessError, WriteAccessError
 
@@ -6,6 +7,11 @@ from concert.base import ReadAccessError, WriteAccessError
 class TestDummyIO(unittest.TestCase):
     def setUp(self):
         self.io_device = IO()
+        self.handler = logbook.TestHandler()
+        self.handler.push_application()
+
+    def tearDown(self):
+        self.handler.pop_application()
 
     def test_read_port(self):
         self.assertEqual(self.io_device.exposure, 0)

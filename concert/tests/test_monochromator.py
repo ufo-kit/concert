@@ -15,6 +15,11 @@ class TestDummyMonochromator(unittest.TestCase):
     def setUp(self):
         calibration = LinearCalibration(1*q.eV, 0*q.eV)
         self.mono = DummyMonochromator(calibration)
+        self.handler = logbook.TestHandler()
+        self.handler.push_application()
+
+    def tearDown(self):
+        self.handler.pop_application()
 
     def test_energy(self):
         energy = 25*q.keV
