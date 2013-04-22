@@ -5,7 +5,7 @@ import logging
 import readline
 import quantities as q
 from concert.devices.motors.base import Motor, LinearCalibration
-from concert.connections.socket import Connection
+from concert.connections.inet import Connection
 
 
 CRIO_HOST = 'cRIO9074-Motion.ka.fzk.de'

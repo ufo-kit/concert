@@ -5,7 +5,7 @@ Created on Apr 11, 2013
 '''
 from concert.devices.base import Device
 from concert.devices.motors.aerotech import Aerorot
-from concert.connections.socket import Aerotech
+from concert.connections.inet import Aerotech
 
 
 class HLe(Device):

@@ -7,7 +7,7 @@ from concert.devices.motors.base import ContinuousMotor, LinearCalibration,\
     Motor
 import quantities as q
 import time
-from concert.connections.socket import Aerotech
+from concert.connections.inet import Aerotech
 
 
 class Aerorot(ContinuousMotor):
