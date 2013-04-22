@@ -4,6 +4,7 @@ Created on Apr 11, 2013
 @author: farago
 '''
 import unittest
+import logbook
 from concert.devices.motors.base import LinearCalibration
 import quantities as q
 from concert.devices.monochromators.dummy import\
