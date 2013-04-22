@@ -30,7 +30,7 @@ class Motor(base.Motor):
             self._device.ForwardLimitSwitch
 
     def _get_state(self):
-        tango_state = self.device.state()
+        tango_state = self._device.state()
         if tango_state == PyTango.DevState.MOVING:
             state = base.Motor.MOVING
         elif tango_state == PyTango.DevState.STANDBY:
