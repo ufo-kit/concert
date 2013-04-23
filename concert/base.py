@@ -317,15 +317,15 @@ class Parameterizable(object):
         underscored = parameter.name.replace('-', '_')
 
         def _getter(self):
-            return parameter.get().result()
+            return self[parameter.name].get().result()
 
         def _setter(self, value):
-            parameter.set(value).wait()
+            self[parameter.name].set(value).wait()
 
         setattr(self.__class__, underscored, property(_getter, _setter))
 
         if parameter.is_readable():
-            setattr(self.__class__, 'get_%s' % underscored, parameter.get)
+            setattr(self, 'get_%s' % underscored, self[parameter.name].get)
 
         if parameter.is_writable():
-            setattr(self.__class__, 'set_%s' % underscored, parameter.set)
+            setattr(self, 'set_%s' % underscored, self[parameter.name].set)

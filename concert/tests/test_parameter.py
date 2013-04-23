@@ -44,19 +44,23 @@ class TestParameterizable(unittest.TestCase):
     def setUp(self):
         self.handler = logbook.TestHandler()
         self.handler.push_application()
+        proxy1 = Proxy(42)
+        proxy2 = Proxy(23)
+        self.foo1 = FooDevice(proxy1)
+        self.foo2 = FooDevice(proxy2)
 
     def tearDown(self):
         self.handler.pop_application()
 
-    def test_identity(self):
-        proxy1 = Proxy(42)
-        proxy2 = Proxy(23)
-        foo1 = FooDevice(proxy1)
-        foo2 = FooDevice(proxy2)
+    def test_property_identity(self):
+        self.foo1.foo = 15
+        self.assertEqual(self.foo1.foo, 15)
+        self.assertEqual(self.foo2.foo, 23)
 
-        foo1.foo = 15
-        self.assertEqual(foo1.foo, 15)
-        self.assertEqual(foo2.foo, 23)
+    def test_func_identity(self):
+        self.foo1.set_foo(15).wait()
+        self.assertEqual(self.foo1.get_foo().result(), 15)
+        self.assertEqual(self.foo2.get_foo().result(), 23)
 
 
 class TestParameter(unittest.TestCase):
