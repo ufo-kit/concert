@@ -49,6 +49,8 @@ class Motor(Device):
 
         super(Motor, self).__init__(params)
         self._calibration = calibration
+        self._states = \
+            self._states.union(set([self.STANDBY, self.MOVING, self.LIMIT]))
 
     @async
     def move(self, delta):

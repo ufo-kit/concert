@@ -15,20 +15,15 @@ class Shutter(base.Shutter):
         super(Shutter, self).__init__()
         self._device = TopoTomo().get_device("iss/toto/rato_toto")
         self._index = index
-        self._opened = None
-        self.close().wait()
 
     @property
     def index(self):
         return self._index
 
-    def is_open(self):
-        return self._opened
-
     def _open(self):
         self._device.DoSPECTextCommand("shopen %d" % (self.index))
-        self._opened = True
+        self._set_state(self.OPEN)
 
     def _close(self):
         self._device.DoSPECTextCommand("shclose %d" % (self.index))
-        self._opened = False
+        self._set_state(self.CLOSED)

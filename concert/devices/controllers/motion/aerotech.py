@@ -4,10 +4,10 @@ Created on Apr 11, 2013
 @author: farago
 '''
 from concert.devices.base import Device
-from concert.devices.motors.aerotech import Aerorot
-from concert.connections.inet import Aerotech, Connection
+from concert.connections.inet import Aerotech
 from concert.asynchronous import async
 import logbook
+from concert.devices.io.aerotech import IO
 
 
 class HLe(Device):
@@ -19,6 +19,7 @@ class HLe(Device):
         self._connection = Aerotech(HLe.HOST, HLe.PORT)
         self.logger = logbook.Logger(self.__class__, __name__)
         super(HLe, self).__init__()
+        self.io = IO(self._connection)
 
     def reset(self):
         """Reset the controller."""

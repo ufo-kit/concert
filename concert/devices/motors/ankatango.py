@@ -32,11 +32,11 @@ class Motor(base.Motor):
     def _get_state(self):
         tango_state = self._device.state()
         if tango_state == PyTango.DevState.MOVING:
-            state = base.Motor.MOVING
+            state = self.MOVING
         elif tango_state == PyTango.DevState.STANDBY:
-            state = base.Motor.STANDBY
+            state = self.STANDBY
         else:
-            state = base.Motor.NA
+            state = self.NA
 
         return state
 

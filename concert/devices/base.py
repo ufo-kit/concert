@@ -61,7 +61,7 @@ class Device(Parameterizable):
         self._lock.release()
 
     def _get_state(self):
-        return self.NA
+        return self._state
 
     def _set_state(self, state):
         if state in self._states:

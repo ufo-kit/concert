@@ -8,8 +8,8 @@ class TestDummyShutter(unittest.TestCase):
 
     def test_open(self):
         self.shutter.open().wait()
-        self.assertTrue(self.shutter.is_open())
+        self.assertEquals(self.shutter.state, self.shutter.OPEN)
 
     def test_close(self):
         self.shutter.close().wait()
-        self.assertFalse(self.shutter.is_open())
+        self.assertEquals(self.shutter.state, self.shutter.CLOSED)

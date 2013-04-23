@@ -32,8 +32,8 @@ class IO(Device):
     def __init__(self, ports=None):
         super(IO, self).__init__(ports)
 
-    def _read_port(self, port):
+    def read_port(self, port):
         raise NotImplementedError
 
-    def _write_port(self, port, value):
+    def write_port(self, port, value):
         raise NotImplementedError
