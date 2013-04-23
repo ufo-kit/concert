@@ -46,6 +46,7 @@ class Aerotech(Connection):
             log.debug("Interpreted response {0}.".format(res))
             return res
         if (hle_response[0] == Aerotech.NAK_CHAR):
+            print hle_response
             raise ValueError("Invalid command or parameter")
         if (hle_response[0] == Aerotech.FAULT_CHAR):
             raise RuntimeError("Controller task error.")
@@ -53,8 +54,7 @@ class Aerotech(Connection):
     def send(self, data):
         """Add eos special character after the command."""
         try:
-            super(Aerotech, self).send(data.upper() +
-                                       Aerotech.EOS_CHAR)
+            super(Aerotech, self).send(data + Aerotech.EOS_CHAR)
         except socket.error as e:
             if e.errno == socket.errno.ECONNRESET:
                 log.debug("Connection reset by peer, reconnecting...")
