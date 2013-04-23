@@ -5,6 +5,47 @@ from concert.base import *
 from testfixtures import ShouldRaise, compare
 
 
+class BaseDevice(Parameterizable):
+    def __init__(self, default):
+        param = Parameter('foo', fget=self._get, fset=self._set)
+        super(BaseDevice, self).__init__([param])
+
+        self._foo = default
+
+    def _get(self):
+        return self._foo
+
+    def _set(self, value):
+        self._foo = value
+
+
+class FooDevice(BaseDevice):
+    def __init__(self, default):
+        super(FooDevice, self).__init__(default)
+
+
+class BarDevice(BaseDevice):
+    def __init__(self, default):
+        super(BarDevice, self).__init__(default)
+
+
+class TestParameterizable(unittest.TestCase):
+    def setUp(self):
+        self.handler = logbook.TestHandler()
+        self.handler.push_application()
+
+    def tearDown(self):
+        self.handler.pop_application()
+
+    def test_identity(self):
+        foo = FooDevice(42)
+        bar = BarDevice(23)
+        foo.foo = 15
+
+        self.assertEqual(foo.foo, 15)
+        self.assertEqual(bar.foo, 23)
+
+
 class TestParameter(unittest.TestCase):
     def setUp(self):
         self.handler = logbook.TestHandler()
