@@ -10,7 +10,7 @@ from concert.asynchronous import async
 class Shutter(Device):
     OPEN = "open"
     CLOSED = "closed"
-    
+
     """Shutter device."""
     def __init__(self):
         super(Shutter, self).__init__()
