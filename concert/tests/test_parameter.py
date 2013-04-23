@@ -6,27 +6,38 @@ from testfixtures import ShouldRaise, compare
 
 
 class BaseDevice(Parameterizable):
-    def __init__(self, default):
+    def __init__(self):
         param = Parameter('foo', fget=self._get, fset=self._set)
         super(BaseDevice, self).__init__([param])
 
-        self._foo = default
-
     def _get(self):
-        return self._foo
+        raise NotImplementedError
 
     def _set(self, value):
-        self._foo = value
+        raise NotImplementedError
 
 
 class FooDevice(BaseDevice):
-    def __init__(self, default):
-        super(FooDevice, self).__init__(default)
+    def __init__(self, proxy):
+        super(FooDevice, self).__init__()
+        self.proxy = proxy
+
+    def _get(self):
+        return self.proxy.get()
+
+    def _set(self, value):
+        self.proxy.set(value)
 
 
-class BarDevice(BaseDevice):
+class Proxy(object):
     def __init__(self, default):
-        super(BarDevice, self).__init__(default)
+        self.value = default
+
+    def get(self):
+        return self.value
+
+    def set(self, value):
+        self.value = value
 
 
 class TestParameterizable(unittest.TestCase):
@@ -38,12 +49,14 @@ class TestParameterizable(unittest.TestCase):
         self.handler.pop_application()
 
     def test_identity(self):
-        foo = FooDevice(42)
-        bar = BarDevice(23)
-        foo.foo = 15
+        proxy1 = Proxy(42)
+        proxy2 = Proxy(23)
+        foo1 = FooDevice(proxy1)
+        foo2 = FooDevice(proxy2)
 
-        self.assertEqual(foo.foo, 15)
-        self.assertEqual(bar.foo, 23)
+        foo1.foo = 15
+        self.assertEqual(foo1.foo, 15)
+        self.assertEqual(foo2.foo, 23)
 
 
 class TestParameter(unittest.TestCase):
