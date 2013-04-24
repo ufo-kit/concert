@@ -84,7 +84,7 @@ class Scanner(Process):
         self.feedback = feedback
 
     @async
-    def run(self):
+    def run(self, convert=lambda x: x):
         """run()
 
         Set :attr:`param` to values between :attr:`minimum` and
@@ -99,7 +99,7 @@ class Scanner(Process):
         ys = np.zeros(xs.shape)
 
         for i, x in enumerate(xs):
-            self.param.set(x).wait()
+            self.param.set(convert(x)).wait()
             ys[i] = self.feedback()
 
         return (xs, ys)
