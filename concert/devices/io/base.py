@@ -33,7 +33,9 @@ class IO(Device):
         super(IO, self).__init__(ports)
 
     def read_port(self, port):
+        """Read a *port*."""
         raise NotImplementedError
 
     def write_port(self, port, value):
+        """Write a *value* to a *port*."""
         raise NotImplementedError

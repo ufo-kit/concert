@@ -37,6 +37,7 @@ class HLe(Device):
 
     @async
     def get_positions(self):
+        """Get positions stored on the controller's file system."""
         self.program_run(1, "position_readout.bcx")
         positions = []
 
