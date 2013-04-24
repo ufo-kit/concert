@@ -5,6 +5,7 @@ Created on Apr 12, 2013
 '''
 from concert.devices.shutters import base
 from concert.connections.tango import TopoTomo
+import time
 
 
 class Shutter(base.Shutter):
@@ -22,8 +23,10 @@ class Shutter(base.Shutter):
 
     def _open(self):
         self._device.DoSPECTextCommand("shopen %d" % (self.index))
+        time.sleep(5)
         self._set_state(self.OPEN)
 
     def _close(self):
         self._device.DoSPECTextCommand("shclose %d" % (self.index))
+        time.sleep(5)
         self._set_state(self.CLOSED)
