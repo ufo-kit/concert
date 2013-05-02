@@ -30,6 +30,7 @@ setup(
               'concert/optimization',
               'concert/processes',
               'concert/ui',
+              'concert/utils',
               ],
     scripts=['bin/concert'],
     data_files=data_files,
