@@ -160,7 +160,7 @@ class StepTomoScanner(Process):
             self.rotary_stage.move(step)
             projections.append(self.camera.grab())
 
-        self.camera.start_recording()
+        self.camera.stop_recording()
         return darks, flats, projections
 
 
