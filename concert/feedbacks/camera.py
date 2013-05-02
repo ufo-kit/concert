@@ -11,11 +11,12 @@ process like this ::
 
     x, y = scanner.run().result()
 """
-
 import numpy as np
+import quantities as q
+from concert.base import Parameter
 
 
-class FrameMean(object):
+class FrameMean(Parameter):
     """Grab a frame and calculate the mean.
 
     *camera* is a camera object that supports :meth:`.grab`, *param_name*
@@ -23,6 +24,7 @@ class FrameMean(object):
     """
     def __init__(self, camera):
         self.camera = camera
+        super(FrameMean, self).__init__('frame-mean', unit=q.counts)
 
     def __call__(self):
         frame = self.camera.grab()

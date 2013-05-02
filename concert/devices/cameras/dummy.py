@@ -15,16 +15,22 @@ class Camera(base.Camera):
     :py:attribute:: exposure_time
     :py:attribute:: roi_width
     :py:attribute:: roi_height
+    :py:attribute:: sensor_pixel_width
+    :py:attribute:: sensor_pixel_height
     """
 
     def __init__(self, background=None):
         params = [Parameter('exposure-time', unit=q.s),
                   Parameter('roi-width'),
-                  Parameter('roi-height')]
+                  Parameter('roi-height'),
+                  Parameter('sensor-pixel-width', unit=q.micrometer),
+                  Parameter('sensor-pixel-height', unit=q.micrometer)]
 
         super(Camera, self).__init__(params)
 
         self.exposure_time = 1 * q.ms
+        self.sensor_pixel_width = 5 * q.micrometer
+        self.sensor_pixel_height = 5 * q.micrometer
 
         if background:
             self.roi_width = background.shape[1]

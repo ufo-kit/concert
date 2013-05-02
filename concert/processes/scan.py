@@ -37,6 +37,7 @@ in a similar way as SPEC::
            n_intervals=10, handler=do_something)
 
 """
+import quantities as q
 import numpy as np
 from concurrent.futures import wait
 from concert.base import Parameter
@@ -111,6 +112,56 @@ class Scanner(Process):
         x, y = self.run().result()
         plt.xlabel(self.param.name)
         return plt.plot(x, y)
+
+
+class StepTomoScanner(Process):
+    def __init__(self, camera, rotary_stage,
+                 prepare_dark_scan,
+                 prepare_flat_scan,
+                 prepare_proj_scan):
+
+        params = [Parameter('exposure-time', unit=q.s),
+                  Parameter('angle', unit=q.deg)]
+
+        self.camera = camera
+        self.rotary_stage = rotary_stage
+        self.prepare_dark_scan = prepare_dark_scan
+        self.prepare_flat_scan = prepare_flat_scan
+        self.prepare_proj_scan = prepare_proj_scan
+        self.num_projections = 4
+
+        super(StepTomoScanner, self).__init__(params)
+
+    @async
+    def run(self):
+        self.camera.exposure_time = self.exposure_time
+
+        def take_frames(prepare_step, n_frames=2):
+            frames = []
+            prepare_step()
+            self.camera.start_recording()
+
+            for _ in xrange(n_frames):
+                frames.append(self.camera.grab())
+
+            self.camera.stop_recording()
+            return frames
+
+        darks = take_frames(self.prepare_dark_scan)
+        flats = take_frames(self.prepare_flat_scan)
+
+        projections = []
+        step = self.angle
+
+        self.prepare_proj_scan()
+        self.camera.start_recording()
+
+        for _ in xrange(self.num_projections):
+            self.rotary_stage.move(step)
+            projections.append(self.camera.grab())
+
+        self.camera.start_recording()
+        return darks, flats, projections
 
 
 def _pull_first(tuple_list):
