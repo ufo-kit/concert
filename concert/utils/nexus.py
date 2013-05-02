@@ -83,7 +83,7 @@ def get_tomo_scan_result(tomo_scanner, title='Tomo scan'):
     future = tomo_scanner.run()
     detector = tomo_scanner.camera
 
-    root = nx.NXdata(title=title)
+    root = nx.NXentry(title=title)
 
     n_projections = tomo_scanner.num_projections
     step = tomo_scanner.angle.magnitude
@@ -111,11 +111,18 @@ def get_tomo_scan_result(tomo_scanner, title='Tomo scan'):
     sample = nx.NXdetector(sequence_number=len(projections),
                            data=projections)
 
-    add_quantity(sample, 'x_pixel_size', detector.sensor_pixel_width)
-    add_quantity(sample, 'y_pixel_size', detector.sensor_pixel_height)
-
     root.instrument.dark_field = dark_field
     root.instrument.bright_field = bright_field
     root.instrument.sample = sample
+
+    add_quantity(sample, 'x_pixel_size', detector.sensor_pixel_width)
+    add_quantity(sample, 'y_pixel_size', detector.sensor_pixel_height)
+
+    counts = [np.sum(frame) for frame in darks]
+    counts.extend([np.sum(frame) for frame in flats])
+    counts.extend([np.sum(frame) for frame in projections])
+
+    control = nx.NXmonitor(integral=counts)
+    root.control = control
 
     return root
