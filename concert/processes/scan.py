@@ -120,8 +120,7 @@ class StepTomoScanner(Process):
                  prepare_flat_scan,
                  prepare_proj_scan):
 
-        params = [Parameter('exposure-time', unit=q.s),
-                  Parameter('angle', unit=q.deg)]
+        params = [Parameter('angle', unit=q.deg)]
 
         self.camera = camera
         self.rotary_stage = rotary_stage
@@ -134,8 +133,6 @@ class StepTomoScanner(Process):
 
     @async
     def run(self):
-        self.camera.exposure_time = self.exposure_time
-
         def take_frames(prepare_step, n_frames=2):
             frames = []
             prepare_step()
