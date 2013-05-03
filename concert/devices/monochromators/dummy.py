@@ -3,13 +3,14 @@ Created on Apr 11, 2013
 
 @author: farago
 '''
+import quantities as q
 from concert.devices.monochromators import base
 
 
 class Monochromator(base.Monochromator):
     def __init__(self, calibration):
         super(Monochromator, self).__init__(calibration)
-        self._energy = None
+        self._energy = 100 * q.keV
 
     def _get_energy(self):
         return self._energy

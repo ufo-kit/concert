@@ -9,20 +9,28 @@ sets. It uses NeXpy_ to interface with NeXus.
 import numpy as np
 from nexpy.api import nexus as nx
 from concert.base import Parameter
-from concert.devices import cameras
+from concert.devices import cameras, monochromators
 from concert.asynchronous import async
 
 
 def get_detector(camera):
     """Return an nx.NXdetector instance of *camera*."""
-    instrument = nx.NXdetector()
-    return instrument
+    return nx.NXdetector()
+
+
+def get_monochromator(monochromator):
+    """Return an nx.NXmonochromator instance of *monochromator*."""
+    return nx.NXmonochromator(energy=monochromator.energy,
+                              wavelength=monochromator.wavelength)
 
 
 def get_instrument(device):
     """Tries to return a corresponding nx.NXinstrument for *device* or
     *None*."""
-    type_map = {cameras.base.Camera: get_detector}
+    type_map = {
+        cameras.base.Camera: get_detector,
+        monochromators.base.Monochromator: get_monochromator
+    }
 
     for t, convert in type_map.items():
         if isinstance(device, t):

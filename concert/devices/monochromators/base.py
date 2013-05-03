@@ -40,7 +40,7 @@ class Monochromator(Device):
                             q.eV, doc="Monochromatic energy"),
                   Parameter("wavelength", self._get_wavelength,
                             self._set_wavelength,
-                            q.m, doc="Monochromatic wavelength")]
+                            q.nanometer, doc="Monochromatic wavelength")]
         super(Monochromator, self).__init__(params)
         self._calibration = calibration
 
