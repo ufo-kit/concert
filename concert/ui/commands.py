@@ -7,6 +7,7 @@ import sys
 import os
 import subprocess
 import logbook
+import traceback
 import concert
 from concert.base import (UnitError,
                           LimitError,
@@ -174,7 +175,7 @@ def start(session=None, logto='file', logfile=None):
     try:
         module = concert.session.load(session)
     except Exception as exception:
-        print("Error initializing Concert: {0}".format(exception))
+        traceback.print_exc()
         sys.exit(1)
 
     _run_shell(handler, module)
