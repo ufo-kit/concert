@@ -293,7 +293,7 @@ class Parameterizable(object):
                          str(self)])
 
     def __iter__(self):
-        for param in self._params.values():
+        for param in sorted(self._params.values()):
             yield param
 
     def __getitem__(self, param):
