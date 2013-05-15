@@ -1,6 +1,6 @@
 import os
 from concert import __version__
-from setuptools import setup
+from setuptools import setup, find_packages
 
 
 # Install Bash completion script only if installation is run as root
@@ -15,24 +15,7 @@ setup(
     version=__version__,
     author='Matthias Vogelgesang',
     author_email='matthias.vogelgesang@kit.edu',
-    packages=['concert',
-              'concert/connections',
-              'concert/devices',
-              'concert/devices/cameras',
-              'concert/devices/controllers',
-              'concert/devices/controllers/motion',
-              'concert/devices/io',
-              'concert/devices/motors',
-              'concert/devices/monochromators',
-              'concert/devices/storagerings',
-              'concert/devices/shutters',
-              'concert/feedbacks',
-              'concert/measures',
-              'concert/optimization',
-              'concert/processes',
-              'concert/ui',
-              'concert/utils',
-              ],
+    packages=find_packages(exclude=['*.tests']),
     scripts=['bin/concert'],
     data_files=data_files,
     exclude_package_data={'': ['README.rst']},
@@ -44,5 +27,10 @@ setup(
                       'logbook',
                       'futures',
                       'prettytable'],
-    test_suite='concert.tests'
+    tests_require=['nose',
+                   'testfixtures',
+                   'logbook',
+                   'quantities',
+                   'futures'],
+    test_suite='concert.tests',
 )

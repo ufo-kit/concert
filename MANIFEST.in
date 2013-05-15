@@ -1,2 +1,2 @@
 include README.rst
-include extras/completion/concert
+include extras/completion/concert.sh
