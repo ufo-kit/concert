@@ -11,19 +11,21 @@ from concurrent.futures import ThreadPoolExecutor, Future
 from functools import wraps
 
 
+# Patch futures so that they provide a wait() method
+def _wait(self, timeout=None):
+    self.result()
+    return self
+
+Future.wait = _wait
+
+# Module-wide executor
 executor = ThreadPoolExecutor(max_workers=10)
-
-
-def _patch_futures():
-    def _wait(self, timeout=None):
-        self.result()
-        return self
-    Future.wait = _wait
 
 
 def async(func):
     """A decorator for functions which are supposed to be executed
     asynchronously."""
+
     @wraps(func)
     def _async(*args, **kwargs):
         return executor.submit(func, *args, **kwargs)
