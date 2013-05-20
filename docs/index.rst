@@ -20,7 +20,7 @@ User documentation
     usage/sessions
     usage/control
     usage/processes
-
+    measures/measures
 
 Developer documentation
 =======================

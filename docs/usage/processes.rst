@@ -30,3 +30,9 @@ Data processing with Ufo
 
 .. automodule:: concert.processes.ufo
     :members:
+
+Rotation Axis Alignment
+=======================
+
+.. automodule:: concert.processes.tomoalignment
+    :members:

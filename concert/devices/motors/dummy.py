@@ -16,10 +16,13 @@ class DummyLimiter(object):
 
 class Motor(base.Motor):
     """Dummy Motor class implementation."""
-    def __init__(self, limiter=None, position=None):
-        super(Motor, self).__init__(LinearCalibration(1 / q.mm, 0 * q.mm),
-                                    limiter)
-        self._hard_limits = -100, 100
+    def __init__(self, calibration=LinearCalibration(1 / q.mm, 0 * q.mm),
+                 limiter=None, position=None, hard_limits=None):
+        super(Motor, self).__init__(calibration, limiter)
+        if hard_limits is None:
+            self._hard_limits = -100, 100
+        else:
+            self._hard_limits = hard_limits
         if not limiter:
             self._position = random.uniform(self._hard_limits[0],
                                             self._hard_limits[1])
