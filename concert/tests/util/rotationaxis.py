@@ -1,6 +1,7 @@
 import quantities as q
 import numpy as np
 from concert.asynchronous import dispatcher
+from concert.devices.cameras.base import Camera
 
 
 def rot_x(angle, matrix):
@@ -120,21 +121,23 @@ def get_projection(thickness, incident_intensity, sigma):
     return res.magnitude
 
 
-class ImageSource(object):
+class SimulationCamera(Camera):
     """A dummy image source providing images of a rotated sample. Rotation
     is based on virtual motors.
     """
     ITER = "iteration"
 
-    def __init__(self, im_width, x_param, z_param, num_images,
+    def __init__(self, im_width, x_param, y_param, z_param,
                  needle_radius=None, rotation_radius=None,
-                 y_position=None, scales=None):
+                 y_position=None, scales=None, i_0=1000.0):
         self.x_axis_param = x_param
+        self.y_axis_param = y_param
         self.z_axis_param = z_param
-        self.num_images = num_images
         self.size = im_width
+        self.i_0 = i_0
         self._center = None
-        if needle_radius is None:
+        self.radius = needle_radius
+        if self.radius is None:
             self.radius = self.size/8
 
         self.rotation_radius = rotation_radius if rotation_radius is not None\
@@ -146,12 +149,12 @@ class ImageSource(object):
         self.iteration = 0
 
     @property
-    def center(self):
-        """Ellipse center."""
+    def ellipse_center(self):
+        """Ellipse ellipse_center."""
         return self._center
 
-    def create_needle(self, y_angle):
-        """Create sample rotated *y_angle* about axis of rotation."""
+    def create_needle(self):
+        """Create sample rotated about axis of rotation."""
         matrix = np.identity(4, np.float)
 
         matrix = translate((0, self.y_position, 0), matrix)
@@ -161,15 +164,18 @@ class ImageSource(object):
 
         center = np.dot(np.linalg.inv(matrix),
                         (0, self.size/8/self.scale[1], 0, 1))+self.size/2
-        # Ellipse center.
+        # Ellipse ellipse_center.
         self._center = center[1], center[0]
 
-        matrix = rot_y(y_angle, matrix)
+        matrix = rot_y(self.y_axis_param.get().result(), matrix)
         matrix = translate((self.rotation_radius, 0, 0), matrix)
 
         matrix = scale(self.scale, matrix)
 
         return sphere(self.size, self.radius, matrix)
+
+    def _grab_real(self):
+        return get_projection(self.create_needle(), self.i_0, self.size)
 
     def get_images(self):
         """Get images of the scene with current motor positions."""

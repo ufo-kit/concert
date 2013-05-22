@@ -7,34 +7,51 @@ import quantities as q
 import numpy as np
 import unittest
 from concert.measures.rotationaxis import Ellipse
-from concert.tests.util.rotationaxis import ImageSource
+from concert.tests.util.rotationaxis import SimulationCamera
 from concert.devices.motors.base import LinearCalibration
 from concert.devices.motors.dummy import Motor
 from concert.tests import slow
+from concert.processes.scan import Scanner
+import logbook
 
 
 class TestRotationAxisMeasure(unittest.TestCase):
     def setUp(self):
-        self.z_motor = Motor(LinearCalibration(1 / q.deg, 0 * q.deg),
-                             hard_limits=(-1e5, 1e5))
-        self.z_motor["position"].unit = q.deg
         self.x_motor = Motor(LinearCalibration(1 / q.deg, 0 * q.deg),
                              hard_limits=(-1e5, 1e5))
         self.x_motor["position"].unit = q.deg
+        self.y_motor = Motor(LinearCalibration(1 / q.deg, 0 * q.deg),
+                             hard_limits=(-1e5, 1e5))
+        self.y_motor["position"].unit = q.deg
+        self.z_motor = Motor(LinearCalibration(1 / q.deg, 0 * q.deg),
+                             hard_limits=(-1e5, 1e5))
+        self.z_motor["position"].unit = q.deg
 
         # The bigger the image size, the more images we need to determine
-        # the center correctly.
-        self.image_source = ImageSource(256, self.x_motor["position"],
-                                        self.z_motor["position"], 50)
+        # the ellipse_center correctly.
+        self.image_source = SimulationCamera(256, self.x_motor["position"],
+                                             self.y_motor["position"],
+                                             self.z_motor["position"])
+
+        # A scanner which scans the rotation axis.
+        self.scanner = Scanner(
+            self.y_motor["position"], self.image_source.grab)
+        self.scanner.minimum = 0*q.rad
+        self.scanner.maximum = 2*np.pi*q.rad
+        self.scanner.intervals = 50
+
         self.measure = Ellipse()
 
         # Allow 1 px misalignment in y-direction.
         self.eps = np.arctan(2.0/self.image_source.rotation_radius)*q.rad
 
+        self.handler = logbook.TestHandler()
+        self.handler.push_application()
+
     def make_images(self, x_angle, z_angle):
         self.x_motor.position = z_angle
         self.z_motor.position = x_angle
-        self.measure.images = self.image_source.get_images()
+        self.measure.images = self.scanner.run().result()[1]
 
     def align_check(self, x_angle, z_angle):
         self.make_images(x_angle, z_angle)
@@ -44,8 +61,10 @@ class TestRotationAxisMeasure(unittest.TestCase):
         assert np.abs(psi) - np.abs(z_angle) < self.eps
 
     def center_check(self):
-        assert np.abs(self.measure.center[1] - self.image_source.center[1]) < 1
-        assert np.abs(self.measure.center[0] - self.image_source.center[0]) < 1
+        assert np.abs(self.measure.ellipse_center[1] -
+                      self.image_source.ellipse_center[1]) < 1
+        assert np.abs(self.measure.ellipse_center[0] -
+                      self.image_source.ellipse_center[0]) < 1
 
     @slow
     def test_center_no_rotation(self):

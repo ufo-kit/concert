@@ -97,11 +97,11 @@ class Scanner(Process):
         whereas *y* contains the values evaluated by :attr:`feedback`.
         """
         xs = np.linspace(self.minimum, self.maximum, self.intervals)
-        ys = np.zeros(xs.shape)
+        ys = []
 
-        for i, x in enumerate(xs):
+        for x in xs:
             self.param.set(convert(x)).wait()
-            ys[i] = self.feedback()
+            ys.append(self.feedback())
 
         return (xs, ys)
 

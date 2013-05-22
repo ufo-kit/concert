@@ -9,30 +9,46 @@ from concert.tests import slow
 from threading import Event
 from concert.processes.tomoalignment import Aligner
 from concert.measures.rotationaxis import Ellipse
-from concert.tests.util.rotationaxis import ImageSource
+from concert.tests.util.rotationaxis import SimulationCamera
+from concert.processes.scan import Scanner
+import logbook
 
 
 class TestDummyAlignment(unittest.TestCase):
     def setUp(self):
-        self.z_motor = Motor(LinearCalibration(1 / q.deg, 0 * q.deg),
-                             hard_limits=(-1e5, 1e5))
-        self.z_motor["position"].unit = q.deg
         self.x_motor = Motor(LinearCalibration(1 / q.deg, 0 * q.deg),
                              hard_limits=(-1e5, 1e5))
         self.x_motor["position"].unit = q.deg
+        self.y_motor = Motor(LinearCalibration(1 / q.deg, 0 * q.deg),
+                             hard_limits=(-1e5, 1e5))
+        self.y_motor["position"].unit = q.deg
+        self.z_motor = Motor(LinearCalibration(1 / q.deg, 0 * q.deg),
+                             hard_limits=(-1e5, 1e5))
+        self.z_motor["position"].unit = q.deg
 
         self.x_motor.position = 0*q.deg
         self.z_motor.position = 0*q.deg
 
-        self.image_source = ImageSource(256, self.x_motor["position"],
-                                        self.z_motor["position"], 10)
-        dispatcher.subscribe(self.image_source, self.image_source.ITER,
+        self.image_source = SimulationCamera(256, self.x_motor["position"],
+                                             self.y_motor["position"],
+                                             self.z_motor["position"])
+
+        # A scanner which scans the rotation axis.
+        self.scanner = Scanner(self.y_motor["position"],
+                               self.image_source.grab)
+        self.scanner.minimum = 0*q.rad
+        self.scanner.maximum = 2*np.pi*q.rad
+        self.scanner.intervals = 10
+
+        dispatcher.subscribe(self.y_motor["position"],
+                             self.y_motor["position"].CHANGED,
                              self.iteration_listener)
-        self.aligner = Aligner(Ellipse(), self.image_source,
+        self.aligner = Aligner(Ellipse(), self.scanner,
                                self.x_motor, self.z_motor)
         dispatcher.subscribe(self.aligner, self.aligner.AXIS_ALIGNED,
                              self.alignment_listener)
 
+        self.iteration = 0
         self.max_iterations = 10
 
         # Alignment finishes after the aligner finishes or it iterates
@@ -42,20 +58,30 @@ class TestDummyAlignment(unittest.TestCase):
         # Allow 1 px misalignment in y-direction.
         self.eps = np.arctan(2.0/self.image_source.rotation_radius)*q.rad
 
+        self.handler = logbook.TestHandler()
+        self.handler.push_application()
+
     def iteration_listener(self, sender):
-        if self.image_source.iteration == self.max_iterations:
+        self.iteration += 1
+
+        if self.iteration/self.scanner.intervals == \
+                self.max_iterations:
             self.alignment_finished.set()
 
     def alignment_listener(self, aligner):
         self.alignment_finished.set()
 
     def check_alignment(self):
+        """Wait either for aligner to finish or for maximum iterations number
+        reached.
+        """
         self.alignment_finished.wait()
 
         self.assertGreater(self.max_iterations, self.image_source.iteration,
                            "Maximum iterations exceeded.")
 
     def align_check(self, x_angle, z_angle, has_z_motor=True):
+        """"Align and check th eresults."""
         self.x_motor.position = z_angle
         self.z_motor.position = x_angle
 
@@ -70,15 +96,15 @@ class TestDummyAlignment(unittest.TestCase):
         if has_z_motor:
             assert np.abs(self.z_motor.position) < self.eps
 
+    @slow
     def test_out_of_fov(self):
-        class DummySource(object):
-            def get_images(self):
-                return np.ones((10, 256, 256))
+        def get_ones():
+            return np.ones((self.image_source.size,
+                            self.image_source.size))
 
-        self.aligner = Aligner(
-            Ellipse(), DummySource(), self.x_motor, self.z_motor)
+        self.scanner.feedback = get_ones
         with ShouldRaise(ValueError("No sample tip points found.")):
-            self.aligner.run().wait()
+            self.aligner.run()
 
     @slow
     def test_not_offcentered(self):

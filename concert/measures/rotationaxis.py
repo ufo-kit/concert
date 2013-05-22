@@ -1,6 +1,6 @@
 """
 The module determines a 3D circle normal inclination angles towards the
-:math:`y`-axis (0,1,0) and the center of the circle.
+:math:`y`-axis (0,1,0) and the ellipse_center of the circle.
 
 **Algorithm**
 
@@ -63,7 +63,7 @@ class Ellipse(object):
         self._phi = None
         # ZY angle.
         self._psi = None
-        # Ellipse center.
+        # Ellipse ellipse_center.
         self._center = None
         # Ellipse parameters.
         self._params = None
@@ -93,8 +93,8 @@ class Ellipse(object):
         self._images = images
 
     @property
-    def center(self):
-        """Ellipse center (y, x)."""
+    def ellipse_center(self):
+        """Ellipse ellipse_center (y, x)."""
         if self._center is None:
             self._determine_center()
 
@@ -142,7 +142,7 @@ class Ellipse(object):
                 raise ValueError("No sample tip points found.")
 
     def _determine_center(self):
-        """Determine the center of the ellipse from its parameters."""
+        """Determine the ellipse_center of the ellipse from its parameters."""
         if self._params is None:
             self._fit_ellipse()
 
@@ -156,6 +156,7 @@ class Ellipse(object):
                      2*self._params[0]*self._params[4]) /\
                 (4*self._params[0]*self._params[2] - self._params[1]**2)
         else:
+            # We are not dealing with an ellipse, use ellipse_center of mass.
             y_pos, x_pos = center_of_mass(self._tips)
 
         self._center = y_pos, x_pos
@@ -283,7 +284,7 @@ def _get_intersection_points(image):
 def _get_axis_intersection(p_1, p_2, shape):
     """Get intersections of a vector perpendicular to a vector defined by
     *p_1* and *p_2* and image edges defined by image *shape*."""
-    # First check if the center lies on an edge
+    # First check if the ellipse_center lies on an edge
     if p_1[0] == p_2[0]:
         return [(p_1[0], (p_1[1] + p_2[1])/2)]
     elif p_1[1] == p_2[1]:
@@ -436,7 +437,7 @@ def _get_regions(image):
 
 
 def center_of_mass(points):
-    """Find the center of mass from a set of *points*."""
+    """Find the ellipse_center of mass from a set of *points*."""
     y_ind, x_ind = zip(*points)
 
     c_y = float(np.sum(y_ind))/len(points)
