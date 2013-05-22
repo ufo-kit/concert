@@ -1,8 +1,3 @@
-'''
-Created on Apr 4, 2013
-
-@author: farago
-'''
 import unittest
 import time
 import random

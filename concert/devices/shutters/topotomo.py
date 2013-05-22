@@ -1,8 +1,3 @@
-'''
-Created on Apr 12, 2013
-
-@author: farago
-'''
 from concert.devices.shutters import base
 from concert.connections.tango import TopoTomo
 import time

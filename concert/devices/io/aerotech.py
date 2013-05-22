@@ -1,8 +1,3 @@
-'''
-Created on Apr 23, 2013
-
-@author: farago
-'''
 from concert.devices.io import base
 from concert.devices.io.base import Port
 

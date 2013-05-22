@@ -1,8 +1,3 @@
-'''
-Created on Apr 21, 2013
-
-@author: farago
-'''
 from concert.devices.base import Device
 from concert.base import Parameter
 

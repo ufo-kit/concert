@@ -1,8 +1,3 @@
-'''
-Created on Apr 11, 2013
-
-@author: farago
-'''
 import quantities as q
 from concert.devices.monochromators import base
 

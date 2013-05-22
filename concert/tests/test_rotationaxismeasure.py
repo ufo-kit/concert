@@ -1,11 +1,7 @@
-'''
-Created on May 20, 2013
-
-@author: farago
-'''
 import quantities as q
 import numpy as np
 import unittest
+from testfixtures import ShouldRaise
 from concert.measures.rotationaxis import Ellipse
 from concert.tests.util.rotationaxis import SimulationCamera
 from concert.devices.motors.base import LinearCalibration
@@ -67,6 +63,14 @@ class TestRotationAxisMeasure(unittest.TestCase):
                       self.image_source.ellipse_center[0]) < 1
 
     @slow
+    def test_out_of_fov(self):
+        with ShouldRaise(ValueError("No sample tip points found.")):
+            self.measure.images = np.ones((self.scanner.intervals,
+                                           self.image_source.size,
+                                           self.image_source.size))
+            self.measure()
+
+    @slow
     def test_center_no_rotation(self):
         self.make_images(0*q.deg, 0*q.deg)
         self.center_check()
@@ -124,10 +128,6 @@ class TestRotationAxisMeasure(unittest.TestCase):
     @slow
     def test_positive(self):
         self.align_check(17*q.deg, 11*q.deg)
-
-    @slow
-    def test_z_ambiguity(self):
-        self.align_check(17*q.deg, -11*q.deg)
 
     @slow
     def test_negative_positive(self):

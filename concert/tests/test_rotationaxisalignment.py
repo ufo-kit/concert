@@ -104,7 +104,7 @@ class TestDummyAlignment(unittest.TestCase):
 
         self.scanner.feedback = get_ones
         with ShouldRaise(ValueError("No sample tip points found.")):
-            self.aligner.run()
+            self.aligner.run().wait()
 
     @slow
     def test_not_offcentered(self):
@@ -146,10 +146,6 @@ class TestDummyAlignment(unittest.TestCase):
     @slow
     def test_positive(self):
         self.align_check(17*q.deg, 11*q.deg)
-
-    @slow
-    def test_z_ambiguity(self):
-        self.align_check(17*q.deg, -11*q.deg)
 
     @slow
     def test_negative_positive(self):

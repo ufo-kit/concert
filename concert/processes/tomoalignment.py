@@ -13,7 +13,7 @@ The procedure consists of the following steps:
 
 The mentioned steps are repeated until a certain minimum threshold is reached.
 """
-from concert.asynchronous import dispatcher, wait
+from concert.asynchronous import dispatcher, wait, async
 import numpy as np
 import quantities as q
 from concert.processes.base import Process
@@ -37,7 +37,7 @@ class Aligner(Process):
         self.x_motor = x_motor
         self.z_motor = z_motor
 
-#    @async
+    @async
     def run(self, absolute_eps=0.1*q.deg):
         """
         run(absolute_eps=0.1*quantities.deg)

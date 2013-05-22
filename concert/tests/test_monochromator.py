@@ -1,8 +1,3 @@
-'''
-Created on Apr 11, 2013
-
-@author: farago
-'''
 import unittest
 import logbook
 from testfixtures import ShouldRaise

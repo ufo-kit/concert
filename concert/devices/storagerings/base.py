@@ -1,8 +1,3 @@
-'''
-Created on Mar 5, 2013
-
-@author: farago
-'''
 import quantities as q
 from concert.base import Parameter
 from concert.devices.base import Device

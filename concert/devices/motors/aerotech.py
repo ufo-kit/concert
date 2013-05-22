@@ -1,8 +1,3 @@
-'''
-Created on Apr 10, 2013
-
-@author: farago
-'''
 from concert.devices.motors.base import ContinuousMotor, LinearCalibration,\
     Motor
 import quantities as q

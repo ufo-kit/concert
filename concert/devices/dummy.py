@@ -1,8 +1,3 @@
-'''
-Created on Mar 14, 2013
-
-@author: farago
-'''
 import random
 import time
 from concert.base import Parameter
