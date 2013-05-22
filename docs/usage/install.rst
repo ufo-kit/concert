@@ -2,23 +2,28 @@
 Installation
 ============
 
-It is recommended to use pip for installing Concert. Once, a release tarball was
-downloaded it can be installed system-wide with::
+It is recommended to use pip_ for installing Concert. The fastest way to install
+it is from PyPI::
+
+    $ sudo pip install concert
+
+This will install the latest stable version. If you prefer an earlier stable
+version, you can fetch a tarball and install with::
 
     $ sudo pip install concert-x.y.z.tar.gz
 
 If you haven't have pip_ available, you can extract the tarball and install using
-this method::
+the supplied ``setup.py`` script::
 
     $ tar xfz concert-x.y.z.tar.gz
     $ cd concert-x.y.z
     $ sudo python setup.py install
 
-To get the latest source follow the instructions given in the :ref:`developer
-documentation <get-the-code>`.
-
 More information on installing Concert using the ``setup.py`` script, can be
 found in the official `Python documentation`__.
+
+To install the Concert from the current source, follow the instructions given in
+the :ref:`developer documentation <get-the-code>`.
 
 __ http://docs.python.org/2/install/index.html
 
