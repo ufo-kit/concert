@@ -1,11 +1,10 @@
-"""This module provides GUI widgets."""
 import Queue
 import Tkinter as tk
 from concert.asynchronous import dispatcher
 
 
 class DeviceWidget(tk.Toplevel):
-    """Wrap a device in a top level widget.
+    """Wrap a device in a top level Tk widget.
 
     *device* must be an object derived from :class:`.Device`. *timeout*
     specifies how much time in milliseconds passes between to parameter
