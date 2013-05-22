@@ -15,6 +15,7 @@ setup(
     version=__version__,
     author='Matthias Vogelgesang',
     author_email='matthias.vogelgesang@kit.edu',
+    url='http://github.com/ufo-kit/concert',
     license='LGPL',
     packages=find_packages(exclude=['*.tests']),
     scripts=['bin/concert'],
