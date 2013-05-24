@@ -176,17 +176,3 @@ class SimulationCamera(Camera):
 
     def _grab_real(self):
         return get_projection(self.create_needle(), self.i_0, self.size)
-
-    def get_images(self):
-        """Get images of the scene with current motor positions."""
-        angles = np.linspace(0, 2*np.pi*q.rad, self.num_images)
-        images = []
-
-        for i in range(self.num_images):
-            thickness = self.create_needle(angles[i])
-            images.append(get_projection(thickness, 1000.0, self.size))
-
-        self.iteration += 1
-        dispatcher.send(self, self.ITER)
-
-        return images
