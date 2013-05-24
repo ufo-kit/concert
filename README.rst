@@ -1,3 +1,6 @@
+About
+=====
+
 Concert is a light-weight control system interface to control Tango and native
 devices. It can be used as a library::
 
@@ -27,3 +30,11 @@ or from a session and within an integrated `IPython`_ shell::
     ------------------------------------
 
 .. _Ipython: http://ipython.org
+
+
+Installation
+------------
+
+Install the latest stable version from PyPI with ``pip``::
+
+    sudo pip install concert
