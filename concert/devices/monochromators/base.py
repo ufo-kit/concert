@@ -49,7 +49,7 @@ class Monochromator(Device):
         # conversions if necessary.
         if self.__class__._get_energy != Monochromator._get_energy:
             return self._get_energy()
-        elif self.__class__._get_wavelength != Monochromator._get_energy:
+        elif self.__class__._get_wavelength != Monochromator._get_wavelength:
             return wavelength_to_energy(self._get_wavelength())
         else:
             raise NotImplementedError
@@ -65,7 +65,7 @@ class Monochromator(Device):
     def _get_wavelength(self):
         if self.__class__._get_energy != Monochromator._get_energy:
             return energy_to_wavelength(self._get_energy())
-        elif self.__class__._get_wavelength != Monochromator._get_energy:
+        elif self.__class__._get_wavelength != Monochromator._get_wavelength:
             return self._get_wavelength()
         else:
             raise NotImplementedError
