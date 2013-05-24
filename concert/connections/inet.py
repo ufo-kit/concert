@@ -46,7 +46,7 @@ class Aerotech(Connection):
             log.debug("Interpreted response {0}.".format(res))
             return res
         if (hle_response[0] == Aerotech.NAK_CHAR):
-            print hle_response
+            log.warn(hle_response)
             raise ValueError("Invalid command or parameter")
         if (hle_response[0] == Aerotech.FAULT_CHAR):
             raise RuntimeError("Controller task error.")

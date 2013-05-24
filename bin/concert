@@ -23,7 +23,7 @@ if __name__ == '__main__':
     subparsers = parser.add_subparsers(title="Concert commands",
                                        metavar="")
 
-    for cmd_name, cmd_args in command.ARGUMENTS.iteritems():
+    for cmd_name, cmd_args in command.ARGUMENTS.items():
         func = getattr(command, cmd_name)
         summary = _get_docstring_summary(func.__doc__)
 

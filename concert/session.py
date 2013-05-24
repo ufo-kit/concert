@@ -74,7 +74,7 @@ def dstate():
         values = _get_param_value_table(device)
         table.add_row([name, values])
 
-    print table.get_string()
+    print(table.get_string())
 
 
 def ddoc():
@@ -86,7 +86,7 @@ def ddoc():
         doc = _get_param_description_table(device)
         table.add_row([name, inspect.getdoc(device), doc])
 
-    print table.get_string()
+    print(table.get_string())
 
 
 def pdoc():
@@ -97,7 +97,7 @@ def pdoc():
     for name, process in _current_instances(Process):
         table.add_row([name, inspect.getdoc(process)])
 
-    print table.get_string()
+    print(table.get_string())
 
 
 def path(session):

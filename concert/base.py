@@ -172,6 +172,9 @@ class Parameter(object):
         self._value = None
         self.__doc__ = doc
 
+    def __lt__(self, other):
+        return str(self) <= str(other)
+
     @async
     def get(self):
         """
