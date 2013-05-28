@@ -19,7 +19,7 @@ def _wait(self, timeout=None):
 Future.wait = _wait
 
 # Module-wide executor
-executor = ThreadPoolExecutor(max_workers=10)
+executor = ThreadPoolExecutor(max_workers=128)
 
 
 def async(func):

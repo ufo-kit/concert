@@ -18,7 +18,6 @@ class DummyDevice(Device):
 
     def _set_value(self, value):
         """The real value setter."""
-        time.sleep(random.random())
         self._value = value
 
     @async
