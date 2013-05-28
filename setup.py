@@ -30,7 +30,7 @@ setup(
                       'prettytable >= 0.7.2',
                       'pyxdg >= 0.20',
                       'quantities >= 0.10.1',
-                      'scipy >= 0.7.0'],
+                      'scipy >= 0.9.0'],
     tests_require=['nose>=1.2.1',
                    'testfixtures>=3.0.0'],
     test_suite='concert.tests',
