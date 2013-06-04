@@ -2,11 +2,7 @@
 Concert
 =======
 
-About
-=====
-
 .. include:: ../README.rst
-
 
 
 User documentation
