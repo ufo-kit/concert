@@ -1,3 +1,4 @@
+"""Motor Dummy."""
 import random
 import time
 from concert.devices.motors import base
@@ -6,6 +7,7 @@ import quantities as q
 
 
 class DummyLimiter(object):
+    """Dummy Limiter class implementation."""
     def __init__(self, low, high):
         self.low = low
         self.high = high

@@ -5,12 +5,12 @@ import time
 import logbook
 from concert.devices.motors import base
 
-log = logbook.Logger(__name__)
+LOG = logbook.Logger(__name__)
 
 try:
     import PyTango
 except ImportError:
-    log.warn("PyTango is not installed.")
+    LOG.warn("PyTango is not installed.")
 
 
 SLEEP_TIME = 0.01
@@ -21,7 +21,7 @@ SLOW_SLEEP_TIME = 1.0
 
 class Motor(base.Motor):
     """A motor based on ANKA Tango motor interface."""
-    def __init__(self, device, calibration, position_limit=None):
+    def __init__(self, device, calibration, _position_limit=None):
         super(Motor, self).__init__(calibration)
         self._device = device
 

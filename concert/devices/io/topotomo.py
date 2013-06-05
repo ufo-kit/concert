@@ -1,3 +1,4 @@
+"""Tomo Table"""
 from concert.devices.io.base import IO, Port
 from concert.connections.tango import TopoTomo
 

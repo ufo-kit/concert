@@ -97,6 +97,7 @@ class UfoProcess(Process):
     def run(self):
         """Execute the graph."""
         def target():
+            """Configure and run."""
             from gi.repository import Ufo
 
             if self._config:
