@@ -1,4 +1,5 @@
-from concert.devices.motors.base import ContinuousMotor, LinearCalibration,\
+"""Aerotech"""
+from concert.devices.motors.base import ContinuousMotor, LinearCalibration, \
     Motor
 import quantities as q
 import time
@@ -6,6 +7,7 @@ from concert.connections.inet import Aerotech
 
 
 class Aerorot(ContinuousMotor):
+    """Aerorot (Continuous Motor) class implementation."""
     HOST = "192.168.18.19"
     PORT = 8001
     AXIS = "X"

@@ -12,14 +12,14 @@ from functools import wraps
 
 
 # Patch futures so that they provide a wait() method
-def _wait(self, timeout=None):
+def _wait(self, _timeout=None):
     self.result()
     return self
 
 Future.wait = _wait
 
 # Module-wide executor
-executor = ThreadPoolExecutor(max_workers=128)
+EXECUTOR = ThreadPoolExecutor(max_workers=128)
 
 
 def async(func):
@@ -28,7 +28,7 @@ def async(func):
 
     @wraps(func)
     def _async(*args, **kwargs):
-        return executor.submit(func, *args, **kwargs)
+        return EXECUTOR.submit(func, *args, **kwargs)
 
     _async.__dict__["_async"] = True
 
@@ -67,17 +67,17 @@ class Dispatcher(object):
         only argument.
 
         """
-        t = sender, message
-        if t in self._subscribers:
-            self._subscribers[t].add(handler)
+        tsm = sender, message
+        if tsm in self._subscribers:
+            self._subscribers[tsm].add(handler)
         else:
-            self._subscribers[t] = set([handler])
+            self._subscribers[tsm] = set([handler])
 
     def unsubscribe(self, sender, message, handler):
         """Remove *handler* from the subscribers to *(sender, message)*."""
-        t = sender, message
-        if t in self._subscribers:
-            self._subscribers[t].remove(handler)
+        tsm = sender, message
+        if tsm in self._subscribers:
+            self._subscribers[tsm].remove(handler)
 
     def send(self, sender, message):
         """Send message from sender."""
@@ -85,15 +85,15 @@ class Dispatcher(object):
 
     def _serve(self):
         while True:
-            t = self._messages.get()
-            sender, message = t
+            tsm = self._messages.get()
+            sender, message = tsm
 
-            if t in self._subscribers:
-                for callback in self._subscribers[t]:
+            if tsm in self._subscribers:
+                for callback in self._subscribers[tsm]:
                     callback(sender)
 
-            if t in self._event_queues:
-                self._event_queues[t].notify_and_clear()
+            if tsm in self._event_queues:
+                self._event_queues[tsm].notify_and_clear()
 
             self._messages.task_done()
 

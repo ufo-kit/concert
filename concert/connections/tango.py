@@ -1,3 +1,4 @@
+"""Tango Device Factory."""
 import os
 import PyTango
 
@@ -9,6 +10,7 @@ class DeviceFactory(object):
         self._port = port
 
     def get_device(self, uri):
+        """Get Device."""
         # We need to do this all the time for case it was changed by
         # another factory settings.
         # TODO: check if there is a way to adjust the host in PyTango.

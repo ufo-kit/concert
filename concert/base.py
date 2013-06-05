@@ -48,7 +48,7 @@ from concert.ui import get_default_table
 from concert.asynchronous import async
 
 
-log = Logger(__name__)
+LOG = Logger(__name__)
 
 
 class UnitError(ValueError):
@@ -76,7 +76,7 @@ class ParameterError(Exception):
 class ReadAccessError(Exception):
     """Raised when user tries to change a parameter that cannot be written."""
     def __init__(self, parameter):
-        log.warn("Invalid read access on {0}".format(parameter))
+        LOG.warn("Invalid read access on {0}".format(parameter))
         msg = "parameter `{0}' cannot be read".format(parameter)
         super(ReadAccessError, self).__init__(msg)
 
@@ -84,7 +84,7 @@ class ReadAccessError(Exception):
 class WriteAccessError(Exception):
     """Raised when user tries to read a parameter that cannot be read."""
     def __init__(self, parameter):
-        log.warn("Invalid write access on {0}".format(parameter))
+        LOG.warn("Invalid write access on {0}".format(parameter))
         msg = "parameter `{0}' cannot be written".format(parameter)
         super(WriteAccessError, self).__init__(msg)
 
@@ -219,9 +219,10 @@ class Parameter(object):
             raise LimitError(msg.format(value, self.name))
 
         def log_access(what):
+            """Log access."""
             msg = "{0}: {1} {2}='{3}'"
             name = self.owner.__class__.__name__
-            log.info(msg.format(name, what, self.name, value))
+            LOG.info(msg.format(name, what, self.name, value))
 
         log_access('try')
 

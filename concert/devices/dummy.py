@@ -1,3 +1,4 @@
+"""Dummy"""
 import random
 import time
 from concert.base import Parameter
@@ -22,4 +23,5 @@ class DummyDevice(Device):
 
     @async
     def do_nothing(self):
+        """Do nothing."""
         pass

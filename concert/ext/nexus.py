@@ -13,7 +13,7 @@ from concert.devices import cameras, monochromators
 from concert.asynchronous import async
 
 
-def get_detector(camera):
+def get_detector(_camera):
     """Return an nx.NXdetector instance of *camera*."""
     return nx.NXdetector()
 
@@ -32,8 +32,8 @@ def get_instrument(device):
         monochromators.base.Monochromator: get_monochromator
     }
 
-    for t, convert in type_map.items():
-        if isinstance(device, t):
+    for tval, convert in type_map.items():
+        if isinstance(device, tval):
             return convert(device)
 
     return None

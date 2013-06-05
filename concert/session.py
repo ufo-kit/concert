@@ -105,7 +105,7 @@ def path(session):
     return os.path.join(PATH, session + '.py')
 
 
-def create(session, imports=[]):
+def create(session, imports=()):
     """Create a template with *session* name and write it.
 
     For each name in *imports* try to load it and insert `from

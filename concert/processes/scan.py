@@ -96,25 +96,26 @@ class Scanner(Process):
         *x* contains the values that :attr:`param` has taken during the scan
         whereas *y* contains the values evaluated by :attr:`feedback`.
         """
-        xs = np.linspace(self.minimum, self.maximum, self.intervals)
-        ys = []
+        xss = np.linspace(self.minimum, self.maximum, self.intervals)
+        yss = []
 
-        for x in xs:
-            self.param.set(convert(x)).wait()
-            ys.append(self.feedback())
+        for xval in xss:
+            self.param.set(convert(xval)).wait()
+            yss.append(self.feedback())
 
-        return (xs, ys)
+        return (xss, yss)
 
     def show(self):
         """Call :meth:`run`, show the result of the scan with Matplotlib and
         return the plot object."""
         import matplotlib.pyplot as plt
-        x, y = self.run().result()
+        xval, yval = self.run().result()
         plt.xlabel(self.param.name)
-        return plt.plot(x, y)
+        return plt.plot(xval, yval)
 
 
 class StepTomoScanner(Process):
+    """Tomo Scan Process."""
     def __init__(self, camera, rotary_stage,
                  prepare_dark_scan,
                  prepare_flat_scan,
@@ -134,6 +135,7 @@ class StepTomoScanner(Process):
     @async
     def run(self):
         def take_frames(prepare_step, n_frames=2):
+            """Take frames."""
             frames = []
             prepare_step()
             self.camera.start_recording()

@@ -21,7 +21,7 @@ from logbook import Logger
 from concert.base import Parameterizable, Parameter
 
 
-log = Logger(__name__)
+LOG = Logger(__name__)
 
 
 class Device(Parameterizable):
@@ -68,4 +68,4 @@ class Device(Parameterizable):
             self._state = state
             self['state'].notify()
         else:
-            log.warn("State {0} unknown.".format(state))
+            LOG.warn("State {0} unknown.".format(state))

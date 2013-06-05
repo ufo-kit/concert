@@ -8,6 +8,7 @@ import threading
 
 
 class DummyRing(StorageRing):
+    """Create a Dummy Ring."""
     def __init__(self):
         super(DummyRing, self).__init__()
         self._lifetime = 10 * q.hour
@@ -17,6 +18,7 @@ class DummyRing(StorageRing):
         self._energy_decay = 0.05 * q.MeV / q.hour
 
         def update():
+            """Test updates."""
             while True:
                 # Yay, we invented a time machine \o/
                 self._lifetime += 1 * q.hour

@@ -1,3 +1,4 @@
+"""Prettytable"""
 import prettytable
 
 

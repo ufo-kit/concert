@@ -1,9 +1,11 @@
+"""Topotomo"""
 from concert.devices.shutters import base
 from concert.connections.tango import TopoTomo
 import time
 
 
 class Shutter(base.Shutter):
+    """Shutter class implementation."""
     def __init__(self, index):
         if index < 0 or index > 2:
             raise ValueError("Index must be in range [0-2].")
@@ -14,6 +16,7 @@ class Shutter(base.Shutter):
 
     @property
     def index(self):
+        """Return Index."""
         return self._index
 
     def _open(self):

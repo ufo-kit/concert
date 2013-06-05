@@ -1,3 +1,4 @@
+"""Dummy IO"""
 from concert.devices.io import base
 from concert.devices.io.base import Port
 
