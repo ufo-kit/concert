@@ -8,11 +8,9 @@ no-docstring-rgx=_[A_Za-z][A-Za-z0-9_]{2,30}$
 
 [MESSAGES CONTROL]
 
-# Disable warnings "magic *, **"
-disable=W0142
-
-# Disable warnings "Anomalous backslash in string"
-disable=W1401
+# W0142: Disable warnings "magic *, **"
+# W1401: Disable warnings "Anomalous backslash in string"
+disable=W0142, W1401
 
 [TYPECHECK]
 # Technically quantities is not a class, but oh well ...
