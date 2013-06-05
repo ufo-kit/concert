@@ -193,7 +193,7 @@ def _run_shell(handler, module=None):
 
     try:
         from IPython.frontend.terminal.embed import InteractiveShellEmbed
-        import quantities as _q
+        import quantities as q
 
         print("Welcome to Concert {0}".format(concert.__version__))
 
