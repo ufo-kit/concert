@@ -29,7 +29,7 @@ ARGUMENTS = {
               '--logto': {'choices': ['stderr', 'file'],
                           'default': 'file'},
               '--logfile': {'type': str}},
-    'rmv': {'sessions': {'type': str,
+    'rm': {'sessions': {'type': str,
                         'nargs': '+',
                         'metavar': 'session'}},
     'show': {'session': {'type': str,
@@ -97,7 +97,7 @@ def log(session=None):
     subprocess.call(cmd, shell=True)
 
 
-def rmv(sessions=[]):
+def rm(sessions=[]):
     """Remove one or more sessions.
 
     .. note::
@@ -174,7 +174,7 @@ def start(session=None, logto='file', logfile=None):
     sys.path.append(concert.session.PATH)
     try:
         module = concert.session.load(session)
-    except Exception as exception:
+    except Exception as _exception:
         traceback.print_exc()
         sys.exit(1)
 
@@ -187,13 +187,13 @@ def _get_module_variables(module):
 
 
 def _run_shell(handler, module=None):
-    def _handler(shell, _etype, evalue, traceback, _tb_offset=None):
+    def _handler(_shell, _etype, evalue, _traceback_, _tb_offset=None):
         print("Sorry, {0}".format(str(evalue)))
         return None
 
     try:
         from IPython.frontend.terminal.embed import InteractiveShellEmbed
-        import quantities as q
+        import quantities as _q
 
         print("Welcome to Concert {0}".format(concert.__version__))
 

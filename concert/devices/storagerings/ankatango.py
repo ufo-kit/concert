@@ -1,15 +1,15 @@
 """
 ANKA storage ring access via TANGO.
 """
-from concert.devices.storagerings.base import StorageRing
+from concert.devices.storagerings.base import StorageRing as BaseStorageRing
 import quantities as q
 from concert.connections.tango import TopoTomo
 
 
-class AStorageRing(StorageRing):
+class StorageRing(BaseStorageRing):
     """Storage Ring class implementation."""
     def __init__(self):
-        super(AStorageRing, self).__init__()
+        super(StorageRing, self).__init__()
         # TODO: find non-beam line specific storage ring device
         self._device = TopoTomo().get_device("iss/pvss/ANKAStatus")
 

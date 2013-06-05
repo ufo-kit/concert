@@ -1,4 +1,4 @@
-"""Skalar Optimizer"""
+"""Scalar Optimizer"""
 import logging
 import sys
 
