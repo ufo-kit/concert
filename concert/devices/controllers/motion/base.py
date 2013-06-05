@@ -1,3 +1,4 @@
+"""Motor Controller"""
 from concert.devices.base import Device
 from concert.base import Parameter
 

@@ -1,3 +1,4 @@
+"""Aerotech Controller."""
 from concert.devices.base import Device
 from concert.connections.inet import Aerotech
 from concert.asynchronous import async
@@ -14,7 +15,7 @@ class HLe(Device):
         self._connection = Aerotech(HLe.HOST, HLe.PORT)
         self.logger = logbook.Logger(self.__class__, __name__)
         super(HLe, self).__init__()
-        self.io = IO(self._connection)
+        self.ioo = IO(self._connection)
 
     def reset(self):
         """Reset the controller."""

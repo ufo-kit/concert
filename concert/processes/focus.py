@@ -7,10 +7,11 @@ from concert.base import LimitError
 from concert.asynchronous import async, dispatcher
 
 
-log = logbook.Logger(__name__)
+LOG = logbook.Logger(__name__)
 
 
 class Focuser(object):
+    """Focus class implementation."""
 
     FOUND = 'focus-found'
 
@@ -44,6 +45,7 @@ class Focuser(object):
         maximizer = Maximizer(self._epsilon)
 
         def turn(direction, step):
+            """Turn."""
             return -direction, step / 2.0
 
         while True:
@@ -71,11 +73,11 @@ class Focuser(object):
                     break
 
                 maximizer.value = gradient
-                log.debug("Gradient: %g, axis position: %s" %
+                LOG.debug("Gradient: %g, axis position: %s" %
                           (gradient, str(self._axis.position)))
             except LimitError:
                 direction, step = turn(direction, step)
 
         dispatcher.send(self, self.FOUND)
-        log.info("Maximum gradient: %g found at position: %s" %
+        LOG.info("Maximum gradient: %g found at position: %s" %
                  (gradient, str(self._axis.position)))

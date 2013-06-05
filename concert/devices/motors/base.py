@@ -22,7 +22,7 @@ from concert.devices.base import Device, Parameter
 from concert.asynchronous import async
 
 
-log = logbook.Logger(__name__)
+LOG = logbook.Logger(__name__)
 
 
 class Motor(Device):
@@ -77,7 +77,8 @@ class Motor(Device):
         """
         self._home()
 
-    def in_hard_limit(self):
+    @classmethod
+    def in_hard_limit(cls):
         """Return *True* if motor device is in a limit state, otherwise
         *False*."""
         return False

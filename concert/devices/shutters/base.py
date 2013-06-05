@@ -1,12 +1,13 @@
+"""Shutter Device."""
 from concert.devices.base import Device
 from concert.asynchronous import async
 
 
 class Shutter(Device):
+    """Shutter device class implementation."""
     OPEN = "open"
     CLOSED = "closed"
 
-    """Shutter device."""
     def __init__(self):
         super(Shutter, self).__init__()
         self._states = self._states.union(set([self.OPEN, self.CLOSED]))

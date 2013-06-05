@@ -29,7 +29,7 @@ ARGUMENTS = {
               '--logto': {'choices': ['stderr', 'file'],
                           'default': 'file'},
               '--logfile': {'type': str}},
-    'rm': {'sessions': {'type': str,
+    'rmv': {'sessions': {'type': str,
                         'nargs': '+',
                         'metavar': 'session'}},
     'show': {'session': {'type': str,
@@ -97,7 +97,7 @@ def log(session=None):
     subprocess.call(cmd, shell=True)
 
 
-def rm(sessions=[]):
+def rmv(sessions=[]):
     """Remove one or more sessions.
 
     .. note::
@@ -187,7 +187,7 @@ def _get_module_variables(module):
 
 
 def _run_shell(handler, module=None):
-    def _handler(shell, etype, evalue, traceback, tb_offset=None):
+    def _handler(shell, _etype, evalue, traceback, _tb_offset=None):
         print("Sorry, {0}".format(str(evalue)))
         return None
 

@@ -64,6 +64,7 @@ class RotationMotor(Motor):
 
 
 def main():
+    """Main definition."""
     logger = logging.getLogger('crio')
     logger.addHandler(logging.StreamHandler())
     logger.setLevel(logging.DEBUG)
