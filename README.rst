@@ -1,6 +1,8 @@
 About
 =====
 
+[![Build Status](https://travis-ci.org/ufo-kit/concert.png?branch=master)](https://travis-ci.org/ufo-kit/concert)
+
 Concert is a light-weight control system interface to control Tango and native
 devices. It can be used as a library::
 
