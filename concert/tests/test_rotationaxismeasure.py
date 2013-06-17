@@ -24,7 +24,7 @@ class TestRotationAxisMeasure(unittest.TestCase):
         self.z_motor["position"].unit = q.deg
 
         # The bigger the image size, the more images we need to determine
-        # the ellipse_center correctly.
+        # the center correctly.
         self.image_source = SimulationCamera(256, self.x_motor["position"],
                                              self.y_motor["position"],
                                              self.z_motor["position"])
@@ -57,9 +57,9 @@ class TestRotationAxisMeasure(unittest.TestCase):
         assert np.abs(psi) - np.abs(z_angle) < self.eps
 
     def center_check(self):
-        assert np.abs(self.measure.ellipse_center[1] -
+        assert np.abs(self.measure.center[1] -
                       self.image_source.ellipse_center[1]) < 1
-        assert np.abs(self.measure.ellipse_center[0] -
+        assert np.abs(self.measure.center[0] -
                       self.image_source.ellipse_center[0]) < 1
 
     @slow

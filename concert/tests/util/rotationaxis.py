@@ -150,7 +150,7 @@ class SimulationCamera(Camera):
 
     @property
     def ellipse_center(self):
-        """Ellipse ellipse_center."""
+        """Ellipse center."""
         return self._center
 
     def create_needle(self):
@@ -164,7 +164,7 @@ class SimulationCamera(Camera):
 
         center = np.dot(np.linalg.inv(matrix),
                         (0, self.size/8/self.scale[1], 0, 1))+self.size/2
-        # Ellipse ellipse_center.
+        # Ellipse center.
         self._center = center[1], center[0]
 
         matrix = rot_y(self.y_axis_param.get().result(), matrix)
