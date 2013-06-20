@@ -1,10 +1,5 @@
 language: python
 
-python:
-    - "2.6"
-    - "2.7"
-    - "3.3"
-
 virtualenv:
     system_site_packages: true
 
@@ -12,8 +7,7 @@ before_install:
     - sudo apt-get install -qq python-numpy python-scipy
 
 install:
-    - make dist
-    - pip install dist/*.tar.gz --use-mirrors
+    - pip install . --use-mirrors
     - pip install -r requirements.txt --use-mirrors
 
 script: nosetests
