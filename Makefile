@@ -7,7 +7,7 @@ RUNTEST = nosetests
 all: build
 
 install: clean build
-	$(SETUP) install
+	pip install dist/*.tar.gz
 
 build:
 	$(SETUP) build
