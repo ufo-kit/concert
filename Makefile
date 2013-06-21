@@ -6,7 +6,7 @@ RUNTEST = nosetests
 
 all: build
 
-install: clean build
+install: clean build dist
 	pip install dist/*.tar.gz
 
 build:
