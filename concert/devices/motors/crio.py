@@ -75,7 +75,7 @@ def main():
     rotation_device = RotationMotor()
 
     while True:
-        line = input('> ')
+        line = raw_input('> ')
         if line == 'q':
             break
 
@@ -86,7 +86,7 @@ def main():
             elif command == 'm':
                 linear_device.set_position(float(value) * q.mm)
         except ValueError:
-            print("Commands: `r [NUM]`, `m [NUM]`, `q`")
+            print("Commands: `r [NUM]', `m [NUM]', `q'")
 
 
 if __name__ == '__main__':
