@@ -2,7 +2,7 @@ PYTHON = python
 SETUP = $(PYTHON) setup.py
 RUNTEST = nosetests
 
-.PHONY: build clean check check-fast dist init install
+.PHONY: build clean check check-fast dist init install html
 
 all: build
 
@@ -23,6 +23,9 @@ check-fast:
 
 clean:
 	$(SETUP) clean --all
+
+html:
+	@cd docs; make html
 
 init:
 	pip install -r ./requirements.txt
