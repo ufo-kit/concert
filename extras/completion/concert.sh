@@ -5,7 +5,7 @@ _concert()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    opts="edit init log rm show start"
+    opts="edit fetch init log rm show start"
 
     case "${prev}" in
         init)

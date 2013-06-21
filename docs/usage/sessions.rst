@@ -28,6 +28,7 @@ help is shown::
         start     Start a session
         init      Create a new session
         rm        Remove one or more sessions
+        fetch     Import an existing *session*
 
 The tool is command-driven, that means you call it with a command as its first
 argument. To read command-specific help, use::
@@ -71,6 +72,18 @@ This will load an IPython shell and import all definitions from the session
 file. To remove a session, you can use the ``rm`` command::
 
     concert rm experiment
+
+Pre-existing session files can also be imported with the ``fetch`` command.
+This command accepts a file, file path or URL ending with ``.py``, reads the
+data and stores it as a new session without the file extension::
+
+    concert fetch http://foo.com/sessions/tomo.py
+    concert fetch ../scan.py
+
+.. note::
+
+    The server certificates are *not* verified when specifying an HTTPS
+    connection!
 
 During an experiment, devices will output logging information. By default, this
 information is gathered in a central file. To view the log for all experiments

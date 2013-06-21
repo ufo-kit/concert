@@ -8,6 +8,10 @@ import os
 import subprocess
 import logbook
 import traceback
+import mimetypes
+import contextlib
+import urlparse
+import urllib2
 import concert
 from concert.base import (UnitError,
                           LimitError,
@@ -23,6 +27,10 @@ ARGUMENTS = {
              '--imports': {'help': "Pre-import processes",
                            'metavar': 'modules',
                            'default': ''}},
+    'fetch': {'url' : {'type': str,
+                       'help': "Fetch a Python module and save as a session."
+                               " Note: Server certificates of HTTPS requests"
+                               " are NOT verified!"}},
     'log': {'session': {'type': str,
                         'nargs': '?'}},
     'start': {'session': {'type': str},
@@ -54,6 +62,40 @@ def edit(session=None):
     env = os.environ
     editor = env['EDITOR'] if 'EDITOR' in env else 'vi'
     subprocess.call([editor, concert.session.path(session)])
+
+
+def _get_url(path_or_url):
+    result = urlparse.urlsplit(path_or_url)
+
+    if result.scheme:
+        return path_or_url
+
+    if not os.path.exists(path_or_url):
+        print("Cannot find module `{0}'.".format(path_or_url))
+        sys.exit(1)
+
+    result = ('file', '', os.path.abspath(path_or_url), '', '')
+    return urlparse.urlunsplit(result)
+
+
+def fetch(session):
+    """Import an existing *session*."""
+    if not session.endswith('.py'):
+        print("`{0}' is not a Python module".format(session))
+        sys.exit(1)
+
+    session_name = os.path.basename(session[:-3])
+
+    if concert.session.exists(session_name):
+        print("`{0}' already exists".format(session_name))
+        sys.exit(1)
+
+    url = _get_url(session)
+
+    with contextlib.closing(urllib2.urlopen(url)) as data:
+        save_path = os.path.join(concert.session.PATH, session_name + '.py')
+        with open(save_path, 'w') as output:
+            output.write(data.read())
 
 
 def init(session=None, imports="", force=False):
