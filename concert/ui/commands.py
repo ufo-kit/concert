@@ -78,21 +78,21 @@ def _get_url(path_or_url):
     return urlparse.urlunsplit(result)
 
 
-def fetch(session):
+def fetch(url):
     """Import an existing *session*."""
-    if not session.endswith('.py'):
-        print("`{0}' is not a Python module".format(session))
+    if not url.endswith('.py'):
+        print("`{0}' is not a Python module".format(url))
         sys.exit(1)
 
-    session_name = os.path.basename(session[:-3])
+    session_name = os.path.basename(url[:-3])
 
     if concert.session.exists(session_name):
         print("`{0}' already exists".format(session_name))
         sys.exit(1)
 
-    url = _get_url(session)
+    local_url = _get_url(url)
 
-    with contextlib.closing(urllib2.urlopen(url)) as data:
+    with contextlib.closing(urllib2.urlopen(local_url)) as data:
         save_path = os.path.join(concert.session.PATH, session_name + '.py')
         with open(save_path, 'w') as output:
             output.write(data.read())
