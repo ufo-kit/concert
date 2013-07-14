@@ -18,11 +18,22 @@ User documentation
     usage/processes
     measures/measures
 
+
 Developer documentation
 =======================
+
 .. toctree::
     :maxdepth: 2
 
     api/tutorial
     api/devices
     api/async
+
+
+Additional notes
+================
+
+.. toctree::
+    :maxdepth: 2
+
+    changelog

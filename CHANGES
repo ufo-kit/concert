@@ -1,0 +1,23 @@
+Concert changelog
+=================
+
+Here you can see the full list of changes between each Concert release.
+
+Version 0.2
+-----------
+
+- Adds ``concert fetch`` to pull session files from remote locations
+- Code cleanup
+
+Version 0.1.1
+-------------
+
+Bug fix release, released on May 25th 2013
+
+- Fixes Python 3 support
+- Monochromator fix
+
+Version 0.1
+-----------
+
+First public release
