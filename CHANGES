@@ -6,7 +6,11 @@ Here you can see the full list of changes between each Concert release.
 Version 0.2
 -----------
 
-- Adds ``concert fetch`` to pull session files from remote locations
+Released on July 14th 2013.
+
+- Move third-party code to ``concert.ext``. For example ``get_tomo_scan_result``
+  must be imported from ``concert.ext.nexus``.
+- Adds ``concert fetch`` to pull session files from remote locations.
 - Code cleanup
 
 Version 0.1.1
@@ -14,10 +18,10 @@ Version 0.1.1
 
 Bug fix release, released on May 25th 2013
 
-- Fixes Python 3 support
-- Monochromator fix
+- Fixes Python 3 support.
+- Monochromator fix.
 
 Version 0.1
 -----------
 
-First public release
+First public release.
