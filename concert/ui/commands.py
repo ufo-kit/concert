@@ -6,6 +6,8 @@ from __future__ import print_function
 import sys
 import os
 import subprocess
+import tempfile
+import shutil
 import logbook
 import traceback
 import mimetypes
@@ -30,7 +32,9 @@ ARGUMENTS = {
     'fetch': {'url' : {'type': str,
                        'help': "Fetch a Python module and save as a session."
                                " Note: Server certificates of HTTPS requests"
-                               " are NOT verified!"}},
+                               " are NOT verified!"},
+              '--repo': {'action': 'store_true',
+                         'help': "Checkout Git repository and import all files"}},
     'log': {'session': {'type': str,
                         'nargs': '?'}},
     'start': {'session': {'type': str},
@@ -78,8 +82,7 @@ def _get_url(path_or_url):
     return urlparse.urlunsplit(result)
 
 
-def fetch(url):
-    """Import an existing *session*."""
+def _fetch_file(url):
     if not url.endswith('.py'):
         print("`{0}' is not a Python module".format(url))
         sys.exit(1)
@@ -96,6 +99,30 @@ def fetch(url):
         save_path = os.path.join(concert.session.PATH, session_name + '.py')
         with open(save_path, 'w') as output:
             output.write(data.read())
+
+
+def _fetch_repo(url):
+    path = tempfile.mkdtemp()
+    cmd = 'git clone --quiet {0} {1}'.format(url, path)
+    p = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = p.communicate()
+
+    if p.returncode != 0:
+        sys.exit("Could not clone {0}.".format(url))
+
+    for filename in (x for x in os.listdir(path) if x.endswith('.py')):
+        print("Add session {0} ...".format(filename[:-3]))
+        shutil.copy(os.path.join(path, filename), concert.session.PATH)
+
+    shutil.rmtree(path)
+
+
+def fetch(url, repo=False):
+    """Import an existing *session*."""
+    if repo:
+        _fetch_repo(url)
+    else:
+        _fetch_file(url)
 
 
 def init(session=None, imports="", force=False):
