@@ -85,6 +85,11 @@ data and stores it as a new session without the file extension::
     The server certificates are *not* verified when specifying an HTTPS
     connection!
 
+Session version controlled with Git can also be fetched by using the ``--repo``
+flag::
+
+    concert fetch --repo git@foo.com:sessions
+
 During an experiment, devices will output logging information. By default, this
 information is gathered in a central file. To view the log for all experiments
 use ::
