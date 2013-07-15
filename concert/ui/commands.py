@@ -75,8 +75,7 @@ def _get_url(path_or_url):
         return path_or_url
 
     if not os.path.exists(path_or_url):
-        print("Cannot find module `{0}'.".format(path_or_url))
-        sys.exit(1)
+        sys.exit("Cannot find module `{0}'.".format(path_or_url))
 
     result = ('file', '', os.path.abspath(path_or_url), '', '')
     return urlparse.urlunsplit(result)
@@ -84,14 +83,12 @@ def _get_url(path_or_url):
 
 def _fetch_file(url):
     if not url.endswith('.py'):
-        print("`{0}' is not a Python module".format(url))
-        sys.exit(1)
+        sys.exit("`{0}' is not a Python module".format(url))
 
     session_name = os.path.basename(url[:-3])
 
     if concert.session.exists(session_name):
-        print("`{0}' already exists".format(session_name))
-        sys.exit(1)
+        sys.exit("`{0}' already exists".format(session_name))
 
     local_url = _get_url(url)
 
@@ -289,5 +286,4 @@ def _run_shell(handler, module=None):
 def _exit_if_not_exists(session):
     if not concert.session.exists(session):
         message = "Session `{0}' does not exist. Run `concert init {0}' first."
-        print(message.format(session))
-        sys.exit(1)
+        sys.exit(message.format(session))
