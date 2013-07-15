@@ -10,7 +10,6 @@ import tempfile
 import shutil
 import logbook
 import traceback
-import mimetypes
 import contextlib
 import urlparse
 import urllib2
@@ -29,10 +28,10 @@ ARGUMENTS = {
              '--imports': {'help': "Pre-import processes",
                            'metavar': 'modules',
                            'default': ''}},
-    'fetch': {'url' : {'type': str,
-                       'help': "Fetch a Python module and save as a session."
-                               " Note: Server certificates of HTTPS requests"
-                               " are NOT verified!"},
+    'fetch': {'url': {'type': str,
+                      'help': "Fetch a Python module and save as a session."
+                              " Note: Server certificates of HTTPS requests"
+                              " are NOT verified!"},
               '--repo': {'action': 'store_true',
                          'help': "Checkout Git repository and import all files"}},
     'log': {'session': {'type': str,
@@ -101,10 +100,11 @@ def _fetch_file(url):
 def _fetch_repo(url):
     path = tempfile.mkdtemp()
     cmd = 'git clone --quiet {0} {1}'.format(url, path)
-    p = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    out, err = p.communicate()
+    proc = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE)
+    out, err = proc.communicate()
 
-    if p.returncode != 0:
+    if proc.returncode != 0:
         sys.exit("Could not clone {0}.".format(url))
 
     for filename in (x for x in os.listdir(path) if x.endswith('.py')):
@@ -240,7 +240,7 @@ def start(session=None, logto='file', logfile=None):
     sys.path.append(concert.session.PATH)
     try:
         module = concert.session.load(session)
-    except Exception as _exception:
+    except:
         traceback.print_exc()
         sys.exit(1)
 
