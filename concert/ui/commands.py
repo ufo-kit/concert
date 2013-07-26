@@ -253,12 +253,11 @@ def _get_module_variables(module):
 
 
 def _run_shell(handler, module=None):
-    def _handler(_shell, _etype, evalue, _traceback_, _tb_offset=None):
+    def _handler(_shell, _etype, evalue, _traceback_, tb_offset=None):
         print("Sorry, {0}".format(str(evalue)))
         return None
 
     try:
-        from IPython.frontend.terminal.embed import InteractiveShellEmbed
         import quantities as q
 
         print("Welcome to Concert {0}".format(concert.__version__))
@@ -269,14 +268,22 @@ def _run_shell(handler, module=None):
         globals().update(_get_module_variables(module))
 
         with handler.applicationbound():
-            shell = InteractiveShellEmbed(banner1='')
+            import IPython
 
-            exceptions = (UnitError,
-                          LimitError,
-                          ParameterError,
-                          ReadAccessError,
-                          WriteAccessError)
-            shell.set_custom_exc(exceptions, _handler)
+            if IPython.__version__ < '0.11':
+                from IPython.Shell import IPShellEmbed
+                shell = IPShellEmbed()
+            else:
+                from IPython.frontend.terminal.embed import InteractiveShellEmbed as ShellEmbed
+                shell = ShellEmbed(banner1='')
+
+                exceptions = (UnitError,
+                              LimitError,
+                              ParameterError,
+                              ReadAccessError,
+                              WriteAccessError)
+                shell.set_custom_exc(exceptions, _handler)
+
             shell()
     except ImportError as exception:
         msg = "You must install IPython to run the Concert shell: {0}"
