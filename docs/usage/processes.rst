@@ -25,11 +25,19 @@ Camera
     :members:
 
 
+Focusing
+========
+
+.. automodule:: concert.processes.focus
+    :members:
+
+
 Data processing with Ufo
 ========================
 
 .. automodule:: concert.processes.ufo
     :members:
+
 
 Rotation Axis Alignment
 =======================

@@ -1,5 +1,23 @@
 """
-Focus related processes
+The :mod:`.focus` module provides a :class:`Focuser` object that moves a
+:class:`~.Motor` object and evaluates a feedback function at each set point. In
+the following example a camera is focused by maximizing the sum of the squared
+gradients::
+
+    from concert.processes.focus import Focuser
+
+    axis = axis()
+    camera = Camera()
+
+    def sum_of_gradient():
+        frame = camera.grab()
+        grad = np.gradient(frame)
+        return np.sum(grad * grad)
+
+    focuser = Focuser(axis, 1e-1, sum_of_gradient)
+    camera.start_recording()
+    focuser.focus().wait()
+    camera.stop_recording()
 """
 import logbook
 from concert.optimization.scalar import Maximizer
@@ -15,10 +33,10 @@ class Focuser(object):
 
     FOUND = 'focus-found'
 
-    def __init__(self, axis, epsilon, gradient_feedback):
+    def __init__(self, axis, epsilon, feedback):
         self._axis = axis
         self._epsilon = epsilon
-        self._gradient_feedback = gradient_feedback
+        self._feedback = feedback
 
     @async
     def focus(self, step):
@@ -51,7 +69,7 @@ class Focuser(object):
         while True:
             try:
                 self._axis.move(direction * step).wait()
-                gradient = self._gradient_feedback()
+                gradient = self._feedback()
                 point_reached = step < self._epsilon
                 limit_reached = self._axis.in_hard_limit()
                 worse = not maximizer.is_better(gradient)
@@ -62,7 +80,7 @@ class Focuser(object):
                 if point_reached:
                     # Make sure we found the global maximum and not only
                     # two equal gradients but out of focus. This can happen
-                    # if we are out of focus and by motor movement we go
+                    # if we are out of focus and by axis movement we go
                     # to the other side of the image plane with equal
                     # gradient.
                     hits += 1
