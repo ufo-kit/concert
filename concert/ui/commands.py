@@ -32,6 +32,8 @@ ARGUMENTS = {
                       'help': "Fetch a Python module and save as a session."
                               " Note: Server certificates of HTTPS requests"
                               " are NOT verified!"},
+              '--force': {'action': 'store_true',
+                          'help': "Overwrite existing sessions"},
               '--repo': {'action': 'store_true',
                          'help': "Checkout Git repository and import all files"}},
     'log': {'session': {'type': str,
@@ -80,13 +82,13 @@ def _get_url(path_or_url):
     return urlparse.urlunsplit(result)
 
 
-def _fetch_file(url):
+def _fetch_file(url, force):
     if not url.endswith('.py'):
         sys.exit("`{0}' is not a Python module".format(url))
 
     session_name = os.path.basename(url[:-3])
 
-    if concert.session.exists(session_name):
+    if concert.session.exists(session_name) and not force:
         sys.exit("`{0}' already exists".format(session_name))
 
     local_url = _get_url(url)
@@ -97,7 +99,7 @@ def _fetch_file(url):
             output.write(data.read())
 
 
-def _fetch_repo(url):
+def _fetch_repo(url, force):
     path = tempfile.mkdtemp()
     cmd = 'git clone --quiet {0} {1}'.format(url, path)
     proc = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE,
@@ -108,18 +110,24 @@ def _fetch_repo(url):
         sys.exit("Could not clone {0}.".format(url))
 
     for filename in (x for x in os.listdir(path) if x.endswith('.py')):
-        print("Add session {0} ...".format(filename[:-3]))
-        shutil.copy(os.path.join(path, filename), concert.session.PATH)
+        session_name = os.path.basename(filename[:-3])
+
+        if concert.session.exists(session_name) and not force:
+            print("`{0}' already exists (use --force to install"
+                  " anyway)".format(session_name))
+        else:
+            print("Add session {0} ...".format(filename[:-3]))
+            shutil.copy(os.path.join(path, filename), concert.session.PATH)
 
     shutil.rmtree(path)
 
 
-def fetch(url, repo=False):
+def fetch(url, force=False, repo=False):
     """Import an existing *session*."""
     if repo:
-        _fetch_repo(url)
+        _fetch_repo(url, force)
     else:
-        _fetch_file(url)
+        _fetch_file(url, force)
 
 
 def init(session=None, imports="", force=False):
