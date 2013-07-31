@@ -12,7 +12,7 @@ install:
     - pip install coveralls --use-mirrors
 
 script:
-    - nosetests --with-coverage --cover-package=concert
+    - nosetests --with-coverage --cover-package=concert concert
 
 after_success:
     - coveralls

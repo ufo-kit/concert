@@ -1,5 +1,7 @@
 [run]
+source = concert
 omit =
     */python?.?/*
     */lib-python/?.?/*.py
     */site-packages/*
+    /usr/share/pyshared/*
