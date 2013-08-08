@@ -20,7 +20,9 @@ SLOW_SLEEP_TIME = 1.0
 
 
 class Motor(base.Motor):
+
     """A motor based on ANKA Tango motor interface."""
+
     def __init__(self, device, calibration, _position_limit=None):
         super(Motor, self).__init__(calibration)
         self._device = device

@@ -35,7 +35,8 @@ ARGUMENTS = {
               '--force': {'action': 'store_true',
                           'help': "Overwrite existing sessions"},
               '--repo': {'action': 'store_true',
-                         'help': "Checkout Git repository and import all files"}},
+                         'help':
+                         "Checkout Git repository and import all files"}},
     'log': {'session': {'type': str,
                         'nargs': '?'}},
     'start': {'session': {'type': str},
@@ -282,7 +283,8 @@ def _run_shell(handler, module=None):
                 from IPython.Shell import IPShellEmbed
                 shell = IPShellEmbed()
             else:
-                from IPython.frontend.terminal.embed import InteractiveShellEmbed as ShellEmbed
+                from IPython.frontend.terminal.embed import \
+                    InteractiveShellEmbed as ShellEmbed
                 shell = ShellEmbed(banner1='')
 
                 exceptions = (UnitError,

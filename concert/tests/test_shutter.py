@@ -3,6 +3,7 @@ from concert.devices.shutters.dummy import Shutter as DummyShutter
 
 
 class TestDummyShutter(unittest.TestCase):
+
     def setUp(self):
         self.shutter = DummyShutter()
 

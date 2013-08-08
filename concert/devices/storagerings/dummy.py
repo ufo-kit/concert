@@ -8,7 +8,9 @@ import threading
 
 
 class DummyRing(StorageRing):
+
     """Create a Dummy Ring."""
+
     def __init__(self):
         super(DummyRing, self).__init__()
         self._lifetime = 10 * q.hour

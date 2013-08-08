@@ -7,7 +7,9 @@ from concert.asynchronous import async
 
 
 class DummyDevice(Device):
+
     """A dummy device."""
+
     def __init__(self):
         parameter = Parameter('value', self._get_value, self._set_value)
         super(DummyDevice, self).__init__([parameter])

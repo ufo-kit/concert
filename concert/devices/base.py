@@ -25,6 +25,7 @@ LOG = Logger(__name__)
 
 
 class Device(Parameterizable):
+
     """
     A :class:`Device` provides locked access to a real-world device and
     provides a :attr:`state` :class:`.Parameter`.

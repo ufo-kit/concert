@@ -46,6 +46,7 @@ from concert.processes.base import Process
 
 
 class Scanner(Process):
+
     """A scan process.
 
     :meth:`.Scanner.run` sets *param* to :attr:`.intervals` data points and
@@ -115,7 +116,9 @@ class Scanner(Process):
 
 
 class StepTomoScanner(Process):
+
     """Tomo Scan Process."""
+
     def __init__(self, camera, rotary_stage,
                  prepare_dark_scan,
                  prepare_flat_scan,

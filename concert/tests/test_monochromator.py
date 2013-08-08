@@ -11,11 +11,13 @@ import random
 
 
 class WavelengthMonochromator(Monochromator):
+
     """A monochromator which implements wavelength getter and setter. The
     conversion needs to be handled in the base class."""
+
     def __init__(self):
         super(WavelengthMonochromator, self).__init__(self)
-        self._wavelength = random.random()*1e-10*q.m
+        self._wavelength = random.random() * 1e-10 * q.m
 
     def _get_wavelength(self):
         return self._wavelength
@@ -25,14 +27,17 @@ class WavelengthMonochromator(Monochromator):
 
 
 class UselessMonochromator(Monochromator):
+
     """A monochromator wihch does not implement anything."""
+
     def __init__(self):
         super(UselessMonochromator, self).__init__(self)
 
 
 class TestDummyMonochromator(unittest.TestCase):
+
     def setUp(self):
-        calibration = LinearCalibration(1*q.eV, 0*q.eV)
+        calibration = LinearCalibration(1 * q.eV, 0 * q.eV)
         self.mono = DummyMonochromator(calibration)
         self.wave_mono = WavelengthMonochromator()
         self.useless_mono = UselessMonochromator()

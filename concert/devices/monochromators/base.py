@@ -24,6 +24,7 @@ def wavelength_to_energy(wavelength):
 
 
 class Monochromator(Device):
+
     """Monochromator device which is used to filter the beam in order to
     get a very narrow energy bandwidth.
 
@@ -35,6 +36,7 @@ class Monochromator(Device):
 
         Monochromatic wavelength in meters.
     """
+
     def __init__(self, calibration):
         params = [Parameter("energy", self._get_energy, self._set_energy,
                             q.eV, doc="Monochromatic energy"),

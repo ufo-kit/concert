@@ -12,6 +12,29 @@ Scanning
     :members:
 
 
+Optimization
+============
+
+Optimization is a procedure to iteratively find the best possible match to y = f(x).
+
+Execution
+----------------------
+
+.. automodule:: concert.optimization.base
+    :members:
+
+Algorithms
+----------
+
+.. automodule:: concert.optimization.algorithms
+    :members:
+
+Scalar Optimizers
+-----------------
+.. automodule:: concert.optimization.scalar
+    :members:
+
+
 Feedbacks
 ---------
 
@@ -23,14 +46,6 @@ Camera
 
 .. automodule:: concert.feedbacks.camera
     :members:
-
-
-Focusing
-========
-
-.. automodule:: concert.processes.focus
-    :members:
-
 
 Data processing with Ufo
 ========================

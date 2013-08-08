@@ -6,6 +6,8 @@ Here you can see the full list of changes between each Concert release.
 Version 0.3dev
 --------------
 
+- Remove ``concert.processes.focus`` and reorganize ``concert.optimization``
+  package, the focusing can be implemented by Maximizer with a proper feedback.
 - Add ``--repo`` parameter to the ``fetch`` command. With this flag, session
   files version controlled with Git can be imported.
 

@@ -60,33 +60,33 @@ def sphere(size, radius, mat):
     """Create a sphere with radius *radius* in an image with size *size* and
     use transformation matrix *mat* to adjust the sphere position and size.
     """
-    y_0, x_0 = np.mgrid[-size/2:size/2, -size/2:size/2]
+    y_0, x_0 = np.mgrid[-size / 2:size / 2, -size / 2:size / 2]
 
-    k_x = x_0*mat[0, 0] + y_0*mat[0, 1] + mat[0, 3]
-    k_y = x_0*mat[1, 0] + y_0*mat[1, 1] + mat[1, 3]
-    k_z = x_0*mat[2, 0] + y_0*mat[2, 1] + mat[2, 3]
+    k_x = x_0 * mat[0, 0] + y_0 * mat[0, 1] + mat[0, 3]
+    k_y = x_0 * mat[1, 0] + y_0 * mat[1, 1] + mat[1, 3]
+    k_z = x_0 * mat[2, 0] + y_0 * mat[2, 1] + mat[2, 3]
 
-    quadr_coeffs = mat[0, 2]**2 + mat[1, 2]**2 + mat[2, 2]**2, \
-        2*k_x*mat[0, 2] + 2*k_y*mat[1, 2] + 2*k_z*mat[2, 2], \
-        k_x**2 + k_y**2 + k_z**2 - radius**2
+    quadr_coeffs = mat[0, 2] ** 2 + mat[1, 2] ** 2 + mat[2, 2] ** 2, \
+        2 * k_x * mat[0, 2] + 2 * k_y * mat[1, 2] + 2 * k_z * mat[2, 2], \
+        k_x ** 2 + k_y ** 2 + k_z ** 2 - radius ** 2
 
-    thickness = quadr_coeffs[1]**2 - 4*quadr_coeffs[0]*quadr_coeffs[2]
+    thickness = quadr_coeffs[1] ** 2 - 4 * quadr_coeffs[0] * quadr_coeffs[2]
     thickness[thickness < 0] = 0
 
-    return np.abs(np.sqrt(thickness)/quadr_coeffs[0])
+    return np.abs(np.sqrt(thickness) / quadr_coeffs[0])
 
 
 def transfer(thickness, ref_index, lam):
     """Beer-Lambert law."""
     lam = lam.rescale(thickness.units)
-    mju = 4*np.pi*ref_index.imag/lam
+    mju = 4 * np.pi * ref_index.imag / lam
 
-    return np.exp(-mju*thickness)
+    return np.exp(-mju * thickness)
 
 
 def gauss(points, sigma):
     """1D Gaussian of x *points* with *sigma*."""
-    return np.exp(-points**2/(2*sigma**2))
+    return np.exp(-points ** 2 / (2 * sigma ** 2))
 
 
 def apply_beam(incident_intensity, sigma, transferred):
@@ -94,24 +94,24 @@ def apply_beam(incident_intensity, sigma, transferred):
     Gaussian vertical beam profile with *sigma*.
     """
     size = transferred.shape[0]
-    flat = np.tile(gauss(np.linspace(-size/2, size/2, size), sigma)
+    flat = np.tile(gauss(np.linspace(-size / 2, size / 2, size), sigma)
                    [:, np.newaxis], [1, size])
 
-    return incident_intensity*flat*transferred
+    return incident_intensity * flat * transferred
 
 
 def get_projection(thickness, incident_intensity, sigma):
     """Get X-ray projection image from projected thickness."""
     max_val = thickness.max()
     if max_val > 0:
-        thickness = thickness/thickness.max()
+        thickness = thickness / thickness.max()
 
     # Make the projected thickness to be max. 0.1 mm.
-    thickness = thickness*q.mm
+    thickness = thickness * q.mm
 
     # Iron and 20 keV
-    ref_index = 3.85263274e-06+9.68238822e-08j
-    lam = 6.1992e-11*q.m
+    ref_index = 3.85263274e-06 + 9.68238822e-08j
+    lam = 6.1992e-11 * q.m
 
     res = apply_beam(incident_intensity, sigma,
                      transfer(thickness, ref_index, lam))
@@ -122,6 +122,7 @@ def get_projection(thickness, incident_intensity, sigma):
 
 
 class SimulationCamera(Camera):
+
     """A dummy image source providing images of a rotated sample. Rotation
     is based on virtual motors.
     """
@@ -138,11 +139,12 @@ class SimulationCamera(Camera):
         self._center = None
         self.radius = needle_radius
         if self.radius is None:
-            self.radius = self.size/8
+            self.radius = self.size / 8
 
         self.rotation_radius = rotation_radius if rotation_radius is not None\
-            else self.size/6
-        self.y_position = y_position if y_position is not None else self.size/2
+            else self.size / 6
+        self.y_position = y_position if y_position \
+            is not None else self.size / 2
         self.scale = scales if scales is not None else (3, 0.75, 3)
 
         # How many times was the image source asked for images.
@@ -163,7 +165,8 @@ class SimulationCamera(Camera):
         matrix = rot_x(self.x_axis_param.get().result(), matrix)
 
         center = np.dot(np.linalg.inv(matrix),
-                        (0, self.size/8/self.scale[1], 0, 1))+self.size/2
+                        (0, self.size / 8 / self.scale[1], 0, 1)) + \
+            self.size / 2
         # Ellipse center.
         self._center = center[1], center[0]
 

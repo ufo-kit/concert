@@ -6,6 +6,7 @@ from testfixtures import ShouldRaise, compare
 
 
 class BaseDevice(Parameterizable):
+
     def __init__(self):
         param = Parameter('foo', fget=self._get, fset=self._set)
         super(BaseDevice, self).__init__([param])
@@ -18,6 +19,7 @@ class BaseDevice(Parameterizable):
 
 
 class FooDevice(BaseDevice):
+
     def __init__(self, proxy):
         super(FooDevice, self).__init__()
         self.proxy = proxy
@@ -30,6 +32,7 @@ class FooDevice(BaseDevice):
 
 
 class Proxy(object):
+
     def __init__(self, default):
         self.value = default
 
@@ -41,6 +44,7 @@ class Proxy(object):
 
 
 class TestParameterizable(unittest.TestCase):
+
     def setUp(self):
         self.handler = logbook.TestHandler()
         self.handler.push_application()
@@ -64,6 +68,7 @@ class TestParameterizable(unittest.TestCase):
 
 
 class TestParameter(unittest.TestCase):
+
     def setUp(self):
         self.handler = logbook.TestHandler()
         self.handler.push_application()

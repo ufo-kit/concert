@@ -56,7 +56,9 @@ from scipy import ndimage
 
 
 class Ellipse(object):
+
     """Ellipse fitting from a set of data points."""
+
     def __init__(self, images=None):
         self._images = images
         # XY angle.
@@ -146,15 +148,15 @@ class Ellipse(object):
         if self._params is None:
             self._fit_ellipse()
 
-        a_33 = np.array([[self._params[0], self._params[1]/2],
-                        [self._params[1]/2, self._params[2]]])
+        a_33 = np.array([[self._params[0], self._params[1] / 2],
+                        [self._params[1] / 2, self._params[2]]])
         if np.linalg.det(a_33) > 0:
-            x_pos = (self._params[1]*self._params[4] -
-                     2*self._params[3]*self._params[2]) /\
-                (4*self._params[0]*self._params[2] - self._params[1]**2)
-            y_pos = (self._params[3]*self._params[1] -
-                     2*self._params[0]*self._params[4]) /\
-                (4*self._params[0]*self._params[2] - self._params[1]**2)
+            x_pos = (self._params[1] * self._params[4] -
+                     2 * self._params[3] * self._params[2]) /\
+                (4 * self._params[0] * self._params[2] - self._params[1] ** 2)
+            y_pos = (self._params[3] * self._params[1] -
+                     2 * self._params[0] * self._params[4]) /\
+                (4 * self._params[0] * self._params[2] - self._params[1] ** 2)
         else:
             # We are not dealing with an ellipse, use center of mass.
             y_pos, x_pos = center_of_mass(self._tips)
@@ -181,8 +183,8 @@ class Ellipse(object):
             raise ValueError("Sample off-centering too small, " +
                              "enlarge rotation radius.")
 
-        a_33 = np.array([[self._params[0], self._params[1]/2],
-                         [self._params[1]/2, self._params[2]]])
+        a_33 = np.array([[self._params[0], self._params[1] / 2],
+                         [self._params[1] / 2, self._params[2]]])
 
         usv = np.linalg.svd(a_33)
         s_vec = usv[1]
@@ -191,14 +193,15 @@ class Ellipse(object):
         if np.linalg.det(a_33) <= 0:
             # Not an ellipse
             d_y = float(y_ind.max() - y_ind.min())
-            angle = np.arctan(d_y/d_x)*q.rad
+            angle = np.arctan(d_y / d_x) * q.rad
             if x_ind[y_ind.argmax()] <= x_ind[y_ind.argmin()]:
                 # More than pi/4.
                 angle = -angle
-            self._phi, self._psi = angle, 0.0*q.rad
+            self._phi, self._psi = angle, 0.0 * q.rad
         else:
-            self._phi, self._psi = np.arctan(v_mat[1][1]/v_mat[1][0])*q.rad, \
-                np.arcsin(np.sqrt(s_vec[1])/np.sqrt(s_vec[0]))*q.rad
+            self._phi, self._psi = \
+                np.arctan(v_mat[1][1] / v_mat[1][0]) * q.rad, \
+                np.arcsin(np.sqrt(s_vec[1]) / np.sqrt(s_vec[0])) * q.rad
 
 
 def _construct_matrix(points):
@@ -206,8 +209,8 @@ def _construct_matrix(points):
     y_ind, x_ind = zip(*points)
     matrix = np.empty((len(x_ind), 6), dtype=np.int)
     for i in range(len(x_ind)):
-        matrix[i] = np.array([x_ind[i]**2, x_ind[i]*y_ind[i],
-                              y_ind[i]**2, x_ind[i], y_ind[i], 1])
+        matrix[i] = np.array([x_ind[i] ** 2, x_ind[i] * y_ind[i],
+                              y_ind[i] ** 2, x_ind[i], y_ind[i], 1])
 
     return matrix
 
@@ -218,11 +221,11 @@ def _segment(image, k=3.0):
     of the maximum intensity in the image.
     """
     bins = np.histogram(image, 128)[1]
-    if bins[0] > bins[-1]/k:
+    if bins[0] > bins[-1] / k:
         # Minimum intensity is too high, sample out of the FOV.
         thr = 0
     else:
-        thr = (bins[-1] - bins[0])/k + bins[0]
+        thr = (bins[-1] - bins[0]) / k + bins[0]
 
     image[image < thr] = 1
     image[image >= thr] = 0
@@ -287,20 +290,20 @@ def _get_axis_intersection(p_1, p_2, shape):
     *p_1* and *p_2* and image edges defined by image *shape*."""
     # First check if the center lies on an edge
     if p_1[0] == p_2[0]:
-        return [(p_1[0], (p_1[1] + p_2[1])/2)]
+        return [(p_1[0], (p_1[1] + p_2[1]) / 2)]
     elif p_1[1] == p_2[1]:
-        return [((p_1[0] + p_2[0])/2.0, p_1[1])]
+        return [((p_1[0] + p_2[0]) / 2.0, p_1[1])]
 
-    p_x = (p_1[1] + p_2[1])/2.0
-    p_y = (p_1[0] + p_2[0])/2.0
+    p_x = (p_1[1] + p_2[1]) / 2.0
+    p_y = (p_1[0] + p_2[0]) / 2.0
     v_y = p_1[0] - p_2[0]
     v_x = p_2[1] - p_1[1]
     height, width = shape[0] - 1, shape[1] - 1
 
-    left = p_y - v_x*p_x/v_y, 0
-    right = p_y + v_x*(width - p_x)/v_y, width
-    bottom = 0, p_x - v_y*p_y/v_x
-    top = height, p_x + v_y*(height - p_y)/v_x
+    left = p_y - v_x * p_x / v_y, 0
+    right = p_y + v_x * (width - p_x) / v_y, width
+    bottom = 0, p_x - v_y * p_y / v_x
+    top = height, p_x + v_y * (height - p_y) / v_x
 
     res = set([left, right, bottom, top])
     # Filter intersections which are out of the image bounding box.
@@ -338,7 +341,7 @@ def _get_sample_tip(image):
     y_ind, x_ind = np.where(image > 0)
 
     # Calculate distances from the intersection point.
-    distances = np.sqrt((y_ind - p_inter[0])**2 + (x_ind - p_inter[1])**2)
+    distances = np.sqrt((y_ind - p_inter[0]) ** 2 + (x_ind - p_inter[1]) ** 2)
 
     # Most distant points are candidates for the sample tip.
     indices = np.where(distances == distances.max())[0]
@@ -351,13 +354,13 @@ def _get_sample_tip(image):
     x_direction = tip_center[1] - p_inter[1]
     if x_direction == 0:
         # The line is parallel with y_ind axis
-        x_ind = np.ones(image.shape[1], dtype=np.int64)*p_inter[1]
+        x_ind = np.ones(image.shape[1], dtype=np.int64) * p_inter[1]
         y_ind = np.arange(image.shape[0])
     else:
         y_direction = tip_center[0] - p_inter[0]
         x_ind = np.arange(image.shape[1])
-        y_ind = np.cast[np.int](np.round(p_inter[0] + y_direction*(
-                                         x_ind - p_inter[1])/x_direction))
+        y_ind = np.cast[np.int](np.round(p_inter[0] + y_direction * (
+                                         x_ind - p_inter[1]) / x_direction))
 
     # Cut values going beyond image boundaries.
     below = np.where(y_ind < image.shape[0])[0]
@@ -372,7 +375,7 @@ def _get_sample_tip(image):
     x_ind = x_ind[nonzero]
     y_ind = y_ind[nonzero]
 
-    distances = np.sqrt((y_ind - p_inter[0])**2 + (x_ind - p_inter[1])**2)
+    distances = np.sqrt((y_ind - p_inter[0]) ** 2 + (x_ind - p_inter[1]) ** 2)
     i = distances.argmax()
 
     return y_ind[i], x_ind[i]
@@ -383,7 +386,7 @@ def _get_sample(image):
     labels = _get_regions(image)
     labels = _get_boundary_regions(labels)
     # Cut the edges by one pixel because hole filling does not affect them.
-    return _get_biggest_region(labels)[1:-1,1:-1]
+    return _get_biggest_region(labels)[1:-1, 1:-1]
 
 
 def _get_ellipse_points(images):
@@ -404,7 +407,7 @@ def _get_ellipse_points(images):
 def _get_biggest_region(image):
     """Get the region with the biggest area in the *image*."""
     labels, features = ndimage.label(image)
-    sizes = ndimage.sum(image, labels, range(features+1))
+    sizes = ndimage.sum(image, labels, range(features + 1))
     max_feature = np.argmax(sizes)
     labels[labels != max_feature] = 0
 
@@ -415,11 +418,11 @@ def _get_boundary_regions(labels):
     """Extract regions from *labels* which appear on image boundaries only."""
     features = np.max(labels)
 
-    for i in range(features+1):
+    for i in range(features + 1):
         y_ind, x_ind = np.where(labels == i)
         if len(x_ind) != 0 and len(y_ind) != 0 and x_ind.min() != 0 and\
-                x_ind.max() != labels.shape[1]-1 and y_ind.min() != 0 and\
-                y_ind.max() != labels.shape[0]-1:
+                x_ind.max() != labels.shape[1] - 1 and y_ind.min() != 0 and\
+                y_ind.max() != labels.shape[0] - 1:
             labels[labels == i] = 0
 
     return labels
@@ -428,7 +431,7 @@ def _get_boundary_regions(labels):
 def _get_regions(image):
     """Extract regions from the binary *image* which are not too small."""
     labels, features = ndimage.label(image)
-    sizes = ndimage.sum(image, labels, range(features+1))
+    sizes = ndimage.sum(image, labels, range(features + 1))
 
     # Remove small regions.
     mask = sizes < 200
@@ -442,7 +445,7 @@ def center_of_mass(points):
     """Find the center of mass from a set of *points*."""
     y_ind, x_ind = zip(*points)
 
-    c_y = float(np.sum(y_ind))/len(points)
-    c_x = float(np.sum(x_ind))/len(points)
+    c_y = float(np.sum(y_ind)) / len(points)
+    c_x = float(np.sum(x_ind)) / len(points)
 
     return c_y, c_x

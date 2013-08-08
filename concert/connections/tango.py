@@ -4,7 +4,9 @@ import PyTango
 
 
 class DeviceFactory(object):
+
     """Tango device factory based on *host* and *port*."""
+
     def __init__(self, host, port):
         self._host = host
         self._port = port
@@ -19,6 +21,8 @@ class DeviceFactory(object):
 
 
 class TopoTomo(DeviceFactory):
+
     """TopoTomo beam line tango device factory."""
+
     def __init__(self):
         super(TopoTomo, self).__init__("anka-tango", 10018)

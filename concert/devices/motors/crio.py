@@ -13,6 +13,7 @@ CRIO_PORT = 6342
 
 
 class LinearMotor(Motor):
+
     """A linear motor that moves in two directions."""
 
     def __init__(self):
@@ -41,6 +42,7 @@ class LinearMotor(Motor):
 
 
 class RotationMotor(Motor):
+
     """A rotational motor."""
 
     def __init__(self):

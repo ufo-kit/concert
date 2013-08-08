@@ -44,6 +44,7 @@ from concert.asynchronous import async
 
 
 class UfoProcess(Process):
+
     """Wraps a Ufo task graph and export selected node properties.
 
     *graph* must be a Ufo task graph. *node* is a node that is connected inside

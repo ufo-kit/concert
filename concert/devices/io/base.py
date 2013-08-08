@@ -4,10 +4,12 @@ from concert.base import Parameter
 
 
 class Port(Parameter):
+
     """Port is a :class:`.Parameter` with an id. It represents a low-level
     port capable of sending or receiving electrical signals. *port_id* is the
     identification of the port within a device. When the device wants to
     access this port it will refer to it by the *port_id*."""
+
     def __init__(self, port_id, name, fget=None, fset=None, doc=None):
         if fget is None:
             new_fget = None
@@ -22,9 +24,11 @@ class Port(Parameter):
 
 
 class IO(Device):
+
     """The IO device consists of ports which can be readable, writable or
     both.
     """
+
     def __init__(self, ports=None):
         super(IO, self).__init__(ports)
 

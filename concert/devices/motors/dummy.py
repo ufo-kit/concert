@@ -7,7 +7,9 @@ import quantities as q
 
 
 class DummyLimiter(object):
+
     """Dummy Limiter class implementation."""
+
     def __init__(self, low, high):
         self.low = low
         self.high = high
@@ -17,7 +19,9 @@ class DummyLimiter(object):
 
 
 class Motor(base.Motor):
+
     """Dummy Motor class implementation."""
+
     def __init__(self, calibration=LinearCalibration(1 / q.mm, 0 * q.mm),
                  limiter=None, position=None, hard_limits=None):
         super(Motor, self).__init__(calibration, limiter)
@@ -51,7 +55,9 @@ class Motor(base.Motor):
 
 
 class ContinuousMotor(base.ContinuousMotor):
+
     """Dummy ContinuousMotor class implementation."""
+
     def __init__(self, position_calibration, velocity_calibration):
         super(ContinuousMotor, self).__init__(position_calibration,
                                               velocity_calibration)

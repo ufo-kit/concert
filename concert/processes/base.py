@@ -10,7 +10,9 @@ from concert.asynchronous import async
 
 
 class Process(Parameterizable):
+
     """Base process."""
+
     def __init__(self, params):
         super(Process, self).__init__(params)
 

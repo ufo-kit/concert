@@ -5,6 +5,7 @@ from concert.devices.base import Device
 
 
 class StorageRing(Device):
+
     """Read-only access to storage ring information.
 
     .. py:attribute:: current
@@ -19,6 +20,7 @@ class StorageRing(Device):
 
         Ring lifetime in hours
     """
+
     def __init__(self):
         params = [Parameter('current',
                             fget=self._get_current,

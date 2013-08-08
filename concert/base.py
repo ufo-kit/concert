@@ -52,29 +52,36 @@ LOG = Logger(__name__)
 
 
 class UnitError(ValueError):
+
     """Raised when an operation is passed value with an incompatible unit."""
     pass
 
 
 class LimitError(Exception):
+
     """Raised when an operation is passed a value that exceeds a limit."""
     pass
 
 
 class HardlimitError(LimitError):
+
     """Raised when a hard limit is hit on the device."""
     pass
 
 
 class ParameterError(Exception):
+
     """Raised when a parameter is accessed that does not exists."""
+
     def __init__(self, parameter):
         msg = "`{0}' is not a parameter".format(parameter)
         super(ParameterError, self).__init__(msg)
 
 
 class ReadAccessError(Exception):
+
     """Raised when user tries to change a parameter that cannot be written."""
+
     def __init__(self, parameter):
         LOG.warn("Invalid read access on {0}".format(parameter))
         msg = "parameter `{0}' cannot be read".format(parameter)
@@ -82,7 +89,9 @@ class ReadAccessError(Exception):
 
 
 class WriteAccessError(Exception):
+
     """Raised when user tries to read a parameter that cannot be read."""
+
     def __init__(self, parameter):
         LOG.warn("Invalid write access on {0}".format(parameter))
         msg = "parameter `{0}' cannot be written".format(parameter)
@@ -90,6 +99,7 @@ class WriteAccessError(Exception):
 
 
 class MultiContext(object):
+
     """Multi context manager to be used in a Python `with` management.
 
     For example, to use multiple axes safely in one process, all you have to do
@@ -135,6 +145,7 @@ def parameter_name_valid(name):
 
 
 class Parameter(object):
+
     """
     A parameter with a *name* and an optional *unit* and *limiter*.
 
@@ -251,6 +262,7 @@ class Parameter(object):
 
 
 class Parameterizable(object):
+
     """Collection of parameters.
 
     A :class:`Parameterizable` is iterable and returns its parameters of type
@@ -274,6 +286,7 @@ class Parameterizable(object):
         param.position = 0 * q.mm
         print param.position
     """
+
     def __init__(self, parameters=None):
         self._params = {}
 

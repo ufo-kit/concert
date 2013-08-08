@@ -4,7 +4,9 @@ from concert.connections.tango import TopoTomo
 
 
 class TomoTable(IO):
+
     """Tomo table's I/O board at the TopoTomo beam line at ANKA."""
+
     def __init__(self):
         ports = [Port((6, 1), "input", self.read_port, None,
                       "Trigger input to the table."),

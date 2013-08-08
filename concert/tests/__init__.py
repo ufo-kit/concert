@@ -9,7 +9,9 @@ def slow(func):
 
 
 class VisitChecker(object):
+
     """Use this to check that a callback was called."""
+
     def __init__(self):
         self.visited = False
 

@@ -15,7 +15,10 @@ import logbook
 
 
 class TestDummyAlignment(unittest.TestCase):
+
     def setUp(self):
+        self.handler = logbook.TestHandler()
+        self.handler.push_application()
         self.x_motor = Motor(LinearCalibration(1 / q.deg, 0 * q.deg),
                              hard_limits=(-1e5, 1e5))
         self.x_motor["position"].unit = q.deg
@@ -26,8 +29,8 @@ class TestDummyAlignment(unittest.TestCase):
                              hard_limits=(-1e5, 1e5))
         self.z_motor["position"].unit = q.deg
 
-        self.x_motor.position = 0*q.deg
-        self.z_motor.position = 0*q.deg
+        self.x_motor.position = 0 * q.deg
+        self.z_motor.position = 0 * q.deg
 
         self.image_source = SimulationCamera(256, self.x_motor["position"],
                                              self.y_motor["position"],
@@ -36,8 +39,8 @@ class TestDummyAlignment(unittest.TestCase):
         # A scanner which scans the rotation axis.
         self.scanner = Scanner(self.y_motor["position"],
                                self.image_source.grab)
-        self.scanner.minimum = 0*q.rad
-        self.scanner.maximum = 2*np.pi*q.rad
+        self.scanner.minimum = 0 * q.rad
+        self.scanner.maximum = 2 * np.pi * q.rad
         self.scanner.intervals = 10
 
         dispatcher.subscribe(self.y_motor["position"],
@@ -56,15 +59,15 @@ class TestDummyAlignment(unittest.TestCase):
         self.alignment_finished = Event()
 
         # Allow 1 px misalignment in y-direction.
-        self.eps = np.arctan(2.0/self.image_source.rotation_radius)*q.rad
+        self.eps = np.arctan(2.0 / self.image_source.rotation_radius) * q.rad
 
-        self.handler = logbook.TestHandler()
-        self.handler.push_application()
+    def tearDown(self):
+        self.handler.pop_application()
 
     def iteration_listener(self, sender):
         self.iteration += 1
 
-        if self.iteration/self.scanner.intervals == \
+        if self.iteration / self.scanner.intervals == \
                 self.max_iterations:
             self.alignment_finished.set()
 
@@ -116,45 +119,45 @@ class TestDummyAlignment(unittest.TestCase):
     @slow
     def test_no_x_axis(self):
         """Test the case when there is no x-axis motor available."""
-        self.align_check(17*q.deg, 11*q.deg, has_z_motor=False)
+        self.align_check(17 * q.deg, 11 * q.deg, has_z_motor=False)
 
     @slow
     def test_not_misaligned(self):
         "Perfectly aligned rotation axis."
-        self.align_check(0*q.deg, 0*q.deg)
+        self.align_check(0 * q.deg, 0 * q.deg)
 
     @slow
     def test_only_x(self):
         """Only misaligned laterally."""
-        self.align_check(-17*q.deg, 0*q.deg)
+        self.align_check(-17 * q.deg, 0 * q.deg)
 
     @slow
     def test_only_z(self):
         """Only misaligned in the beam direction."""
-        self.align_check(0*q.deg, 11*q.deg)
+        self.align_check(0 * q.deg, 11 * q.deg)
 
     @slow
     def test_huge_x(self):
         self.image_source.scale = (3, 0.25, 3)
-        self.align_check(60*q.deg, 11*q.deg)
+        self.align_check(60 * q.deg, 11 * q.deg)
 
     @slow
     def test_huge_z(self):
         self.image_source.scale = (3, 0.25, 3)
-        self.align_check(11*q.deg, 60*q.deg)
+        self.align_check(11 * q.deg, 60 * q.deg)
 
     @slow
     def test_positive(self):
-        self.align_check(17*q.deg, 11*q.deg)
+        self.align_check(17 * q.deg, 11 * q.deg)
 
     @slow
     def test_negative_positive(self):
-        self.align_check(-17*q.deg, 11*q.deg)
+        self.align_check(-17 * q.deg, 11 * q.deg)
 
     @slow
     def test_positive_negative(self):
-        self.align_check(17*q.deg, -11*q.deg)
+        self.align_check(17 * q.deg, -11 * q.deg)
 
     @slow
     def test_negative(self):
-        self.align_check(-17*q.deg, -11*q.deg)
+        self.align_check(-17 * q.deg, -11 * q.deg)

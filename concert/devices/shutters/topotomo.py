@@ -5,7 +5,9 @@ import time
 
 
 class Shutter(base.Shutter):
+
     """Shutter class implementation."""
+
     def __init__(self, index):
         if index < 0 or index > 2:
             raise ValueError("Index must be in range [0-2].")

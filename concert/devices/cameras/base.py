@@ -26,6 +26,7 @@ from concert.devices.base import Device
 
 
 class Camera(Device):
+
     """Base class for remotely controllable cameras."""
 
     def __init__(self, params):

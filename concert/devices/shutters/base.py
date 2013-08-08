@@ -4,6 +4,7 @@ from concert.asynchronous import async
 
 
 class Shutter(Device):
+
     """Shutter device class implementation."""
     OPEN = "open"
     CLOSED = "closed"

@@ -6,6 +6,7 @@ from concert.devices.cameras import base
 
 
 class Camera(base.Camera):
+
     """Simple camera.
 
     *background* can be an array-like that will be used to generate the frame
@@ -54,7 +55,7 @@ class Camera(base.Camera):
         time = self.exposure_time.rescale(q.s).magnitude
 
         # 1e5 is a dummy correlation between exposure time and emitted e-.
-        tmp = self._background + time*1e5
+        tmp = self._background + time * 1e5
         max_value = np.iinfo(np.uint16).max
         tmp = np.random.poisson(tmp)
         # Cut values beyond the bit-depth.

@@ -20,6 +20,7 @@ from concert.processes.base import Process
 
 
 class Aligner(Process):
+
     """Tomographic rotation axis alignment procedure."""
     # Aligned message
     AXIS_ALIGNED = "axis-aligned"
@@ -38,7 +39,7 @@ class Aligner(Process):
         self.z_motor = z_motor
 
     @async
-    def run(self, absolute_eps=0.1*q.deg):
+    def run(self, absolute_eps=0.1 * q.deg):
         """
         run(absolute_eps=0.1*quantities.deg)
 
@@ -78,7 +79,7 @@ class Aligner(Process):
 
             x_future, z_future = None, None
             if z_better and np.abs(z_angle) >= absolute_eps:
-                x_future = self.x_motor.move(z_direction*z_angle)
+                x_future = self.x_motor.move(z_direction * z_angle)
             if x_better and np.abs(x_angle) >= absolute_eps:
                 z_future = self.z_motor.move(x_angle)
             elif (np.abs(z_angle) < absolute_eps or not z_better):

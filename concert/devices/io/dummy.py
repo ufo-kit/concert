@@ -4,7 +4,9 @@ from concert.devices.io.base import Port
 
 
 class IO(base.IO):
+
     """Dummy I/O device implementation."""
+
     def __init__(self):
         ports = [Port(0, "busy", self.read_port, None, "Camera busy flag."),
                  Port(1, "exposure", self.read_port,

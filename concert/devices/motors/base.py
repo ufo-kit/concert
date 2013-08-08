@@ -26,6 +26,7 @@ LOG = logbook.Logger(__name__)
 
 
 class Motor(Device):
+
     """Base class for everything that moves.
 
     An motor is used with a *calibration* that conforms to the
@@ -110,11 +111,13 @@ class Motor(Device):
 
 
 class ContinuousMotor(Motor):
+
     """A movable on which one can set velocity.
 
     This class is inherently capable of discrete movement.
 
     """
+
     def __init__(self, position_calibration, velocity_calibration,
                  position_limiter=None, velocity_limiter=None):
         super(ContinuousMotor, self).__init__(position_calibration,
@@ -143,12 +146,14 @@ class ContinuousMotor(Motor):
 
 
 class MotorMessage(object):
+
     """Motor message."""
     POSITION_LIMIT = "position_limit"
     VELOCITY_LIMIT = "velocity_limit"
 
 
 class Calibration(object):
+
     """Interface to convert between user and device units."""
 
     def to_user(self, value):
@@ -161,12 +166,14 @@ class Calibration(object):
 
 
 class LinearCalibration(Calibration):
+
     """A linear calibration maps a number of motor steps to a real-world unit.
 
     *steps_per_unit* tells how many steps correspond to some unit,
     *offset_in_steps* by how many steps the device is away from some zero
     point.
     """
+
     def __init__(self, steps_per_unit, offset_in_steps):
         super(LinearCalibration, self).__init__()
         self._steps_per_unit = steps_per_unit

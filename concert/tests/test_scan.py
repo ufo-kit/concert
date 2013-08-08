@@ -16,6 +16,7 @@ def compare_sequences(first_sequence, second_sequence, assertion):
 
 
 class TestScan(unittest.TestCase):
+
     def setUp(self):
         self.motor = DummyMotor()
         self.handler = logbook.TestHandler()
@@ -62,6 +63,7 @@ class TestScan(unittest.TestCase):
     @slow
     def test_tomo_scanner(self):
         class Stage(object):
+
             def __init__(self):
                 self.angles = []
                 self.angle = 0.0 * q.deg
@@ -71,6 +73,7 @@ class TestScan(unittest.TestCase):
                 self.angles.append(self.angle)
 
         class PrepareChecker(object):
+
             def __init__(self):
                 self.prepared = []
 

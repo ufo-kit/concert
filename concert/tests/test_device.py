@@ -7,6 +7,7 @@ from concert.ui import get_default_table
 
 
 class MockDevice(Device):
+
     def __init__(self):
         def setter(value):
             pass
@@ -21,6 +22,7 @@ class MockDevice(Device):
 
 
 class TestDevice(unittest.TestCase):
+
     def setUp(self):
         self.device = MockDevice()
         self.handler = logbook.TestHandler()

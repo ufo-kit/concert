@@ -5,12 +5,14 @@ from concert.asynchronous import dispatcher
 
 
 class DeviceWidget(tk.Toplevel):
+
     """Wrap a device in a top level Tk widget.
 
     *device* must be an object derived from :class:`.Device`. *timeout*
     specifies how much time in milliseconds passes between to parameter
     queries.
     """
+
     def __init__(self, device, timeout=1500):
         tk.Toplevel.__init__(self, padx=6, pady=6)
 

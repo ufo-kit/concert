@@ -7,6 +7,7 @@ from concert.connections.inet import Aerotech
 
 
 class Aerorot(ContinuousMotor):
+
     """Aerorot (Continuous Motor) class implementation."""
     HOST = "192.168.18.19"
     PORT = 8001
@@ -25,12 +26,12 @@ class Aerorot(ContinuousMotor):
     SLEEP_TIME = 0.01
 
     def __init__(self):
-        pos_calib = LinearCalibration(1/q.deg, 0*q.deg)
-        velo_calib = LinearCalibration(1/(q.deg/q.sec), 0*q.deg/q.sec)
+        pos_calib = LinearCalibration(1 / q.deg, 0 * q.deg)
+        velo_calib = LinearCalibration(1 / (q.deg / q.sec), 0 * q.deg / q.sec)
         super(Aerorot, self).__init__(pos_calib, velo_calib)
 
         self["position"].unit = q.deg
-        self["velocity"].unit = q.deg/q.sec
+        self["velocity"].unit = q.deg / q.sec
 
         self._connection = Aerotech(Aerorot.HOST, Aerorot.PORT)
         self._connection.execute("ENABLE %s" % (Aerorot.AXIS))

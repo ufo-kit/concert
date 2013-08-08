@@ -7,6 +7,7 @@ LOG = logbook.Logger(__name__)
 
 
 class Connection(object):
+
     """A two-way socket connection."""
 
     def __init__(self, host, port):
@@ -34,6 +35,7 @@ class Connection(object):
 
 
 class Aerotech(Connection):
+
     """Aerotech Connection. """
     EOS_CHAR = "\n"  # string termination character
     ACK_CHAR = "%"  # acknowledge

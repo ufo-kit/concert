@@ -4,7 +4,9 @@ from concert.devices.io.base import Port
 
 
 class IO(base.IO):
+
     """IO class implementation."""
+
     def __init__(self, connection):
         ports = [Port((1, 0), "read", self.read_port, None, "Read port."),
                  Port((1, 1), "write", None, self.write_port, "Write port.")]

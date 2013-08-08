@@ -21,6 +21,7 @@ def bad_func():
 
 
 class TestAsync(unittest.TestCase):
+
     def setUp(self):
         self.device = DummyDevice()
         self.handler = logbook.TestHandler()

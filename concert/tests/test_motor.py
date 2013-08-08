@@ -7,6 +7,7 @@ from concert.devices.motors.dummy import Motor as DummyMotor,\
 
 
 class TestDummyMotor(unittest.TestCase):
+
     def setUp(self):
         self.motor = DummyMotor()
         self.handler = logbook.TestHandler()
@@ -38,6 +39,7 @@ class TestDummyMotor(unittest.TestCase):
 
 
 class TestContinuousDummyMotor(unittest.TestCase):
+
     def setUp(self):
         position_calibration = LinearCalibration(1 / q.mm, 0 * q.mm)
         velocity_calibration = LinearCalibration(1 / (q.mm / q.s),
@@ -59,11 +61,13 @@ class TestContinuousDummyMotor(unittest.TestCase):
 
 
 class TestMotorCalibration(unittest.TestCase):
+
     def setUp(self):
         self.steps_per_mm = 10. / q.mm
         calibration = LinearCalibration(self.steps_per_mm, 0 * q.mm)
 
         class MockMotor(Motor):
+
             def __init__(self):
                 super(MockMotor, self).__init__(calibration)
                 self._position = 0 * q.dimensionless

@@ -7,6 +7,7 @@ from concert.devices.io.aerotech import IO
 
 
 class HLe(Device):
+
     """Aerotech Ensemble HLe controller."""
     HOST = "192.168.18.19"
     PORT = 8001

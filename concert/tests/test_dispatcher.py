@@ -8,6 +8,7 @@ SLEEP_TIME = 0.0005
 
 
 class TestDispatcher(unittest.TestCase):
+
     def setUp(self):
         self.dispatcher = Dispatcher()
         self.checker = VisitChecker()

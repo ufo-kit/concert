@@ -5,6 +5,7 @@ from concert.base import ReadAccessError, WriteAccessError
 
 
 class TestDummyIO(unittest.TestCase):
+
     def setUp(self):
         self.io_device = IO()
         self.handler = logbook.TestHandler()

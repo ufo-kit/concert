@@ -17,11 +17,13 @@ from concert.base import Parameter
 
 
 class FrameMean(Parameter):
+
     """Grab a frame and calculate the mean.
 
     *camera* is a camera object that supports :meth:`.grab`, *param_name*
     is a parameter name of *camera* that should be varied according.
     """
+
     def __init__(self, camera):
         self.camera = camera
         super(FrameMean, self).__init__('frame-mean', unit=q.counts)
@@ -34,12 +36,14 @@ class FrameMean(Parameter):
 
 
 class PhotonTransfer(object):
+
     """Calculate the photon transfer according to procedure described by M.
     Caselle and F. Beckmann.
 
     *camera* is a camera object that supports the :meth:`.grab`, *dark_frame*
     is an array-like with the same dimensions as the camera frames.
     """
+
     def __init__(self, camera, dark_frame):
         self.camera = camera
         self.dark_frame = dark_frame

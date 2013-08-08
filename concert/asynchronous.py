@@ -48,6 +48,7 @@ def wait(futures):
 
 
 class Dispatcher(object):
+
     """Core dispatcher"""
 
     def __init__(self):

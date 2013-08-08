@@ -39,6 +39,7 @@ def _create_data_array(camera):
 
 
 class Camera(base.Camera):
+
     """libuca-based camera.
 
     All properties that are exported by the underlying camera are also visible
