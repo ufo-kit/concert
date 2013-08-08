@@ -1,5 +1,5 @@
 """Monochromator Dummy"""
-import quantities as q
+from concert.quantities import q
 from concert.devices.monochromators import base
 
 

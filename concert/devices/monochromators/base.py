@@ -3,24 +3,27 @@ Monochromator module. The device implementation needs to provide getters and
 setters for wither wavelength or energy, it does not matter which one. The
 conversion is handled in the base class.
 '''
-import quantities as q
-import quantities.constants.quantum as cq
+from concert.quantities import q
 from concert.base import Parameter
 from concert.devices.base import Device
+
+# pint supports constants and defines hbar like this, but I haven't found a way
+# to get the constants ...
+hbar = 6.62606957e-34 * q.J * q.s
 
 
 def energy_to_wavelength(energy):
     """Convert *energy* [eV-like] to wavelength [m]."""
-    res = cq.h * q.velocity.c / energy
-
-    return res.rescale(q.m)
+    res = hbar * q.c / energy
+    res.ito(q.m)
+    return res
 
 
 def wavelength_to_energy(wavelength):
     """Convert wavelength [m-like] to energy [eV]."""
-    res = cq.h * q.velocity.c / wavelength
-
-    return res.rescale(q.eV)
+    res = hbar * q.c / wavelength
+    res.ito(q.eV)
+    return res
 
 
 class Monochromator(Device):

@@ -1,6 +1,6 @@
 import unittest
 import logbook
-import quantities as q
+from concert.quantities import q
 from concert.devices.motors.dummy import Motor
 from concert.optimization import algorithms as algs
 from concert.optimization.optimizers import Minimizer, Maximizer
@@ -23,12 +23,13 @@ class TestOptimizers(unittest.TestCase):
         self.handler.pop_application()
 
     def feedback(self):
-        return (self.motor.position.simplified.magnitude -
-                self.center.simplified.magnitude) ** 2
+        return (self.motor.position.to_base_units().magnitude -
+                self.center.to_base_units().magnitude) ** 2
 
     def check(self):
-        self.assertAlmostEqual(self.motor.position.simplified,
-                               self.center.simplified, self.precision_places)
+        self.assertAlmostEqual(self.motor.position.to_base_units().magnitude,
+                               self.center.to_base_units().magnitude,
+                               self.precision_places)
 
     @slow
     def test_minimizers(self):

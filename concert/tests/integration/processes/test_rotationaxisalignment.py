@@ -1,13 +1,13 @@
 import unittest
 import logbook
 import numpy as np
-import quantities as q
+from threading import Event
+from testfixtures import ShouldRaise
+from concert.quantities import q
 from concert.devices.motors.dummy import Motor
 from concert.devices.motors.base import LinearCalibration
 from concert.asynchronous import dispatcher
-from testfixtures import ShouldRaise
 from concert.tests import slow
-from threading import Event
 from concert.processes.tomoalignment import Aligner
 from concert.measures.rotationaxis import Ellipse
 from concert.tests.util.rotationaxis import SimulationCamera
@@ -19,13 +19,13 @@ class TestDummyAlignment(unittest.TestCase):
     def setUp(self):
         self.handler = logbook.TestHandler()
         self.handler.push_application()
-        self.x_motor = Motor(LinearCalibration(1 / q.deg, 0 * q.deg),
+        self.x_motor = Motor(LinearCalibration(q.count / q.deg, 0 * q.deg),
                              hard_limits=(-1e5, 1e5))
         self.x_motor["position"].unit = q.deg
-        self.y_motor = Motor(LinearCalibration(1 / q.deg, 0 * q.deg),
+        self.y_motor = Motor(LinearCalibration(q.count / q.deg, 0 * q.deg),
                              hard_limits=(-1e5, 1e5))
         self.y_motor["position"].unit = q.deg
-        self.z_motor = Motor(LinearCalibration(1 / q.deg, 0 * q.deg),
+        self.z_motor = Motor(LinearCalibration(q.count / q.deg, 0 * q.deg),
                              hard_limits=(-1e5, 1e5))
         self.z_motor["position"].unit = q.deg
 

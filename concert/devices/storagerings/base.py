@@ -1,5 +1,5 @@
 """Storage Ring Device"""
-import quantities as q
+from concert.quantities import q
 from concert.base import Parameter
 from concert.devices.base import Device
 

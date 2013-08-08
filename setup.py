@@ -29,7 +29,7 @@ setup(
                       'numpy',
                       'prettytable',
                       'pyxdg',
-                      'quantities',
+                      'pint',
                       'scipy'],
     tests_require=['nose',
                    'testfixtures'],

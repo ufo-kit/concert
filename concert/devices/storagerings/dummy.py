@@ -1,10 +1,10 @@
 """
 Dummy ring to test asychronous updates.
 """
-from concert.devices.storagerings.base import StorageRing
-import quantities as q
 import time
 import threading
+from concert.quantities import q
+from concert.devices.storagerings.base import StorageRing
 
 
 class DummyRing(StorageRing):

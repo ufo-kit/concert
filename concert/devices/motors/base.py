@@ -16,7 +16,7 @@ with an motor, the position can be changed with :meth:`Motor.set_position` and
 As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 """
 import logbook
-import quantities as q
+from concert.quantities import q
 from concert.base import HardlimitError
 from concert.devices.base import Device, Parameter
 from concert.asynchronous import async
@@ -85,11 +85,11 @@ class Motor(Device):
         return False
 
     def _get_calibrated_position(self):
-        return self._calibration.to_user(self._get_position())
+        return self._calibration.to_user(self._get_position() * q.count)
 
     def _set_calibrated_position(self, position):
         self._set_state(self.MOVING)
-        self._set_position(self._calibration.to_steps(position))
+        self._set_position(self._calibration.to_steps(position) / q.count)
 
         if self.in_hard_limit():
             self._set_state(self.LIMIT)

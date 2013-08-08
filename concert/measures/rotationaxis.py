@@ -50,9 +50,9 @@ such sample the segmentation procedure can be simplified to a thresholding
 technique.
 
 """
-import quantities as q
 import numpy as np
 from scipy import ndimage
+from concert.quantities import q
 
 
 class Ellipse(object):

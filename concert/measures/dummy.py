@@ -13,6 +13,6 @@ class DummyGradientMeasure(object):
 
     def __call__(self):
         value = self._param.get().result()
-        position = value.rescale(self.max_position.units).magnitude
+        position = value.to(self.max_position.units).magnitude
         return self._max_gradient - \
             (position - self.max_position.magnitude) ** 2

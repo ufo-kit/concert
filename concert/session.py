@@ -35,7 +35,7 @@ def _get_param_description_table(motor):
         return result
 
     for param in motor:
-        dims = param.unit.dimensionality.string if param.unit else None
+        dims = param.unit.units if param.unit else None
         row = [param.name, _access(param), str(dims), inspect.getdoc(param)]
         table.add_row(row)
 
@@ -113,7 +113,7 @@ def create(session, imports=()):
 
     .. note:: This will *always* overwrite session.
     """
-    template = 'import quantities as q\n'
+    template = 'from concert.quantities import q\n'
     template += '\n'
     template += 'from concert.session import ddoc, dstate, pdoc\n'
     template += '\n'

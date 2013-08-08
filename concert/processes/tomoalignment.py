@@ -13,9 +13,9 @@ The procedure consists of the following steps:
 
 The mentioned steps are repeated until a certain minimum threshold is reached.
 """
-from concert.asynchronous import dispatcher, wait, async
 import numpy as np
-import quantities as q
+from concert.quantities import q
+from concert.asynchronous import dispatcher, wait, async
 from concert.processes.base import Process
 
 
@@ -41,7 +41,7 @@ class Aligner(Process):
     @async
     def run(self, absolute_eps=0.1 * q.deg):
         """
-        run(absolute_eps=0.1*quantities.deg)
+        run(absolute_eps=0.1*q.deg)
 
         The procedure finishes when it finds the minimum angle between an
         ellipse extracted from the sample movement and respective axes or the
