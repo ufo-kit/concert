@@ -45,6 +45,10 @@ or from a session and within an integrated `IPython`_ shell::
 
 .. _Ipython: http://ipython.org
 
+You can read more about *Concert* in the official `documentation`_.
+
+.. _documentation: https://concert.readthedocs.org
+
 
 Installation
 ------------
