@@ -1,6 +1,5 @@
 """Motor Dummy."""
 import random
-import time
 from concert.devices.motors import base
 from concert.devices.motors.base import LinearCalibration
 import quantities as q
