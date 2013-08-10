@@ -80,8 +80,8 @@ class TestDummyAlignment(unittest.TestCase):
         """
         self.alignment_finished.wait()
 
-        self.assertGreater(self.max_iterations, self.image_source.iteration,
-                           "Maximum iterations exceeded.")
+        self.assertTrue(self.max_iterations > self.image_source.iteration,
+                        "Maximum iterations exceeded.")
 
     def align_check(self, x_angle, z_angle, has_z_motor=True):
         """"Align and check th eresults."""
