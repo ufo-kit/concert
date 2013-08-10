@@ -1,3 +1,8 @@
+"""
+Optimization (minimization, maximization) can be done by many techniques.
+This module consists of algorithms capable of optimizing functions y = f(x).
+"""
+
 import numpy as np
 
 
@@ -40,7 +45,10 @@ def halver(function, param, initial_step=None, epsilon=None,
 
 
 def quantized(function):
-    """Quantize a *function* which does not take units into account."""
+    """
+    A helper function meant to be used as a decorator to quantize
+    a *function* which does not take units into account.
+    """
     def wrapper(eval_func, x_0, *args, **kwargs):
         return function(lambda x: eval_func(x * x_0.units),
                         x_0, *args, **kwargs)
@@ -52,7 +60,10 @@ def quantized(function):
 
 @quantized
 def down_hill(function, x_0, **kwargs):
-    """Downhill simplex algorithm from :py:func:`scipy.optimize.fmin`."""
+    """
+    Downhill simplex algorithm from :py:func:`scipy.optimize.fmin`.
+    Please refer to the scipy function for additional arguments information.
+    """
     from scipy import optimize
 
     return optimize.fmin(function, x_0, disp=0, **kwargs)[0] * x_0.units
@@ -60,7 +71,10 @@ def down_hill(function, x_0, **kwargs):
 
 @quantized
 def powell(function, x_0, **kwargs):
-    """Powell's algorithm from :py:func:`scipy.optimize.fmin_powell`."""
+    """
+    Powell's algorithm from :py:func:`scipy.optimize.fmin_powell`.
+    Please refer to the scipy function for additional arguments information.
+    """
     from scipy import optimize
 
     return optimize.fmin_powell(function, x_0, disp=0, **kwargs) * x_0.units
@@ -71,6 +85,7 @@ def nonlinear_conjugate(function, x_0, **kwargs):
     """
     Nonlinear conjugate gradient algorithm from
     :py:func:`scipy.optimize.fmin_cg`.
+    Please refer to the scipy function for additional arguments information.
     """
     from scipy import optimize
 
@@ -82,6 +97,7 @@ def bfgs(function, x_0, **kwargs):
     """
     Broyde-Fletcher-Goldfarb-Shanno (BFGS) algorithm from
     :py:func:`scipy.optimize.fmin_bfgs`.
+    Please refer to the scipy function for additional arguments information.
     """
     from scipy import optimize
 
@@ -90,7 +106,10 @@ def bfgs(function, x_0, **kwargs):
 
 @quantized
 def least_squares(function, x_0, **kwargs):
-    """Least squares algorithm from :py:func:`scipy.optimize.leastsq`."""
+    """
+    Least squares algorithm from :py:func:`scipy.optimize.leastsq`.
+    Please refer to the scipy function for additional arguments information.
+    """
     from scipy import optimize
 
     return optimize.leastsq(function, x_0, **kwargs)[0][0] * x_0.units

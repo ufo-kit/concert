@@ -43,8 +43,6 @@ Optimizers
 Algorithms
 ----------
 
-Optimizers can emaploy different executive algorithms.
-
 .. automodule:: concert.optimization.algorithms
     :members:
 
