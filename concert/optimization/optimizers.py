@@ -23,7 +23,12 @@ class Minimizer(ParameterOptimizer):
 
     The executive optimization function is then::
 
-        algorithm(alg_args, alg_kwargs)
+        algorithm(x_guess, *alg_args, **alg_kwargs)
+
+    where *x_guess* is the x value at which the optimizer starts. If
+    *alg_args* is None, the *x_guess* is derived from the current
+    parameter value, otherwise *x_guess* must be the first value in
+    the *alg_args* list.
     """
 
     def __init__(self, param, feedback, algorithm, alg_args=None,
@@ -32,7 +37,7 @@ class Minimizer(ParameterOptimizer):
         self.algorithm = algorithm
         self.alg_args = alg_args
         if not self.alg_args:
-            self.alg_args = ()
+            self.alg_args = (param.get().result(), )
         self.alg_kwargs = alg_kwargs
         if not self.alg_kwargs:
             self.alg_kwargs = {}
