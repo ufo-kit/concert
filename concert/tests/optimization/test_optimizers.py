@@ -34,8 +34,7 @@ class TestOptimizers(unittest.TestCase):
     def test_minimizers(self):
         for i in range(len(self.algorithms)):
             self.motor.position = 0 * q.mm
-            args = (self.motor["position"], ) if i == 0 else\
-                (self.motor.position, )
+            args = (self.motor.position, )
 
             minim = Minimizer(self.motor["position"], self.feedback,
                               self.algorithms[i], args)
@@ -46,8 +45,7 @@ class TestOptimizers(unittest.TestCase):
     def test_maximizers(self):
         for i in range(len(self.algorithms)):
             self.motor.position = 0 * q.mm
-            args = (self.motor["position"], ) if i == 0 else\
-                (self.motor.position, )
+            args = (self.motor.position, )
 
             minim = Maximizer(self.motor["position"],
                               lambda: - self.feedback(),

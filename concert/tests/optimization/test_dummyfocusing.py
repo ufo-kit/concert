@@ -20,9 +20,9 @@ class TestDummyFocusing(unittest.TestCase):
         self.epsilon = 1 * q.um
         self.focuser = Maximizer(self._motor["position"], self._feedback,
                                  algorithms.halver,
-                                (self._motor[
-                                 "position"], 1 * q.mm, self.epsilon),
-                                 {"max_iterations": 1000})
+                                (1 * q.mm,),
+                                 {"epsilon": self.epsilon,
+                                  "max_iterations": 1000})
         self._position_eps = 1e-1 * q.mm
         self._gradient_cmp_eps = 1e-1
 
@@ -74,8 +74,9 @@ class TestDummyFocusing(unittest.TestCase):
         motor = DummyMotor(limiter=DummyLimiter(25, 75), position=50)
         feedback = DummyGradientMeasure(motor['position'], 80 * q.mm)
         focuser = Maximizer(motor["position"], feedback, algorithms.halver,
-                           (motor["position"], 10 * q.mm, self.epsilon),
-                            {"max_iterations": 1000})
+                            (motor.position,),
+                            {"initial_step": 10 * q.mm,
+                             "max_iterations": 1000})
         focuser.run().wait()
 
         self._check_position(motor.position, 75 * q.mm)
@@ -85,7 +86,7 @@ class TestDummyFocusing(unittest.TestCase):
         motor = DummyMotor(limiter=DummyLimiter(25, 75), position=50)
         feedback = DummyGradientMeasure(motor['position'], 20 * q.mm)
         focuser = Maximizer(motor["position"], feedback, algorithms.halver,
-                           (motor["position"], 10 * q.mm, self.epsilon),
+                           (motor.position, 10 * q.mm, self.epsilon),
                             {"max_iterations": 1000})
         focuser.run().wait()
         self._check_position(motor.position, 25 * q.mm)
@@ -94,10 +95,10 @@ class TestDummyFocusing(unittest.TestCase):
     def test_huge_step_out_of_limits_right(self):
         # Right.
         self._feedback.max_position = (self._motor._hard_limits[1] + 50) * q.mm
+
         focuser = Maximizer(self._motor["position"], self._feedback,
                             algorithms.halver,
-                           (self._motor[
-                            "position"], 1000 * q.mm, self.epsilon),
+                           (self._motor.position, 1000 * q.mm, self.epsilon),
                             {"max_iterations": 1000})
         focuser.run().wait()
         self._check_position(self._motor.position,
@@ -107,8 +108,7 @@ class TestDummyFocusing(unittest.TestCase):
     def test_huge_step_out_of_limits_left(self):
         focuser = Maximizer(self._motor["position"], self._feedback,
                             algorithms.halver,
-                           (self._motor[
-                            "position"], 1000 * q.mm, self.epsilon),
+                           (self._motor.position, 1000 * q.mm, self.epsilon),
                             {"max_iterations": 1000})
         self._feedback.max_position = (self._motor._hard_limits[0] - 50) * q.mm
         focuser.run().wait()

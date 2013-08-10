@@ -6,7 +6,7 @@ This module consists of algorithms capable of optimizing functions y = f(x).
 import numpy as np
 
 
-def halver(function, param, initial_step=None, epsilon=None,
+def halver(function, x_0, initial_step=None, epsilon=None,
            max_iterations=100):
     """
     Halving the interval, evaluate *function* based on *param*. Use
@@ -14,34 +14,45 @@ def halver(function, param, initial_step=None, epsilon=None,
     """
     # Safe copy for not changing the original.
     if initial_step is None:
-        step = 1 * param.get().result().units
+        step = 1 * x_0.units
     else:
         step = np.copy(initial_step) * initial_step.units
     if epsilon is None:
-        epsilon = 1e-3 * param.get().result().units
+        epsilon = 1e-3 * x_0.units
     direction = 1
     i = 0
-    y_0 = function(param.get().result())
+    last_x = x_0
+
+    y_0 = function(x_0)
 
     def turn(direction, step):
         return -direction, step / 2.0
 
-    while i < max_iterations:
-        y_1 = function(param.get().result() + direction * step)
-        point_reached = step < epsilon
+    def move(x_0, direction, step):
+        return x_0 + direction * step
 
-        if point_reached:
+    x_0 = move(x_0, direction, step)
+
+    while i < max_iterations:
+        y_1 = function(x_0)
+
+        if step < epsilon:
             break
 
-        in_limits = True if param.limiter is None or \
-            param.limiter(param.get().result() + direction * step) else False
-
-        if y_1 >= y_0 or not in_limits:
+        if y_1 >= y_0:
+            # Worse, change direction and move to the half of the last
+            # good x and the new x.
             direction, step = turn(direction, step)
+            x_0 = (x_0 + last_x) / 2
+        else:
+            # OK, move forward.
+            last_x = x_0
+            x_0 = move(x_0, direction, step)
+
         y_0 = y_1
         i += 1
 
-    return param.get().result()
+    return x_0
 
 
 def quantized(function):
