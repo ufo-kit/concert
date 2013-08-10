@@ -9,7 +9,8 @@ _authors = [u'Matthias Vogelgesang',
             u'Tomas Farago']
 
 extensions = ['sphinx.ext.autodoc',
-              'sphinx.ext.intersphinx']
+              'sphinx.ext.intersphinx',
+              'sphinx.ext.mathjax']
 source_suffix = '.rst'
 master_doc = 'index'
 
