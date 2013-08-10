@@ -55,7 +55,7 @@ def down_hill(function, x_0, **kwargs):
     """Downhill simplex algorithm from :py:func:`scipy.optimize.fmin`."""
     from scipy import optimize
 
-    return optimize.fmin(function, x_0, **kwargs)[0] * x_0.units
+    return optimize.fmin(function, x_0, disp=0, **kwargs)[0] * x_0.units
 
 
 @quantized
@@ -63,7 +63,7 @@ def powell(function, x_0, **kwargs):
     """Powell's algorithm from :py:func:`scipy.optimize.fmin_powell`."""
     from scipy import optimize
 
-    return optimize.fmin_powell(function, x_0, **kwargs) * x_0.units
+    return optimize.fmin_powell(function, x_0, disp=0, **kwargs) * x_0.units
 
 
 @quantized
@@ -74,7 +74,7 @@ def nonlinear_conjugate(function, x_0, **kwargs):
     """
     from scipy import optimize
 
-    return optimize.fmin_cg(function, x_0, **kwargs)[0] * x_0.units
+    return optimize.fmin_cg(function, x_0, disp=0, **kwargs)[0] * x_0.units
 
 
 @quantized
@@ -85,7 +85,7 @@ def bfgs(function, x_0, **kwargs):
     """
     from scipy import optimize
 
-    return optimize.fmin_bfgs(function, x_0, **kwargs)[0] * x_0.units
+    return optimize.fmin_bfgs(function, x_0, disp=0, **kwargs)[0] * x_0.units
 
 
 @quantized
