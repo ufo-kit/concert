@@ -1,13 +1,19 @@
 import numpy as np
 
 
-def halver(function, param, initial_step, epsilon, max_iterations=100):
+def halver(function, param, initial_step=None, epsilon=None,
+           max_iterations=100):
     """
     Halving the interval, evaluate *function* based on *param*. Use
     *initial_step*, *epsilon* precision and *max_iterations*.
     """
     # Safe copy for not changing the original.
-    step = np.copy(initial_step) * initial_step.units
+    if initial_step is None:
+        step = 1 * param.get().result().units
+    else:
+        step = np.copy(initial_step) * initial_step.units
+    if epsilon is None:
+        epsilon = 1e-3 * param.get().result().units
     direction = 1
     i = 0
     y_0 = function(param.get().result())
