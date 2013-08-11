@@ -1,5 +1,9 @@
+import logbook
 from concert.optimization.base import ParameterOptimizer
 from concert.base import LimitError
+
+
+LOG = logbook.Logger()
 
 
 class Minimizer(ParameterOptimizer):
@@ -48,7 +52,7 @@ class Minimizer(ParameterOptimizer):
         try:
             self.param.set(result).wait()
         except LimitError:
-            self._logger.debug("Limit reached.")
+            LOG.debug("Limit reached.")
 
 
 class Maximizer(Minimizer):

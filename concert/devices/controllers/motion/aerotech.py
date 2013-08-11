@@ -1,9 +1,12 @@
 """Aerotech Controller."""
+import logbook
 from concert.devices.base import Device
 from concert.connections.inet import Aerotech
 from concert.asynchronous import async
-import logbook
 from concert.devices.io.aerotech import IO
+
+
+LOG = logbook.Logger(__name__)
 
 
 class HLe(Device):
@@ -14,7 +17,6 @@ class HLe(Device):
 
     def __init__(self):
         self._connection = Aerotech(HLe.HOST, HLe.PORT)
-        self.logger = logbook.Logger(self.__class__, __name__)
         super(HLe, self).__init__()
         self.ioo = IO(self._connection)
 
@@ -44,7 +46,7 @@ class HLe(Device):
             data = conn.execute("NEXT")
             if data == "ERROR":
                 msg = "Error reading positions."
-                self.logger.error(msg)
+                LOG.error(msg)
                 raise RuntimeError(msg)
             elif data == "EOF":
                 break
