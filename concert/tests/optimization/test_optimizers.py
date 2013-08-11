@@ -1,9 +1,9 @@
+import unittest
+import logbook
+import quantities as q
 from concert.devices.motors.dummy import Motor
 from concert.optimization import algorithms as algs
 from concert.optimization.optimizers import Minimizer, Maximizer
-import logbook
-import quantities as q
-import unittest
 from concert.tests import slow
 
 

@@ -1,6 +1,7 @@
+import unittest
+import logbook
 import quantities as q
 import numpy as np
-import unittest
 from testfixtures import ShouldRaise
 from concert.measures.rotationaxis import Ellipse
 from concert.tests.util.rotationaxis import SimulationCamera
@@ -8,7 +9,6 @@ from concert.devices.motors.base import LinearCalibration
 from concert.devices.motors.dummy import Motor
 from concert.tests import slow
 from concert.processes.scan import Scanner
-import logbook
 
 
 class TestRotationAxisMeasure(unittest.TestCase):

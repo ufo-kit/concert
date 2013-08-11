@@ -15,8 +15,8 @@ with an motor, the position can be changed with :meth:`Motor.set_position` and
 
 As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 """
-import quantities as q
 import logbook
+import quantities as q
 from concert.base import HardlimitError
 from concert.devices.base import Device, Parameter
 from concert.asynchronous import async
