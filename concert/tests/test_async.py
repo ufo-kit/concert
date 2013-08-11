@@ -86,6 +86,8 @@ class TestAsync(unittest.TestCase):
         self.assertTrue(isinstance(future2, Future),
                         "Getter accessor does not return a future.")
 
+        wait([future1, future2])
+
     def test_async_parameter(self):
         future1 = self.device["value"].set(15)
         future2 = self.device["value"].get()
@@ -94,6 +96,8 @@ class TestAsync(unittest.TestCase):
                         "Setter does not return a future.")
         self.assertTrue(isinstance(future2, Future),
                         "Getter does not return a future.")
+
+        wait([future1, future2])
 
     def test_async_method(self):
         future = self.device.do_nothing()
