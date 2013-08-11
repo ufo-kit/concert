@@ -1,8 +1,8 @@
 import unittest
 import logbook
+import quantities as q
 from testfixtures import ShouldRaise
 from concert.devices.motors.base import LinearCalibration
-import quantities as q
 from concert.devices.monochromators.dummy import\
     Monochromator as DummyMonochromator
 from concert.devices.monochromators import base
