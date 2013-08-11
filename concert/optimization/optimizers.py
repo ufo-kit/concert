@@ -74,16 +74,5 @@ class Maximizer(Minimizer):
 
     def __init__(self, param, feedback, algorithm, alg_args=None,
                  alg_kwargs=None):
-        super(Maximizer, self).__init__(param, _change_sgn(feedback),
+        super(Maximizer, self).__init__(param, lambda: -feedback(),
                                         algorithm, alg_args, alg_kwargs)
-
-
-def _change_sgn(feedback):
-    """
-    Change feedback function sign, i.e. if y = f(x), then after
-    applying this function y = -f(x).
-    """
-    def wrapper():
-        return -feedback()
-
-    return wrapper
