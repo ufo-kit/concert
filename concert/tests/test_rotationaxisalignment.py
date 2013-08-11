@@ -1,7 +1,8 @@
 import unittest
+import logbook
 import numpy as np
-from concert.devices.motors.dummy import Motor
 import quantities as q
+from concert.devices.motors.dummy import Motor
 from concert.devices.motors.base import LinearCalibration
 from concert.asynchronous import dispatcher
 from testfixtures import ShouldRaise
@@ -11,7 +12,6 @@ from concert.processes.tomoalignment import Aligner
 from concert.measures.rotationaxis import Ellipse
 from concert.tests.util.rotationaxis import SimulationCamera
 from concert.processes.scan import Scanner
-import logbook
 
 
 class TestDummyAlignment(unittest.TestCase):

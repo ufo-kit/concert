@@ -1,7 +1,6 @@
 """
 Axes based on the CompactRIO controller.
 """
-import logging
 import readline
 import quantities as q
 from concert.devices.motors.base import Motor, LinearCalibration
@@ -67,10 +66,6 @@ class RotationMotor(Motor):
 
 def main():
     """Main definition."""
-    logger = logging.getLogger('crio')
-    logger.addHandler(logging.StreamHandler())
-    logger.setLevel(logging.DEBUG)
-
     readline.parse_and_bind('tab: complete')
 
     linear_device = LinearMotor()
