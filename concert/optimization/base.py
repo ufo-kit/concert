@@ -55,7 +55,7 @@ class Optimizer(Process):
 
         dispatcher.send(self, self.FINISHED)
         LOG.debug("Optimization finished with x = {0}, y = {1}".
-                  format(self.data[0][-1], self.data[1][-1]))
+                  format(self.data[-1][0], self.data[-1][1]))
 
         return tuple(self.data)
 
