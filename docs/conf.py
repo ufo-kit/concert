@@ -28,6 +28,8 @@ htmlhelp_basename = 'concertdoc'
 
 intersphinx_mapping = {
     'python': ('http://python.readthedocs.org/en/latest/', None),
+    'scipy': ('http://docs.scipy.org/doc/scipy/reference', None),
+    'numpy': ('http://docs.scipy.org/doc/numpy', None)
 }
 
 # -- Options for LaTeX output --------------------------------------------------
