@@ -1,7 +1,7 @@
 import time
 import unittest
 import logbook
-import quantities as q
+from concert.quantities import q
 from testfixtures import compare
 from concert.devices.motors.base import LinearCalibration
 from concert.devices.motors.dummy import Motor as DummyMotor
@@ -13,6 +13,10 @@ from concert.tests import slow
 def compare_sequences(first_sequence, second_sequence, assertion):
     for x, y in zip(first_sequence, second_sequence):
         assertion(x, y)
+
+
+def assert_quants_almost_equal(x, y):
+    assert (x - y).magnitude < 0.00001
 
 
 class TestScan(unittest.TestCase):
@@ -36,7 +40,7 @@ class TestScan(unittest.TestCase):
               handler=self.handle_scan)
 
         expected = [-2 * q.mm, 1 * q.mm, 4 * q.mm, 7 * q.mm, 10 * q.mm]
-        compare_sequences(self.positions, expected, self.assertAlmostEqual)
+        compare_sequences(self.positions, expected, assert_quants_almost_equal)
 
     def test_dscan(self):
         self.positions = []
@@ -47,7 +51,7 @@ class TestScan(unittest.TestCase):
               handler=self.handle_scan)
 
         expected = [4 * q.mm, 6 * q.mm, 8 * q.mm, 10 * q.mm, 12 * q.mm]
-        compare_sequences(self.positions, expected, self.assertAlmostEqual)
+        compare_sequences(self.positions, expected, assert_quants_almost_equal)
 
     def test_process(self):
         def feedback():

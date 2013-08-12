@@ -1,6 +1,6 @@
 import unittest
 import logbook
-import quantities as q
+from concert.quantities import q
 from concert.devices.motors.base import LinearCalibration, Motor
 from concert.devices.motors.dummy import Motor as DummyMotor,\
     ContinuousMotor as DummyContinuousMotor
@@ -28,21 +28,12 @@ class TestDummyMotor(unittest.TestCase):
         self.motor.move(delta).wait()
         self.assertEqual(position + delta, self.motor.position)
 
-    def test_log_output(self):
-        self.motor.position = 0 * q.mm
-        info = "Motor: try position='0.0 mm'"
-        self.assertTrue(self.handler.has_info(info))
-
-        self.motor.position = 2 * q.mm
-        info = "Motor: try position='2.0 mm'"
-        self.assertTrue(self.handler.has_info(info))
-
 
 class TestContinuousDummyMotor(unittest.TestCase):
 
     def setUp(self):
-        position_calibration = LinearCalibration(1 / q.mm, 0 * q.mm)
-        velocity_calibration = LinearCalibration(1 / (q.mm / q.s),
+        position_calibration = LinearCalibration(q.count / q.mm, 0 * q.mm)
+        velocity_calibration = LinearCalibration(q.count / (q.mm / q.s),
                                                  0 * (q.mm / q.s))
 
         self.motor = DummyContinuousMotor(position_calibration,
@@ -63,23 +54,23 @@ class TestContinuousDummyMotor(unittest.TestCase):
 class TestMotorCalibration(unittest.TestCase):
 
     def setUp(self):
-        self.steps_per_mm = 10. / q.mm
+        self.steps_per_mm = 10. * q.count / q.mm
         calibration = LinearCalibration(self.steps_per_mm, 0 * q.mm)
 
         class MockMotor(Motor):
 
             def __init__(self):
                 super(MockMotor, self).__init__(calibration)
-                self._position = 0 * q.dimensionless
+                self._position = 0 * q.count
 
             def _stop_real(self):
                 pass
 
             def _set_position(self, position):
-                self._position = position
+                self._position = position * q.count
 
             def _get_position(self):
-                return self._position
+                return self._position / q.count
 
         self.motor = MockMotor()
         self.handler = logbook.TestHandler()

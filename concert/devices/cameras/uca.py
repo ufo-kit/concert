@@ -2,7 +2,7 @@
 Cameras supported by the libuca library.
 """
 import numpy as np
-import quantities as q
+from concert.quantities import q
 from concert.base import Parameter
 from concert.devices.cameras import base
 
@@ -10,7 +10,7 @@ from concert.devices.cameras import base
 def _new_setter_wrapper(camera, name, unit=None):
     def _wrapper(value):
         if unit:
-            value = value.rescale(unit)
+            value = value.to(unit)
 
         dic = {name: value}
         camera.set_properties(**dic)

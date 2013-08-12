@@ -1,6 +1,6 @@
 import unittest
 import logbook
-import quantities as q
+from concert.quantities import q
 from concert.base import *
 from testfixtures import ShouldRaise, compare
 

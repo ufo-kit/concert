@@ -1,13 +1,13 @@
 import unittest
 import logbook
-import quantities as q
+import random
+from concert.quantities import q
 from testfixtures import ShouldRaise
 from concert.devices.motors.base import LinearCalibration
 from concert.devices.monochromators.dummy import\
     Monochromator as DummyMonochromator
 from concert.devices.monochromators import base
 from concert.devices.monochromators.base import Monochromator
-import random
 
 
 class WavelengthMonochromator(Monochromator):
@@ -75,9 +75,12 @@ class TestDummyMonochromator(unittest.TestCase):
 
     def test_wavelength_mono_energy(self):
         self.wave_mono.energy = self.energy
-        self.assertAlmostEqual(self.wave_mono.energy, self.energy)
-        self.assertAlmostEqual(self.wave_mono.wavelength, base.
-                               energy_to_wavelength(self.wave_mono.energy))
+        d = self.wave_mono.energy - self.energy
+        self.assertAlmostEqual(d.magnitude, 0.0)
+
+        d = self.wave_mono.wavelength - \
+            base.energy_to_wavelength(self.wave_mono.energy)
+        self.assertAlmostEqual(d.magnitude, 0.0)
 
     def test_wavelength_mono_wavelength(self):
         # Wavelength-based monochromator.

@@ -1,8 +1,8 @@
 """
 ANKA storage ring access via TANGO.
 """
+from concert.quantities import q
 from concert.devices.storagerings.base import StorageRing as BaseStorageRing
-import quantities as q
 from concert.connections.tango import TopoTomo
 
 

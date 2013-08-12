@@ -267,7 +267,7 @@ def _run_shell(handler, module=None):
         return None
 
     try:
-        import quantities as q
+        from concert.quantities import q
 
         print("Welcome to Concert {0}".format(concert.__version__))
 

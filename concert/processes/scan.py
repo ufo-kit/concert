@@ -25,7 +25,7 @@ pre-defined in the :mod:`concert.feedbacks.camera` module.
 :func:`ascan` and :func:`dscan` are used to scan multiple parameters
 in a similar way as SPEC::
 
-    import quantities as q
+    from concert.quantities import q
     from concert.processes.scan import ascan
 
     def do_something(parameters):
@@ -37,8 +37,8 @@ in a similar way as SPEC::
            n_intervals=10, handler=do_something)
 
 """
-import quantities as q
 import numpy as np
+from concert.quantities import q
 from concurrent.futures import wait
 from concert.base import Parameter
 from concert.asynchronous import async

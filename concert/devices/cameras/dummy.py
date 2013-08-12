@@ -1,6 +1,6 @@
 """This module provides a simple dummy camera."""
 import numpy as np
-import quantities as q
+from concert.quantities import q
 from concert.base import Parameter
 from concert.devices.cameras import base
 
@@ -52,7 +52,7 @@ class Camera(base.Camera):
         pass
 
     def _grab_real(self):
-        time = self.exposure_time.rescale(q.s).magnitude
+        time = self.exposure_time.to(q.s).magnitude
 
         # 1e5 is a dummy correlation between exposure time and emitted e-.
         tmp = self._background + time * 1e5
