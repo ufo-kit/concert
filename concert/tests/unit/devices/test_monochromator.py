@@ -1,8 +1,9 @@
 import unittest
 import logbook
 import random
-from concert.quantities import q
 from testfixtures import ShouldRaise
+from concert.tests import assert_almost_equal
+from concert.quantities import q
 from concert.devices.motors.base import LinearCalibration
 from concert.devices.monochromators.dummy import\
     Monochromator as DummyMonochromator
@@ -63,28 +64,25 @@ class TestDummyMonochromator(unittest.TestCase):
 
     def test_energy_mono_energy(self):
         self.mono.energy = self.energy
-        self.assertAlmostEqual(self.mono.energy, self.energy)
-        self.assertAlmostEqual(self.mono.wavelength,
-                               base.energy_to_wavelength(self.mono.energy))
+        assert_almost_equal(self.mono.energy, self.energy)
+        assert_almost_equal(self.mono.wavelength,
+                            base.energy_to_wavelength(self.mono.energy))
 
     def test_energy_mono_wavelength(self):
         self.mono.wavelength = self.wavelength
-        self.assertAlmostEqual(self.mono.wavelength, self.wavelength)
-        self.assertAlmostEqual(base.wavelength_to_energy(self.wavelength),
-                               self.mono.energy)
+        assert_almost_equal(self.mono.wavelength, self.wavelength)
+        assert_almost_equal(base.wavelength_to_energy(self.wavelength),
+                            self.mono.energy)
 
     def test_wavelength_mono_energy(self):
         self.wave_mono.energy = self.energy
-        d = self.wave_mono.energy - self.energy
-        self.assertAlmostEqual(d.magnitude, 0.0)
-
-        d = self.wave_mono.wavelength - \
-            base.energy_to_wavelength(self.wave_mono.energy)
-        self.assertAlmostEqual(d.magnitude, 0.0)
+        assert_almost_equal(self.wave_mono.energy, self.energy)
+        assert_almost_equal(self.wave_mono.wavelength,
+                            base.energy_to_wavelength(self.wave_mono.energy))
 
     def test_wavelength_mono_wavelength(self):
         # Wavelength-based monochromator.
         self.wave_mono.wavelength = self.wavelength
-        self.assertAlmostEqual(self.wave_mono.wavelength, self.wavelength)
-        self.assertAlmostEqual(base.wavelength_to_energy(self.wavelength),
-                               self.wave_mono.energy)
+        assert_almost_equal(self.wave_mono.wavelength, self.wavelength)
+        assert_almost_equal(base.wavelength_to_energy(self.wavelength),
+                            self.wave_mono.energy)

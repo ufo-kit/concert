@@ -1,6 +1,7 @@
 import unittest
 import logbook
 from concert.quantities import q
+from concert.tests import assert_almost_equal
 from concert.devices.motors.dummy import Motor
 from concert.optimization import algorithms as algs
 from concert.optimization.optimizers import Minimizer, Maximizer
@@ -16,7 +17,6 @@ class TestOptimizers(unittest.TestCase):
                            algs.nonlinear_conjugate, algs.bfgs,
                            algs.least_squares]
         self.center = 3.0 * q.mm
-        self.precision_places = 2
         self.motor = Motor(position=0)
 
     def tearDown(self):
@@ -27,9 +27,8 @@ class TestOptimizers(unittest.TestCase):
                 self.center.to_base_units().magnitude) ** 2
 
     def check(self):
-        self.assertAlmostEqual(self.motor.position.to_base_units().magnitude,
-                               self.center.to_base_units().magnitude,
-                               self.precision_places)
+        assert_almost_equal(self.motor.position.to_base_units(),
+                            self.center.to_base_units(), 1e-2)
 
     @slow
     def test_minimizers(self):
