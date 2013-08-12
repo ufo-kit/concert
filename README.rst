@@ -18,7 +18,7 @@ About
 Concert is a light-weight control system interface to control Tango and native
 devices. It can be used as a library::
 
-    import quantities as q
+    from concert.quantities import q
     from concert.devices.motors.crio import LinearMotor
 
     motor = LinearMotor()
@@ -36,12 +36,12 @@ or from a session and within an integrated `IPython`_ shell::
 
     In [2]: dstate
     Out[2]:
-    ------------------------------------
+    -----------------------------------------
       Name         Parameters
-    ------------------------------------
-      Motor         position  10.0 mm
+    -----------------------------------------
+      Motor         position  10.0 millimeter
                     state     standby
-    ------------------------------------
+    -----------------------------------------
 
 .. _Ipython: http://ipython.org
 
