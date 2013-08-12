@@ -3,7 +3,7 @@ Optimization (minimization, maximization) can be done by many techniques.
 This module consists of algorithms capable of optimizing functions y = f(x).
 """
 
-import numpy as np
+from concert.quantities import q
 
 
 def halver(function, x_0, initial_step=None, epsilon=None,
@@ -14,11 +14,15 @@ def halver(function, x_0, initial_step=None, epsilon=None,
     """
     # Safe copy for not changing the original.
     if initial_step is None:
-        step = 1 * x_0.units
+        step = x_0 / x_0.magnitude if x_0.magnitude else x_0
     else:
-        step = np.copy(initial_step) * initial_step.units
+        step = initial_step
     if epsilon is None:
-        epsilon = 1e-3 * x_0.units
+        epsilon = 1e-3 * x_0
+
+        if x_0.magnitude:
+            epsilon /= x_0.magnitude
+
     direction = 1
     i = 0
     last_x = x_0
@@ -61,8 +65,9 @@ def quantized(function):
     a *function* which does not take units into account.
     """
     def wrapper(eval_func, x_0, *args, **kwargs):
-        return function(lambda x: eval_func(x * x_0.units),
-                        x_0, *args, **kwargs)
+        return q.Quantity(function(lambda x:
+                                   eval_func(q.Quantity(x, x_0.units)),
+                                   x_0.magnitude, *args, **kwargs), x_0.units)
 
     wrapper.__doc__ = function.__doc__
 
@@ -77,7 +82,7 @@ def down_hill(function, x_0, **kwargs):
     """
     from scipy import optimize
 
-    return optimize.fmin(function, x_0, disp=0, **kwargs)[0] * x_0.units
+    return optimize.fmin(function, x_0, disp=0, **kwargs)[0]
 
 
 @quantized
@@ -88,7 +93,7 @@ def powell(function, x_0, **kwargs):
     """
     from scipy import optimize
 
-    return optimize.fmin_powell(function, x_0, disp=0, **kwargs) * x_0.units
+    return optimize.fmin_powell(function, x_0, disp=0, **kwargs)
 
 
 @quantized
@@ -100,7 +105,7 @@ def nonlinear_conjugate(function, x_0, **kwargs):
     """
     from scipy import optimize
 
-    return optimize.fmin_cg(function, x_0, disp=0, **kwargs)[0] * x_0.units
+    return optimize.fmin_cg(function, x_0, disp=0, **kwargs)[0]
 
 
 @quantized
@@ -112,7 +117,7 @@ def bfgs(function, x_0, **kwargs):
     """
     from scipy import optimize
 
-    return optimize.fmin_bfgs(function, x_0, disp=0, **kwargs)[0] * x_0.units
+    return optimize.fmin_bfgs(function, x_0, disp=0, **kwargs)[0]
 
 
 @quantized
@@ -123,4 +128,4 @@ def least_squares(function, x_0, **kwargs):
     """
     from scipy import optimize
 
-    return optimize.leastsq(function, x_0, **kwargs)[0][0] * x_0.units
+    return optimize.leastsq(function, x_0, **kwargs)[0][0]

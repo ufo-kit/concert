@@ -10,6 +10,8 @@ Version 0.3dev
   package, the focusing can be implemented by Maximizer with a proper feedback.
 - Add ``--repo`` parameter to the ``fetch`` command. With this flag, session
   files version controlled with Git can be imported.
+- Use pint instead of quantities. pint is a faster for smaller Numpy arrays,
+  stricter and does not depend on Numpy.
 
 Version 0.2
 -----------

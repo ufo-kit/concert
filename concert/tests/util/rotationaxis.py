@@ -1,12 +1,17 @@
-import quantities as q
+import math
 import numpy as np
+from concert.quantities import q
 from concert.asynchronous import dispatcher
 from concert.devices.cameras.base import Camera
 
 
+def get_np_angle(angle):
+    return np.array([angle.to(q.rad).magnitude] * q.rad)
+
+
 def rot_x(angle, matrix):
     """Rotation around x-axis."""
-    angle = angle.rescale(q.rad)
+    angle = get_np_angle(angle)
     m_0 = np.array([[1, 0, 0],
                     [0, np.cos(angle), -np.sin(angle)],
                     [0, np.sin(angle), np.cos(angle)]])
@@ -18,7 +23,7 @@ def rot_x(angle, matrix):
 
 def rot_y(angle, matrix):
     """Rotation around y-axis."""
-    angle = angle.rescale(q.rad)
+    angle = get_np_angle(angle)
     m_0 = np.array([[np.cos(angle), 0, np.sin(angle)],
                     [0, 1, 0],
                     [-np.sin(angle), 0, np.cos(angle)]])
@@ -30,7 +35,7 @@ def rot_y(angle, matrix):
 
 def rot_z(angle, matrix):
     """Rotation around z-axis."""
-    angle = angle.rescale(q.rad)
+    angle = get_np_angle(angle)
     m_0 = np.array([[np.cos(angle), -np.sin(angle), 0],
                     [np.sin(angle), np.cos(angle), 0],
                     [0, 0, 1]])
@@ -78,8 +83,8 @@ def sphere(size, radius, mat):
 
 def transfer(thickness, ref_index, lam):
     """Beer-Lambert law."""
-    lam = lam.rescale(thickness.units)
-    mju = 4 * np.pi * ref_index.imag / lam
+    lam = lam.to(thickness.units)
+    mju = 4 * q.dimensionless * np.pi * ref_index.imag / lam
 
     return np.exp(-mju * thickness)
 
@@ -118,7 +123,7 @@ def get_projection(thickness, incident_intensity, sigma):
 
     # Do not take noise into account in order to make test results
     # reproducible.
-    return res.magnitude
+    return res
 
 
 class SimulationCamera(Camera):
@@ -149,6 +154,8 @@ class SimulationCamera(Camera):
 
         # How many times was the image source asked for images.
         self.iteration = 0
+
+        super(Camera, self).__init__(None)
 
     @property
     def ellipse_center(self):

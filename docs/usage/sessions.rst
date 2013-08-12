@@ -111,15 +111,15 @@ and to view the log for a specific experiment use ::
 Writing a Concert session
 =========================
 
-Concert uses the quantities_ package to represent units in a programmatical way.
-Therefore, you will see the quantities module *imported* as the name ``q`` into
-your session. When you start the session you can use it right away to do unit
-calculation::
+Concert uses the pint_ package to represent units in a programmatical way.
+Therefore, you will see ``UnitRegistry`` instance *imported* as the name ``q``
+into your session. When you start the session you can use it right away to do
+unit calculation::
 
     >>> a = 9.81 * q.m / q.s**2
     >>> v = 5 * q.s * a
     >>> "Velocity after 5 seconds: {0}".format(v)
-    'Velocity after 5 seconds: 49.05 m/s'
+    'Velocity after 5 seconds: 49.05 meter / second'
 
 You will also notice the placeholder text assigned to the ``__doc__`` variable.
 This should be change to something descriptive as it will be shown each time you
@@ -169,9 +169,9 @@ To get information about the state of a device, you can simply print it::
 
     >>> print(ring)
      Parameter  Value
-     current    99.45 mA
-     energy     4.45 MeV
-     lifetime   11.0 h
+     current    99.45 milliampere
+     energy     4.45 megaeV
+     lifetime   11.0 hour
 
 This can become tiresome if you have multiple devices. To fix this, we can use a
 session's ``ddoc`` and ``dstate`` functions::
@@ -185,12 +185,12 @@ and ``ddoc()`` ::
     ---------------------------------------------
       Name         Parameters
     ---------------------------------------------
-      DummyMotor    position  99.3820097256 mm
+      DummyMotor    position  99.382 millimeter
                     state     standby
     ---------------------------------------------
-      DummyRing     current   99.45 mA
-                    lifetime  11.0 h
-                    energy    4.45 MeV
+      DummyRing     current   99.45 milliampere
+                    lifetime  11.0 hour
+                    energy    4.45 megaeV
     ---------------------------------------------
 
     >>> ddoc()
@@ -208,7 +208,7 @@ and ``ddoc()`` ::
     ------------------------------------------------------------------------------
 
 
-.. _quantities: https://pypi.python.org/pypi/quantities
+.. _pint: https://pint.readthedocs.org/en/latest/
 
 
 Importing other sessions

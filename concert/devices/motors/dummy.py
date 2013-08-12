@@ -1,8 +1,8 @@
 """Motor Dummy."""
 import random
+from concert.quantities import q
 from concert.devices.motors import base
 from concert.devices.motors.base import LinearCalibration
-import quantities as q
 
 
 class DummyLimiter(object):
@@ -21,7 +21,7 @@ class Motor(base.Motor):
 
     """Dummy Motor class implementation."""
 
-    def __init__(self, calibration=LinearCalibration(1 / q.mm, 0 * q.mm),
+    def __init__(self, calibration=LinearCalibration(q.count / q.mm, 0 * q.mm),
                  limiter=None, position=None, hard_limits=None):
         super(Motor, self).__init__(calibration, limiter)
         if hard_limits is None:
@@ -35,8 +35,8 @@ class Motor(base.Motor):
             self._position = position
 
     def in_hard_limit(self):
-        return self._position <= self._hard_limits[0] or\
-            self._position >= self._hard_limits[1]
+        return self._position < self._hard_limits[0] or not\
+            self._position < self._hard_limits[1]
 
     def _stop_real(self):
         pass
@@ -44,7 +44,10 @@ class Motor(base.Motor):
     def _set_position(self, position):
         if position < self._hard_limits[0]:
             self._position = self._hard_limits[0]
-        elif position > self._hard_limits[1]:
+        elif not position < self._hard_limits[1]:
+            # We do this funny comparison because pint is able to compare
+            # "position < something" but not the other way around. See
+            # https://github.com/hgrecco/pint/issues/40
             self._position = self._hard_limits[1]
         else:
             self._position = position
@@ -72,7 +75,7 @@ class ContinuousMotor(base.ContinuousMotor):
         self._position = position
         if self._position < self._position_hard_limits[0]:
             self._position = self._position_hard_limits[0]
-        elif self._position > self._position_hard_limits[1]:
+        elif not self._position < self._position_hard_limits[1]:
             self._position = self._position_hard_limits[1]
 
     def _get_position(self):
@@ -84,7 +87,7 @@ class ContinuousMotor(base.ContinuousMotor):
         if self._velocity < self._velocity_hard_limits[0]:
             self._velocity = self._velocity_hard_limits[0]
             # self.send(MotorMessage.VELOCITY_LIMIT)
-        elif self._velocity > self._velocity_hard_limits[1]:
+        elif not self._velocity < self._velocity_hard_limits[1]:
             self._velocity = self._velocity_hard_limits[1]
             # self.send(MotorMessage.VELOCITY_LIMIT)
 

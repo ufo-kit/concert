@@ -12,7 +12,7 @@ process like this ::
     x, y = scanner.run().result()
 """
 import numpy as np
-import quantities as q
+from concert.quantities import q
 from concert.base import Parameter
 
 

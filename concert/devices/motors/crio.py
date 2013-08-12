@@ -2,7 +2,7 @@
 Axes based on the CompactRIO controller.
 """
 import readline
-import quantities as q
+from concert.quantities import q
 from concert.devices.motors.base import Motor, LinearCalibration
 from concert.connections.inet import Connection
 

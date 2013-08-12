@@ -1,10 +1,10 @@
 import unittest
-import quantities as q
+from concert.quantities import q
 from concert.devices.motors.base import LinearCalibration
 
 
 class TestLinearCalibration(unittest.TestCase):
-    STEPS_PER_UNIT = 5000 * q.dimensionless
+    STEPS_PER_UNIT = 5000 * q.count
     OFFSET = 0 * q.mm
 
     def setUp(self):
