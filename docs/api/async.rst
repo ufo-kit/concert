@@ -39,10 +39,27 @@ user wants to employ real parallelism they should make use of the
 multiprocessing module which provides functionality not limited by Python's
 global interpreter lock.
 
-
 .. autofunction:: async
 .. autofunction:: is_async
 .. autofunction:: wait
+
+
+Testing
+-------
+
+Testing and debugging asynchronous code can be difficult at times because the
+real source of an error is hidden behind calls from different places. To
+disable asynchronous execution (but still keeping the illusion of having
+Futures returned), you can import :data:`.DISABLE` and set it to ``True``
+*before* importing anything else from Concert.
+
+Concert already provides a Nose plugin that adds a ``--disable-async`` flag to
+the test runner which in turn sets :data:`.DISABLE` to ``True``.
+
+.. py:data:: concert.asynchronous.DISABLE
+
+    A global configuration variable that will disable asynchronous execution
+    when set to ``True``.
 
 
 Messaging
