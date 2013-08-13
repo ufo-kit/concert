@@ -12,6 +12,8 @@ Version 0.3dev
   files version controlled with Git can be imported.
 - Use pint instead of quantities. pint is a faster for smaller Numpy arrays,
   stricter and does not depend on Numpy.
+- Things can now run serialized if ``concert.asynchronous.DISABLE`` is set to
+  ``True``.
 
 Version 0.2
 -----------

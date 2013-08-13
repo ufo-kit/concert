@@ -21,18 +21,35 @@ Future.wait = _wait
 # Module-wide executor
 EXECUTOR = ThreadPoolExecutor(max_workers=128)
 
+# Module-wide disable
+DISABLE = False
+
+
+class _FakeFuture(Future):
+    def __init__(self, result):
+        super(_FakeFuture, self).__init__()
+        self.set_result(result)
+
 
 def async(func):
     """A decorator for functions which are supposed to be executed
     asynchronously."""
 
-    @wraps(func)
-    def _async(*args, **kwargs):
-        return EXECUTOR.submit(func, *args, **kwargs)
+    if DISABLE:
+        @wraps(func)
+        def _sync(*args, **kwargs):
+            result = func(*args, **kwargs)
+            return _FakeFuture(result)
 
-    _async.__dict__["_async"] = True
+        _sync.__dict__["_async"] = True
+        return _sync
+    else:
+        @wraps(func)
+        def _async(*args, **kwargs):
+            return EXECUTOR.submit(func, *args, **kwargs)
 
-    return _async
+        _async.__dict__["_async"] = True
+        return _async
 
 
 def is_async(func):

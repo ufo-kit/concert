@@ -1,6 +1,6 @@
 PYTHON = python
 SETUP = $(PYTHON) setup.py
-RUNTEST = nosetests
+RUNTEST = $(PYTHON) runtests.py
 
 .PHONY: build clean check check-fast dist init install html
 
