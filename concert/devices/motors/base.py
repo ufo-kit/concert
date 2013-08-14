@@ -85,11 +85,11 @@ class Motor(Device):
         return False
 
     def _get_calibrated_position(self):
-        return self._calibration.to_user(self._get_position() * q.count)
+        return self._calibration.to_user(self._get_position())
 
     def _set_calibrated_position(self, position):
         self._set_state(self.MOVING)
-        self._set_position(self._calibration.to_steps(position) / q.count)
+        self._set_position(self._calibration.to_steps(position))
 
         if self.in_hard_limit():
             self._set_state(self.LIMIT)
@@ -180,7 +180,8 @@ class LinearCalibration(Calibration):
         self._offset = offset_in_steps
 
     def to_user(self, value_in_steps):
-        return value_in_steps / self._steps_per_unit - self._offset
+        return value_in_steps * q.count / self._steps_per_unit - self._offset
 
     def to_steps(self, value):
-        return (value + self._offset) * self._steps_per_unit
+        res = (value + self._offset) * self._steps_per_unit
+        return res.to_base_units().magnitude
