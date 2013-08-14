@@ -1,9 +1,9 @@
 """Aerotech"""
 import time
 from concert.quantities import q
-from concert.devices.motors.base import ContinuousMotor, LinearCalibration, \
-    Motor
+from concert.devices.motors.base import ContinuousMotor, Motor
 from concert.connections.inet import Aerotech
+from concert.devices.calibration import LinearCalibration
 
 
 class Aerorot(ContinuousMotor):

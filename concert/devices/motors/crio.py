@@ -3,7 +3,8 @@ Axes based on the CompactRIO controller.
 """
 import readline
 from concert.quantities import q
-from concert.devices.motors.base import Motor, LinearCalibration
+from concert.devices.motors.base import Motor
+from concert.devices.calibration import LinearCalibration
 from concert.connections.inet import Connection
 
 
