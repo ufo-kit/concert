@@ -5,7 +5,7 @@ from threading import Event
 from testfixtures import ShouldRaise
 from concert.quantities import q
 from concert.devices.motors.dummy import Motor
-from concert.devices.motors.base import LinearCalibration
+from concert.devices.calibration import LinearCalibration
 from concert.asynchronous import dispatcher
 from concert.tests import slow
 from concert.processes.tomoalignment import Aligner

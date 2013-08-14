@@ -37,14 +37,18 @@ Exceptions
 .. autoclass:: concert.base.WriteAccessError
 
 
+Calibration
+===========
+
+.. autoclass:: concert.devices.calibration.Calibration
+    :show-inheritance:
+    :members:
+
+
 Motors
 ======
 
 .. autoclass:: concert.devices.motors.base.Motor
-    :show-inheritance:
-    :members:
-
-.. autoclass:: concert.devices.motors.base.Calibration
     :show-inheritance:
     :members:
 

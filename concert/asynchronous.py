@@ -26,6 +26,7 @@ DISABLE = False
 
 
 class _FakeFuture(Future):
+
     def __init__(self, result):
         super(_FakeFuture, self).__init__()
         self.set_result(result)
