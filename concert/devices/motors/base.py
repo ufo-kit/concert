@@ -1,5 +1,5 @@
 """
-Each motor is associated with a :class:`Calibration` that maps arbitrary
+Each motor is associated with a :class:`~.Calibration` that maps arbitrary
 real-world coordinates to devices coordinates. When a calibration is associated
 with an motor, the position can be changed with :meth:`Motor.set_position` and
 :meth:`Motor.move`::
@@ -18,7 +18,7 @@ As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 import logbook
 from concert.quantities import q
 from concert.base import HardlimitError
-from concert.devices.base import Device, Parameter
+from concert.devices.base import Device, Parameter, LinearCalibration
 from concert.asynchronous import async
 
 
@@ -29,8 +29,10 @@ class Motor(Device):
 
     """Base class for everything that moves.
 
-    An motor is used with a *calibration* that conforms to the
-    :class:`Calibration` interface to convert between user and device units.
+    A motor is used with a *calibration* that conforms to the
+    :class:`~.Calibration` interface to convert between user and device units. If
+    *calibration* is not given, a default :class:`~.LinearCalibration` mapping
+    one step to one millimeter with zero offset is assumed.
 
     .. py:attribute:: position
 
@@ -41,7 +43,7 @@ class Motor(Device):
     MOVING = 'moving'
     LIMIT = 'limit'
 
-    def __init__(self, calibration, limiter=None):
+    def __init__(self, calibration=None, limiter=None):
         params = [Parameter('position',
                             self._get_calibrated_position,
                             self._set_calibrated_position,
@@ -49,7 +51,12 @@ class Motor(Device):
                             "Position of the motor")]
 
         super(Motor, self).__init__(params)
-        self._calibration = calibration
+
+        if not calibration:
+            self._calibration = LinearCalibration(1 * q.count / q.mm, 0 * q.mm)
+        else:
+            self._calibration = calibration
+
         self._states = \
             self._states.union(set([self.STANDBY, self.MOVING, self.LIMIT]))
 

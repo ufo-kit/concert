@@ -2,7 +2,7 @@
 import random
 from concert.quantities import q
 from concert.devices.motors import base
-from concert.devices.calibration import LinearCalibration
+from concert.devices.base import LinearCalibration
 
 
 class DummyLimiter(object):
@@ -21,7 +21,7 @@ class Motor(base.Motor):
 
     """Dummy Motor class implementation."""
 
-    def __init__(self, calibration=LinearCalibration(q.count / q.mm, 0 * q.mm),
+    def __init__(self, calibration=None,
                  limiter=None, position=None, hard_limits=None):
         super(Motor, self).__init__(calibration, limiter)
         if hard_limits is None:
