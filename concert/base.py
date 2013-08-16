@@ -225,6 +225,10 @@ class Parameter(object):
             msg = "`{0}' can only receive values of unit {1} but got {2}"
             raise UnitError(msg.format(self.name, self.unit, value))
 
+        if self.limiter and not self.limiter(value):
+            msg = "{0} for `{1}' is out of range"
+            raise LimitError(msg.format(value, self.name))
+
         def log_access(what):
             """Log access."""
             msg = "{0}: {1} {2}='{3}'"
@@ -237,10 +241,6 @@ class Parameter(object):
             self._value = value
         else:
             self._fset(value)
-
-            if self.limiter and not self.limiter(value):
-                msg = "{0} for `{1}' is out of range"
-                raise LimitError(msg.format(value, self.name))
 
         log_access('set')
         self.notify()
