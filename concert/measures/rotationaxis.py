@@ -227,8 +227,9 @@ def _segment(image, k=3.0):
     else:
         thr = (bins[-1] - bins[0]) / k + bins[0]
 
-    image[image < thr] = 1
-    image[image >= thr] = 0
+    image[image < thr] = 0
+    image[image >= thr] = 1
+    image = 1 - image
     image = ndimage.binary_fill_holes(np.cast[np.bool](image))
 
     # Close the image to get rid of noise-caused fuzzy segmentation.
