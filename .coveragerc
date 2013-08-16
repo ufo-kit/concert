@@ -1,6 +1,8 @@
 [run]
 source = concert
 omit =
+    concert/ext/*.py
+    concert/devices/cameras/uca.py
     concert/devices/motors/crio.py
     concert/devices/motors/aerotech.py
     concert/devices/io/aerotech.py
