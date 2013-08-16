@@ -4,7 +4,6 @@ import logbook
 from concert.quantities import q
 from testfixtures import compare
 from concert.tests import assert_almost_equal
-from concert.devices.calibration import LinearCalibration
 from concert.devices.motors.dummy import Motor as DummyMotor
 from concert.devices.cameras.dummy import Camera
 from concert.processes.scan import Scanner, StepTomoScanner, ascan, dscan
