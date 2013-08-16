@@ -252,9 +252,9 @@ def _get_intersection_points(image):
     a segmented binary image."""
     y_ind, x_ind = np.where(image != 0)
     x_low = x_ind[np.where(y_ind == 0)]
-    x_high = x_ind[np.where(y_ind == image.shape[1] - 1)]
+    x_high = x_ind[np.where(y_ind == image.shape[0] - 1)]
     y_low = y_ind[np.where(x_ind == 0)]
-    y_high = y_ind[np.where(x_ind == image.shape[0] - 1)]
+    y_high = y_ind[np.where(x_ind == image.shape[1] - 1)]
 
     points = []
     if len(x_low) != 0:
