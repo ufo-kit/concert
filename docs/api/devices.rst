@@ -40,7 +40,11 @@ Exceptions
 Calibration
 ===========
 
-.. autoclass:: concert.devices.calibration.Calibration
+.. autoclass:: concert.devices.base.Calibration
+    :show-inheritance:
+    :members:
+
+.. autoclass:: concert.devices.base.LinearCalibration
     :show-inheritance:
     :members:
 

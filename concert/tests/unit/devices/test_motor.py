@@ -1,10 +1,34 @@
 import unittest
 import logbook
 from concert.quantities import q
+from concert.devices.base import LinearCalibration
 from concert.devices.motors.base import Motor
-from concert.devices.calibration import LinearCalibration
 from concert.devices.motors.dummy import Motor as DummyMotor,\
     ContinuousMotor as DummyContinuousMotor
+
+
+def test_default_motor_has_default_calibration():
+    class MockMotor(Motor):
+        def __init__(self):
+            self._position = 0
+            super(MockMotor, self).__init__()
+
+        def _set_position(self, position):
+            self._position = position
+
+        def _get_position(self):
+            return self._position
+
+    handler = logbook.TestHandler()
+    handler.push_application()
+
+    motor = MockMotor()
+    motor.move(-1 * q.mm).wait()
+    assert motor.position == -1 * q.mm
+    motor.position = 2.3 * q.mm
+    assert motor.position == 2.3 * q.mm
+
+    handler.pop_application()
 
 
 class TestDummyMotor(unittest.TestCase):
