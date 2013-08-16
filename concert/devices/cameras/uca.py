@@ -63,7 +63,7 @@ class Camera(base.Camera):
         units = {
             Uca.Unit.METER: q.m,
             Uca.Unit.SECOND: q.s,
-            Uca.Unit.DEGREE_CELSIUS: q.Celsius,
+            Uca.Unit.DEGREE_CELSIUS: q.celsius,
             Uca.Unit.COUNT: q.count
         }
 
