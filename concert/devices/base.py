@@ -57,6 +57,7 @@ class Device(Parameterizable):
 
     def __enter__(self):
         self._lock.acquire()
+        return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self._lock.release()

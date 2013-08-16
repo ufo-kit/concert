@@ -55,3 +55,10 @@ class TestDevice(unittest.TestCase):
         table.add_row(["state", Device.NA])
 
         compare(str(self.device), table.get_string())
+
+    def test_context_manager(self):
+        # This is just a functional test, we don't cover synchronization issues
+        # here.
+        with self.device as d:
+            v = d.readonly
+            d.writeonly = 2
