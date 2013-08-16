@@ -1,5 +1,5 @@
 """
-Each motor is associated with a :class:`Calibration` that maps arbitrary
+Each motor is associated with a :class:`~.Calibration` that maps arbitrary
 real-world coordinates to devices coordinates. When a calibration is associated
 with an motor, the position can be changed with :meth:`Motor.set_position` and
 :meth:`Motor.move`::
@@ -30,8 +30,8 @@ class Motor(Device):
     """Base class for everything that moves.
 
     A motor is used with a *calibration* that conforms to the
-    :class:`Calibration` interface to convert between user and device units. If
-    *calibration* is not given, a default :py:class:`LinearCalibration` mapping
+    :class:`~.Calibration` interface to convert between user and device units. If
+    *calibration* is not given, a default :class:`~.LinearCalibration` mapping
     one step to one millimeter with zero offset is assumed.
 
     .. py:attribute:: position
