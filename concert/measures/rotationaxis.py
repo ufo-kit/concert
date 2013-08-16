@@ -227,8 +227,9 @@ def _segment(image, k=3.0):
     else:
         thr = (bins[-1] - bins[0]) / k + bins[0]
 
-    image[image < thr] = 1
-    image[image >= thr] = 0
+    image[image < thr] = 0
+    image[image >= thr] = 1
+    image = 1 - image
     image = ndimage.binary_fill_holes(np.cast[np.bool](image))
 
     # Close the image to get rid of noise-caused fuzzy segmentation.
@@ -251,9 +252,9 @@ def _get_intersection_points(image):
     a segmented binary image."""
     y_ind, x_ind = np.where(image != 0)
     x_low = x_ind[np.where(y_ind == 0)]
-    x_high = x_ind[np.where(y_ind == image.shape[1] - 1)]
+    x_high = x_ind[np.where(y_ind == image.shape[0] - 1)]
     y_low = y_ind[np.where(x_ind == 0)]
-    y_high = y_ind[np.where(x_ind == image.shape[0] - 1)]
+    y_high = y_ind[np.where(x_ind == image.shape[1] - 1)]
 
     points = []
     if len(x_low) != 0:
