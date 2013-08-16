@@ -18,8 +18,7 @@ As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 import logbook
 from concert.quantities import q
 from concert.base import HardlimitError
-from concert.devices.calibration import LinearCalibration
-from concert.devices.base import Device, Parameter
+from concert.devices.base import Device, Parameter, LinearCalibration
 from concert.asynchronous import async
 
 

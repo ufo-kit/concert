@@ -2,7 +2,7 @@
 import random
 from concert.quantities import q
 from concert.devices.motors import base
-from concert.devices.calibration import LinearCalibration
+from concert.devices.base import LinearCalibration
 
 
 class DummyLimiter(object):

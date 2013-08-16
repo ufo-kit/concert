@@ -1,8 +1,8 @@
 import unittest
 import logbook
 from concert.quantities import q
+from concert.devices.base import LinearCalibration
 from concert.devices.motors.base import Motor
-from concert.devices.calibration import LinearCalibration
 from concert.devices.motors.dummy import Motor as DummyMotor,\
     ContinuousMotor as DummyContinuousMotor
 
