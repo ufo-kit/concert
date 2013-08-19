@@ -31,10 +31,10 @@ As you can see, accessing parameters this way will *always be synchronous* and
 
 Parameter objects are not only used to communicate with a device but also carry
 meta data information about the parameter. The most important ones are
-:attr:`Parameter.name`, :attr:`Parameter.unit` and :attr:`Parameter.limiter` as
-well as the doc string describing the parameter. Moreover, parameters can be
-queried for access rights using :meth:`Parameter.is_readable` and
-:meth:`Parameter.is_writable`.
+:attr:`Parameter.name`, :attr:`Parameter.unit` and
+:attr:`Parameter.in_hard_limit` as well as the doc string describing the
+parameter. Moreover, parameters can be queried for access rights using
+:meth:`Parameter.is_readable` and :meth:`Parameter.is_writable`.
 
 To get all parameters of an object, you can iterate over the device itself ::
 
@@ -57,13 +57,19 @@ class UnitError(ValueError):
     pass
 
 
-class LimitError(Exception):
+class LimitError(ValueError):
 
     """Raised when an operation is passed a value that exceeds a limit."""
     pass
 
 
-class HardlimitError(LimitError):
+class SoftLimitError(LimitError):
+
+    """Raised when a soft limit is hit on the device."""
+    pass
+
+
+class HardLimitError(LimitError):
 
     """Raised when a hard limit is hit on the device."""
     pass
@@ -147,7 +153,7 @@ def parameter_name_valid(name):
 class Parameter(object):
 
     """
-    A parameter with a *name* and an optional *unit* and *limiter*.
+    A parameter with a *name* and an optional *unit* and *in_hard_limit*.
 
     .. py:attribute:: name
 
@@ -158,16 +164,25 @@ class Parameter(object):
         The unit that is expected when setting a value and that is returned. If
         a unit is not compatible, a :class:`.UnitError` will be raised.
 
-    .. py:attribute:: limiter
+    .. py:attribute:: in_hard_limit
 
         A callable that receives the value and returns True or False, depending
         if the value is out of limits or not.
+
+    .. py:attribute:: upper
+
+        Upper soft limit that is checked before setting the value.
+
+    .. py:attribute:: lower
+
+        Lower soft limit that is checked before setting the value.
     """
 
     CHANGED = 'changed'
 
     def __init__(self, name, fget=None, fset=None,
-                 unit=None, limiter=None,
+                 unit=None, in_hard_limit=None,
+                 upper=None, lower=None,
                  doc=None, owner_only=False):
 
         if not parameter_name_valid(name):
@@ -175,7 +190,7 @@ class Parameter(object):
 
         self.name = name
         self.unit = unit
-        self.limiter = limiter
+        self.in_hard_limit = in_hard_limit
         self.owner = None
         self._owner_only = owner_only
         self._fset = fset
@@ -183,8 +198,22 @@ class Parameter(object):
         self._value = None
         self.__doc__ = doc
 
+        self.upper = upper or float('Inf')
+        self.lower = lower or -float('Inf')
+
+        if unit and not upper:
+            self.upper = self.upper * unit
+
+        if unit and not lower:
+            self.lower = self.lower * unit
+
     def __lt__(self, other):
         return str(self) <= str(other)
+
+    def update_unit(self, unit):
+        self.unit = unit
+        self.upper = self.upper.magnitude * unit
+        self.lower = self.lower.magnitude * unit
 
     @async
     def get(self):
@@ -225,9 +254,10 @@ class Parameter(object):
             msg = "`{0}' can only receive values of unit {1} but got {2}"
             raise UnitError(msg.format(self.name, self.unit, value))
 
-        if self.limiter and not self.limiter(value):
-            msg = "{0} for `{1}' is out of range"
-            raise LimitError(msg.format(value, self.name))
+        if not self.lower <= value <= self.upper:
+            msg = "{0} for `{1}' is out of range [{2}, {3}]"
+            raise SoftLimitError(msg.format(value, self.name,
+                                            self.lower, self.upper))
 
         def log_access(what):
             """Log access."""
@@ -241,6 +271,10 @@ class Parameter(object):
             self._value = value
         else:
             self._fset(value)
+
+            if self.in_hard_limit and self.in_hard_limit():
+                msg = "{0} for `{1}' is out of range"
+                raise HardLimitError(msg.format(value, self.name))
 
         log_access('set')
         self.notify()

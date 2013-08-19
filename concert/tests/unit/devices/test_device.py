@@ -33,7 +33,7 @@ class TestDevice(unittest.TestCase):
 
     def test_accessor_functions(self):
         compare(self.device.get_readonly().result(), 1)
-        self.device.set_writeonly(None).wait()
+        self.device.set_writeonly(0).wait()
 
     def test_iterable(self):
         for param in self.device:

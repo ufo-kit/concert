@@ -19,15 +19,10 @@ class TestDummyAlignment(unittest.TestCase):
     def setUp(self):
         self.handler = logbook.TestHandler()
         self.handler.push_application()
-        self.x_motor = Motor(LinearCalibration(q.count / q.deg, 0 * q.deg),
-                             hard_limits=(-1e5, 1e5))
-        self.x_motor["position"].unit = q.deg
-        self.y_motor = Motor(LinearCalibration(q.count / q.deg, 0 * q.deg),
-                             hard_limits=(-1e5, 1e5))
-        self.y_motor["position"].unit = q.deg
-        self.z_motor = Motor(LinearCalibration(q.count / q.deg, 0 * q.deg),
-                             hard_limits=(-1e5, 1e5))
-        self.z_motor["position"].unit = q.deg
+        calibration = LinearCalibration(q.count / q.deg, 0 * q.deg)
+        self.x_motor = Motor(calibration=calibration)
+        self.y_motor = Motor(calibration=calibration)
+        self.z_motor = Motor(calibration=calibration)
 
         self.x_motor.position = 0 * q.deg
         self.z_motor.position = 0 * q.deg
