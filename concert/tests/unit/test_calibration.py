@@ -5,7 +5,7 @@ from concert.devices.base import Calibration, LinearCalibration
 
 
 def test_not_implemented():
-    calibration = Calibration()
+    calibration = Calibration(q.count, q.mm)
 
     with ShouldRaise(NotImplementedError):
         value = calibration.to_user(1 * q.count)

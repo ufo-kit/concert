@@ -19,7 +19,7 @@ position on an axis, you can also use :meth:`.Axis.set_position`.
 import threading
 from logbook import Logger
 from concert.base import Parameterizable, Parameter
-from concert.quantities import q
+from concert.quantities import q, numerator_units, denominator_units
 
 
 LOG = Logger(__name__)
@@ -77,6 +77,9 @@ class Device(Parameterizable):
 class Calibration(object):
 
     """Interface to convert between user and device units."""
+    def __init__(self, user_unit, device_unit):
+        self.user_unit = user_unit
+        self.device_unit = device_unit
 
     def to_user(self, value):
         """Return *value* in user units."""
@@ -97,7 +100,10 @@ class LinearCalibration(Calibration):
     """
 
     def __init__(self, device_units_per_user_units, offset_in_user_units):
-        super(LinearCalibration, self).__init__()
+        user_unit = denominator_units(device_units_per_user_units)
+        device_unit = numerator_units(device_units_per_user_units)
+        super(LinearCalibration, self).__init__(user_unit, device_unit)
+
         self.device_units_per_user_units = device_units_per_user_units
         self.offset = offset_in_user_units
 

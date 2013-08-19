@@ -56,6 +56,10 @@ class Motor(Device):
             self._calibration = LinearCalibration(1 * q.count / q.mm, 0 * q.mm)
         else:
             self._calibration = calibration
+            calibration_unit = calibration.user_unit
+
+            if calibration_unit != self['position'].unit:
+                self['position'].unit = calibration_unit
 
         self._states = \
             self._states.union(set([self.STANDBY, self.MOVING, self.LIMIT]))

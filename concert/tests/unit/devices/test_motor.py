@@ -31,6 +31,20 @@ def test_default_motor_has_default_calibration():
     handler.pop_application()
 
 
+def test_different_calibration_unit():
+    handler = logbook.TestHandler()
+    handler.push_application()
+
+    calibration = LinearCalibration(q.count / q.deg, 0 * q.deg)
+
+    motor = DummyMotor(calibration)
+    motor.position = 0 * q.deg
+    motor.move(1 * q.deg).wait()
+    assert motor.position == 1 * q.deg
+
+    handler.pop_application()
+
+
 class TestDummyMotor(unittest.TestCase):
 
     def setUp(self):
