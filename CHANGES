@@ -3,18 +3,25 @@ Concert changelog
 
 Here you can see the full list of changes between each Concert release.
 
-Version 0.3dev
---------------
+Version 0.3
+-----------
+
+Released on August 19th 2013.
+
+*Note*: This release breaks Python 2.6 compatibility!
 
 - ``Calibration`` classes moved to ``concert.devices.calibration``
 - Remove ``concert.processes.focus`` and reorganize ``concert.optimization``
   package, the focusing can be implemented by Maximizer with a proper feedback.
 - Add ``--repo`` parameter to the ``fetch`` command. With this flag, session
   files version controlled with Git can be imported.
-- Use pint instead of quantities. pint is a faster for smaller Numpy arrays,
+- Use pint instead of quantities. pint is faster for smaller Numpy arrays,
   stricter and does not depend on Numpy.
 - Things can now run serialized if ``concert.asynchronous.DISABLE`` is set to
   ``True``.
+- Restructured tests into separate directories.
+- Fix PDF generation of the docs.
+- Fix problem with IPython version >= 0.10.
 
 Version 0.2
 -----------
