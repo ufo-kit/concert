@@ -30,7 +30,7 @@ class Motor(base.Motor):
             self._hard_limits = hard_limits
         if not limiter:
             self._position = random.uniform(self._hard_limits[0],
-                                            self._hard_limits[1])
+                                            self._hard_limits[1]) * q.count
         else:
             self._position = position
 
@@ -43,12 +43,12 @@ class Motor(base.Motor):
 
     def _set_position(self, position):
         if position < self._hard_limits[0]:
-            self._position = self._hard_limits[0]
+            self._position = self._hard_limits[0] * q.count
         elif not position < self._hard_limits[1]:
             # We do this funny comparison because pint is able to compare
             # "position < something" but not the other way around. See
             # https://github.com/hgrecco/pint/issues/40
-            self._position = self._hard_limits[1]
+            self._position = self._hard_limits[1] * q.count
         else:
             self._position = position
 
