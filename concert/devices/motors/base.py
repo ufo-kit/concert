@@ -96,7 +96,7 @@ class Motor(Device):
 
     def _set_calibrated_position(self, position):
         self._set_state(self.MOVING)
-        self._set_position(self._calibration.to_steps(position))
+        self._set_position(self._calibration.to_device(position))
 
         if self.in_hard_limit():
             self._set_state(self.LIMIT)
@@ -143,7 +143,7 @@ class ContinuousMotor(Motor):
         return self._velocity_calibration.to_user(self._get_velocity())
 
     def _set_calibrated_velocity(self, velocity):
-        self._set_velocity(self._velocity_calibration.to_steps(velocity))
+        self._set_velocity(self._velocity_calibration.to_device(velocity))
 
     def _get_velocity(self):
         raise NotImplementedError

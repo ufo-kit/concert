@@ -73,7 +73,8 @@ class TestDummyFocusing(unittest.TestCase):
     @slow
     def test_maximum_out_of_soft_limits_right(self):
         motor = DummyMotor(limiter=DummyLimiter(25 * q.mm,
-                                                75 * q.mm), position=50)
+                                                75 * q.mm),
+                           position=50 * q.count)
         feedback = DummyGradientMeasure(motor['position'], 80 * q.mm)
         focuser = Maximizer(motor["position"], feedback, algorithms.halver,
                             (motor.position,),
@@ -87,7 +88,7 @@ class TestDummyFocusing(unittest.TestCase):
     def test_maximum_out_of_soft_limits_left(self):
         motor = DummyMotor(limiter=DummyLimiter(25 * q.mm,
                                                 75 * q.mm),
-                           position=50)
+                           position=50 * q.count)
         feedback = DummyGradientMeasure(motor['position'], 20 * q.mm)
         focuser = Maximizer(motor["position"], feedback, algorithms.halver,
                            (motor.position, 10 * q.mm, self.epsilon),
