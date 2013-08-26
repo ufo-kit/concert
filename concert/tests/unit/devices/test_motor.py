@@ -9,6 +9,7 @@ from concert.devices.motors.dummy import Motor as DummyMotor,\
 
 def test_default_motor_has_default_calibration():
     class MockMotor(Motor):
+
         def __init__(self):
             self._position = 0
             super(MockMotor, self).__init__()

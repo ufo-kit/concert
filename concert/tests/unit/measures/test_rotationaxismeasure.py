@@ -72,32 +72,32 @@ class TestRotationAxisMeasure(unittest.TestCase):
                                            self.image_source.size,
                                            self.image_source.size))
             self.measure()
- 
+
     @slow
     def test_center_no_rotation(self):
         self.make_images(0 * q.deg, 0 * q.deg)
         self.center_check()
- 
+
     @slow
     def test_center_only_x(self):
         self.make_images(17 * q.deg, 0 * q.deg)
         self.center_check()
- 
+
     @slow
     def test_center_only_z(self):
         self.make_images(0 * q.deg, 11 * q.deg)
         self.center_check()
- 
+
     @slow
     def test_center_positive(self):
         self.make_images(17 * q.deg, 11 * q.deg)
         self.center_check()
- 
+
     @slow
     def test_center_negative_positive(self):
         self.make_images(-17 * q.deg, 11 * q.deg)
         self.center_check()
- 
+
     @slow
     def test_center_positive_negative(self):
         self.make_images(17 * q.deg, -11 * q.deg)
@@ -112,34 +112,34 @@ class TestRotationAxisMeasure(unittest.TestCase):
     def test_only_x(self):
         """Only misaligned laterally."""
         self.align_check(0 * q.deg, 0 * q.deg)
- 
+
     @slow
     def test_only_z(self):
         """Only misaligned in the beam direction."""
         self.align_check(0 * q.deg, 11 * q.deg)
- 
+
     @slow
     def test_huge_x(self):
         self.image_source.scale = (3, 0.25, 3)
         self.align_check(60 * q.deg, 11 * q.deg)
- 
+
     @slow
     def test_huge_z(self):
         self.image_source.scale = (3, 0.25, 3)
         self.align_check(11 * q.deg, 60 * q.deg)
- 
+
     @slow
     def test_positive(self):
         self.align_check(17 * q.deg, 11 * q.deg)
- 
+
     @slow
     def test_negative_positive(self):
         self.align_check(-17 * q.deg, 11 * q.deg)
- 
+
     @slow
     def test_positive_negative(self):
         self.align_check(17 * q.deg, -11 * q.deg)
- 
+
     @slow
     def test_negative(self):
         self.align_check(-17 * q.deg, -11 * q.deg)
