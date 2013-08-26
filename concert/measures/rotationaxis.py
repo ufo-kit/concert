@@ -224,7 +224,8 @@ def _segment(image):
 
     Assume normally distributed noise, take the full width at
     1/1000 of the maximum and make it a threshold for finding
-    the sample. The sample must be highly absorbing.
+    the sample. The sample must be highly absorbing. The baseline
+    for the background is taken from the top row of the image.
     """
 
     thr = np.mean(image[-1, :]) - np.sqrt(-2 * np.log(0.001)) * \
