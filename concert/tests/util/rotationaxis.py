@@ -1,7 +1,5 @@
-import math
 import numpy as np
 from concert.quantities import q
-from concert.asynchronous import dispatcher
 from concert.devices.cameras.base import Camera
 
 
@@ -86,44 +84,25 @@ def transfer(thickness, ref_index, lam):
     lam = lam.to(thickness.units)
     mju = 4 * q.dimensionless * np.pi * ref_index.imag / lam
 
-    return np.exp(-mju * thickness)
+    return np.exp(- mju * thickness)
 
 
-def gauss(points, sigma):
-    """1D Gaussian of x *points* with *sigma*."""
-    return np.exp(-points ** 2 / (2 * sigma ** 2))
-
-
-def apply_beam(incident_intensity, sigma, transferred):
-    """Apply beam with *incident_intensity* to *transferred* objects. Use
-    Gaussian vertical beam profile with *sigma*.
-    """
-    size = transferred.shape[0]
-    flat = np.tile(gauss(np.linspace(-size / 2, size / 2, size), sigma)
-                   [:, np.newaxis], [1, size])
-
-    return incident_intensity * flat * transferred
-
-
-def get_projection(thickness, incident_intensity, sigma):
+def get_projection(thickness):
     """Get X-ray projection image from projected thickness."""
     max_val = thickness.max()
     if max_val > 0:
         thickness = thickness / thickness.max()
 
     # Make the projected thickness to be max. 0.1 mm.
-    thickness = thickness * q.mm
+    thickness = 0.1 * thickness * q.mm
 
     # Iron and 20 keV
     ref_index = 3.85263274e-06 + 9.68238822e-08j
     lam = 6.1992e-11 * q.m
 
-    res = apply_beam(incident_intensity, sigma,
-                     transfer(thickness, ref_index, lam))
-
     # Do not take noise into account in order to make test results
     # reproducible.
-    return res
+    return transfer(thickness, ref_index, lam)
 
 
 class SimulationCamera(Camera):
@@ -135,12 +114,11 @@ class SimulationCamera(Camera):
 
     def __init__(self, im_width, x_param, y_param, z_param,
                  needle_radius=None, rotation_radius=None,
-                 y_position=None, scales=None, i_0=1000.0):
+                 y_position=None, scales=None):
         self.x_axis_param = x_param
         self.y_axis_param = y_param
         self.z_axis_param = z_param
         self.size = im_width
-        self.i_0 = i_0
         self._center = None
         self.radius = needle_radius
         if self.radius is None:
@@ -182,7 +160,7 @@ class SimulationCamera(Camera):
 
         matrix = scale(self.scale, matrix)
 
-        return sphere(self.size, self.radius, matrix)
+        return sphere(self.size, self.radius, matrix) * 1e-9
 
     def _grab_real(self):
-        return get_projection(self.create_needle(), self.i_0, self.size)
+        return get_projection(self.create_needle())
