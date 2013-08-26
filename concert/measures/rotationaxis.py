@@ -55,6 +55,9 @@ from scipy import ndimage
 from concert.quantities import q
 
 
+EPSILON = 1e-3
+
+
 class Ellipse(object):
 
     """Ellipse fitting from a set of data points."""
@@ -150,7 +153,7 @@ class Ellipse(object):
 
         a_33 = np.array([[self._params[0], self._params[1] / 2],
                         [self._params[1] / 2, self._params[2]]])
-        if np.linalg.det(a_33) > 0:
+        if np.linalg.det(a_33) > EPSILON:
             x_pos = (self._params[1] * self._params[4] -
                      2 * self._params[3] * self._params[2]) /\
                 (4 * self._params[0] * self._params[2] - self._params[1] ** 2)
