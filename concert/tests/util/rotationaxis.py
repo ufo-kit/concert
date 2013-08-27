@@ -160,7 +160,7 @@ class SimulationCamera(Camera):
 
         matrix = scale(self.scale, matrix)
 
-        return sphere(self.size, self.radius, matrix) * 1e-9
+        return sphere(self.size, self.radius, matrix)
 
     def _grab_real(self):
         return get_projection(self.create_needle())
