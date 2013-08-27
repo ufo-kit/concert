@@ -53,6 +53,8 @@ technique.
 import numpy as np
 from scipy import ndimage
 from concert.quantities import q
+import multiprocessing as mp
+from multiprocessing import Pool
 
 
 EPSILON = 1e-3
@@ -141,8 +143,26 @@ class Ellipse(object):
     def _determine_tips(self):
         """Get sample tips from images."""
         if self._tips is None:
-            images = [_segment(image) for image in self._images]
-            self._tips = _get_ellipse_points(images)
+            self._tips = []
+            results = []
+
+            # Do not make more processes than needed for the number of images.
+            if len(self._images) > mp.cpu_count():
+                proc_count = mp.cpu_count()
+            else:
+                proc_count = len(self._images)
+
+            pool = Pool(processes=proc_count)
+
+            for image in self._images:
+                results.append(pool.apply_async(_get_ellipse_point,
+                                                args=(image,)))
+
+            for result in results:
+                tip = result.get()
+                if tip is not None:
+                    self._tips.append(tip)
+
             if len(self._tips) == 0:
                 raise ValueError("No sample tip points found.")
 
@@ -394,19 +414,11 @@ def _get_sample(image):
     return _get_biggest_region(labels)[1:-1, 1:-1]
 
 
-def _get_ellipse_points(images):
-    """Extract ellipse points from the sample in *image*, where *image* is
-    a binary image."""
-    tips = []
-    tip = None
+def _get_ellipse_point(image):
+    """Extract ellipse points from the sample in *image*."""
+    labels = _get_sample(_segment(image))
 
-    for image in images:
-        labels = _get_sample(image)
-        tip = _get_sample_tip(labels)
-        if tip is not None:
-            tips.append(tip)
-
-    return tips
+    return _get_sample_tip(labels)
 
 
 def _get_biggest_region(image):
