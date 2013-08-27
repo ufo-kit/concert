@@ -439,7 +439,7 @@ def _get_regions(image):
     sizes = ndimage.sum(image, labels, range(features + 1))
 
     # Remove small regions.
-    mask = sizes < 200
+    mask = sizes < 100
     remove_indices = mask[labels]
     labels[remove_indices] = 0
 

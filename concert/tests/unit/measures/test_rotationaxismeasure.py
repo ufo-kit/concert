@@ -28,7 +28,7 @@ class TestRotationAxisMeasure(unittest.TestCase):
 
         # The bigger the image size, the more images we need to determine
         # the center correctly.
-        self.image_source = SimulationCamera(256, self.x_motor["position"],
+        self.image_source = SimulationCamera(128, self.x_motor["position"],
                                              self.y_motor["position"],
                                              self.z_motor["position"])
 
@@ -37,7 +37,7 @@ class TestRotationAxisMeasure(unittest.TestCase):
             self.y_motor["position"], self.image_source.grab)
         self.scanner.minimum = 0 * q.rad
         self.scanner.maximum = 2 * np.pi * q.rad
-        self.scanner.intervals = 50
+        self.scanner.intervals = 10
 
         self.measure = Ellipse()
 
@@ -75,36 +75,43 @@ class TestRotationAxisMeasure(unittest.TestCase):
 
     @slow
     def test_center_no_rotation(self):
+        self.scanner.intervals = 15
         self.make_images(0 * q.deg, 0 * q.deg)
         self.center_check()
 
     @slow
     def test_center_only_x(self):
+        self.scanner.intervals = 15
         self.make_images(17 * q.deg, 0 * q.deg)
         self.center_check()
 
     @slow
     def test_center_only_z(self):
+        self.scanner.intervals = 15
         self.make_images(0 * q.deg, 11 * q.deg)
         self.center_check()
 
     @slow
     def test_center_positive(self):
+        self.scanner.intervals = 15
         self.make_images(17 * q.deg, 11 * q.deg)
         self.center_check()
 
     @slow
     def test_center_negative_positive(self):
+        self.scanner.intervals = 15
         self.make_images(-17 * q.deg, 11 * q.deg)
         self.center_check()
 
     @slow
     def test_center_positive_negative(self):
+        self.scanner.intervals = 15
         self.make_images(17 * q.deg, -11 * q.deg)
         self.center_check()
 
     @slow
     def test_center_negative(self):
+        self.scanner.intervals = 15
         self.make_images(-17 * q.deg, -11 * q.deg)
         self.center_check()
 

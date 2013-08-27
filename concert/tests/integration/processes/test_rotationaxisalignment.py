@@ -27,7 +27,7 @@ class TestDummyAlignment(unittest.TestCase):
         self.x_motor.position = 0 * q.deg
         self.z_motor.position = 0 * q.deg
 
-        self.image_source = SimulationCamera(256, self.x_motor["position"],
+        self.image_source = SimulationCamera(128, self.x_motor["position"],
                                              self.y_motor["position"],
                                              self.z_motor["position"])
 
