@@ -2,7 +2,6 @@ import time
 import unittest
 import logbook
 from concert.quantities import q
-from testfixtures import compare
 from concert.tests import assert_almost_equal
 from concert.devices.motors.dummy import Motor as DummyMotor
 from concert.devices.cameras.dummy import Camera
@@ -98,4 +97,4 @@ class TestScan(unittest.TestCase):
 
         darks, flats, projections = scanner.run().result()
         self.assertEqual(len(projections), len(stage.angles))
-        compare(checker.prepared, ['dark', 'flat', 'proj'])
+        self.assertEqual(checker.prepared, ['dark', 'flat', 'proj'])

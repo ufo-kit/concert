@@ -1,6 +1,5 @@
 import unittest
 import logbook
-from testfixtures import ShouldRaise
 from concert.devices.io.dummy import IO
 from concert.base import ReadAccessError, WriteAccessError
 
@@ -25,9 +24,9 @@ class TestDummyIO(unittest.TestCase):
                          [self.io_device["acq_enable"].port_id], 1)
 
     def test_read_not_readable_port(self):
-        with ShouldRaise(ReadAccessError):
-            self.io_device["acq_enable"].get().wait()
+        self.assertRaises(ReadAccessError,
+                          self.io_device["acq_enable"].get().wait)
 
     def test_write_not_writable_port(self):
-        with ShouldRaise(WriteAccessError):
-            self.io_device["busy"].set(1).wait()
+        self.assertRaises(WriteAccessError,
+                          self.io_device["busy"].set(1).wait)

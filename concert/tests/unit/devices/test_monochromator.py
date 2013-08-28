@@ -1,7 +1,6 @@
 import unittest
 import logbook
 import random
-from testfixtures import ShouldRaise
 from concert.tests import assert_almost_equal
 from concert.quantities import q
 from concert.devices.base import LinearCalibration
@@ -51,16 +50,24 @@ class TestDummyMonochromator(unittest.TestCase):
         self.handler.pop_application()
 
     def test_useless_mono_energy(self):
-        with ShouldRaise(NotImplementedError):
+        def query_energy():
             self.useless_mono.energy
-        with ShouldRaise(NotImplementedError):
+
+        def set_energy():
             self.useless_mono.energy = 25 * q.keV
 
+        self.assertRaises(NotImplementedError, query_energy)
+        self.assertRaises(NotImplementedError, set_energy)
+
     def test_useless_mono_wavelength(self):
-        with ShouldRaise(NotImplementedError):
-            self.useless_mono.wavelength
-        with ShouldRaise(NotImplementedError):
+        def query_wavelength():
+            self.useless_mono.energy
+
+        def set_wavelength():
             self.useless_mono.wavelength = 1e-10 * q.m
+
+        self.assertRaises(NotImplementedError, query_wavelength)
+        self.assertRaises(NotImplementedError, set_wavelength)
 
     def test_energy_mono_energy(self):
         self.mono.energy = self.energy

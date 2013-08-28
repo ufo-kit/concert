@@ -9,6 +9,7 @@ from concert.optimization import algorithms
 
 
 class TestDummyFocusingWithSoftLimits(unittest.TestCase):
+
     def setUp(self):
         self.handler = logbook.NullHandler()
         self.handler.push_application()

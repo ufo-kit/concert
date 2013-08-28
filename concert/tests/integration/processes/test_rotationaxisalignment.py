@@ -2,7 +2,6 @@ import unittest
 import logbook
 import numpy as np
 from threading import Event
-from testfixtures import ShouldRaise
 from concert.quantities import q
 from concert.devices.motors.dummy import Motor
 from concert.devices.base import LinearCalibration
@@ -101,15 +100,20 @@ class TestDummyAlignment(unittest.TestCase):
                             self.image_source.size))
 
         self.scanner.feedback = get_ones
-        with ShouldRaise(ValueError("No sample tip points found.")):
+        with self.assertRaises(ValueError) as ctx:
             self.aligner.run().wait()
+
+        self.assertEqual("No sample tip points found.", ctx.exception.message)
 
     @slow
     def test_not_offcentered(self):
         self.image_source.rotation_radius = 0
-        with ShouldRaise(ValueError("Sample off-centering too " +
-                                    "small, enlarge rotation radius.")):
+        with self.assertRaises(ValueError) as ctx:
             self.aligner.run().wait()
+
+        self.assertEqual("Sample off-centering too " +
+                         "small, enlarge rotation radius.",
+                         ctx.exception.message)
 
     @slow
     def test_no_x_axis(self):
