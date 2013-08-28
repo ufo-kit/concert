@@ -30,5 +30,5 @@ def focus(camera, motor, measure=np.std):
 
     camera.start_recording()
     f = maximizer.run()
-    f.add_done_callback(lambda: camera.stop_recording())
+    f.add_done_callback(lambda unused: camera.stop_recording())
     return f

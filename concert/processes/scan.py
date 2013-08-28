@@ -76,8 +76,10 @@ class Scanner(Process):
     """
 
     def __init__(self, param, feedback):
-        params = [Parameter('minimum', doc="Left bound of the interval"),
-                  Parameter('maximum', doc="Right bound of the interval"),
+        params = [Parameter('minimum', unit=param.unit,
+                            doc="Left bound of the interval"),
+                  Parameter('maximum', unit=param.unit,
+                            doc="Right bound of the interval"),
                   Parameter('intervals', doc="Number of intervals")]
 
         super(Scanner, self).__init__(params)
