@@ -2,7 +2,6 @@ import unittest
 import logbook
 from concert.quantities import q
 from concert.base import *
-from testfixtures import ShouldRaise, compare
 
 
 class BaseDevice(Parameterizable):
@@ -50,7 +49,7 @@ def empty_setter(v):
 class TestParameterizable(unittest.TestCase):
 
     def setUp(self):
-        self.handler = logbook.TestHandler()
+        self.handler = logbook.NullHandler()
         self.handler.push_application()
         proxy1 = Proxy(42)
         proxy2 = Proxy(23)
@@ -74,18 +73,15 @@ class TestParameterizable(unittest.TestCase):
 class TestParameter(unittest.TestCase):
 
     def setUp(self):
-        self.handler = logbook.TestHandler()
+        self.handler = logbook.NullHandler()
         self.handler.push_application()
 
     def tearDown(self):
         self.handler.pop_application()
 
     def test_names(self):
-        with ShouldRaise(ValueError):
-            Parameter('1pm')
-
-        with ShouldRaise(ValueError):
-            Parameter('current position')
+        self.assertRaises(ValueError, Parameter, '1pm')
+        self.assertRaises(ValueError, Parameter, 'current position')
 
         Parameter('this-is-correct')
         Parameter('this_too')
@@ -98,10 +94,13 @@ class TestParameter(unittest.TestCase):
         self.assertTrue(parameter.is_readable())
         self.assertFalse(parameter.is_writable())
 
-        compare(parameter.get().result(), 0)
+        self.assertEqual(parameter.get().result(), 0)
 
-        with ShouldRaise(WriteAccessError('foo')):
+        with self.assertRaises(WriteAccessError) as ctx:
             parameter.set(None).result()
+
+        self.assertEqual("parameter `foo' cannot be written",
+                         ctx.exception.message)
 
     def test_write_only_parameter(self):
         parameter = Parameter('foo', fset=empty_setter)
@@ -110,15 +109,17 @@ class TestParameter(unittest.TestCase):
 
         parameter.set(1).result()
 
-        with ShouldRaise(ReadAccessError('foo')):
+        with self.assertRaises(ReadAccessError) as ctx:
             parameter.get().result()
+
+        self.assertEqual("parameter `foo' cannot be read",
+                         ctx.exception.message)
 
     def test_invalid_unit(self):
         parameter = Parameter('foo', fset=empty_setter, unit=q.mm)
         parameter.set(2 * q.mm).result()
 
-        with ShouldRaise(UnitError):
-            parameter.set(2 * q.s).result()
+        self.assertRaises(UnitError, parameter.set(2 * q.s).result)
 
     def test_soft_limit(self):
         parameter = Parameter('foo', fset=empty_setter, unit=q.mm,
@@ -128,8 +129,7 @@ class TestParameter(unittest.TestCase):
         parameter.set(2 * q.mm).wait()
         parameter.set(4 * q.mm).wait()
 
-        with ShouldRaise(SoftLimitError):
-            parameter.set(4.2 * q.mm).wait()
+        self.assertRaises(SoftLimitError, parameter.set(4.2 * q.mm).wait)
 
     def test_hard_limit(self):
         def setter(value):
@@ -148,6 +148,6 @@ class TestParameter(unittest.TestCase):
         parameter.set(0.5).result()
         parameter.set(1).result()
 
-        with ShouldRaise(HardLimitError):
+        with self.assertRaises(HardLimitError):
             in_limit.in_limit = True
             parameter.set(1.5).result()

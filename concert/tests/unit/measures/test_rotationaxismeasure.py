@@ -1,7 +1,6 @@
 import unittest
 import logbook
 import numpy as np
-from testfixtures import ShouldRaise
 from concert.quantities import q
 from concert.measures.rotationaxis import Ellipse
 from concert.tests.util.rotationaxis import SimulationCamera
@@ -14,7 +13,7 @@ from concert.processes.scan import Scanner
 class TestRotationAxisMeasure(unittest.TestCase):
 
     def setUp(self):
-        self.handler = logbook.TestHandler()
+        self.handler = logbook.NullHandler()
         self.handler.push_application()
         self.x_motor = Motor(LinearCalibration(q.count / q.deg, 0 * q.deg),
                              hard_limits=(-1e5, 1e5))
@@ -67,11 +66,13 @@ class TestRotationAxisMeasure(unittest.TestCase):
 
     @slow
     def test_out_of_fov(self):
-        with ShouldRaise(ValueError("No sample tip points found.")):
-            self.measure.images = np.ones((self.scanner.intervals,
-                                           self.image_source.size,
-                                           self.image_source.size))
+        self.measure.images = np.ones((self.scanner.intervals,
+                                       self.image_source.size,
+                                       self.image_source.size))
+        with self.assertRaises(ValueError) as ctx:
             self.measure()
+
+        self.assertEqual("No sample tip points found.", ctx.exception.message)
 
     @slow
     def test_center_no_rotation(self):

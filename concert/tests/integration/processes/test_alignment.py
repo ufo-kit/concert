@@ -16,6 +16,7 @@ FOCUS_POSITION = 35 * q.mm
 
 
 class BlurringCamera(Camera):
+
     def __init__(self, motor):
         self._original = scipy.misc.lena()
         self.motor = motor
@@ -35,7 +36,7 @@ class BlurringCamera(Camera):
 
 
 def test_focusing():
-    handler = logbook.TestHandler()
+    handler = logbook.NullHandler()
     handler.push_application()
 
     motor = Motor(hard_limits=(MIN_POSITION.magnitude,
