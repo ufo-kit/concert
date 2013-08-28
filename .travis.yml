@@ -15,7 +15,7 @@ install:
     - pip install -r requirements.txt --use-mirrors
     - pip install coveralls --use-mirrors
     # Travis multiprocessing workaround.
-    - "sudo rm -rf /dev/shm && sudo ln -s /run/shm /dev/shm"
+    - sudo rm -rf /dev/shm && sudo ln -s /run/shm /dev/shm
 
 script:
     - nosetests --processes=-1 --process-timeout=60 --cover-package=concert concert
