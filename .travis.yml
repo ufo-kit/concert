@@ -18,7 +18,7 @@ install:
     - "sudo rm -rf /dev/shm && sudo ln -s /run/shm /dev/shm"
 
 script:
-    - nosetests --with-coverage --cover-package=concert concert
+    - nosetests --processes=-1 --process-timeout=60 --cover-package=concert concert
 
 after_success:
     - coveralls
