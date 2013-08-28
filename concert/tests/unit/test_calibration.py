@@ -15,6 +15,7 @@ def test_not_implemented():
 
 
 class TestLinearCalibration(unittest.TestCase):
+    _multiprocess_can_split_ = True
     STEPS_PER_UNIT = 5000
     OFFSET = 0 * q.mm
 

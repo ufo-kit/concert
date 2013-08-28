@@ -6,7 +6,6 @@ from testfixtures import ShouldRaise
 from concert.quantities import q
 from concert.devices.motors.dummy import Motor
 from concert.devices.base import LinearCalibration
-from concert.asynchronous import dispatcher
 from concert.tests import slow
 from concert.processes.tomoalignment import Aligner
 from concert.measures.rotationaxis import Ellipse
@@ -15,6 +14,7 @@ from concert.processes.scan import Scanner
 
 
 class TestDummyAlignment(unittest.TestCase):
+    _multiprocess_can_split_ = True
 
     def setUp(self):
         self.handler = logbook.TestHandler()
@@ -32,7 +32,7 @@ class TestDummyAlignment(unittest.TestCase):
         self.x_motor.position = 0 * q.deg
         self.z_motor.position = 0 * q.deg
 
-        self.image_source = SimulationCamera(256, self.x_motor["position"],
+        self.image_source = SimulationCamera(128, self.x_motor["position"],
                                              self.y_motor["position"],
                                              self.z_motor["position"])
 
@@ -43,13 +43,8 @@ class TestDummyAlignment(unittest.TestCase):
         self.scanner.maximum = 2 * np.pi * q.rad
         self.scanner.intervals = 10
 
-        dispatcher.subscribe(self.y_motor["position"],
-                             self.y_motor["position"].CHANGED,
-                             self.iteration_listener)
         self.aligner = Aligner(Ellipse(), self.scanner,
                                self.x_motor, self.z_motor)
-        dispatcher.subscribe(self.aligner, self.aligner.AXIS_ALIGNED,
-                             self.alignment_listener)
 
         self.iteration = 0
         self.max_iterations = 10
@@ -64,34 +59,13 @@ class TestDummyAlignment(unittest.TestCase):
     def tearDown(self):
         self.handler.pop_application()
 
-    def iteration_listener(self, sender):
-        self.iteration += 1
-
-        if self.iteration / self.scanner.intervals == \
-                self.max_iterations:
-            self.alignment_finished.set()
-
-    def alignment_listener(self, aligner):
-        self.alignment_finished.set()
-
-    def check_alignment(self):
-        """Wait either for aligner to finish or for maximum iterations number
-        reached.
-        """
-        self.alignment_finished.wait()
-
-        self.assertTrue(self.max_iterations > self.image_source.iteration,
-                        "Maximum iterations exceeded.")
-
     def align_check(self, x_angle, z_angle, has_z_motor=True):
         """"Align and check th eresults."""
         self.x_motor.position = z_angle
         self.z_motor.position = x_angle
 
         self.aligner.z_motor = self.z_motor if has_z_motor else None
-        self.aligner.run()
-
-        self.check_alignment()
+        self.aligner.run().wait()
 
         # In our case the best perfectly aligned position is when both
         # motors are in 0.

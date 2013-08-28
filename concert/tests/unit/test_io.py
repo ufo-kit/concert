@@ -6,6 +6,7 @@ from concert.base import ReadAccessError, WriteAccessError
 
 
 class TestDummyIO(unittest.TestCase):
+    _multiprocess_can_split_ = True
 
     def setUp(self):
         self.io_device = IO()

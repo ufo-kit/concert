@@ -22,6 +22,7 @@ class MockDevice(Device):
 
 
 class TestDevice(unittest.TestCase):
+    _multiprocess_can_split_ = True
 
     def setUp(self):
         self.device = MockDevice()
