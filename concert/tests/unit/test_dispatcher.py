@@ -13,7 +13,7 @@ class TestDispatcher(unittest.TestCase):
     def setUp(self):
         self.dispatcher = Dispatcher()
         self.checker = VisitChecker()
-        self.handler = logbook.TestHandler()
+        self.handler = logbook.NullHandler()
         self.handler.push_application()
 
     def tearDown(self):

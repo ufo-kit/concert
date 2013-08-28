@@ -15,7 +15,7 @@ class TestRotationAxisMeasure(unittest.TestCase):
     _multiprocess_can_split_ = True
 
     def setUp(self):
-        self.handler = logbook.TestHandler()
+        self.handler = logbook.NullHandler()
         self.handler.push_application()
         self.x_motor = Motor(LinearCalibration(q.count / q.deg, 0 * q.deg),
                              hard_limits=(-1e5, 1e5))

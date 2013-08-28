@@ -26,7 +26,7 @@ class TestDevice(unittest.TestCase):
 
     def setUp(self):
         self.device = MockDevice()
-        self.handler = logbook.TestHandler()
+        self.handler = logbook.NullHandler()
         self.handler.push_application()
 
     def tearDown(self):

@@ -45,7 +45,7 @@ class TestDummyMonochromator(unittest.TestCase):
         self.useless_mono = UselessMonochromator()
         self.energy = 25 * q.keV
         self.wavelength = 0.1 * q.nm
-        self.handler = logbook.TestHandler()
+        self.handler = logbook.NullHandler()
         self.handler.push_application()
 
     def tearDown(self):

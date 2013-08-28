@@ -25,7 +25,7 @@ class TestAsync(unittest.TestCase):
 
     def setUp(self):
         self.device = DummyDevice()
-        self.handler = logbook.TestHandler()
+        self.handler = logbook.NullHandler()
         self.handler.push_application()
 
     def tearDown(self):

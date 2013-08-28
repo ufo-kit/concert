@@ -51,7 +51,7 @@ class TestParameterizable(unittest.TestCase):
     _multiprocess_can_split_ = True
 
     def setUp(self):
-        self.handler = logbook.TestHandler()
+        self.handler = logbook.NullHandler()
         self.handler.push_application()
         proxy1 = Proxy(42)
         proxy2 = Proxy(23)
@@ -76,7 +76,7 @@ class TestParameter(unittest.TestCase):
     _multiprocess_can_split_ = True
 
     def setUp(self):
-        self.handler = logbook.TestHandler()
+        self.handler = logbook.NullHandler()
         self.handler.push_application()
 
     def tearDown(self):
