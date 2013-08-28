@@ -47,6 +47,7 @@ def test_different_calibration_unit():
 
 
 class TestDummyMotor(unittest.TestCase):
+    _multiprocess_can_split_ = True
 
     def setUp(self):
         self.motor = DummyMotor()
@@ -70,6 +71,7 @@ class TestDummyMotor(unittest.TestCase):
 
 
 class TestContinuousDummyMotor(unittest.TestCase):
+    _multiprocess_can_split_ = True
 
     def setUp(self):
         position_calibration = LinearCalibration(q.count / q.mm, 0 * q.mm)
@@ -92,6 +94,7 @@ class TestContinuousDummyMotor(unittest.TestCase):
 
 
 class TestMotorCalibration(unittest.TestCase):
+    _multiprocess_can_split_ = True
 
     def setUp(self):
         self.steps_per_mm = 10. * q.count / q.mm

@@ -36,6 +36,7 @@ class UselessMonochromator(Monochromator):
 
 
 class TestDummyMonochromator(unittest.TestCase):
+    _multiprocess_can_split_ = True
 
     def setUp(self):
         calibration = LinearCalibration(1 * q.eV, 0 * q.eV)

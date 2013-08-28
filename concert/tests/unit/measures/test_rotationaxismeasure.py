@@ -12,6 +12,7 @@ from concert.processes.scan import Scanner
 
 
 class TestRotationAxisMeasure(unittest.TestCase):
+    _multiprocess_can_split_ = True
 
     def setUp(self):
         self.handler = logbook.TestHandler()

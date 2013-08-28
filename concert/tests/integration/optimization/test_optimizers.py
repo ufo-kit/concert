@@ -9,6 +9,7 @@ from concert.tests import slow
 
 
 class TestOptimizers(unittest.TestCase):
+    _multiprocess_can_split_ = True
 
     def setUp(self):
         self.handler = logbook.TestHandler()

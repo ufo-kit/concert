@@ -16,6 +16,7 @@ def compare_sequences(first_sequence, second_sequence, assertion):
 
 
 class TestScan(unittest.TestCase):
+    _multiprocess_can_split_ = True
 
     def setUp(self):
         self.motor = DummyMotor()
