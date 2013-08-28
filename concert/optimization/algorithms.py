@@ -59,22 +59,25 @@ def halver(function, x_0, initial_step=None, epsilon=None,
     return x_0
 
 
-def quantized(function):
+def quantized(strip_func):
     """
-    A helper function meant to be used as a decorator to quantize
-    a *function* which does not take units into account.
+    Decorator to quantize a *function* which does not take units into
+    account. Strips intermediate results based on *strip_func* in order
+    to fit *function*'s first parameter signature.
     """
-    def wrapper(eval_func, x_0, *args, **kwargs):
-        return q.Quantity(function(lambda x:
-                                   eval_func(q.Quantity(x, x_0.units)),
-                                   x_0.magnitude, *args, **kwargs), x_0.units)
+    def stripped(function):
+        def wrapper(eval_func, x_0, *args, **kwargs):
+            return q.Quantity(function(lambda x:
+                                       eval_func(
+                                           q.Quantity(
+                                               strip_func(x), x_0.units)),
+                              x_0.magnitude, *args, **kwargs), x_0.units)
+        return wrapper
 
-    wrapper.__doc__ = function.__doc__
-
-    return wrapper
+    return stripped
 
 
-@quantized
+@quantized(lambda x: x[0])
 def down_hill(function, x_0, **kwargs):
     """
     Downhill simplex algorithm from :py:func:`scipy.optimize.fmin`.
@@ -85,7 +88,7 @@ def down_hill(function, x_0, **kwargs):
     return optimize.fmin(function, x_0, disp=0, **kwargs)[0]
 
 
-@quantized
+@quantized(lambda x: x[0])
 def powell(function, x_0, **kwargs):
     """
     Powell's algorithm from :py:func:`scipy.optimize.fmin_powell`.
@@ -96,7 +99,7 @@ def powell(function, x_0, **kwargs):
     return optimize.fmin_powell(function, x_0, disp=0, **kwargs)
 
 
-@quantized
+@quantized(lambda x: x[0])
 def nonlinear_conjugate(function, x_0, **kwargs):
     """
     Nonlinear conjugate gradient algorithm from
@@ -108,7 +111,7 @@ def nonlinear_conjugate(function, x_0, **kwargs):
     return optimize.fmin_cg(function, x_0, disp=0, **kwargs)[0]
 
 
-@quantized
+@quantized(lambda x: x[0])
 def bfgs(function, x_0, **kwargs):
     """
     Broyde-Fletcher-Goldfarb-Shanno (BFGS) algorithm from
@@ -120,7 +123,7 @@ def bfgs(function, x_0, **kwargs):
     return optimize.fmin_bfgs(function, x_0, disp=0, **kwargs)[0]
 
 
-@quantized
+@quantized(lambda x: x[0])
 def least_squares(function, x_0, **kwargs):
     """
     Least squares algorithm from :py:func:`scipy.optimize.leastsq`.
