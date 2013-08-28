@@ -19,7 +19,7 @@ position on an axis, you can also use :meth:`.Axis.set_position`.
 import threading
 from logbook import Logger
 from concert.base import Parameterizable, Parameter
-from concert.quantities import q
+from concert.quantities import q, numerator_units, denominator_units
 
 
 LOG = Logger(__name__)
@@ -77,12 +77,15 @@ class Device(Parameterizable):
 class Calibration(object):
 
     """Interface to convert between user and device units."""
+    def __init__(self, user_unit, device_unit):
+        self.user_unit = user_unit
+        self.device_unit = device_unit
 
     def to_user(self, value):
         """Return *value* in user units."""
         raise NotImplementedError
 
-    def to_steps(self, value):
+    def to_device(self, value):
         """Return *value* in device units."""
         raise NotImplementedError
 
@@ -96,14 +99,16 @@ class LinearCalibration(Calibration):
     point.
     """
 
-    def __init__(self, steps_per_unit, offset_in_steps):
-        super(LinearCalibration, self).__init__()
-        self._steps_per_unit = steps_per_unit
-        self._offset = offset_in_steps
+    def __init__(self, device_units_per_user_units, offset_in_user_units):
+        user_unit = denominator_units(device_units_per_user_units)
+        device_unit = numerator_units(device_units_per_user_units)
+        super(LinearCalibration, self).__init__(user_unit, device_unit)
 
-    def to_user(self, value_in_steps):
-        return value_in_steps * q.count / self._steps_per_unit - self._offset
+        self.device_units_per_user_units = device_units_per_user_units
+        self.offset = offset_in_user_units
 
-    def to_steps(self, value):
-        res = (value + self._offset) * self._steps_per_unit
-        return res.to_base_units().magnitude
+    def to_user(self, value):
+        return value / self.device_units_per_user_units - self.offset
+
+    def to_device(self, value):
+        return (value + self.offset) * self.device_units_per_user_units

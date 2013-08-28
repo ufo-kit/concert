@@ -10,7 +10,7 @@ from concert.devices.motors.dummy import Motor as DummyMotor,\
 def test_default_motor_has_default_calibration():
     class MockMotor(Motor):
         def __init__(self):
-            self._position = 0
+            self._position = 0 * q.count
             super(MockMotor, self).__init__()
 
         def _set_position(self, position):
@@ -27,6 +27,20 @@ def test_default_motor_has_default_calibration():
     assert motor.position == -1 * q.mm
     motor.position = 2.3 * q.mm
     assert motor.position == 2.3 * q.mm
+
+    handler.pop_application()
+
+
+def test_different_calibration_unit():
+    handler = logbook.TestHandler()
+    handler.push_application()
+
+    calibration = LinearCalibration(q.count / q.deg, 0 * q.deg)
+
+    motor = DummyMotor(calibration)
+    motor.position = 0 * q.deg
+    motor.move(1 * q.deg).wait()
+    assert motor.position == 1 * q.deg
 
     handler.pop_application()
 
@@ -92,10 +106,10 @@ class TestMotorCalibration(unittest.TestCase):
                 pass
 
             def _set_position(self, position):
-                self._position = position * q.count
+                self._position = position
 
             def _get_position(self):
-                return self._position / q.count
+                return self._position
 
         self.motor = MockMotor()
         self.handler = logbook.TestHandler()

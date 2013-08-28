@@ -56,6 +56,10 @@ class Motor(Device):
             self._calibration = LinearCalibration(1 * q.count / q.mm, 0 * q.mm)
         else:
             self._calibration = calibration
+            calibration_unit = calibration.user_unit
+
+            if calibration_unit != self['position'].unit:
+                self['position'].unit = calibration_unit
 
         self._states = \
             self._states.union(set([self.STANDBY, self.MOVING, self.LIMIT]))
@@ -96,7 +100,7 @@ class Motor(Device):
 
     def _set_calibrated_position(self, position):
         self._set_state(self.MOVING)
-        self._set_position(self._calibration.to_steps(position))
+        self._set_position(self._calibration.to_device(position))
 
         if self.in_hard_limit():
             self._set_state(self.LIMIT)
@@ -143,7 +147,7 @@ class ContinuousMotor(Motor):
         return self._velocity_calibration.to_user(self._get_velocity())
 
     def _set_calibrated_velocity(self, velocity):
-        self._set_velocity(self._velocity_calibration.to_steps(velocity))
+        self._set_velocity(self._velocity_calibration.to_device(velocity))
 
     def _get_velocity(self):
         raise NotImplementedError
