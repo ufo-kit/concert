@@ -8,6 +8,7 @@ SLEEP_TIME = 0.0005
 
 
 class TestDispatcher(unittest.TestCase):
+    _multiprocess_can_split_ = True
 
     def setUp(self):
         self.dispatcher = Dispatcher()

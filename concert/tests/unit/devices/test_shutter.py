@@ -3,6 +3,7 @@ from concert.devices.shutters.dummy import Shutter as DummyShutter
 
 
 class TestDummyShutter(unittest.TestCase):
+    _multiprocess_can_split_ = True
 
     def setUp(self):
         self.shutter = DummyShutter()

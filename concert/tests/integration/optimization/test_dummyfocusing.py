@@ -9,6 +9,7 @@ from concert.optimization import algorithms
 
 
 class TestDummyFocusing(unittest.TestCase):
+    _multiprocess_can_split_ = True
 
     def setUp(self):
         self.handler = logbook.TestHandler()
