@@ -19,7 +19,7 @@ def test_default_motor_has_default_calibration():
         def _get_position(self):
             return self._position
 
-    handler = logbook.TestHandler()
+    handler = logbook.NullHandler()
     handler.push_application()
 
     motor = MockMotor()
@@ -32,7 +32,7 @@ def test_default_motor_has_default_calibration():
 
 
 def test_different_calibration_unit():
-    handler = logbook.TestHandler()
+    handler = logbook.NullHandler()
     handler.push_application()
 
     calibration = LinearCalibration(q.count / q.deg, 0 * q.deg)
@@ -49,7 +49,7 @@ class TestDummyMotor(unittest.TestCase):
 
     def setUp(self):
         self.motor = DummyMotor()
-        self.handler = logbook.TestHandler()
+        self.handler = logbook.NullHandler()
         self.handler.push_application()
 
     def tearDown(self):
@@ -78,7 +78,7 @@ class TestContinuousDummyMotor(unittest.TestCase):
         self.motor = DummyContinuousMotor(position_calibration,
                                           velocity_calibration)
 
-        self.handler = logbook.TestHandler()
+        self.handler = logbook.NullHandler()
         self.handler.push_application()
 
     def tearDown(self):
@@ -112,7 +112,7 @@ class TestMotorCalibration(unittest.TestCase):
                 return self._position
 
         self.motor = MockMotor()
-        self.handler = logbook.TestHandler()
+        self.handler = logbook.NullHandler()
         self.handler.push_application()
 
     def tearDown(self):

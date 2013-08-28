@@ -50,7 +50,7 @@ def empty_setter(v):
 class TestParameterizable(unittest.TestCase):
 
     def setUp(self):
-        self.handler = logbook.TestHandler()
+        self.handler = logbook.NullHandler()
         self.handler.push_application()
         proxy1 = Proxy(42)
         proxy2 = Proxy(23)
@@ -74,7 +74,7 @@ class TestParameterizable(unittest.TestCase):
 class TestParameter(unittest.TestCase):
 
     def setUp(self):
-        self.handler = logbook.TestHandler()
+        self.handler = logbook.NullHandler()
         self.handler.push_application()
 
     def tearDown(self):

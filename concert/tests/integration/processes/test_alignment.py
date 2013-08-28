@@ -35,7 +35,7 @@ class BlurringCamera(Camera):
 
 
 def test_focusing():
-    handler = logbook.TestHandler()
+    handler = logbook.NullHandler()
     handler.push_application()
 
     motor = Motor(hard_limits=(MIN_POSITION.magnitude,

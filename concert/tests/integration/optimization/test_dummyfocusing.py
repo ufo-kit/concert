@@ -10,7 +10,7 @@ from concert.optimization import algorithms
 
 class TestDummyFocusingWithSoftLimits(unittest.TestCase):
     def setUp(self):
-        self.handler = logbook.TestHandler()
+        self.handler = logbook.NullHandler()
         self.handler.push_application()
         self.motor = DummyMotor(position=50 * q.count)
         self.motor['position'].lower = 25 * q.mm
@@ -39,7 +39,7 @@ class TestDummyFocusingWithSoftLimits(unittest.TestCase):
 class TestDummyFocusing(unittest.TestCase):
 
     def setUp(self):
-        self.handler = logbook.TestHandler()
+        self.handler = logbook.NullHandler()
         self.handler.push_application()
         self.motor = DummyMotor()
         self.motor.position = 0 * q.mm

@@ -11,7 +11,7 @@ from concert.tests import slow
 class TestOptimizers(unittest.TestCase):
 
     def setUp(self):
-        self.handler = logbook.TestHandler()
+        self.handler = logbook.NullHandler()
         self.handler.push_application()
         self.algorithms = [algs.halver, algs.down_hill, algs.powell,
                            algs.nonlinear_conjugate, algs.bfgs,

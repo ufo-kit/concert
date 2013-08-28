@@ -17,7 +17,7 @@ from concert.processes.scan import Scanner
 class TestDummyAlignment(unittest.TestCase):
 
     def setUp(self):
-        self.handler = logbook.TestHandler()
+        self.handler = logbook.NullHandler()
         self.handler.push_application()
         calibration = LinearCalibration(q.count / q.deg, 0 * q.deg)
         self.x_motor = Motor(calibration=calibration)

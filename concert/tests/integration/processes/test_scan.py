@@ -19,7 +19,7 @@ class TestScan(unittest.TestCase):
 
     def setUp(self):
         self.motor = DummyMotor()
-        self.handler = logbook.TestHandler()
+        self.handler = logbook.NullHandler()
         self.handler.push_application()
 
     def tearDown(self):
