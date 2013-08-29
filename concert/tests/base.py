@@ -5,8 +5,7 @@ from unittest import TestCase
 def suppressed_logging(func):
     """Decorator for test functions."""
     def test_wrapper(*args, **kwargs):
-        handler = logbook.NullHandler()
-        handler.push_application()
+        handler = suppress_logging()
 
         func(*args, **kwargs)
 
@@ -17,9 +16,18 @@ def suppressed_logging(func):
 
 class ConcertTest(TestCase):
 
+    """Base class for tests which suppress logger output."""
+
     def setUp(self):
-        self.handler = logbook.NullHandler()
-        self.handler.push_application()
+        self.handler = suppress_logging()
 
     def tearDown(self):
         self.handler.pop_application()
+
+
+def suppress_logging():
+    """Discard logger output and disable bubbling."""
+    handler = logbook.NullHandler()
+    handler.push_application()
+
+    return handler
