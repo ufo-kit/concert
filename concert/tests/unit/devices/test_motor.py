@@ -1,12 +1,12 @@
-import logbook
 from concert.quantities import q
 from concert.devices.base import LinearCalibration
 from concert.devices.motors.base import Motor
 from concert.devices.motors.dummy import Motor as DummyMotor,\
     ContinuousMotor as DummyContinuousMotor
-from concert.tests.base import ConcertTest
+from concert.tests.base import ConcertTest, suppressed_logging
 
 
+@suppressed_logging
 def test_default_motor_has_default_calibration():
     class MockMotor(Motor):
 
@@ -20,30 +20,21 @@ def test_default_motor_has_default_calibration():
         def _get_position(self):
             return self._position
 
-    handler = logbook.NullHandler()
-    handler.push_application()
-
     motor = MockMotor()
     motor.move(-1 * q.mm).wait()
     assert motor.position == -1 * q.mm
     motor.position = 2.3 * q.mm
     assert motor.position == 2.3 * q.mm
 
-    handler.pop_application()
 
-
+@suppressed_logging
 def test_different_calibration_unit():
-    handler = logbook.NullHandler()
-    handler.push_application()
-
     calibration = LinearCalibration(q.count / q.deg, 0 * q.deg)
 
     motor = DummyMotor(calibration)
     motor.position = 0 * q.deg
     motor.move(1 * q.deg).wait()
     assert motor.position == 1 * q.deg
-
-    handler.pop_application()
 
 
 class TestDummyMotor(ConcertTest):
