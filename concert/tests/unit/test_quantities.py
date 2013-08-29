@@ -1,10 +1,11 @@
-import unittest
 from concert.quantities import q, numerator_units, denominator_units
+from concert.tests.base import ConcertTest
 
 
-class TestUnits(unittest.TestCase):
+class TestUnits(ConcertTest):
 
     def setUp(self):
+        super(TestUnits, self).setUp()
         self.quantity = 1.23 * q.deg * q.hour / q.m
 
     def test_numerator_units(self):

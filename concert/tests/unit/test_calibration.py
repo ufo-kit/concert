@@ -1,13 +1,14 @@
-import unittest
 from concert.quantities import q
 from concert.devices.base import Calibration, LinearCalibration
+from concert.tests.base import ConcertTest
 
 
-class TestLinearCalibration(unittest.TestCase):
+class TestLinearCalibration(ConcertTest):
     STEPS_PER_UNIT = 5000 * q.count / q.mm
     OFFSET = 0 * q.mm
 
     def setUp(self):
+        super(TestLinearCalibration, self).setUp()
         self.calibration = LinearCalibration(self.STEPS_PER_UNIT, self.OFFSET)
 
     def test_not_implemented(self):

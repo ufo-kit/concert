@@ -1,5 +1,3 @@
-import unittest
-import logbook
 import random
 from concert.tests import assert_almost_equal
 from concert.quantities import q
@@ -8,12 +6,15 @@ from concert.devices.monochromators.dummy import\
     Monochromator as DummyMonochromator
 from concert.devices.monochromators import base
 from concert.devices.monochromators.base import Monochromator
+from concert.tests.base import ConcertTest
 
 
 class WavelengthMonochromator(Monochromator):
 
-    """A monochromator which implements wavelength getter and setter. The
-    conversion needs to be handled in the base class."""
+    """
+    A monochromator which implements wavelength getter and setter. The
+    conversion needs to be handled in the base class.
+    """
 
     def __init__(self):
         super(WavelengthMonochromator, self).__init__(self)
@@ -34,20 +35,16 @@ class UselessMonochromator(Monochromator):
         super(UselessMonochromator, self).__init__(self)
 
 
-class TestDummyMonochromator(unittest.TestCase):
+class TestDummyMonochromator(ConcertTest):
 
     def setUp(self):
+        super(TestDummyMonochromator, self).setUp()
         calibration = LinearCalibration(1 * q.eV, 0 * q.eV)
         self.mono = DummyMonochromator(calibration)
         self.wave_mono = WavelengthMonochromator()
         self.useless_mono = UselessMonochromator()
         self.energy = 25 * q.keV
         self.wavelength = 0.1 * q.nm
-        self.handler = logbook.NullHandler()
-        self.handler.push_application()
-
-    def tearDown(self):
-        self.handler.pop_application()
 
     def test_useless_mono_energy(self):
         def query_energy():

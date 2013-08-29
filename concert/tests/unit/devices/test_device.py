@@ -1,8 +1,7 @@
-import unittest
-import logbook
 from concert.base import Parameter, ParameterError
 from concert.devices.base import Device
 from concert.ui import get_default_table
+from concert.tests.base import ConcertTest
 
 
 class MockDevice(Device):
@@ -20,15 +19,11 @@ class MockDevice(Device):
         super(MockDevice, self).__init__(self.params)
 
 
-class TestDevice(unittest.TestCase):
+class TestDevice(ConcertTest):
 
     def setUp(self):
+        super(TestDevice, self).setUp()
         self.device = MockDevice()
-        self.handler = logbook.NullHandler()
-        self.handler.push_application()
-
-    def tearDown(self):
-        self.handler.pop_application()
 
     def test_accessor_functions(self):
         self.assertEqual(self.device.get_readonly().result(), 1)

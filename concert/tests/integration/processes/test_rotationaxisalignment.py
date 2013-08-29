@@ -1,5 +1,3 @@
-import unittest
-import logbook
 import numpy as np
 from threading import Event
 from concert.quantities import q
@@ -11,13 +9,13 @@ from concert.processes.tomoalignment import Aligner
 from concert.measures.rotationaxis import Ellipse
 from concert.tests.util.rotationaxis import SimulationCamera
 from concert.processes.scan import Scanner
+from concert.tests.base import ConcertTest
 
 
-class TestDummyAlignment(unittest.TestCase):
+class TestDummyAlignment(ConcertTest):
 
     def setUp(self):
-        self.handler = logbook.NullHandler()
-        self.handler.push_application()
+        super(TestDummyAlignment, self).setUp()
         calibration = LinearCalibration(q.count / q.deg, 0 * q.deg)
         self.x_motor = Motor(calibration=calibration)
         self.y_motor = Motor(calibration=calibration)
@@ -54,9 +52,6 @@ class TestDummyAlignment(unittest.TestCase):
 
         # Allow 1 px misalignment in y-direction.
         self.eps = np.arctan(2.0 / self.image_source.rotation_radius) * q.rad
-
-    def tearDown(self):
-        self.handler.pop_application()
 
     def iteration_listener(self, sender):
         self.iteration += 1

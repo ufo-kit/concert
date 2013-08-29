@@ -1,18 +1,16 @@
-import unittest
-import logbook
 from concert.quantities import q
 from concert.tests import slow, assert_almost_equal
 from concert.measures.dummy import DummyGradientMeasure
 from concert.devices.motors.dummy import Motor as DummyMotor
 from concert.optimization.optimizers import Maximizer
 from concert.optimization import algorithms
+from concert.tests.base import ConcertTest
 
 
-class TestDummyFocusingWithSoftLimits(unittest.TestCase):
+class TestDummyFocusingWithSoftLimits(ConcertTest):
 
     def setUp(self):
-        self.handler = logbook.NullHandler()
-        self.handler.push_application()
+        super(TestDummyFocusingWithSoftLimits, self).setUp()
         self.motor = DummyMotor(position=50 * q.count)
         self.motor['position'].lower = 25 * q.mm
         self.motor['position'].upper = 75 * q.mm
@@ -37,11 +35,10 @@ class TestDummyFocusingWithSoftLimits(unittest.TestCase):
         assert_almost_equal(self.motor.position, 75 * q.mm)
 
 
-class TestDummyFocusing(unittest.TestCase):
+class TestDummyFocusing(ConcertTest):
 
     def setUp(self):
-        self.handler = logbook.NullHandler()
-        self.handler.push_application()
+        super(TestDummyFocusing, self).setUp()
         self.motor = DummyMotor()
         self.motor.position = 0 * q.mm
         self.feedback = DummyGradientMeasure(self.motor['position'],
@@ -54,9 +51,6 @@ class TestDummyFocusing(unittest.TestCase):
                                   "max_iterations": 1000})
         self.position_eps = 1e-1 * q.mm
         self.gradient_cmp_eps = 1e-1
-
-    def tearDown(self):
-        self.handler.pop_application()
 
     def _check_position(self, position, other_position):
         lower_bound_ok = other_position - self.position_eps <= position
