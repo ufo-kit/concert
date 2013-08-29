@@ -1,12 +1,11 @@
-import unittest
 import time
 import random
-import logbook
 from concurrent.futures import Future
 from concert.devices.dummy import DummyDevice
 from concert.asynchronous import async, wait
 from concert.tests import slow
 from concert import asynchronous
+from concert.tests.base import ConcertTest
 
 
 @async
@@ -19,16 +18,11 @@ def bad_func():
     raise RuntimeError
 
 
-class TestAsync(unittest.TestCase):
-    _multiprocess_can_split_ = True
+class TestAsync(ConcertTest):
 
     def setUp(self):
+        super(TestAsync, self).setUp()
         self.device = DummyDevice()
-        self.handler = logbook.NullHandler()
-        self.handler.push_application()
-
-    def tearDown(self):
-        self.handler.pop_application()
 
     @slow
     def test_wait(self):

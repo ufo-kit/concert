@@ -1,7 +1,6 @@
-import unittest
-import logbook
 from concert.quantities import q
 from concert.base import *
+from concert.tests.base import ConcertTest
 
 
 class BaseDevice(Parameterizable):
@@ -46,19 +45,14 @@ def empty_setter(v):
     pass
 
 
-class TestParameterizable(unittest.TestCase):
-    _multiprocess_can_split_ = True
+class TestParameterizable(ConcertTest):
 
     def setUp(self):
-        self.handler = logbook.NullHandler()
-        self.handler.push_application()
+        super(TestParameterizable, self).setUp()
         proxy1 = Proxy(42)
         proxy2 = Proxy(23)
         self.foo1 = FooDevice(proxy1)
         self.foo2 = FooDevice(proxy2)
-
-    def tearDown(self):
-        self.handler.pop_application()
 
     def test_property_identity(self):
         self.foo1.foo = 15
@@ -71,15 +65,7 @@ class TestParameterizable(unittest.TestCase):
         self.assertEqual(self.foo2.get_foo().result(), 23)
 
 
-class TestParameter(unittest.TestCase):
-    _multiprocess_can_split_ = True
-
-    def setUp(self):
-        self.handler = logbook.NullHandler()
-        self.handler.push_application()
-
-    def tearDown(self):
-        self.handler.pop_application()
+class TestParameter(ConcertTest):
 
     def test_names(self):
         self.assertRaises(ValueError, Parameter, '1pm')

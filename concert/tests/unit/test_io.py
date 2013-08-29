@@ -1,19 +1,13 @@
-import unittest
-import logbook
 from concert.devices.io.dummy import IO
 from concert.base import ReadAccessError, WriteAccessError
+from concert.tests.base import ConcertTest
 
 
-class TestDummyIO(unittest.TestCase):
-    _multiprocess_can_split_ = True
+class TestDummyIO(ConcertTest):
 
     def setUp(self):
+        super(TestDummyIO, self).setUp()
         self.io_device = IO()
-        self.handler = logbook.NullHandler()
-        self.handler.push_application()
-
-    def tearDown(self):
-        self.handler.pop_application()
 
     def test_read_port(self):
         self.assertEqual(self.io_device.exposure, 0)
