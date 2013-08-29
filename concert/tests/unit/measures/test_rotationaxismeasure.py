@@ -61,9 +61,9 @@ class TestRotationAxisMeasure(unittest.TestCase):
 
     def center_check(self):
         assert np.abs(self.measure.center[1] -
-                      self.image_source.ellipse_center[1]) < 1
+                      self.image_source.ellipse_center[1]) < 2
         assert np.abs(self.measure.center[0] -
-                      self.image_source.ellipse_center[0]) < 1
+                      self.image_source.ellipse_center[0]) < 2
 
     @slow
     def test_out_of_fov(self):
