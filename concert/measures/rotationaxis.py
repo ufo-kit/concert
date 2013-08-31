@@ -55,6 +55,9 @@ from scipy import ndimage
 from concert.quantities import q
 
 
+EPSILON = 1e-3
+
+
 class Ellipse(object):
 
     """Ellipse fitting from a set of data points."""
@@ -150,7 +153,7 @@ class Ellipse(object):
 
         a_33 = np.array([[self._params[0], self._params[1] / 2],
                         [self._params[1] / 2, self._params[2]]])
-        if np.linalg.det(a_33) > 0:
+        if np.linalg.det(a_33) > EPSILON:
             x_pos = (self._params[1] * self._params[4] -
                      2 * self._params[3] * self._params[2]) /\
                 (4 * self._params[0] * self._params[2] - self._params[1] ** 2)
@@ -215,17 +218,18 @@ def _construct_matrix(points):
     return matrix
 
 
-def _segment(image, k=3.0):
-    """Segment an *image* into a sample and a background. Suppose the low
-    intensities caused by a highly absorbing sample are located below 1/*k*
-    of the maximum intensity in the image.
+def _segment(image):
     """
-    bins = np.histogram(image, 128)[1]
-    if bins[0] > bins[-1] / k:
-        # Minimum intensity is too high, sample out of the FOV.
-        thr = 0
-    else:
-        thr = (bins[-1] - bins[0]) / k + bins[0]
+    Segment a flat corrected *image* into a sample and a background.
+
+    Assume normally distributed noise, take the full width at
+    1/1000 of the maximum and make it a threshold for finding
+    the sample. The sample must be highly absorbing. The baseline
+    for the background is taken from the top row of the image.
+    """
+
+    thr = np.mean(image[-1, :]) - np.sqrt(-2 * np.log(0.001)) * \
+        np.std(image[-1, :])
 
     image[image < thr] = 0
     image[image >= thr] = 1

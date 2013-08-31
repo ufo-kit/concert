@@ -17,7 +17,8 @@ def focus(camera, motor, measure=np.std):
     that the camera is stopped from recording as soon as the optimal position
     is found.
     """
-    opts = {'initial_step': 10 * q.mm, # we should guess this from motor limits
+    # we should guess this from motor limits
+    opts = {'initial_step': 10 * q.mm,
             'epsilon': 5e-3 * q.mm}
 
     def get_measure():
