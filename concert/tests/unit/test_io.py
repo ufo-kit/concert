@@ -1,20 +1,13 @@
-import unittest
-import logbook
-from testfixtures import ShouldRaise
 from concert.devices.io.dummy import IO
 from concert.base import ReadAccessError, WriteAccessError
+from concert.tests.base import ConcertTest
 
 
-class TestDummyIO(unittest.TestCase):
-    _multiprocess_can_split_ = True
+class TestDummyIO(ConcertTest):
 
     def setUp(self):
+        super(TestDummyIO, self).setUp()
         self.io_device = IO()
-        self.handler = logbook.TestHandler()
-        self.handler.push_application()
-
-    def tearDown(self):
-        self.handler.pop_application()
 
     def test_read_port(self):
         self.assertEqual(self.io_device.exposure, 0)
@@ -26,9 +19,9 @@ class TestDummyIO(unittest.TestCase):
                          [self.io_device["acq_enable"].port_id], 1)
 
     def test_read_not_readable_port(self):
-        with ShouldRaise(ReadAccessError):
-            self.io_device["acq_enable"].get().wait()
+        self.assertRaises(ReadAccessError,
+                          self.io_device["acq_enable"].get().wait)
 
     def test_write_not_writable_port(self):
-        with ShouldRaise(WriteAccessError):
-            self.io_device["busy"].set(1).wait()
+        self.assertRaises(WriteAccessError,
+                          self.io_device["busy"].set(1).wait)

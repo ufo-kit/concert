@@ -1,8 +1,4 @@
-import unittest
-import logbook
 import numpy as np
-from threading import Event
-from testfixtures import ShouldRaise
 from concert.quantities import q
 from concert.devices.motors.dummy import Motor
 from concert.devices.base import LinearCalibration
@@ -11,14 +7,13 @@ from concert.processes.tomoalignment import Aligner
 from concert.measures.rotationaxis import Ellipse
 from concert.tests.util.rotationaxis import SimulationCamera
 from concert.processes.scan import Scanner
+from concert.tests.base import ConcertTest
 
 
-class TestDummyAlignment(unittest.TestCase):
-    _multiprocess_can_split_ = True
+class TestDummyAlignment(ConcertTest):
 
     def setUp(self):
-        self.handler = logbook.TestHandler()
-        self.handler.push_application()
+        super(TestDummyAlignment, self).setUp()
         calibration = LinearCalibration(q.count / q.deg, 0 * q.deg)
         self.x_motor = Motor(calibration=calibration)
         self.y_motor = Motor(calibration=calibration)
@@ -41,21 +36,11 @@ class TestDummyAlignment(unittest.TestCase):
         self.aligner = Aligner(Ellipse(), self.scanner,
                                self.x_motor, self.z_motor)
 
-        self.iteration = 0
-        self.max_iterations = 10
-
-        # Alignment finishes after the aligner finishes or it iterates
-        # too much, in which case the test fails.
-        self.alignment_finished = Event()
-
         # Allow 1 px misalignment in y-direction.
         self.eps = np.arctan(2.0 / self.image_source.rotation_radius) * q.rad
 
-    def tearDown(self):
-        self.handler.pop_application()
-
     def align_check(self, x_angle, z_angle, has_z_motor=True):
-        """"Align and check th eresults."""
+        """"Align and check the results."""
         self.x_motor.position = z_angle
         self.z_motor.position = x_angle
 
@@ -75,15 +60,20 @@ class TestDummyAlignment(unittest.TestCase):
                             self.image_source.size))
 
         self.scanner.feedback = get_ones
-        with ShouldRaise(ValueError("No sample tip points found.")):
+        with self.assertRaises(ValueError) as ctx:
             self.aligner.run().wait()
+
+        self.assertEqual("No sample tip points found.", ctx.exception.message)
 
     @slow
     def test_not_offcentered(self):
         self.image_source.rotation_radius = 0
-        with ShouldRaise(ValueError("Sample off-centering too " +
-                                    "small, enlarge rotation radius.")):
+        with self.assertRaises(ValueError) as ctx:
             self.aligner.run().wait()
+
+        self.assertEqual("Sample off-centering too " +
+                         "small, enlarge rotation radius.",
+                         ctx.exception.message)
 
     @slow
     def test_no_x_axis(self):

@@ -1,11 +1,11 @@
-import unittest
 from concert.devices.shutters.dummy import Shutter as DummyShutter
+from concert.tests.base import ConcertTest
 
 
-class TestDummyShutter(unittest.TestCase):
-    _multiprocess_can_split_ = True
+class TestDummyShutter(ConcertTest):
 
     def setUp(self):
+        super(TestDummyShutter, self).setUp()
         self.shutter = DummyShutter()
 
     def test_open(self):

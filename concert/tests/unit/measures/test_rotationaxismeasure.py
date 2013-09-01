@@ -1,7 +1,4 @@
-import unittest
-import logbook
 import numpy as np
-from testfixtures import ShouldRaise
 from concert.quantities import q
 from concert.measures.rotationaxis import Ellipse
 from concert.tests.util.rotationaxis import SimulationCamera
@@ -9,14 +6,13 @@ from concert.devices.base import LinearCalibration
 from concert.devices.motors.dummy import Motor
 from concert.tests import slow
 from concert.processes.scan import Scanner
+from concert.tests.base import ConcertTest
 
 
-class TestRotationAxisMeasure(unittest.TestCase):
-    _multiprocess_can_split_ = True
+class TestRotationAxisMeasure(ConcertTest):
 
     def setUp(self):
-        self.handler = logbook.TestHandler()
-        self.handler.push_application()
+        super(TestRotationAxisMeasure, self).setUp()
         self.x_motor = Motor(LinearCalibration(q.count / q.deg, 0 * q.deg),
                              hard_limits=(-1e5, 1e5))
         self.x_motor["position"].unit = q.deg
@@ -45,9 +41,6 @@ class TestRotationAxisMeasure(unittest.TestCase):
         # Allow 1 px misalignment in y-direction.
         self.eps = np.arctan(2.0 / self.image_source.rotation_radius) * q.rad
 
-    def tearDown(self):
-        self.handler.pop_application()
-
     def make_images(self, x_angle, z_angle):
         self.x_motor.position = z_angle
         self.z_motor.position = x_angle
@@ -68,11 +61,13 @@ class TestRotationAxisMeasure(unittest.TestCase):
 
     @slow
     def test_out_of_fov(self):
-        with ShouldRaise(ValueError("No sample tip points found.")):
-            self.measure.images = np.ones((self.scanner.intervals,
-                                           self.image_source.size,
-                                           self.image_source.size))
+        self.measure.images = np.ones((self.scanner.intervals,
+                                       self.image_source.size,
+                                       self.image_source.size))
+        with self.assertRaises(ValueError) as ctx:
             self.measure()
+
+        self.assertEqual("No sample tip points found.", ctx.exception.message)
 
     @slow
     def test_center_no_rotation(self):

@@ -1,12 +1,12 @@
-import unittest
-import logbook
 from concert.quantities import q
 from concert.devices.base import LinearCalibration
 from concert.devices.motors.base import Motor
 from concert.devices.motors.dummy import Motor as DummyMotor,\
     ContinuousMotor as DummyContinuousMotor
+from concert.tests.base import ConcertTest, suppressed_logging
 
 
+@suppressed_logging
 def test_default_motor_has_default_calibration():
     class MockMotor(Motor):
 
@@ -20,22 +20,15 @@ def test_default_motor_has_default_calibration():
         def _get_position(self):
             return self._position
 
-    handler = logbook.TestHandler()
-    handler.push_application()
-
     motor = MockMotor()
     motor.move(-1 * q.mm).wait()
     assert motor.position == -1 * q.mm
     motor.position = 2.3 * q.mm
     assert motor.position == 2.3 * q.mm
 
-    handler.pop_application()
 
-
+@suppressed_logging
 def test_different_calibration_unit():
-    handler = logbook.TestHandler()
-    handler.push_application()
-
     calibration = LinearCalibration(q.count / q.deg, 0 * q.deg)
 
     motor = DummyMotor(calibration)
@@ -43,19 +36,12 @@ def test_different_calibration_unit():
     motor.move(1 * q.deg).wait()
     assert motor.position == 1 * q.deg
 
-    handler.pop_application()
 
-
-class TestDummyMotor(unittest.TestCase):
-    _multiprocess_can_split_ = True
+class TestDummyMotor(ConcertTest):
 
     def setUp(self):
+        super(TestDummyMotor, self).setUp()
         self.motor = DummyMotor()
-        self.handler = logbook.TestHandler()
-        self.handler.push_application()
-
-    def tearDown(self):
-        self.handler.pop_application()
 
     def test_set_position(self):
         position = 1 * q.mm
@@ -70,10 +56,10 @@ class TestDummyMotor(unittest.TestCase):
         self.assertEqual(position + delta, self.motor.position)
 
 
-class TestContinuousDummyMotor(unittest.TestCase):
-    _multiprocess_can_split_ = True
+class TestContinuousDummyMotor(ConcertTest):
 
     def setUp(self):
+        super(TestContinuousDummyMotor, self).setUp()
         position_calibration = LinearCalibration(q.count / q.mm, 0 * q.mm)
         velocity_calibration = LinearCalibration(q.count / (q.mm / q.s),
                                                  0 * (q.mm / q.s))
@@ -81,22 +67,16 @@ class TestContinuousDummyMotor(unittest.TestCase):
         self.motor = DummyContinuousMotor(position_calibration,
                                           velocity_calibration)
 
-        self.handler = logbook.TestHandler()
-        self.handler.push_application()
-
-    def tearDown(self):
-        self.handler.pop_application()
-
     def test_set_velocity(self):
         velocity = 1 * q.mm / q.s
         self.motor.velocity = velocity
         self.assertEqual(velocity, self.motor.velocity)
 
 
-class TestMotorCalibration(unittest.TestCase):
-    _multiprocess_can_split_ = True
+class TestMotorCalibration(ConcertTest):
 
     def setUp(self):
+        super(TestMotorCalibration, self).setUp()
         self.steps_per_mm = 10. * q.count / q.mm
         calibration = LinearCalibration(self.steps_per_mm, 0 * q.mm)
 
@@ -116,11 +96,6 @@ class TestMotorCalibration(unittest.TestCase):
                 return self._position
 
         self.motor = MockMotor()
-        self.handler = logbook.TestHandler()
-        self.handler.push_application()
-
-    def tearDown(self):
-        self.handler.pop_application()
 
     def test_set_position(self):
         position = 100 * q.mm

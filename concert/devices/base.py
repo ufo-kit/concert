@@ -77,6 +77,7 @@ class Device(Parameterizable):
 class Calibration(object):
 
     """Interface to convert between user and device units."""
+
     def __init__(self, user_unit, device_unit):
         self.user_unit = user_unit
         self.device_unit = device_unit

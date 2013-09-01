@@ -1,9 +1,7 @@
-import unittest
-import logbook
-from testfixtures import ShouldRaise, compare
 from concert.base import Parameter, ParameterError
 from concert.devices.base import Device
 from concert.ui import get_default_table
+from concert.tests.base import ConcertTest
 
 
 class MockDevice(Device):
@@ -21,19 +19,14 @@ class MockDevice(Device):
         super(MockDevice, self).__init__(self.params)
 
 
-class TestDevice(unittest.TestCase):
-    _multiprocess_can_split_ = True
+class TestDevice(ConcertTest):
 
     def setUp(self):
+        super(TestDevice, self).setUp()
         self.device = MockDevice()
-        self.handler = logbook.TestHandler()
-        self.handler.push_application()
-
-    def tearDown(self):
-        self.handler.pop_application()
 
     def test_accessor_functions(self):
-        compare(self.device.get_readonly().result(), 1)
+        self.assertEqual(self.device.get_readonly().result(), 1)
         self.device.set_writeonly(0).wait()
 
     def test_iterable(self):
@@ -41,13 +34,14 @@ class TestDevice(unittest.TestCase):
             self.assertTrue(param.name in ('readonly', 'writeonly', 'state'))
 
     def test_get_parameter(self):
-        compare(self.device['readonly'], self.device.params[0])
-        compare(self.device['writeonly'], self.device.params[1])
+        self.assertEqual(self.device['readonly'], self.device.params[0])
+        self.assertEqual(self.device['writeonly'], self.device.params[1])
 
     def test_invalid_paramter(self):
-        with ShouldRaise(ParameterError):
-            param = self.device['foo']
-            compare(param, None)
+        def query_invalid_param():
+            self.device['foo']
+
+        self.assertRaises(ParameterError, query_invalid_param)
 
     def test_str(self):
         table = get_default_table(["Parameter", "Value"])
@@ -55,7 +49,7 @@ class TestDevice(unittest.TestCase):
         table.add_row(["readonly", "1"])
         table.add_row(["state", Device.NA])
 
-        compare(str(self.device), table.get_string())
+        self.assertEqual(str(self.device), table.get_string())
 
     def test_context_manager(self):
         # This is just a functional test, we don't cover synchronization issues
