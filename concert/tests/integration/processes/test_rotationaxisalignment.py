@@ -47,14 +47,14 @@ class TestDummyAlignment(ConcertTest):
         # Allow 1 px misalignment in y-direction.
         self.eps = np.arctan(2.0 / self.image_source.rotation_radius) * q.rad
 
-   def align_check(self, x_angle, z_angle, has_z_motor=True):
-        """"Align and check th eresults."""
+    def align_check(self, x_angle, z_angle, has_z_motor=True):
+        """"Align and check the results."""
         self.x_motor.position = z_angle
         self.z_motor.position = x_angle
-
+        
         self.aligner.z_motor = self.z_motor if has_z_motor else None
         self.aligner.run().wait()
-
+        
         # In our case the best perfectly aligned position is when both
         # motors are in 0.
         assert np.abs(self.x_motor.position) < self.eps
