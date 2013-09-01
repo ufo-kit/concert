@@ -51,10 +51,10 @@ class TestDummyAlignment(ConcertTest):
         """"Align and check the results."""
         self.x_motor.position = z_angle
         self.z_motor.position = x_angle
-        
+
         self.aligner.z_motor = self.z_motor if has_z_motor else None
         self.aligner.run().wait()
-        
+
         # In our case the best perfectly aligned position is when both
         # motors are in 0.
         assert np.abs(self.x_motor.position) < self.eps

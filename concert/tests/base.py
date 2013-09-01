@@ -10,7 +10,7 @@ def suppressed_logging(func):
         func(*args, **kwargs)
 
         handler.pop_application()
-    
+
     test_wrapper.__name__ = func.__name__
 
     return test_wrapper
