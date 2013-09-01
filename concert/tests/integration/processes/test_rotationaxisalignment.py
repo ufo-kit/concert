@@ -1,5 +1,4 @@
 import numpy as np
-from threading import Event
 from concert.quantities import q
 from concert.devices.motors.dummy import Motor
 from concert.devices.base import LinearCalibration
@@ -36,13 +35,6 @@ class TestDummyAlignment(ConcertTest):
 
         self.aligner = Aligner(Ellipse(), self.scanner,
                                self.x_motor, self.z_motor)
-
-        self.iteration = 0
-        self.max_iterations = 10
-
-        # Alignment finishes after the aligner finishes or it iterates
-        # too much, in which case the test fails.
-        self.alignment_finished = Event()
 
         # Allow 1 px misalignment in y-direction.
         self.eps = np.arctan(2.0 / self.image_source.rotation_radius) * q.rad

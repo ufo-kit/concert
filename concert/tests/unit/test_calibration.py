@@ -5,7 +5,6 @@ from concert.tests.base import ConcertTest
 
 class TestLinearCalibration(ConcertTest):
     STEPS_PER_UNIT = 5000 * q.count / q.mm
-    _multiprocess_can_split_ = True
     OFFSET = 0 * q.mm
 
     def setUp(self):
