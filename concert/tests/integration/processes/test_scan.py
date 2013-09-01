@@ -1,13 +1,10 @@
-import time
-import unittest
-import logbook
 from concert.quantities import q
-from testfixtures import compare
 from concert.tests import assert_almost_equal
 from concert.devices.motors.dummy import Motor as DummyMotor
 from concert.devices.cameras.dummy import Camera
 from concert.processes.scan import Scanner, StepTomoScanner, ascan, dscan
 from concert.tests import slow
+from concert.tests.base import ConcertTest
 
 
 def compare_sequences(first_sequence, second_sequence, assertion):
@@ -15,16 +12,11 @@ def compare_sequences(first_sequence, second_sequence, assertion):
         assertion(x, y)
 
 
-class TestScan(unittest.TestCase):
-    _multiprocess_can_split_ = True
+class TestScan(ConcertTest):
 
     def setUp(self):
+        super(TestScan, self).setUp()
         self.motor = DummyMotor()
-        self.handler = logbook.TestHandler()
-        self.handler.push_application()
-
-    def tearDown(self):
-        self.handler.pop_application()
 
     def handle_scan(self, parameters):
         self.positions.append(parameters[0].get().result())
@@ -99,4 +91,4 @@ class TestScan(unittest.TestCase):
 
         darks, flats, projections = scanner.run().result()
         self.assertEqual(len(projections), len(stage.angles))
-        compare(checker.prepared, ['dark', 'flat', 'proj'])
+        self.assertEqual(checker.prepared, ['dark', 'flat', 'proj'])

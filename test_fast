@@ -1,3 +1,0 @@
-#!/bin/bash
-
-nosetests --processes=-1 --process-timeout=60 --stop --cover-package=concert concert $@

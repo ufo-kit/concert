@@ -17,7 +17,6 @@ As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 """
 import logbook
 from concert.quantities import q
-from concert.base import HardLimitError
 from concert.devices.base import Device, Parameter, LinearCalibration
 from concert.asynchronous import async
 
@@ -30,9 +29,9 @@ class Motor(Device):
     """Base class for everything that moves.
 
     A motor is used with a *calibration* that conforms to the
-    :class:`~.Calibration` interface to convert between user and device units. If
-    *calibration* is not given, a default :class:`~.LinearCalibration` mapping
-    one step to one millimeter with zero offset is assumed.
+    :class:`~.Calibration` interface to convert between user and device units.
+    If *calibration* is not given, a default :class:`~.LinearCalibration`
+    mapping one step to one millimeter with zero offset is assumed.
 
     .. py:attribute:: position
 
@@ -119,7 +118,7 @@ class ContinuousMotor(Motor):
     """
 
     def __init__(self, position_calibration, velocity_calibration,
-                 in_position_hard_limit=None, 
+                 in_position_hard_limit=None,
                  in_velocity_hard_limit=None):
         super(ContinuousMotor, self).__init__(position_calibration,
                                               in_position_hard_limit)

@@ -1,27 +1,21 @@
-import unittest
-import logbook
 from concert.quantities import q
 from concert.tests import assert_almost_equal
 from concert.devices.motors.dummy import Motor
 from concert.optimization import algorithms as algs
 from concert.optimization.optimizers import Minimizer, Maximizer
 from concert.tests import slow
+from concert.tests.base import ConcertTest
 
 
-class TestOptimizers(unittest.TestCase):
-    _multiprocess_can_split_ = True
+class TestOptimizers(ConcertTest):
 
     def setUp(self):
-        self.handler = logbook.TestHandler()
-        self.handler.push_application()
+        super(TestOptimizers, self).setUp()
         self.algorithms = [algs.halver, algs.down_hill, algs.powell,
                            algs.nonlinear_conjugate, algs.bfgs,
                            algs.least_squares]
         self.center = 3.0 * q.mm
         self.motor = Motor(position=0)
-
-    def tearDown(self):
-        self.handler.pop_application()
 
     def feedback(self):
         return (self.motor.position.to_base_units().magnitude -

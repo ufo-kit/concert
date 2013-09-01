@@ -1,26 +1,23 @@
-import unittest
-from testfixtures import ShouldRaise
 from concert.quantities import q
 from concert.devices.base import Calibration, LinearCalibration
+from concert.tests.base import ConcertTest
 
 
-def test_not_implemented():
-    calibration = Calibration(q.count, q.mm)
-
-    with ShouldRaise(NotImplementedError):
-        value = calibration.to_user(1 * q.count)
-
-    with ShouldRaise(NotImplementedError):
-        value = calibration.to_device(2 * q.mm)
-
-
-class TestLinearCalibration(unittest.TestCase):
+class TestLinearCalibration(ConcertTest):
     STEPS_PER_UNIT = 5000 * q.count / q.mm
-    _multiprocess_can_split_ = True
     OFFSET = 0 * q.mm
 
     def setUp(self):
+        super(TestLinearCalibration, self).setUp()
         self.calibration = LinearCalibration(self.STEPS_PER_UNIT, self.OFFSET)
+
+    def test_not_implemented(self):
+        calibration = Calibration(q.count, q.mm)
+
+        self.assertRaises(NotImplementedError, calibration.to_user,
+                          1 * q.count)
+
+        self.assertRaises(NotImplementedError, calibration.to_device, 2 * q.mm)
 
     def test_to_user(self):
         user = self.calibration.to_user(5000 * q.count)

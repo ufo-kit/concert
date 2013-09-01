@@ -1,13 +1,11 @@
-import unittest
 import time
 import random
-import logbook
 from concurrent.futures import Future
-from testfixtures import ShouldRaise
 from concert.devices.dummy import DummyDevice
 from concert.asynchronous import async, wait
 from concert.tests import slow
 from concert import asynchronous
+from concert.tests.base import ConcertTest
 
 
 @async
@@ -20,16 +18,11 @@ def bad_func():
     raise RuntimeError
 
 
-class TestAsync(unittest.TestCase):
-    _multiprocess_can_split_ = True
+class TestAsync(ConcertTest):
 
     def setUp(self):
+        super(TestAsync, self).setUp()
         self.device = DummyDevice()
-        self.handler = logbook.TestHandler()
-        self.handler.push_application()
-
-    def tearDown(self):
-        self.handler.pop_application()
 
     @slow
     def test_wait(self):
@@ -47,11 +40,8 @@ class TestAsync(unittest.TestCase):
             self.assertTrue(future.done(), "Not all futures finished.")
 
     def test_exceptions(self):
-        with ShouldRaise(TypeError):
-            wait([func(0)])
-
-        with ShouldRaise(RuntimeError):
-            wait([bad_func()])
+        self.assertRaises(TypeError, wait, [func(0)])
+        self.assertRaises(RuntimeError, wait, [bad_func()])
 
     def test_is_async(self):
         self.assertTrue(asynchronous.is_async(func))
@@ -67,11 +57,8 @@ class TestAsync(unittest.TestCase):
         self.assertEqual(future1.__class__, future2.__class__,
                          "Wait method does not return a future.")
 
-        with ShouldRaise(TypeError):
-            func(0).wait()
-
-        with ShouldRaise(RuntimeError):
-            bad_func().wait()
+        self.assertRaises(TypeError, func(0).wait)
+        self.assertRaises(RuntimeError, bad_func().wait)
 
     def test_async_function(self):
         future = func()

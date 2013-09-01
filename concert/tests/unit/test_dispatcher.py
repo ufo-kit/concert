@@ -1,23 +1,17 @@
-import unittest
-import logbook
 import time
 from concert.tests import VisitChecker
 from concert.asynchronous import Dispatcher
+from concert.tests.base import ConcertTest
 
 SLEEP_TIME = 0.0005
 
 
-class TestDispatcher(unittest.TestCase):
-    _multiprocess_can_split_ = True
+class TestDispatcher(ConcertTest):
 
     def setUp(self):
+        super(TestDispatcher, self).setUp()
         self.dispatcher = Dispatcher()
         self.checker = VisitChecker()
-        self.handler = logbook.TestHandler()
-        self.handler.push_application()
-
-    def tearDown(self):
-        self.handler.pop_application()
 
     def test_subscription(self):
         self.dispatcher.subscribe(self, 'foo', self.checker.visit)
