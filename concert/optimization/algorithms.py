@@ -67,11 +67,9 @@ def quantized(strip_func):
     """
     def stripped(function):
         def wrapper(eval_func, x_0, *args, **kwargs):
-            return q.Quantity(function(lambda x:
-                                       eval_func(
-                                           q.Quantity(
-                                               strip_func(x), x_0.units)),
-                              x_0.magnitude, *args, **kwargs), x_0.units)
+            q_func = lambda x: eval_func(q.Quantity(strip_func(x), x_0.units))
+            dim_less = function(q_func, x_0.magnitude, *args, **kwargs)
+            return q.Quantity(dim_less, x_0.units)
         return wrapper
 
     return stripped
