@@ -9,13 +9,16 @@ LOG = logbook.Logger(__name__)
 
 class Connection(object):
 
-    """A two-way socket connection."""
+    """A two-way socket connection. *return_sequence* is a string appended
+    after every command (useful when a protocol requires a special
+    character for indicating the end of a command)."""
 
-    def __init__(self, host, port):
+    def __init__(self, host, port, return_sequence=""):
         self._peer = (host, port)
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._sock.settimeout(20)
         self._lock = Lock()
+        self.return_sequence = return_sequence
         self._sock.connect(self._peer)
 
     def __del__(self):
@@ -24,6 +27,7 @@ class Connection(object):
     def send(self, data):
         """Send *data* to the peer."""
         LOG.debug('Sending {0}'.format(data))
+        data += self.return_sequence
         self._sock.sendall(data.encode('ascii'))
 
     def recv(self):
