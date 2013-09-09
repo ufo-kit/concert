@@ -198,13 +198,13 @@ class Parameter(object):
         self._value = None
         self.__doc__ = doc
 
-        self.upper = upper or float('Inf')
-        self.lower = lower or -float('Inf')
+        self.upper = upper if upper is not None else float('Inf')
+        self.lower = lower if lower is not None else -float('Inf')
 
-        if unit and not upper:
+        if unit and upper is None:
             self.upper = self.upper * unit
 
-        if unit and not lower:
+        if unit and lower is None:
             self.lower = self.lower * unit
 
     def __lt__(self, other):
