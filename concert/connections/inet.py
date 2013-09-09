@@ -43,9 +43,11 @@ class Connection(object):
     def execute(self, data):
         """Execute command and wait for response (thread safe)."""
         self._lock.acquire()
-        self.send(data)
-        result = self.recv()
-        self._lock.release()
+        try:
+            self.send(data)
+            result = self.recv()
+        finally:
+            self._lock.release()
 
         return result
 
