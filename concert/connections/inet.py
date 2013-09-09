@@ -1,6 +1,7 @@
 """Connection."""
 import logbook
 import socket
+from threading import Lock
 
 
 LOG = logbook.Logger(__name__)
@@ -14,6 +15,7 @@ class Connection(object):
         self._peer = (host, port)
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._sock.settimeout(20)
+        self._lock = Lock()
         self._sock.connect(self._peer)
 
     def __del__(self):
@@ -32,6 +34,15 @@ class Connection(object):
             return result
         except socket.timeout:
             LOG.warn('Reading from %s:%i timed out' % self._peer)
+
+    def execute(self, data):
+        """Execute command and wait for response (thread safe)."""
+        self._lock.acquire()
+        self.send(data)
+        result = self.recv()
+        self._lock.release()
+
+        return result
 
 
 class Aerotech(Connection):
@@ -73,8 +84,3 @@ class Aerotech(Connection):
     def recv(self):
         """Return properly interpreted answer from the controller."""
         return self._interpret_response(super(Aerotech, self).recv())
-
-    def execute(self, data):
-        """Execute command and wait for response."""
-        self.send(data)
-        return self.recv()
