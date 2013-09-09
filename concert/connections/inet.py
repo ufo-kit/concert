@@ -10,10 +10,11 @@ LOG = logbook.Logger(__name__)
 class Connection(object):
 
     """A two-way socket connection. *return_sequence* is a string appended
-    after every command (useful when a protocol requires a special
-    character for indicating the end of a command)."""
+    after every command indicating the end of it, the default value
+    is a newline (\\n).
+    """
 
-    def __init__(self, host, port, return_sequence=""):
+    def __init__(self, host, port, return_sequence="\n"):
         self._peer = (host, port)
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._sock.settimeout(20)
