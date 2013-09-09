@@ -1,5 +1,6 @@
 import nose.core
 from concert.ext.noseplugin import DisableAsync
+import sys
 
 if __name__ == '__main__':
-    nose.core.run(addplugins=[DisableAsync()])
+    sys.exit(int(not nose.core.run(addplugins=[DisableAsync()])))
