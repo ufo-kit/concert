@@ -48,7 +48,7 @@ class TestDummyFocusing(ConcertTest):
                                  algorithms.halver,
                                  (1 * q.mm,),
                                  {"epsilon": self.epsilon,
-                                  "max_iterations": 1000})
+                                  "max_iterations": 3000})
         self.position_eps = 1e-1 * q.mm
         self.gradient_cmp_eps = 1e-1
 
@@ -79,28 +79,31 @@ class TestDummyFocusing(ConcertTest):
 
     @slow
     def test_maximum_out_of_limits_right(self):
-        self.feedback.max_position = (self.motor.upper + 50) * q.mm
+        self.feedback.max_position = (self.motor.upper + 50 * q.count) \
+            * q.mm / q.count
 
         self.focuser.run().wait()
-        self.check(self.motor.upper * q.mm)
+        self.check(self.motor.upper * q.mm / q.count)
 
     @slow
     def test_maximum_out_of_limits_left(self):
-        self.feedback.max_position = (self.motor.lower - 50) * q.mm
+        self.feedback.max_position = (self.motor.lower - 50 * q.count) \
+            * q.mm / q.count
         self.focuser.run().wait()
-        self.check(self.motor.lower * q.mm)
+        self.check(self.motor.lower * q.mm / q.count)
 
     @slow
     def test_huge_step_out_of_limits_right(self):
         # Right.
-        self.feedback.max_position = (self.motor.upper + 50) * q.mm
+        self.feedback.max_position = (self.motor.upper + 50 * q.count) \
+            * q.mm / q.count
 
         focuser = Maximizer(self.motor["position"], self.feedback,
                             algorithms.halver,
                            (self.motor.position, 1000 * q.mm, self.epsilon),
                             {"max_iterations": 1000})
         focuser.run().wait()
-        self.check(self.motor.upper * q.mm)
+        self.check(self.motor.upper * q.mm / q.count)
 
     @slow
     def test_huge_step_out_of_limits_left(self):
@@ -108,9 +111,10 @@ class TestDummyFocusing(ConcertTest):
                             algorithms.halver,
                            (self.motor.position, 1000 * q.mm, self.epsilon),
                             {"max_iterations": 1000})
-        self.feedback.max_position = (self.motor.lower - 50) * q.mm
+        self.feedback.max_position = (self.motor.lower - 50 * q.count) \
+            * q.mm / q.count
         focuser.run().wait()
-        self.check(self.motor.lower * q.mm)
+        self.check(self.motor.lower * q.mm / q.count)
 
     @slow
     def test_identical_gradients(self):

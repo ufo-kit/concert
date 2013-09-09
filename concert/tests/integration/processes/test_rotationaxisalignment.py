@@ -15,9 +15,10 @@ class TestDummyAlignment(ConcertTest):
     def setUp(self):
         super(TestDummyAlignment, self).setUp()
         calibration = LinearCalibration(q.count / q.deg, 0 * q.deg)
-        self.x_motor = Motor(calibration=calibration)
-        self.y_motor = Motor(calibration=calibration)
-        self.z_motor = Motor(calibration=calibration)
+        hard_limits = (-np.Inf * q.count, np.Inf * q.count)
+        self.x_motor = Motor(calibration=calibration, hard_limits=hard_limits)
+        self.y_motor = Motor(calibration=calibration, hard_limits=hard_limits)
+        self.z_motor = Motor(calibration=calibration, hard_limits=hard_limits)
 
         self.x_motor.position = 0 * q.deg
         self.z_motor.position = 0 * q.deg
