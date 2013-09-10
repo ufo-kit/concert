@@ -2,7 +2,6 @@
 import random
 from concert.quantities import q
 from concert.devices.motors import base
-from concert.devices.base import LinearCalibration
 
 
 class Motor(base.Motor):
@@ -17,8 +16,10 @@ class Motor(base.Motor):
             self.lower, self.upper = hard_limits
         else:
             self.lower, self.upper = -100, 100
+        self.lower = self.lower * q.count
+        self.upper = self.upper * q.count
 
-        if position:
+        if position is not None:
             self._position = position
         else:
             self._position = random.uniform(self.lower, self.upper) * q.count
@@ -31,12 +32,12 @@ class Motor(base.Motor):
 
     def _set_position(self, position):
         if position < self.lower:
-            self._position = self.lower * q.count
+            self._position = self.lower
         elif not position < self.upper:
             # We do this funny comparison because pint is able to compare
             # "position < something" but not the other way around. See
             # https://github.com/hgrecco/pint/issues/40
-            self._position = self.upper * q.count
+            self._position = self.upper
         else:
             self._position = position
 
@@ -51,13 +52,13 @@ class ContinuousMotor(base.ContinuousMotor):
     def __init__(self, position_calibration, velocity_calibration):
         super(ContinuousMotor, self).__init__(position_calibration,
                                               velocity_calibration)
-        self._position_hard_limits = -10, 10
-        self._velocity_hard_limits = -100, 100
-        self._position = 0
-        self._velocity = 0
+        self._position_hard_limits = -10 * q.count, 10 * q.count
+        self._velocity_hard_limits = -100 * q.count, 100 * q.count
+        self._position = 0 * q.count
+        self._velocity = 0 * q.count
 
     def _stop_real(self):
-        self._velocity = 0
+        self._velocity = 0 * q.count
 
     def _set_position(self, position):
         self._position = position
