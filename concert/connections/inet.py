@@ -26,7 +26,10 @@ class Connection(object):
         self._sock.close()
 
     def send(self, data):
-        """Send *data* to the peer."""
+        """
+        Send *data* to the peer. The return sequence characters
+        are appended to the data before it is sent.
+        """
         LOG.debug('Sending {0}'.format(data))
         data += self.return_sequence
         self._sock.sendall(data.encode('ascii'))
