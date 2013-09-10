@@ -63,12 +63,15 @@ class Aerotech(Connection):
     NAK_CHAR = "!"  # not acknowledge (wrong parameters, etc.)
     FAULT_CHAR = "#"  # task fault
 
+    def __init__(self, host, port):
+        super(Aerotech, self).__init__(host, port,
+                                       return_sequence=Aerotech.EOS_CHAR)
+
     @classmethod
     def _interpret_response(cls, hle_response):
         if (hle_response[0] == Aerotech.ACK_CHAR):
             # return the data
-            res = hle_response[1:
-                               hle_response.index(Aerotech.EOS_CHAR)]
+            res = hle_response[1:]
             LOG.debug("Interpreted response {0}.".format(res))
             return res
         if (hle_response[0] == Aerotech.NAK_CHAR):
