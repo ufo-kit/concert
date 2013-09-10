@@ -35,6 +35,9 @@ class Connection(object):
         """Read data from the socket."""
         try:
             result = self._sock.recv(1024)
+            if result.endswith(self.return_sequence):
+                # Strip the command-ending character
+                result = result.rstrip(self.return_sequence)
             LOG.debug('Received {0}'.format(result))
             return result
         except socket.timeout:
