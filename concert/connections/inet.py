@@ -26,15 +26,24 @@ class Connection(object):
         self._sock.close()
 
     def send(self, data):
-        """Send *data* to the peer."""
+        """
+        Send *data* to the peer. The return sequence characters
+        are appended to the data before it is sent.
+        """
         LOG.debug('Sending {0}'.format(data))
         data += self.return_sequence
         self._sock.sendall(data.encode('ascii'))
 
     def recv(self):
-        """Read data from the socket."""
+        """
+        Read data from the socket. The result is first stripped
+        from the trailing return sequence characters and then returned. 
+        """
         try:
             result = self._sock.recv(1024)
+            if result.endswith(self.return_sequence):
+                # Strip the command-ending character
+                result = result.rstrip(self.return_sequence)
             LOG.debug('Received {0}'.format(result))
             return result
         except socket.timeout:
@@ -60,12 +69,15 @@ class Aerotech(Connection):
     NAK_CHAR = "!"  # not acknowledge (wrong parameters, etc.)
     FAULT_CHAR = "#"  # task fault
 
+    def __init__(self, host, port):
+        super(Aerotech, self).__init__(host, port,
+                                       return_sequence=Aerotech.EOS_CHAR)
+
     @classmethod
     def _interpret_response(cls, hle_response):
         if (hle_response[0] == Aerotech.ACK_CHAR):
             # return the data
-            res = hle_response[1:
-                               hle_response.index(Aerotech.EOS_CHAR)]
+            res = hle_response[1:]
             LOG.debug("Interpreted response {0}.".format(res))
             return res
         if (hle_response[0] == Aerotech.NAK_CHAR):
