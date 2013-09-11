@@ -4,15 +4,20 @@ import numpy as np
 
 class Area(object):
 
-    r"""
-    Area measure how much of the whole image is covered by an object.
-    The return value is the fraction of object pixels and the whole
-    area, :math:`n = object_pixels / (width \cdot height)`.
+    """
+    Area measures how much of the whole image is covered by an object.
+    The return value is the fraction between object pixels and the whole
+    area, :math:`n = object\_pixels / (width \cdot height)`.
+
+    Parameters are:
 
     .. py:attribute:: func
 
         a callable *func(radio, \*args, \*\*kwargs)*, where
-        *radio* is a radiograph to be analyzed
+        *radio* is a radiograph to be analyzed, *args* and *kwargs*
+        are additional positional and keyword arguments passed to *func*
+        which returns the number of pixels covered by
+        an object
 
     .. py:attribute:: args
 
@@ -40,10 +45,10 @@ class SimpleArea(Area):
     """
     An area measure with object segmentation by a threshold. If two
     flat fields *flat_1* and *flat_2* are given, then the minimum
-    of their subtraction :math:`min(flat_1, flat_2)` approximates
+    of their subtraction :math:`min(flat\_1, flat\_2)` approximates
     the maximum grey value considered a background. The values
-    from the radiograph and flat field subtraction below the
-    minimum are considered an object.
+    from the :math:`radiograph - flat` below the minimum are
+    considered an object.
     """
 
     def __init__(self, flat_1, flat_2):

@@ -9,3 +9,9 @@ Rotation Axis
 
 .. automodule:: concert.measures.rotationaxis
     :members:
+
+Area
+====
+
+.. automodule:: concert.measures.area
+    :members:
