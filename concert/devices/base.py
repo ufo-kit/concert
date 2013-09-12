@@ -112,4 +112,7 @@ class LinearCalibration(Calibration):
         return value / self.device_units_per_user_units - self.offset
 
     def to_device(self, value):
-        return (value + self.offset) * self.device_units_per_user_units
+        result = (value + self.offset) * self.device_units_per_user_units
+        
+        # This can be done because to device go *always* counts
+        return result.to_base_units()
