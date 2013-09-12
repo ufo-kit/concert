@@ -4,12 +4,7 @@ from concert.devices.scales import base
 from concert.devices.base import LinearCalibration, Device
 from concert.connections.inet import Connection
 from concert.quantities import q
-
-
-class AdventurerError(Exception):
-
-    """Error specific for Adventurer scales."""
-    pass
+from concert.devices.scales.base import WeightError
 
 
 class ARRW60(base.TarableScales):
@@ -27,7 +22,7 @@ class ARRW60(base.TarableScales):
     def _execute(self, cmd):
         result = self._connection.execute(cmd)
         if "OK!" not in result:
-            raise AdventurerError("Bad command or value")
+            raise ValueError("Bad command or value")
 
     def _tare(self):
         self._execute("T")
@@ -40,7 +35,7 @@ class ARRW60(base.TarableScales):
         res = self._connection.execute("P")
         if "Err8.4" in res:
             self._set_state(ARRW60.ERROR)
-            raise AdventurerError("More than maximum weight loaded")
+            raise WeightError("More than maximum weight loaded")
         else:
             if self.state == ARRW60.ERROR or self.state == Device.NA:
                 # Clear the error from before or set OK for the first time
