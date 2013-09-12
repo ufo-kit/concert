@@ -30,6 +30,6 @@ class TestLinearCalibration(ConcertTest):
     def test_different_units(self):
         value = 1 * q.m
         steps = self.calibration.to_device(value)
-        str_steps = "%.1f" % steps.to_base_units().magnitude
+        str_steps = "%.1f" % steps.magnitude
         expected = self.STEPS_PER_UNIT.to_base_units().magnitude
         self.assertEqual(str_steps, "%.1f" % expected)
