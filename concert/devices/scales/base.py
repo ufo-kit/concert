@@ -6,6 +6,13 @@ from concert.quantities import q
 from concert.asynchronous import async
 
 
+class WeightError(Exception):
+
+    """Class for weighing errors."""
+
+    pass
+
+
 class Scales(Device):
 
     """Base scales class."""

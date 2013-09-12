@@ -4,6 +4,7 @@ from concert.devices.scales import base
 from concert.devices.base import LinearCalibration, Device
 from concert.connections.inet import Connection
 from concert.quantities import q
+from concert.devices.scales.base import WeightError
 
 
 class AdventurerError(Exception):
@@ -40,7 +41,7 @@ class ARRW60(base.TarableScales):
         res = self._connection.execute("P")
         if "Err8.4" in res:
             self._set_state(ARRW60.ERROR)
-            raise AdventurerError("More than maximum weight loaded")
+            raise WeightError("More than maximum weight loaded")
         else:
             if self.state == ARRW60.ERROR or self.state == Device.NA:
                 # Clear the error from before or set OK for the first time
