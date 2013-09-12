@@ -7,12 +7,6 @@ from concert.quantities import q
 from concert.devices.scales.base import WeightError
 
 
-class AdventurerError(Exception):
-
-    """Error specific for Adventurer scales."""
-    pass
-
-
 class ARRW60(base.TarableScales):
 
     """The ARRW60 model of Adventurer scales."""
@@ -28,7 +22,7 @@ class ARRW60(base.TarableScales):
     def _execute(self, cmd):
         result = self._connection.execute(cmd)
         if "OK!" not in result:
-            raise AdventurerError("Bad command or value")
+            raise ValueError("Bad command or value")
 
     def _tare(self):
         self._execute("T")
