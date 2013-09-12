@@ -37,7 +37,7 @@ class Connection(object):
     def recv(self):
         """
         Read data from the socket. The result is first stripped
-        from the trailing return sequence characters and then returned. 
+        from the trailing return sequence characters and then returned.
         """
         try:
             result = self._sock.recv(1024)
