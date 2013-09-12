@@ -23,8 +23,9 @@ class Motor(base.Motor):
 
     """A motor based on ANKA Tango motor interface."""
 
-    def __init__(self, device, calibration):
-        super(Motor, self).__init__(calibration, self._in_hard_limit)
+    def __init__(self, device, calibration=None):
+        super(Motor, self).__init__(calibration=calibration,
+                                    in_hard_limit=self._in_hard_limit)
         self._device = device
 
     def _in_hard_limit(self):
