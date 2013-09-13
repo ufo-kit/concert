@@ -77,14 +77,9 @@ class SimpleArea(Area):
         self._setup()
 
     @property
-    def flat_1(self):
+    def flats(self):
         """flat_1 used by measure"""
-        return self._flat_1
-
-    @property
-    def flat_2(self):
-        """flat_2 used by measure"""
-        return self._flat_2
+        return [self._flat_1, self._flat_2]
 
     def _setup(self):
         """Setup the threshold and average flat field."""
