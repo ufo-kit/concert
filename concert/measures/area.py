@@ -53,14 +53,42 @@ class SimpleArea(Area):
 
     def __init__(self, flat_1, flat_2):
         super(SimpleArea, self).__init__(self.get_object_pixels)
-
-        # Threshold
-        self.thr = np.min(flat_1 - flat_2)
-        # Average the two flats to suppress the noise a little
-        self.flat = (flat_1 + flat_2) / 2.0
+        self._flat_1 = flat_1
+        self._flat_2 = flat_2
+        self.flat_avg = None
+        self.threshold = None
+        self._setup()
 
     def get_object_pixels(self, radio):
         """Get object pixels from a radiograph *radio*."""
-        radio = radio - self.flat
+        radio = radio - self.flat_avg
 
-        return len(np.where(radio < self.thr)[0])
+        return len(np.where(radio < self.threshold)[0])
+
+    def set_flats(self, flat_1, flat_2):
+        """
+        Set new flat fields *flat_1*, *flat_2*. The threshold and
+        average flat are recomputed.
+        """
+        if flat_1.shape != flat_2.shape:
+            raise ValueError("Flats must have the same shape")
+        self._flat_1 = flat_1
+        self._flat_2 = flat_2
+        self._setup()
+
+    @property
+    def flat_1(self):
+        """flat_1 used by measure"""
+        return self._flat_1
+
+    @property
+    def flat_2(self):
+        """flat_2 used by measure"""
+        return self._flat_2
+
+    def _setup(self):
+        """Setup the threshold and average flat field."""
+        # Threshold
+        self.threshold = np.min(self._flat_1 - self._flat_2)
+        # Average the two flats to suppress the noise a little
+        self.flat_avg = (self._flat_1 + self._flat_2) / 2.0
