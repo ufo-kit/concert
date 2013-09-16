@@ -283,9 +283,8 @@ def _run_shell(handler, module=None):
                 from IPython.Shell import IPShellEmbed
                 shell = IPShellEmbed()
             else:
-                from IPython.frontend.terminal.embed import \
-                    InteractiveShellEmbed as ShellEmbed
-                shell = ShellEmbed(banner1='')
+                from IPython.terminal.embed import InteractiveShellEmbed
+                shell = InteractiveShellEmbed(banner1='')
 
                 exceptions = (UnitError,
                               LimitError,
