@@ -192,6 +192,7 @@ class Parameter(object):
         self.unit = unit
         self.in_hard_limit = in_hard_limit
         self.owner = None
+        self.lock = None
         self._fset = fset
         self._fget = fget
         self._value = None
@@ -205,6 +206,15 @@ class Parameter(object):
 
         if unit and lower is None:
             self.lower = self.lower * unit
+
+    def __enter__(self):
+        if self.lock is not None:
+            self.lock.acquire()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.lock is not None:
+            self.lock.release()
 
     def __lt__(self, other):
         return str(self) <= str(other)
