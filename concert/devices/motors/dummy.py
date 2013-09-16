@@ -22,7 +22,7 @@ class Motor(base.Motor):
         if position is not None:
             self._position = position
         else:
-            self._position = random.uniform(self.lower, self.upper) * q.count
+            self._position = random.uniform(self.lower, self.upper)
 
     def _in_hard_limit(self):
         return self._position < self.lower or not self._position < self.upper
