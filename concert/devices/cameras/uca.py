@@ -88,6 +88,12 @@ class Camera(base.Camera):
 
         super(Camera, self).__init__(parameters)
 
+    def start_readout(self):
+        self.camera.start_readout()
+
+    def stop_readout(self):
+        self.camera.start_readout()
+
     def _record_real(self):
         self._array, self._data = _create_data_array(self.camera)
         self.camera.start_recording()
