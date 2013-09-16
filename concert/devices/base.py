@@ -50,8 +50,7 @@ class Device(Parameterizable):
 
     def __init__(self, parameters=None):
         super(Device, self).__init__(parameters)
-        self.add_parameter(Parameter('state', self._get_state,
-                                     owner_only=True))
+        self.add_parameter(Parameter('state', self._get_state))
         self._lock = threading.Lock()
         self._states = set([self.NA])
         self._state = self.NA

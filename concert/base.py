@@ -183,7 +183,7 @@ class Parameter(object):
     def __init__(self, name, fget=None, fset=None,
                  unit=None, in_hard_limit=None,
                  upper=None, lower=None,
-                 doc=None, owner_only=False):
+                 doc=None):
 
         if not parameter_name_valid(name):
             raise ValueError('{0} is not a valid parameter name'.format(name))
@@ -192,7 +192,6 @@ class Parameter(object):
         self.unit = unit
         self.in_hard_limit = in_hard_limit
         self.owner = None
-        self._owner_only = owner_only
         self._fset = fset
         self._fget = fget
         self._value = None
@@ -244,7 +243,7 @@ class Parameter(object):
         Once the value has been written on the device, all associated
         callbacks are called and a message is placed on the dispatcher bus.
         """
-        if self._owner_only and owner != self.owner:
+        if owner is not None and owner != self.owner:
             raise WriteAccessError(self.name)
 
         if not self.is_writable():
