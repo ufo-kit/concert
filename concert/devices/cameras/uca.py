@@ -108,5 +108,7 @@ class Camera(base.Camera):
         if not self._data:
             self._array, self._data = _create_data_array(self.camera)
 
-        self.camera.grab(self._data)
-        return self._array
+        if self.camera.grab(self._data):
+            return self._array
+
+        return None
