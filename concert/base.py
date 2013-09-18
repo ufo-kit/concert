@@ -380,3 +380,13 @@ class Parameterizable(object):
 
         if parameter.is_writable():
             setattr(self, 'set_%s' % underscored, self[parameter.name].set)
+
+
+def coroutine(func):
+    """Start a generator automatically."""
+    def start(*args, **kwargs):
+        """Starts the generator."""
+        gen = func(*args, **kwargs)
+        gen.next()
+        return gen
+    return start
