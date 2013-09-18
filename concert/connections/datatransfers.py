@@ -1,6 +1,7 @@
 """One-to-one and one-to-many data transfers."""
 from concert.base import coroutine
 from concert.asynchronous import dispatcher
+from concert.imagewriters import write_tiff
 
 
 SINOGRAMS_FULL = "sinos-full"
@@ -29,7 +30,7 @@ def multicast(*destinations):
 
 
 @coroutine
-def write_images(writer, prefix="radio_"):
+def write_images(writer=write_tiff, prefix="image_{:>05}"):
     """
     write_images(writer, prefix="radio_")
 
@@ -44,8 +45,7 @@ def write_images(writer, prefix="radio_"):
 
     while True:
         data = yield
-        file_name_prefix = prefix.join("{:>06}".format(i))
-        writer(file_name_prefix, data)
+        writer(prefix.format(i), data)
         i += 1
 
 
