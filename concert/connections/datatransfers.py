@@ -6,6 +6,15 @@ from concert.asynchronous import dispatcher
 SINOGRAMS_FULL = "sinos-full"
 
 
+def inject(generator, destination):
+    """
+    Let a *generator* produce a value and forward it to
+    *destination*.
+    """
+    for item in generator:
+        destination.send(item)
+
+
 @coroutine
 def multicast(*destinations):
     """

@@ -2,13 +2,19 @@ from concert.tests.base import suppressed_logging, ConcertTest
 from concert.base import coroutine
 from threading import Event
 import time
-from concert.connections.datatransfers import multicast, generate_sinograms
+from concert.connections.datatransfers import multicast, generate_sinograms,\
+    inject
 import numpy as np
 
 
 def producer(consumer):
     for i in range(5):
         consumer.send(i)
+
+
+def generator():
+    for i in range(5):
+        yield i
 
 
 class TestDataTransfers(ConcertTest):
@@ -47,3 +53,7 @@ class TestDataTransfers(ConcertTest):
 
         np.testing.assert_almost_equal(sinograms,
                                        ground_truth.transpose(1, 0, 2))
+
+    def test_injection(self):
+        inject(generator(), self.consume())
+        self.assertEqual(self.data, 4)
