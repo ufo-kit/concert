@@ -1,4 +1,4 @@
-"""Image writer implementations."""
+"""Storage implementations."""
 from concert.ext import tifffile
 from concert.asynchronous import async
 

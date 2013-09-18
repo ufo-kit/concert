@@ -1,38 +1,14 @@
-"""One-to-one and one-to-many data transfers."""
-from concert.base import coroutine
-from concert.asynchronous import dispatcher
-from concert.imagewriters import write_tiff
+from concert.storage import write_tiff
+from concert.processes.base import coroutine
 
 
 SINOGRAMS_FULL = "sinos-full"
 
 
-def inject(generator, destination):
-    """
-    Let a *generator* produce a value and forward it to
-    *destination*.
-    """
-    for item in generator:
-        destination.send(item)
-
-
-@coroutine
-def multicast(*destinations):
-    """
-    multicast(*destinations)
-
-    Provide data to all *destinations*.
-    """
-    while True:
-        item = yield
-        for destination in destinations:
-            destination.send(item)
-
-
 @coroutine
 def write_images(writer=write_tiff, prefix="image_{:>05}"):
     """
-    write_images(writer, prefix="radio_")
+    write_images(writer, prefix="image_{:>05}")
 
     Write images on disk with specified *writer* and file name *prefix*.
     *writer* is a callable with the following nomenclature::

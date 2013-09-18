@@ -1,10 +1,9 @@
-from concert.tests.base import suppressed_logging, ConcertTest
-from concert.base import coroutine
-from threading import Event
 import time
-from concert.connections.datatransfers import multicast, generate_sinograms,\
-    inject
 import numpy as np
+from threading import Event
+from concert.tests.base import suppressed_logging, ConcertTest
+from concert.processes.base import coroutine, multicast, inject
+from concert.processes.sinks import generate_sinograms
 
 
 def producer(consumer):
