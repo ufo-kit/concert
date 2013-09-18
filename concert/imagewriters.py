@@ -3,7 +3,7 @@ from concert.ext import tifffile
 
 
 def write_tiff(file_name_prefix, data):
-    """The default TIFF writer which uses tifffile module."""
+    """The default TIFF writer which uses :py:mod:`tifffile` module."""
     tifffile.imsave(file_name_prefix.join(".tif"), data)
 
 
