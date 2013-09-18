@@ -92,7 +92,7 @@ class Camera(base.Camera):
         self.camera.start_readout()
 
     def stop_readout(self):
-        self.camera.start_readout()
+        self.camera.stop_readout()
 
     def _record_real(self):
         self._array, self._data = _create_data_array(self.camera)
