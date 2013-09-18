@@ -12,7 +12,7 @@ def _new_setter_wrapper(camera, name, unit=None):
         if unit:
             value = value.to(unit)
 
-        dic = {name: value.magnitude}
+        dic = {name: value.magnitude if value.hasattr('magnitude') else value}
         camera.set_properties(**dic)
 
     return _wrapper
