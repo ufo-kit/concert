@@ -19,8 +19,8 @@ class FileCamera(base.Camera):
     def __init__(self, folder):
         # Let users change the folder
         self.folder = folder
-        params = [Parameter('fps', unit=q.count / q.s),
-                  Parameter('trigger_mode', lower=FileCamera.TRIGGER_AUTO,
+        params = [Parameter('frames-per-second', unit=q.count / q.s),
+                  Parameter('trigger-mode', lower=FileCamera.TRIGGER_AUTO,
                   upper=FileCamera.TRIGGER_SOFTWARE)]
         super(FileCamera, self).__init__(params)
 
