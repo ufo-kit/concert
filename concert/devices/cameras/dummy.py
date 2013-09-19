@@ -15,17 +15,13 @@ class FileCamera(base.Camera):
     """A camera that reads files in a *folder*."""
     TRIGGER_AUTO = 0
     TRIGGER_SOFTWARE = 1
-    READ_FUNCTIONS = {".tif": read_tiff,
-                      ".tiff": read_tiff}
 
     def __init__(self, folder):
         # Let users change the folder
         self.folder = folder
         params = [Parameter('fps', unit=q.count / q.s),
                   Parameter('trigger_mode', lower=FileCamera.TRIGGER_AUTO,
-                  upper=FileCamera.TRIGGER_SOFTWARE),
-                  Parameter('supported_file_types',
-                            fget=FileCamera.READ_FUNCTIONS.keys)]
+                  upper=FileCamera.TRIGGER_SOFTWARE)]
         super(FileCamera, self).__init__(params)
 
         self._recording = None
@@ -37,12 +33,6 @@ class FileCamera(base.Camera):
         self._trigger_time = None
         self._files = [os.path.join(folder, file_name) for file_name in
                        sorted(os.listdir(folder))]
-
-    def _read_file(self):
-        file_name = self._files[self._index]
-        ext = os.path.splitext(file_name)[1]
-
-        return FileCamera.READ_FUNCTIONS[ext](file_name)
 
     def _get_index(self, stop_time=None):
         if stop_time is None:
@@ -93,10 +83,10 @@ class FileCamera(base.Camera):
                 self._index = self._get_index(self._trigger_time)
 
             if self._index > self._get_index(self._stop_time) or \
-                    self._index > len(self._files):
+                    self._index >= len(self._files):
                 return None
 
-        return self._read_file()
+        return read_image(self._files[self._index]).result()
 
 
 class Camera(base.Camera):
