@@ -20,8 +20,6 @@ class ConcertTest(TestCase):
 
     """Base class for tests which suppress logger output."""
 
-    _multiprocess_can_split_ = False
-
     def setUp(self):
         self.handler = suppress_logging()
 
