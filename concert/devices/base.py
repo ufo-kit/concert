@@ -49,10 +49,13 @@ class Device(Parameterizable):
     NA = "n/a"
 
     def __init__(self, parameters=None):
-        super(Device, self).__init__(parameters)
-        self.add_parameter(Parameter('state', self._get_state,
-                                     owner_only=True))
+        # We have to create the lock early on because it will be accessed in
+        # any add_parameter calls, especially those in the Parameterizable base
+        # class
         self._lock = threading.Lock()
+
+        super(Device, self).__init__(parameters)
+        self.add_parameter(Parameter('state', self._get_state))
         self._states = set([self.NA])
         self._state = self.NA
 
@@ -72,6 +75,10 @@ class Device(Parameterizable):
             self['state'].notify()
         else:
             LOG.warn("State {0} unknown.".format(state))
+
+    def add_parameter(self, parameter):
+        parameter.lock = self._lock
+        super(Device, self).add_parameter(parameter)
 
 
 class Calibration(object):
