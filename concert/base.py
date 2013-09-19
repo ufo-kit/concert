@@ -46,6 +46,7 @@ from logbook import Logger
 from concert.asynchronous import dispatcher
 from concert.ui import get_default_table
 from concert.asynchronous import async
+from functools import wraps
 
 
 LOG = Logger(__name__)

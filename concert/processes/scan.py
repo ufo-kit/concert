@@ -108,6 +108,18 @@ class Scanner(Process):
 
         return (xss, yss)
 
+    def gen(self, consumer, convert=lambda x: x):
+        """gen(consumer)
+
+        Scan :attr:`param` as in :meth:`run` but send data to generator
+        instead.
+        """
+        xss = np.linspace(self.minimum, self.maximum, self.intervals)
+
+        for xval in xss:
+            self.param.set(convert(xval)).wait()
+            consumer.send((xval, self.feedback()))
+
     def show(self):
         """Call :meth:`run`, show the result of the scan with Matplotlib and
         return the plot object."""
