@@ -13,10 +13,10 @@ before_install:
 install:
     - pip install . --use-mirrors
     - pip install -r requirements.txt --use-mirrors
-    - pip install coveralls --use-mirrors
+    - pip install coveralls nose-exclude --use-mirrors
 
 script:
-    - python runtests.py --processes=0 --cover-package=concert concert
+    - python runtests.py --attr='!skip-travis' --cover-package=concert concert
 
 after_success:
     - coveralls
