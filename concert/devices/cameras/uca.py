@@ -73,19 +73,19 @@ class Camera(base.Camera):
 
         parameters = []
 
-        for prop in self.camera.props:
+        for prop in self.uca.props:
             getter, setter, unit = None, None, None
 
-            uca_unit = self.camera.get_unit(prop.name)
+            uca_unit = self.uca.get_unit(prop.name)
 
             if uca_unit in units:
                 unit = units[uca_unit]
 
             if prop.flags & GObject.ParamFlags.READABLE:
-                getter = _new_getter_wrapper(self.camera, prop.name, unit)
+                getter = _new_getter_wrapper(self.uca, prop.name, unit)
 
             if prop.flags & GObject.ParamFlags.WRITABLE:
-                setter = _new_setter_wrapper(self.camera, prop.name, unit)
+                setter = _new_setter_wrapper(self.uca, prop.name, unit)
 
             parameter = Parameter(prop.name, getter, setter, unit)
             parameters.append(parameter)
@@ -93,20 +93,20 @@ class Camera(base.Camera):
         super(Camera, self).__init__(parameters)
 
     def _record_real(self):
-        self._array, self._data = _create_data_array(self.camera)
-        self.camera.start_recording()
+        self._array, self._data = _create_data_array(self.uca)
+        self.uca.start_recording()
 
     def _stop_real(self):
-        self.camera.stop_recording()
+        self.uca.stop_recording()
 
     def _trigger_real(self):
-        self.camera.trigger()
+        self.uca.trigger()
 
     def _grab_real(self):
         if not self._data:
-            self._array, self._data = _create_data_array(self.camera)
+            self._array, self._data = _create_data_array(self.uca)
 
-        if self.camera.grab(self._data):
+        if self.uca.grab(self._data):
             return self._array
 
         return None
