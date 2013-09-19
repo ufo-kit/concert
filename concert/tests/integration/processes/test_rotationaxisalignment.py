@@ -1,4 +1,5 @@
 import numpy as np
+from nose.plugins.attrib import attr
 from concert.quantities import q
 from concert.devices.motors.dummy import Motor
 from concert.devices.base import LinearCalibration
@@ -10,6 +11,7 @@ from concert.processes.scan import Scanner
 from concert.tests.base import ConcertTest
 
 
+@attr('skip-travis')
 class TestDummyAlignment(ConcertTest):
 
     def setUp(self):
