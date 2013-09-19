@@ -3,6 +3,90 @@ import numpy as np
 from concert.quantities import q
 from concert.base import Parameter
 from concert.devices.cameras import base
+from threading import Event
+import os
+import time
+from concert.storage import read_image
+from concert.devices.cameras.base import CameraError
+
+
+class FileCamera(base.Camera):
+
+    """A camera that reads files in a *folder*."""
+    TRIGGER_AUTO = 0
+    TRIGGER_SOFTWARE = 1
+
+    def __init__(self, folder):
+        # Let users change the folder
+        self.folder = folder
+        params = [Parameter('frames-per-second', unit=q.count / q.s),
+                  Parameter('trigger-mode', lower=FileCamera.TRIGGER_AUTO,
+                  upper=FileCamera.TRIGGER_SOFTWARE)]
+        super(FileCamera, self).__init__(params)
+
+        self._recording = None
+        self._index = -1
+        self._start_time = None
+        self._stop_time = None
+        self._trigger = Event()
+        self._trigger_time = None
+        self._files = [os.path.join(folder, file_name) for file_name in
+                       sorted(os.listdir(folder))]
+
+    def _get_index(self, stop_time=None):
+        if stop_time is None:
+            stop_time = time.time() * q.s
+
+        return int(self.fps * (stop_time - self._start_time))
+
+    def _record_real(self):
+        self._start_time = time.time() * q.s
+        self._recording = True
+
+    def _stop_real(self):
+        if not self._recording:
+            raise CameraError("start_recording() not called")
+        self._stop_time = time.time() * q.s
+        self._trigger.clear()
+        self._trigger_time = None
+        self._recording = False
+
+    def _trigger_real(self):
+        if self.trigger_mode == FileCamera.TRIGGER_SOFTWARE:
+            self._trigger.set()
+            self._trigger_time = time.time()
+        else:
+            raise CameraError("Cannot trigger in current trigger mode")
+
+    def _grab_real(self):
+        if self._recording is None:
+            raise CameraError("Camera hasn't been in recording mode yet")
+
+        if self._recording:
+            if self.trigger_mode == FileCamera.TRIGGER_SOFTWARE:
+                self._trigger.wait()
+                self._trigger.clear()
+
+            if self._get_index() == self._index:
+                # Wait for the next frame if the readout is too fast
+                time.sleep(1.0 / self.fps)
+            self._index = self._get_index()
+        else:
+            if self.trigger_mode == FileCamera.TRIGGER_AUTO:
+                self._index += 1
+            else:
+                if self._trigger.is_set():
+                    self._trigger.clear()
+                else:
+                    # Camera hasn't been triggered, don't return anything
+                    return None
+                self._index = self._get_index(self._trigger_time)
+
+            if self._index > self._get_index(self._stop_time) or \
+                    self._index >= len(self._files):
+                return None
+
+        return read_image(self._files[self._index]).result()
 
 
 class Camera(base.Camera):
@@ -52,10 +136,10 @@ class Camera(base.Camera):
         pass
 
     def _grab_real(self):
-        time = self.exposure_time.to(q.s).magnitude
+        cur_time = self.exposure_time.to(q.s).magnitude
 
         # 1e5 is a dummy correlation between exposure time and emitted e-.
-        tmp = self._background + time * 1e5
+        tmp = self._background + cur_time * 1e5
         max_value = np.iinfo(np.uint16).max
         tmp = np.random.poisson(tmp)
         # Cut values beyond the bit-depth.
