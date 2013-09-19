@@ -40,14 +40,6 @@ class Camera(Device):
         """Stop recording frames."""
         self._stop_real()
 
-    def start_readout(self):
-        """Start reading out frames from internal camera buffer"""
-        pass
-
-    def stop_readout(self):
-        """Start reading out frames from internal camera buffer"""
-        pass
-
     def trigger(self):
         """Trigger a frame if possible."""
         self._trigger_real()

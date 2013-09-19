@@ -60,7 +60,7 @@ class Camera(base.Camera):
         self._array = None
 
         try:
-            self.camera = self._manager.get_camerav(name, [])
+            self.uca = self._manager.get_camerav(name, [])
         except:
             raise ValueError("`{0}' is not a valid camera".format(name))
 
@@ -91,12 +91,6 @@ class Camera(base.Camera):
             parameters.append(parameter)
 
         super(Camera, self).__init__(parameters)
-
-    def start_readout(self):
-        self.camera.start_readout()
-
-    def stop_readout(self):
-        self.camera.stop_readout()
 
     def _record_real(self):
         self._array, self._data = _create_data_array(self.camera)
