@@ -25,7 +25,6 @@ class FileCamera(base.Camera):
         super(FileCamera, self).__init__(params)
 
         self._recording = None
-        self._stopped = False
         self._index = -1
         self._start_time = None
         self._stop_time = None
@@ -48,8 +47,9 @@ class FileCamera(base.Camera):
         if not self._recording:
             raise CameraError("start_recording() not called")
         self._stop_time = time.time() * q.s
+        self._trigger.clear()
+        self._trigger_time = None
         self._recording = False
-        self._stopped = True
 
     def _trigger_real(self):
         if self.trigger_mode == FileCamera.TRIGGER_SOFTWARE:
