@@ -18,7 +18,7 @@ install:
     - sudo rm -rf /dev/shm && sudo ln -s /run/shm /dev/shm
 
 script:
-    - python runtests.py --processes=-1 --process-timeout=600 --cover-package=concert concert
+    - python runtests.py --cover-package=concert concert
 
 after_success:
     - coveralls
