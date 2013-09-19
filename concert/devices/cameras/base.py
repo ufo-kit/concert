@@ -25,6 +25,11 @@ To setup and use a camera in a typical environment, you would do::
 from concert.devices.base import Device
 
 
+class CameraError(Exception):
+    """Camera specific errors."""
+    pass
+
+
 class Camera(Device):
 
     """Base class for remotely controllable cameras."""
