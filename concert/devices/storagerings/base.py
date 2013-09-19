@@ -25,18 +25,15 @@ class StorageRing(Device):
         params = [Parameter('current',
                             fget=self._get_current,
                             unit=q.mA,
-                            doc="Current of the ring",
-                            owner_only=True),
+                            doc="Current of the ring"),
                   Parameter('energy',
                             fget=self._get_energy,
                             unit=q.MeV,
-                            doc="Energy of the ring",
-                            owner_only=True),
+                            doc="Energy of the ring"),
                   Parameter('lifetime',
                             fget=self._get_lifetime,
                             unit=q.h,
-                            doc="Lifetime of the ring",
-                            owner_only=True)]
+                            doc="Lifetime of the ring")]
 
         super(StorageRing, self).__init__(params)
 

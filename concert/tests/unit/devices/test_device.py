@@ -57,3 +57,11 @@ class TestDevice(ConcertTest):
         with self.device as d:
             v = d.readonly
             d.writeonly = 2
+
+    def test_parameter_locks_exist(self):
+        for param_name in ('state', 'readonly', 'writeonly'):
+            self.assertEqual(self.device._lock, self.device[param_name].lock)
+
+    def test_parameter_lock_acquisition(self):
+        with self.device['writeonly']:
+            pass

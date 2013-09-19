@@ -27,8 +27,6 @@ class DummyRing(StorageRing):
                 time.sleep(5.0)
 
                 # We want to tell everyone, that the parameters are updated.
-                # Now we abuse the fact that the parameters are owner_only and
-                # the setter doesn't do anything.
                 self['energy'].notify()
                 self['current'].notify()
 
