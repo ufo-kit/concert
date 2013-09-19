@@ -1,4 +1,5 @@
 import numpy as np
+from nose.plugins.attrib import attr
 from concert.quantities import q
 from concert.measures.rotationaxis import Ellipse
 from concert.tests.util.rotationaxis import SimulationCamera
@@ -9,6 +10,7 @@ from concert.processes.scan import Scanner
 from concert.tests.base import ConcertTest
 
 
+@attr('skip-travis')
 class TestRotationAxisMeasure(ConcertTest):
 
     def setUp(self):
