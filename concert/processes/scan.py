@@ -75,14 +75,10 @@ class Scanner(Process):
         The number of intervals that are scanned.
     """
 
-    def __init__(self, param, feedback):
-        params = [Parameter('minimum', unit=param.unit,
-                            doc="Left bound of the interval"),
-                  Parameter('maximum', unit=param.unit,
-                            doc="Right bound of the interval"),
-                  Parameter('intervals', doc="Number of intervals")]
-
-        super(Scanner, self).__init__(params)
+    def __init__(self, param, feedback, minimum=None, maximum=None):
+        super(Scanner, self).__init__()
+        self.minimum = minimum if minimum is not None else param.lower
+        self.maximum = maximum if maximum is not None else param.lower
         self.intervals = 64
         self.param = param
         self.feedback = feedback

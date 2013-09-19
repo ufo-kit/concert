@@ -14,7 +14,7 @@ class Process(Parameterizable):
 
     """Base process."""
 
-    def __init__(self, params):
+    def __init__(self, params=None):
         super(Process, self).__init__(params)
 
     @async
