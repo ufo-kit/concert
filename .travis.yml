@@ -16,7 +16,7 @@ install:
     - pip install coveralls nose-exclude --use-mirrors
 
 script:
-    - python runtests.py --attr='!skip-travis' --cover-package=concert concert
+    - python runtests.py --attr='!skip-travis' --with-coverage --cover-package=concert concert
 
 after_success:
     - coveralls
