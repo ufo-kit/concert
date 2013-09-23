@@ -1,5 +1,6 @@
 [MASTER]
 ignore=tests
+ignore=concert/ext/tifffile.py
 
 [BASIC]
 
