@@ -79,7 +79,7 @@ class Scanner(Process):
                  minimum=None, maximum=None, intervals=64):
         super(Scanner, self).__init__()
         self.minimum = minimum if minimum is not None else param.lower
-        self.maximum = maximum if maximum is not None else param.lower
+        self.maximum = maximum if maximum is not None else param.upper
         self.intervals = intervals
         self.param = param
         self.feedback = feedback
