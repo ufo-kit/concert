@@ -9,6 +9,7 @@ except ImportError:
 import threading
 from concurrent.futures import ThreadPoolExecutor, Future
 from functools import wraps
+from threading import Thread
 
 
 # Patch futures so that they provide a wait() method
@@ -51,6 +52,16 @@ def async(func):
 
         _async.__dict__["_async"] = True
         return _async
+
+
+def threaded(func):
+    """Threaded execution of a function *func*."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        """Execute in a separate thread."""
+        Thread(target=func, args=args, kwargs=kwargs).start()
+
+    return wrapper
 
 
 def is_async(func):
