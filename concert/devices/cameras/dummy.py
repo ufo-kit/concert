@@ -117,7 +117,7 @@ class Camera(base.Camera):
         self.sensor_pixel_width = 5 * q.micrometer
         self.sensor_pixel_height = 5 * q.micrometer
 
-        if background:
+        if background is not None:
             self.roi_width = background.shape[1]
             self.roi_height = background.shape[0]
             self._background = background
