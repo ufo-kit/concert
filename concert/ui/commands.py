@@ -46,6 +46,10 @@ ARGUMENTS = {
     'rm': {'sessions': {'type': str,
                         'nargs': '+',
                         'metavar': 'session'}},
+    'mv': {'source': {'type': str,
+                      'help': "Name of the source session"},
+           'target': {'type': str,
+                      'help': "Name of the target session"}},
     'show': {'session': {'type': str,
                          'nargs': '?',
                          'default': None,
@@ -184,6 +188,18 @@ def rm(sessions=[]):
     for session in sessions:
         print("Removing {0}...".format(session))
         concert.session.remove(session)
+
+
+def mv(source, target):
+    """Move session *source* to *target*."""
+    if not concert.session.exists(source):
+        sys.exit("`{}' does not exist".format(source))
+
+    if concert.session.exists(target):
+        sys.exit("`{}' already exists".format(target))
+
+    concert.session.move(source, target)
+    print("Renamed {} -> {}".format(source, target))
 
 
 def show(session=None):
