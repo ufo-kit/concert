@@ -89,13 +89,19 @@ def ddoc():
     print(table.get_string())
 
 
-def pdoc():
+def pdoc(hide_blacklisted=True):
     """Render process documentation."""
+    black_listed = ('show', 'start', 'init', 'rm', 'log', 'edit', 'fetch')
     field_names = ["Name", "Description"]
     table = get_default_table(field_names)
 
-    for name, process in _current_instances(Process):
-        table.add_row([name, inspect.getdoc(process)])
+    frame = inspect.stack()[1]
+    instances = frame[0].f_globals
+
+    for name, obj in instances.items():
+        if not name.startswith('_') and inspect.isfunction(obj):
+            if hide_blacklisted and name not in black_listed:
+                table.add_row([name, inspect.getdoc(obj)])
 
     print(table.get_string())
 
