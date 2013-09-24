@@ -28,17 +28,26 @@ READERS = {".tif": read_tiff,
 
 @async
 def write_tiff(file_name_prefix, data):
-    """The default TIFF writer which uses :py:mod:`tifffile` module."""
-    tifffile.imsave(file_name_prefix + ".tif", data)
+    """
+    The default TIFF writer which uses :py:mod:`tifffile` module.
+    Return the written file name.
+    """
+    file_name = file_name_prefix + ".tif"
+    tifffile.imsave(file_name, data)
+
+    return file_name
 
 
 @async
 def write_libtiff(file_name_prefix, data):
-    """Write a TIFF file using pylibtiff."""
+    """Write a TIFF file using pylibtiff. Return the written file name."""
     from libtiff import TIFF
 
-    tiff_file = TIFF.open(file_name_prefix + ".tif", "w")
+    file_name = file_name_prefix + ".tif"
+    tiff_file = TIFF.open(file_name, "w")
     try:
         tiff_file.write_image(data)
     finally:
         tiff_file.close()
+
+    return file_name
