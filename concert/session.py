@@ -153,6 +153,11 @@ def remove(session):
         os.unlink(path(session))
 
 
+def move(source, target):
+    """Move *source* to *target*."""
+    os.rename(path(source), path(target))
+
+
 def load(session):
     """Load *session* and return the module."""
     return imp.load_source('m', path(session))
