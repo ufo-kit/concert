@@ -46,7 +46,8 @@ class TestScan(ConcertTest):
         def feedback():
             return self.motor.position
 
-        scanner = Scanner(self.motor['position'], feedback, 1 * q.mm, 10 * q.mm)
+        scanner = Scanner(
+            self.motor['position'], feedback, 1 * q.mm, 10 * q.mm)
         scanner.intervals = 10
         x, y = scanner.run().result()
         compare_sequences(x, y, self.assertEqual)

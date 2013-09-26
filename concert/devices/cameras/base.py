@@ -26,6 +26,7 @@ from concert.devices.base import Device
 
 
 class CameraError(Exception):
+
     """Camera specific errors."""
     pass
 
