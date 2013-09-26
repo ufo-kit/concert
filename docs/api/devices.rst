@@ -85,6 +85,26 @@ Monochromators
     :members:
 
 
+Pumps
+=====
+
+.. autoclass:: concert.devices.pumps.base.Pump
+    :show-inheritance:
+    :members:
+
+
+Scales
+======
+
+.. autoclass:: concert.devices.scales.base.Scales
+    :show-inheritance:
+    :members:
+
+.. autoclass:: concert.devices.scales.base.TarableScales
+    :show-inheritance:
+    :members:
+
+
 Shutters
 ========
 
