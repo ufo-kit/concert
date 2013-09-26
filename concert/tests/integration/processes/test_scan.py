@@ -1,5 +1,6 @@
 from concert.quantities import q
 from concert.tests import assert_almost_equal
+from concert.devices.base import Device, Parameter
 from concert.devices.motors.dummy import Motor as DummyMotor
 from concert.devices.cameras.dummy import Camera
 from concert.processes.scan import Scanner, StepTomoScanner, ascan, dscan
@@ -91,3 +92,47 @@ class TestScan(ConcertTest):
         darks, flats, projections = scanner.run().result()
         self.assertEqual(len(projections), len(stage.angles))
         self.assertEqual(checker.prepared, ['dark', 'flat', 'proj'])
+
+    def test_parameter_lock(self):
+        class SomeDevice(Device):
+            def __init__(self):
+                params = [Parameter(name='foo', unit=q.m,
+                                    fget=self._get_foo, fset=self._set_foo),
+                          Parameter(name='bar', unit=q.m,
+                                    fget=self._get_bar, fset=self._set_bar)]
+
+                super(SomeDevice, self).__init__(params)
+                self._foo = 1 * q.m
+                self._bar = 1 * q.m
+
+            def _get_foo(self):
+                return self._foo
+
+            def _set_foo(self, val):
+                self._foo = val
+
+            def _get_bar(self):
+                return self._bar
+
+            def _set_bar(self, val):
+                self._bar = val
+
+        device = SomeDevice()
+
+        def scan_bar(foo):
+            def feedback():
+                return device.bar
+
+            device.foo = foo
+            scanner = Scanner(device['bar'], feedback, 1*q.m, 2*q.m, 10)
+            return scanner.run().result()
+
+        def scan_foo():
+            def feedback():
+                return scan_bar(device.foo)
+
+            scanner = Scanner(device['foo'], feedback, 1*q.m, 2*q.m, 10)
+            return scanner.run().result()
+
+        x, y = scan_foo()
+        self.assertEqual(x.shape[0], len(y))

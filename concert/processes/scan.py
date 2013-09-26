@@ -99,9 +99,10 @@ class Scanner(Process):
         xss = np.linspace(self.minimum, self.maximum, self.intervals)
         yss = []
 
-        for xval in xss:
-            self.param.set(convert(xval)).wait()
-            yss.append(self.feedback())
+        with self.param:
+            for xval in xss:
+                self.param.set(convert(xval)).wait()
+                yss.append(self.feedback())
 
         return (xss, yss)
 
@@ -113,9 +114,10 @@ class Scanner(Process):
         """
         xss = np.linspace(self.minimum, self.maximum, self.intervals)
 
-        for xval in xss:
-            self.param.set(convert(xval)).wait()
-            consumer.send((xval, self.feedback()))
+        with self.param:
+            for xval in xss:
+                self.param.set(convert(xval)).wait()
+                consumer.send((xval, self.feedback()))
 
     def show(self):
         """Call :meth:`run`, show the result of the scan with Matplotlib and
