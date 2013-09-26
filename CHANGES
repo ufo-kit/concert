@@ -10,7 +10,7 @@ Improvements:
 
 - Tests and rotation axis alignment is faster now.
 - Soft limits were added to the parameter (accessible with ``.lower`` and
-  ``.upper`)
+  ``.upper``)
 - Cleaner inet connection implemention.
 - Base pumps and scales were added.
 - Concert no longer depends on testfixtures for running tests.
@@ -29,8 +29,8 @@ API breaks:
 - ``camera.grab`` returns `None` if no data is available
 - ``uca.Camera`` exposes the wrapped GObject camera as an attribute called
   ``uca`` instead of ``camera``.
-- ``minimum``, ``maximum`` and ``intervals`` are now longer ``Parameter``s of
-  ``Scanner`` but simple attributes.
+- ``minimum``, ``maximum`` and ``intervals`` are now longer implemented as
+  ``Parameter`` objects of ``Scanner`` but simple attributes.
 
 Fixes:
 
