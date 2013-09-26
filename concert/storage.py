@@ -1,7 +1,11 @@
 """Storage implementations."""
 from concert.ext import tifffile
 from concert.asynchronous import async
+import logbook
 import os
+
+
+LOGGER = logbook.Logger(__name__)
 
 
 @async
@@ -51,3 +55,9 @@ def write_libtiff(file_name_prefix, data):
         tiff_file.close()
 
     return file_name
+
+def create_folder(folder, rights=0750):
+    """Create *folder* and all paths along the way if necessary."""
+    if not os.path.exists(folder):
+        LOGGER.info("Creating folder {}".format(folder))
+        os.makedirs(folder, rights)
