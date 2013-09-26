@@ -52,7 +52,7 @@ class Device(Parameterizable):
         # We have to create the lock early on because it will be accessed in
         # any add_parameter calls, especially those in the Parameterizable base
         # class
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
         super(Device, self).__init__(parameters)
         self.add_parameter(Parameter('state', self._get_state))
