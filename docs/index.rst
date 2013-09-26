@@ -28,7 +28,6 @@ Developer documentation
     api/tutorial
     api/devices
     api/async
-    api/datatransfers
 
 
 Additional notes

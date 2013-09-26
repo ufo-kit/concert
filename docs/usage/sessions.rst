@@ -22,11 +22,12 @@ help is shown::
 
     Concert commands:
 
+        start     Start a session
+        init      Create a new session
+        mv        Move session *source* to *target*
         log       Show session logs
         show      Show available sessions or details of a given *session*
         edit      Edit a session
-        start     Start a session
-        init      Create a new session
         rm        Remove one or more sessions
         fetch     Import an existing *session*
 
@@ -174,12 +175,12 @@ To get information about the state of a device, you can simply print it::
      lifetime   11.0 hour
 
 This can become tiresome if you have multiple devices. To fix this, we can use a
-session's ``ddoc`` and ``dstate`` functions::
+session's :func:`.ddoc` and :func:`.dstate` functions::
 
     from concert.session import ddoc, dstate
 
-Now, you simple get the state and information about all devices via ``dstate()``
-and ``ddoc()`` ::
+Now, you simple get the state and information about all devices via :func:`.dstate`
+and :func:`.ddoc` ::
 
     >>> dstate()
     ---------------------------------------------
@@ -205,6 +206,18 @@ and ``ddoc()`` ::
                                   current   r       mA    Current of the ring
                                   lifetime  r       h     Lifetime of the ring
                                   energy    r       MeV   Energy of the ring
+    ------------------------------------------------------------------------------
+
+:func:`.pdoc` on the other hand displays information about currently defined
+functions and processes and may look like this::
+
+    In [2]: pdoc()
+    ------------------------------------------------------------------------------
+    Name                   Description
+    ------------------------------------------------------------------------------
+    save_exposure_scan     Run an exposure scan and save the result as a NeXus
+                           compliant file. This requires that libnexus and NexPy
+                           are installed.
     ------------------------------------------------------------------------------
 
 
@@ -235,3 +248,10 @@ change this, you can pass the ``--logto`` and ``--logfile`` options to the
 or if you want to get rid of any log data use ::
 
     concert --logto=file --logfile=/dev/null start experiment
+
+
+Session API
+===========
+
+.. automodule:: concert.session
+    :members:
