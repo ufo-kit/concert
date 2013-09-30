@@ -59,7 +59,9 @@ def threaded(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         """Execute in a separate thread."""
-        Thread(target=func, args=args, kwargs=kwargs).start()
+        thread = Thread(target=func, args=args, kwargs=kwargs)
+        thread.start()
+        return thread
 
     return wrapper
 
