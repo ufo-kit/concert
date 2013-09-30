@@ -106,6 +106,20 @@ def pdoc(hide_blacklisted=True):
     print(table.get_string())
 
 
+def code_of(func):
+    """Show implementation of *func*."""
+    source = inspect.getsource(func)
+
+    try:
+        from pygments import highlight
+        from pygments.lexers import PythonLexer
+        from pygments.formatters import TerminalFormatter
+
+        print(highlight(source, PythonLexer(), TerminalFormatter()))
+    except ImportError:
+        print(source)
+
+
 def path(session):
     """Get absolute path of *session* module."""
     return os.path.join(PATH, session + '.py')

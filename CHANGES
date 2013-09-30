@@ -22,6 +22,7 @@ Improvements:
 - ``Scanner`` parameters can now be set in the constructor.
 - Parameters can now be locked independently of the parent device. However, if
   done so, no one else can lock the device.
+- Add ``code_of`` function to show the source of a function.
 
 API breaks:
 
