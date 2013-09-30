@@ -5,6 +5,7 @@ from __future__ import print_function
 
 import sys
 import os
+import re
 import subprocess
 import tempfile
 import shutil
@@ -277,27 +278,43 @@ def _get_module_variables(module):
     return dict((attr, getattr(module, attr)) for attr in attrs)
 
 
+def _compare_versions(v1, v2):
+    """Compare two version numbers and return cmp compatible result"""
+    def normalize(v):
+        return [int(x) for x in re.sub(r'(\.0+)*$', '', v).split(".")]
+
+    n1 = normalize(v1)
+    n2 = normalize(v2)
+    return (n1 > n2) - (n1 < n2)
+
+
 def _run_shell(handler, module=None):
     def _handler(_shell, _etype, evalue, _traceback_, tb_offset=None):
         print("Sorry, {0}".format(str(evalue)))
         return None
 
+    from concert.quantities import q
+
+    print("Welcome to Concert {0}".format(concert.__version__))
+
+    if module:
+        print(module.__doc__)
+
+    globals().update(_get_module_variables(module))
+
     try:
-        from concert.quantities import q
-
-        print("Welcome to Concert {0}".format(concert.__version__))
-
-        if module:
-            print(module.__doc__)
-
-        globals().update(_get_module_variables(module))
-
         with handler.applicationbound():
             import IPython
 
-            if IPython.__version__ < '0.11':
+            version = IPython.__version__
+
+            # Jeez, let's see what comes next ...
+            if _compare_versions(version, '0.11') < 0:
                 from IPython.Shell import IPShellEmbed
                 shell = IPShellEmbed()
+            elif _compare_versions(version, '1.0') < 0:
+                from IPython.frontend.terminal.embed import InteractiveShellEmbed
+                shell = InteractiveShellEmbed(banner1='')
             else:
                 from IPython.terminal.embed import InteractiveShellEmbed
                 shell = InteractiveShellEmbed(banner1='')
