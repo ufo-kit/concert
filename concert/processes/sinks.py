@@ -1,3 +1,4 @@
+from concert.asynchronous import dispatcher
 from concert.storage import write_tiff
 from concert.processes.base import coroutine
 
