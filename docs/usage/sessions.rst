@@ -220,6 +220,17 @@ functions and processes and may look like this::
                            are installed.
     ------------------------------------------------------------------------------
 
+In case you are interested in the implementation of a function, you can use
+:func:`.code_of`. For example::
+
+    In [5]: code_of(pdoc)
+    def pdoc(hide_blacklisted=True):
+        """Render process documentation."""
+        black_listed = ('show', 'start', 'init', 'rm', 'log', 'edit', 'fetch')
+        field_names = ["Name", "Description"]
+        table = get_default_table(field_names)
+        ...
+
 
 .. _pint: https://pint.readthedocs.org/en/latest/
 
