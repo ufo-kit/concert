@@ -7,6 +7,7 @@ to
 
 This module provides execution routines and algorithms for optimization.
 """
+from functools import wraps
 import logbook
 from concert.helpers import async
 from concert.base import LimitError
@@ -19,10 +20,10 @@ LOG = logbook.Logger()
 @async
 def optimize(function, x_0, algorithm, alg_args=(), alg_kwargs=None):
     """
-    Optimize y = *function*(x), where *x_0* is the initial guess.
+    Optimize y = *function* (x), where *x_0* is the initial guess.
     *algorithm* is the optimization algorithm to be used::
 
-        algorithm(*x_0*, *alg_args, **alg_kwargs)
+        algorithm(x_0, *alg_args, **alg_kwargs)
 
     """
     alg_kwargs = {} if alg_kwargs is None else alg_kwargs
@@ -77,7 +78,7 @@ def halver(function, x_0, initial_step=None, epsilon=None,
     *initial_step*, *epsilon* precision and *max_iterations*.
     """
     if initial_step is None:
-        # Figure out the step based on x_0 units (take one in the given unit) 
+        # Figure out the step based on x_0 units (take one in the given unit)
         step = q.Quantity(1, x_0.units)
     else:
         step = initial_step
@@ -131,7 +132,9 @@ def _quantized(strip_func):
     account. Strips intermediate results based on *strip_func* in order
     to fit *function*'s first parameter signature.
     """
+    @wraps(strip_func)
     def stripped(function):
+        @wraps(function)
         def wrapper(eval_func, x_0, *args, **kwargs):
             q_func = lambda x: eval_func(q.Quantity(strip_func(x), x_0.units))
             dim_less = function(q_func, x_0.magnitude, *args, **kwargs)
@@ -144,6 +147,8 @@ def _quantized(strip_func):
 @_quantized(lambda x: x[0])
 def down_hill(function, x_0, **kwargs):
     """
+    down_hill(function, x_0, **kwargs)
+
     Downhill simplex algorithm from :py:func:`scipy.optimize.fmin`.
     Please refer to the scipy function for additional arguments information.
     """
@@ -155,6 +160,8 @@ def down_hill(function, x_0, **kwargs):
 @_quantized(lambda x: x[0])
 def powell(function, x_0, **kwargs):
     """
+    powell(function, x_0, **kwargs)
+
     Powell's algorithm from :py:func:`scipy.optimize.fmin_powell`.
     Please refer to the scipy function for additional arguments information.
     """
@@ -166,6 +173,8 @@ def powell(function, x_0, **kwargs):
 @_quantized(lambda x: x[0])
 def nonlinear_conjugate(function, x_0, **kwargs):
     """
+    nonlinear_conjugate(function, x_0, **kwargs)
+
     Nonlinear conjugate gradient algorithm from
     :py:func:`scipy.optimize.fmin_cg`.
     Please refer to the scipy function for additional arguments information.
@@ -178,6 +187,8 @@ def nonlinear_conjugate(function, x_0, **kwargs):
 @_quantized(lambda x: x[0])
 def bfgs(function, x_0, **kwargs):
     """
+    bfgs(function, x_0, **kwargs)
+
     Broyde-Fletcher-Goldfarb-Shanno (BFGS) algorithm from
     :py:func:`scipy.optimize.fmin_bfgs`.
     Please refer to the scipy function for additional arguments information.
@@ -190,6 +201,8 @@ def bfgs(function, x_0, **kwargs):
 @_quantized(lambda x: x[0])
 def least_squares(function, x_0, **kwargs):
     """
+    least_squares(function, x_0, **kwargs)
+
     Least squares algorithm from :py:func:`scipy.optimize.leastsq`.
     Please refer to the scipy function for additional arguments information.
     """

@@ -2,7 +2,7 @@
 Asynchronous execution
 ======================
 
-.. automodule:: concert.asynchronous
+.. automodule:: concert.helpers
 
 Concurrency
 ===========
@@ -10,7 +10,7 @@ Concurrency
 Every user defined function or method **must** be synchronous (blocking).
 To define a function as asynchronous, use the :func:`.async` decorator::
 
-    from concert.asynchronous import async
+    from concert.helpers import async
 
     @async
     def synchronous_function():
@@ -56,7 +56,7 @@ Futures returned), you can import :data:`.DISABLE` and set it to ``True``
 Concert already provides a Nose plugin that adds a ``--disable-async`` flag to
 the test runner which in turn sets :data:`.DISABLE` to ``True``.
 
-.. py:data:: concert.asynchronous.DISABLE
+.. py:data:: concert.helpers.DISABLE
 
     A global configuration variable that will disable asynchronous execution
     when set to ``True``.
@@ -70,7 +70,7 @@ the publish-subscribe analogy. Once a dispatcher object is created, objects can
 :meth:`Dispatcher.subscribe` to messages from other objects and be notified
 when other objects :meth:`Dispatcher.send` a message to the dispatcher::
 
-    from concert.asynchronous import Dispatcher
+    from concert.helpers import Dispatcher
 
     def handle_message(sender):
         print("{0} send me a message".format(sender))
@@ -87,6 +87,6 @@ sending and receiving messages.
 .. autoclass:: Dispatcher
     :members:
 
-.. py:data:: concert.asynchronous.dispatcher
+.. py:data:: concert.helpers.dispatcher
 
     A global :py:class:`Dispatcher` instance used by all devices.

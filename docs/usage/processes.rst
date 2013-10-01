@@ -39,37 +39,13 @@ in a similar way as SPEC::
 .. automodule:: concert.processes
     :members:
 
-Feedbacks
----------
-
-Feedbacks are used to supply scan processes with a value. They must be
-callables like functions or classes that implement :meth:`__call__`.
-
-Camera
-~~~~~~
-
-.. automodule:: concert.feedbacks.camera
-    :members:
-
 
 Optimization
 ============
 
-Optimization of a function y = f(x) can be achieved by this package.
-There are different optimizers available in combination with
-different algorithms. An optimizer must be used with one of the
-available algorithms. E.g. a :class:`.Maximizer` used together with
-a gradient feedback and  any of the optimization algorithms can be
-used for focusing.
+This module provides various algorithms for optimizing function y = f(x)
+and routines for executing the optimization.
 
-Optimizers
-----------
-
-.. automodule:: concert.optimization.optimizers
+.. automodule:: concert.optimization
     :members:
 
-Algorithms
-----------
-
-.. automodule:: concert.optimization.algorithms
-    :members:
