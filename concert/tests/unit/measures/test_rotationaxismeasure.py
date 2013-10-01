@@ -2,12 +2,11 @@ import numpy as np
 from nose.plugins.attrib import attr
 from concert.quantities import q
 from concert.measures.rotationaxis import Ellipse
-from concert.tests.util.rotationaxis import SimulationCamera
 from concert.devices.base import LinearCalibration
 from concert.devices.motors.dummy import Motor
 from concert.tests import slow
-from concert.processes.scan import Scanner
 from concert.tests.base import ConcertTest
+from concert.tests.util.rotationaxis import SimulationCamera
 
 
 @attr('skip-travis')
