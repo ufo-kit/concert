@@ -79,6 +79,7 @@ class TestScan(ConcertTest):
                 self.prepared.append('proj')
 
         camera = Camera()
+        camera.frame_rate = 10000 * q.count / q.s
         stage = Stage()
         checker = PrepareChecker()
         scanner = StepTomoScanner(camera, stage,
