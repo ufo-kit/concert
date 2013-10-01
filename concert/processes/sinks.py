@@ -1,6 +1,5 @@
-from concert.asynchronous import dispatcher
+from concert.helpers import dispatcher, coroutine
 from concert.storage import write_tiff
-from concert.processes.base import coroutine
 
 
 SINOGRAMS_FULL = "sinos-full"

@@ -3,7 +3,7 @@
 from concert.devices.base import Device
 from concert.base import Parameter
 from concert.quantities import q
-from concert.asynchronous import async
+from concert.helpers import async
 
 
 class WeightError(Exception):

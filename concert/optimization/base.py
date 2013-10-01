@@ -9,9 +9,9 @@ This module provides base classes for optimizer implementations.
 """
 
 import logbook
-from concert.processes.base import Process
-from concert.asynchronous import async, dispatcher
 from concert.base import LimitError
+from concert.helpers import async, dispatcher
+from concert.processes.base import Process
 
 
 LOG = logbook.Logger(__name__)

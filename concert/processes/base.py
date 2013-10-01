@@ -7,7 +7,7 @@ asynchronously and returns whatever is appropriate for the process.
 
 from functools import wraps
 from concert.base import Parameterizable
-from concert.asynchronous import async
+from concert.helpers import async
 
 
 class Process(Parameterizable):
@@ -24,35 +24,3 @@ class Process(Parameterizable):
         Run the process. The result depends on the actual process.
         """
         raise NotImplementedError
-
-
-def coroutine(func):
-    """Start a generator automatically."""
-    @wraps(func)
-    def start(*args, **kwargs):
-        """Starts the generator."""
-        gen = func(*args, **kwargs)
-        gen.next()
-        return gen
-    return start
-
-
-def inject(generator, destination):
-    """
-    Let a *generator* produce a value and forward it to *destination*.
-    """
-    for item in generator:
-        destination.send(item)
-
-
-@coroutine
-def multicast(*destinations):
-    """
-    multicast(*destinations)
-
-    Provide data to all *destinations*.
-    """
-    while True:
-        item = yield
-        for destination in destinations:
-            destination.send(item)

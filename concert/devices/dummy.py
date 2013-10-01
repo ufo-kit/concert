@@ -3,7 +3,7 @@ import random
 import time
 from concert.base import Parameter
 from concert.devices.base import Device
-from concert.asynchronous import async
+from concert.helpers import async
 
 
 class DummyDevice(Device):

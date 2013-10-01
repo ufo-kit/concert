@@ -15,7 +15,7 @@ The mentioned steps are repeated until a certain minimum threshold is reached.
 """
 import numpy as np
 from concert.quantities import q
-from concert.asynchronous import dispatcher, wait, async
+from concert.helpers import dispatcher, wait, async
 from concert.processes.base import Process
 
 
