@@ -389,3 +389,17 @@ class Parameterizable(object):
 
         if parameter.is_writable():
             setattr(self, 'set_%s' % underscored, self[parameter.name].set)
+class Process(Parameterizable):
+
+    """Base process."""
+
+    def __init__(self, params=None):
+        super(Process, self).__init__(params)
+
+    @async
+    def run(self):
+        """run()
+
+        Run the process. The result depends on the actual process.
+        """
+        raise NotImplementedError

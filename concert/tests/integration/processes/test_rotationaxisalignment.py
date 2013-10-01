@@ -3,11 +3,10 @@ from nose.plugins.attrib import attr
 from concert.quantities import q
 from concert.devices.motors.dummy import Motor
 from concert.devices.base import LinearCalibration
-from concert.tests import slow
-from concert.processes.tomoalignment import Aligner
+from concert.processes import TomographicRotationAxisAligner
 from concert.measures.rotationaxis import Ellipse
+from concert.tests import slow
 from concert.tests.util.rotationaxis import SimulationCamera
-from concert.processes.scan import Scanner
 from concert.tests.base import ConcertTest
 
 
@@ -36,8 +35,10 @@ class TestDummyAlignment(ConcertTest):
         self.scanner.maximum = 2 * np.pi * q.rad
         self.scanner.intervals = 10
 
-        self.aligner = Aligner(Ellipse(), self.scanner,
-                               self.x_motor, self.z_motor)
+        self.aligner = TomographicRotationAxisAlignerAligner(Ellipse(),
+                                                             self.scanner,
+                                                             self.x_motor,
+                                                             self.z_motor)
 
         # Allow 1 px misalignment in y-direction.
         self.eps = np.arctan(2.0 / self.image_source.rotation_radius) * q.rad

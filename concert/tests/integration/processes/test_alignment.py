@@ -2,7 +2,7 @@ import scipy
 from scipy.ndimage import fourier
 from concert.tests import assert_almost_equal
 from concert.quantities import q
-from concert.processes.alignment import focus
+from concert.processes import focus
 from concert.devices.cameras.base import Camera
 from concert.devices.motors.dummy import Motor
 from concert.tests.base import suppressed_logging
