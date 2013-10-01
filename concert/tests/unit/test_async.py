@@ -2,9 +2,8 @@ import time
 import random
 from concurrent.futures import Future
 from concert.devices.dummy import DummyDevice
-from concert.asynchronous import async, wait
+from concert.helpers import async, wait, is_async
 from concert.tests import slow
-from concert import asynchronous
 from concert.tests.base import ConcertTest
 
 
@@ -44,12 +43,12 @@ class TestAsync(ConcertTest):
         self.assertRaises(RuntimeError, wait, [bad_func()])
 
     def test_is_async(self):
-        self.assertTrue(asynchronous.is_async(func))
+        self.assertTrue(is_async(func))
 
         def sync_func():
             pass
 
-        self.assertFalse(asynchronous.is_async(sync_func))
+        self.assertFalse(is_async(sync_func))
 
     def test_futures(self):
         future1 = func()

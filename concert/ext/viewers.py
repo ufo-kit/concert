@@ -2,7 +2,7 @@
 import os
 import tempfile
 from subprocess import Popen
-from concert.asynchronous import threaded
+from concert.helpers import threaded
 from concert.storage import write_tiff
 
 

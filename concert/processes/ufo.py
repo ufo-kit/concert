@@ -40,7 +40,7 @@ the value or scan along a "trajectory"::
 import multiprocessing
 from concert.base import Parameter
 from concert.processes.base import Process
-from concert.asynchronous import async
+from concert.helpers import async
 
 
 class UfoProcess(Process):

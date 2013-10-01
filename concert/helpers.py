@@ -1,4 +1,4 @@
-"""The :mod:`.asynchronous` module provides mechanisms for asynchronous
+"""The :mod:`.helpers` module provides mechanisms for asynchronous
 execution and messaging.
 """
 try:
@@ -7,9 +7,9 @@ except ImportError:
     import queue
 
 import threading
-from concurrent.futures import ThreadPoolExecutor, Future
 from functools import wraps
 from threading import Thread
+from concurrent.futures import ThreadPoolExecutor, Future
 
 
 # Patch futures so that they provide a wait() method
@@ -131,3 +131,35 @@ class Dispatcher(object):
 
 
 dispatcher = Dispatcher()
+
+
+def coroutine(func):
+    """Start a generator automatically."""
+    @wraps(func)
+    def start(*args, **kwargs):
+        """Starts the generator."""
+        gen = func(*args, **kwargs)
+        gen.next()
+        return gen
+    return start
+
+
+def inject(generator, destination):
+    """
+    Let a *generator* produce a value and forward it to *destination*.
+    """
+    for item in generator:
+        destination.send(item)
+
+
+@coroutine
+def multicast(*destinations):
+    """
+    multicast(*destinations)
+
+    Provide data to all *destinations*.
+    """
+    while True:
+        item = yield
+        for destination in destinations:
+            destination.send(item)

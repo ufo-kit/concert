@@ -1,9 +1,9 @@
 """Pumps."""
 
-from concert.asynchronous import async
-from concert.devices.base import Device
-from concert.quantities import q
 from concert.base import Parameter
+from concert.quantities import q
+from concert.helpers import async
+from concert.devices.base import Device
 
 
 class Pump(Device):

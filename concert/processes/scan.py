@@ -41,7 +41,7 @@ import numpy as np
 from concert.quantities import q
 from concurrent.futures import wait
 from concert.base import Parameter
-from concert.asynchronous import async
+from concert.helpers import async
 from concert.processes.base import Process
 
 

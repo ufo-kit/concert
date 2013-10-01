@@ -1,6 +1,6 @@
 """Shutter Device."""
+from concert.helpers import async
 from concert.devices.base import Device
-from concert.asynchronous import async
 
 
 class Shutter(Device):
