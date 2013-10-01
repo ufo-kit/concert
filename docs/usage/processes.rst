@@ -11,18 +11,6 @@ Scanning
 .. automodule:: concert.processes.scan
     :members:
 
-Feedbacks
----------
-
-Feedbacks are used to supply scan processes with a value. They must be
-callables like functions or classes that implement :meth:`__call__`.
-
-Camera
-~~~~~~
-
-.. automodule:: concert.feedbacks.camera
-    :members:
-
 
 Optimization
 ============
