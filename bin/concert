@@ -4,7 +4,7 @@ import sys
 import argparse
 import concert
 import concert.session
-import concert.ui.commands as command
+import concert.commands as command
 
 
 def _get_docstring_summary(doc):
