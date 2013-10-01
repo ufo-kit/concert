@@ -22,7 +22,8 @@ To setup and use a camera in a typical environment, you would do::
 
     print("mean=%f, stddev=%f" % (np.mean(data), np.std(data))
 """
-from concert.devices.base import Device
+from concert.quantities import q
+from concert.devices.base import Device, Parameter
 
 
 class CameraError(Exception):
@@ -33,9 +34,25 @@ class CameraError(Exception):
 
 class Camera(Device):
 
-    """Base class for remotely controllable cameras."""
+    """Base class for remotely controllable cameras.
 
-    def __init__(self, params):
+    .. py:attribute:: frame-rate
+
+        Frame rate of acquisition in q.count per time unit.
+    """
+
+    def __init__(self, params=None):
+        frame_rate_param = Parameter(name='frame-rate',
+                                     fget=self._get_frame_rate,
+                                     fset=self._set_frame_rate,
+                                     unit=q.count / q.second,
+                                     doc="Frame rate of image acquisition")
+
+        if params is not None:
+            params.append(frame_rate_param)
+        else:
+            params = [frame_rate_param]
+
         super(Camera, self).__init__(params)
 
     def start_recording(self):
@@ -53,6 +70,12 @@ class Camera(Device):
     def grab(self):
         """Return a NumPy array with data of the current frame."""
         return self._grab_real()
+
+    def _get_frame_rate(self):
+        raise NotImplementedError
+
+    def _set_frame_rate(self, frame_rate):
+        raise NotImplementedError
 
     def _record_real(self):
         raise NotImplementedError

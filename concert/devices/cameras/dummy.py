@@ -19,11 +19,11 @@ class FileCamera(base.Camera):
     def __init__(self, folder):
         # Let users change the folder
         self.folder = folder
-        params = [Parameter('frames-per-second', unit=q.count / q.s),
-                  Parameter('trigger-mode', lower=FileCamera.TRIGGER_AUTO,
+        params = [Parameter('trigger-mode', lower=FileCamera.TRIGGER_AUTO,
                   upper=FileCamera.TRIGGER_SOFTWARE)]
         super(FileCamera, self).__init__(params)
 
+        self._frame_rate = None
         self._recording = None
         self._index = -1
         self._start_time = None
@@ -37,7 +37,13 @@ class FileCamera(base.Camera):
         if stop_time is None:
             stop_time = time.time() * q.s
 
-        return int(self.fps * (stop_time - self._start_time))
+        return int(self.frame_rate * (stop_time - self._start_time))
+
+    def _get_frame_rate(self):
+        return self._frame_rate
+
+    def _set_frame_rate(self, frame_rate):
+        self._frame_rate = frame_rate
 
     def _record_real(self):
         self._start_time = time.time() * q.s
@@ -69,7 +75,7 @@ class FileCamera(base.Camera):
 
             if self._get_index() == self._index:
                 # Wait for the next frame if the readout is too fast
-                time.sleep(1.0 / self.fps)
+                time.sleep(1.0 / self.frame_rate)
             self._index = self._get_index()
         else:
             if self.trigger_mode == FileCamera.TRIGGER_AUTO:
@@ -113,6 +119,7 @@ class Camera(base.Camera):
 
         super(Camera, self).__init__(params)
 
+        self._frame_rate = None
         self.exposure_time = 1 * q.ms
         self.sensor_pixel_width = 5 * q.micrometer
         self.sensor_pixel_height = 5 * q.micrometer
@@ -126,6 +133,12 @@ class Camera(base.Camera):
             self.roi_width, self.roi_height = shape
             self._background = np.ones(shape)
 
+    def _get_frame_rate(self):
+        return self._frame_rate
+
+    def _set_frame_rate(self, frame_rate):
+        self._frame_rate = frame_rate
+
     def _record_real(self):
         pass
 
@@ -136,13 +149,18 @@ class Camera(base.Camera):
         pass
 
     def _grab_real(self):
+        start = time.time()
         cur_time = self.exposure_time.to(q.s).magnitude
-
         # 1e5 is a dummy correlation between exposure time and emitted e-.
         tmp = self._background + cur_time * 1e5
         max_value = np.iinfo(np.uint16).max
         tmp = np.random.poisson(tmp)
         # Cut values beyond the bit-depth.
         tmp[tmp > max_value] = max_value
+        duration = time.time() - start
+        to_sleep = q.count / self.frame_rate
+        to_sleep = to_sleep.to_base_units() - duration * q.s
+        if to_sleep > 0 * q.s:
+            time.sleep(to_sleep.to_base_units() - duration * q.s)
 
         return np.cast[np.uint16](tmp)

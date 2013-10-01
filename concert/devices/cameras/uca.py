@@ -92,6 +92,12 @@ class Camera(base.Camera):
 
         super(Camera, self).__init__(parameters)
 
+    def _get_frame_rate(self):
+        return self.frames_per_second / q.s
+
+    def _set_frame_rate(self, frame_rate):
+        self.frames_per_second = frame_rate * q.s
+
     def _record_real(self):
         self._array, self._data = _create_data_array(self.uca)
         self.uca.start_recording()
