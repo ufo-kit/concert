@@ -2,8 +2,7 @@ import numpy as np
 from concert.base import Process
 from concert.helpers import async, wait, dispatcher
 from concert.quantities import q
-from concert.optimization.algorithms import halver
-from concert.optimization.optimizers import Maximizer
+from concert.optimization import halver, optimize_parameter
 
 
 def _pull_first(tuple_list):
@@ -111,14 +110,11 @@ def focus(camera, motor, measure=np.std):
 
     def get_measure():
         frame = camera.grab()
-        return measure(frame)
-
-    maximizer = Maximizer(motor['position'],
-                          get_measure,
-                          halver, alg_kwargs=opts)
+        return - measure(frame)
 
     camera.start_recording()
-    f = maximizer.run()
+    f = optimize_parameter(motor['position'], get_measure, motor.position,
+                       halver, alg_kwargs=opts)
     f.add_done_callback(lambda unused: camera.stop_recording())
     return f
 
