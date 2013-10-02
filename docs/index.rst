@@ -27,7 +27,7 @@ Developer documentation
 
     api/tutorial
     api/devices
-    api/async
+    api/helpers
 
 
 Additional notes

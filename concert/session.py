@@ -7,7 +7,6 @@ import imp
 import inspect
 from concert.ui import get_default_table
 from concert.devices.base import Device
-from concert.processes.base import Process
 
 
 def _get_save_data_path():

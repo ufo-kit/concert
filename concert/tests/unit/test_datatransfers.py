@@ -2,11 +2,10 @@ import time
 import numpy as np
 from threading import Event
 from concert.quantities import q
+from concert.helpers import coroutine, multicast, inject
+from concert.sinks import generate_sinograms
 from concert.tests.base import suppressed_logging, ConcertTest
 from concert.devices.motors.dummy import Motor
-from concert.processes.base import coroutine, multicast, inject
-from concert.processes.sinks import generate_sinograms
-from concert.processes.scan import Scanner
 
 
 def producer(consumer):
@@ -59,12 +58,3 @@ class TestDataTransfers(ConcertTest):
     def test_injection(self):
         inject(generator(), self.consume())
         self.assertEqual(self.data, 4)
-
-    def test_scan_generator(self):
-        motor = Motor()
-        scanner = Scanner(motor['position'], lambda: motor.position)
-        scanner.minimum = 0 * q.mm
-        scanner.maximum = 2 * q.cm
-        scanner.gen(self.consume())
-        self.assertEqual(self.data[0], 2 * q.cm)
-        self.assertEqual(self.data[1], 2 * q.cm)

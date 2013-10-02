@@ -1,44 +1,39 @@
 from concert.quantities import q
 from concert.tests import assert_almost_equal
 from concert.devices.motors.dummy import Motor
-from concert.optimization import algorithms as algs
-from concert.optimization.optimizers import Minimizer, Maximizer
+from concert import optimization
 from concert.tests import slow
 from concert.tests.base import ConcertTest
+from concert.optimization import optimize_parameter
 
 
 class TestOptimizers(ConcertTest):
 
     def setUp(self):
         super(TestOptimizers, self).setUp()
-        self.algorithms = [algs.halver, algs.down_hill, algs.powell,
-                           algs.nonlinear_conjugate, algs.bfgs,
-                           algs.least_squares]
+        self.algorithms = [optimization.halver, optimization.down_hill,
+                           optimization.powell,
+                           optimization.nonlinear_conjugate,
+                           optimization.bfgs,
+                           optimization.least_squares]
         self.center = 3.0 * q.mm
-        self.motor = Motor(position=0)
+        self.motor = Motor(position=0 * q.count)
 
     def feedback(self):
-        return (self.motor.position.to_base_units().magnitude -
-                self.center.to_base_units().magnitude) ** 2
+        return (self.motor.position.to(q.mm).magnitude -
+                self.center.to(q.mm).magnitude) ** 2
 
     def check(self):
-        assert_almost_equal(self.motor.position.to_base_units(),
-                            self.center.to_base_units(), 1e-2)
+        assert_almost_equal(self.motor.position.to(q.mm),
+                            self.center.to(q.mm), 1e-2)
+
+    def optimize(self, algorithm):
+        optimize_parameter(self.motor["position"], self.feedback,
+                           self.motor.position, algorithm).wait()
 
     @slow
-    def test_minimizers(self):
+    def test_algorithms(self):
         for i in range(len(self.algorithms)):
             self.motor.position = 0 * q.mm
-            minim = Minimizer(self.motor["position"], self.feedback,
-                              self.algorithms[i])
-            minim.run().wait()
-            self.check()
-
-    @slow
-    def test_maximizers(self):
-        for i in range(len(self.algorithms)):
-            self.motor.position = 0 * q.mm
-            minim = Maximizer(self.motor["position"],
-                              lambda: - self.feedback(), self.algorithms[i])
-            minim.run().wait()
+            self.optimize(self.algorithms[i])
             self.check()

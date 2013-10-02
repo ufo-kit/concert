@@ -1,13 +1,13 @@
 import numpy as np
 from nose.plugins.attrib import attr
 from concert.quantities import q
-from concert.measures.rotationaxis import Ellipse
-from concert.tests.util.rotationaxis import SimulationCamera
+from concert.measures import Ellipse
 from concert.devices.base import LinearCalibration
 from concert.devices.motors.dummy import Motor
 from concert.tests import slow
-from concert.processes.scan import Scanner
 from concert.tests.base import ConcertTest
+from concert.tests.util.rotationaxis import SimulationCamera
+from concert.processes import scan
 
 
 @attr('skip-travis')
@@ -31,22 +31,18 @@ class TestRotationAxisMeasure(ConcertTest):
                                              self.y_motor["position"],
                                              self.z_motor["position"])
 
-        # A scanner which scans the rotation axis.
-        self.scanner = Scanner(
-            self.y_motor["position"], self.image_source.grab)
-        self.scanner.minimum = 0 * q.rad
-        self.scanner.maximum = 2 * np.pi * q.rad
-        self.scanner.intervals = 10
-
         self.measure = Ellipse()
 
         # Allow 1 px misalignment in y-direction.
         self.eps = np.arctan(2.0 / self.image_source.rotation_radius) * q.rad
 
-    def make_images(self, x_angle, z_angle):
+    def make_images(self, x_angle, z_angle, intervals=10):
         self.x_motor.position = z_angle
         self.z_motor.position = x_angle
-        self.measure.images = self.scanner.run().result()[1]
+        self.measure.images = scan(self.y_motor["position"],
+                                   self.image_source.grab, minimum=0 * q.rad,
+                                   maximum=2 * np.pi * q.rad,
+                                   intervals=intervals).result()[1]
 
     def align_check(self, x_angle, z_angle):
         self.make_images(x_angle, z_angle)
@@ -63,7 +59,7 @@ class TestRotationAxisMeasure(ConcertTest):
 
     @slow
     def test_out_of_fov(self):
-        self.measure.images = np.ones((self.scanner.intervals,
+        self.measure.images = np.ones((10,
                                        self.image_source.size,
                                        self.image_source.size))
         with self.assertRaises(ValueError) as ctx:
@@ -73,44 +69,37 @@ class TestRotationAxisMeasure(ConcertTest):
 
     @slow
     def test_center_no_rotation(self):
-        self.scanner.intervals = 15
-        self.make_images(0 * q.deg, 0 * q.deg)
+        self.make_images(0 * q.deg, 0 * q.deg, intervals=15)
         self.center_check()
 
     @slow
     def test_center_only_x(self):
-        self.scanner.intervals = 15
-        self.make_images(17 * q.deg, 0 * q.deg)
+        self.make_images(17 * q.deg, 0 * q.deg, intervals=15)
         self.center_check()
 
     @slow
     def test_center_only_z(self):
-        self.scanner.intervals = 15
-        self.make_images(0 * q.deg, 11 * q.deg)
+        self.make_images(0 * q.deg, 11 * q.deg, intervals=15)
         self.center_check()
 
     @slow
     def test_center_positive(self):
-        self.scanner.intervals = 15
-        self.make_images(17 * q.deg, 11 * q.deg)
+        self.make_images(17 * q.deg, 11 * q.deg, intervals=15)
         self.center_check()
 
     @slow
     def test_center_negative_positive(self):
-        self.scanner.intervals = 15
-        self.make_images(-17 * q.deg, 11 * q.deg)
+        self.make_images(-17 * q.deg, 11 * q.deg, intervals=15)
         self.center_check()
 
     @slow
     def test_center_positive_negative(self):
-        self.scanner.intervals = 15
-        self.make_images(17 * q.deg, -11 * q.deg)
+        self.make_images(17 * q.deg, -11 * q.deg, intervals=15)
         self.center_check()
 
     @slow
     def test_center_negative(self):
-        self.scanner.intervals = 15
-        self.make_images(-17 * q.deg, -11 * q.deg)
+        self.make_images(-17 * q.deg, -11 * q.deg, intervals=15)
         self.center_check()
 
     @slow

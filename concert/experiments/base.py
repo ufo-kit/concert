@@ -3,13 +3,13 @@ An experiment can be run multiple times. The base :py:class:`Experiment`
 takes care of proper logging structure.
 """
 
-from concert.processes.base import Process
-from concert.asynchronous import async
-import logbook
 import os
-from logbook.handlers import FileHandler
 import re
+import logbook
+from logbook.handlers import FileHandler
+from concert.helpers import async
 from concert.storage import create_folder
+from concert.processes.base import Process
 
 
 LOGGER = logbook.Logger(__name__)

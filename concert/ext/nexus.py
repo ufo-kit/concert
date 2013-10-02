@@ -10,7 +10,7 @@ import numpy as np
 from nexpy.api import nexus as nx
 from concert.base import Parameter
 from concert.devices import cameras, monochromators
-from concert.asynchronous import async
+from concert.helpers import async
 
 
 def get_detector(_camera):

@@ -1,7 +1,7 @@
 """Tk Widget."""
 import Queue
 import Tkinter as tk
-from concert.asynchronous import dispatcher
+from concert.helpers import dispatcher
 
 
 class DeviceWidget(tk.Toplevel):
