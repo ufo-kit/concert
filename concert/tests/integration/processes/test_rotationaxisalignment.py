@@ -3,7 +3,7 @@ from nose.plugins.attrib import attr
 from concert.quantities import q
 from concert.devices.motors.dummy import Motor
 from concert.devices.base import LinearCalibration
-from concert.processes import TomographicRotationAxisAligner
+from concert.processes import RotationAxisAligner, scan
 from concert.measures import Ellipse
 from concert.tests import slow
 from concert.tests.util.rotationaxis import SimulationCamera
@@ -28,20 +28,18 @@ class TestDummyAlignment(ConcertTest):
                                              self.y_motor["position"],
                                              self.z_motor["position"])
 
-        # A scanner which scans the rotation axis.
-        self.scanner = Scanner(self.y_motor["position"],
-                               self.image_source.grab)
-        self.scanner.minimum = 0 * q.rad
-        self.scanner.maximum = 2 * np.pi * q.rad
-        self.scanner.intervals = 10
-
-        self.aligner = TomographicRotationAxisAlignerAligner(Ellipse(),
-                                                             self.scanner,
-                                                             self.x_motor,
-                                                             self.z_motor)
+        self.feedback = self.image_source.grab
+        self.aligner = RotationAxisAligner(Ellipse(),
+                                           self.get_images,
+                                           self.x_motor,
+                                           self.z_motor)
 
         # Allow 1 px misalignment in y-direction.
         self.eps = np.arctan(2.0 / self.image_source.rotation_radius) * q.rad
+
+    def get_images(self):
+        return scan(self.y_motor["position"], self.feedback, minimum=0 * q.rad,
+                    maximum=2 * np.pi * q.rad, intervals=10).result()[1]
 
     def align_check(self, x_angle, z_angle, has_z_motor=True):
         """"Align and check the results."""
@@ -63,7 +61,7 @@ class TestDummyAlignment(ConcertTest):
             return np.ones((self.image_source.size,
                             self.image_source.size))
 
-        self.scanner.feedback = get_ones
+        self.feedback = get_ones
         with self.assertRaises(ValueError) as ctx:
             self.aligner.run().wait()
 
