@@ -1,6 +1,6 @@
 from concert.quantities import q
 from concert.tests import slow, assert_almost_equal
-from concert.measures.dummy import DummyGradientMeasure
+from concert.measures import DummyGradientMeasure
 from concert.devices.motors.dummy import Motor as DummyMotor
 from concert.optimization.optimizers import Maximizer
 from concert.optimization import algorithms

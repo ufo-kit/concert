@@ -4,7 +4,7 @@ from concert.quantities import q
 from concert.devices.motors.dummy import Motor
 from concert.devices.base import LinearCalibration
 from concert.processes import TomographicRotationAxisAligner
-from concert.measures.rotationaxis import Ellipse
+from concert.measures import Ellipse
 from concert.tests import slow
 from concert.tests.util.rotationaxis import SimulationCamera
 from concert.tests.base import ConcertTest
