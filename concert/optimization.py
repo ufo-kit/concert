@@ -76,9 +76,8 @@ def halver(function, x_0, initial_step=None, epsilon=None,
     Halving the interval, evaluate *function* based on *param*. Use
     *initial_step*, *epsilon* precision and *max_iterations*.
     """
-    # Safe copy for not changing the original.
     if initial_step is None:
-        # Figure out the step based on x_0 units (take one in the given unit)
+        # Figure out the step based on x_0 units (take one in the given unit) 
         step = q.Quantity(1, x_0.units)
     else:
         step = initial_step
