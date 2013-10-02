@@ -129,18 +129,18 @@ class TomographicRotationAxisAligner(Process):
     # Aligned message
     AXIS_ALIGNED = "axis-aligned"
 
-    def __init__(self, axis_measure, scanner, x_motor, z_motor=None):
+    def __init__(self, axis_measure, get_images, x_motor, z_motor=None):
         """Contructor. *axis_measure* provides axis of rotation angular
-        misalignment data, *scanner* provides image sequences with
-        sample rotated around axis of rotation.
+        misalignment data, *get_images* provides image sequences with
+        sample rotated around axis of rotation (it is a callable).
         *x_motor* turns the sample around x-axis, *z_motor* is optional
         and turns the sample around z-axis
         """
         super(TomographicRotationAxisAligner, self).__init__(None)
         self._axis_measure = axis_measure
-        self._scanner = scanner
         self.x_motor = x_motor
         self.z_motor = z_motor
+        self.get_images = get_images
 
     @async
     def run(self, absolute_eps=0.1 * q.deg):
@@ -162,7 +162,7 @@ class TomographicRotationAxisAligner(Process):
         z_turn_counter = 0
 
         while True:
-            self._axis_measure.images = self._scanner.run().result()[1]
+            self._axis_measure.images = self.get_images()
             x_angle, z_angle = self._axis_measure()
 
             x_better = True if self.z_motor is not None and\
