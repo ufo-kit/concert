@@ -17,7 +17,7 @@ class DisableAsync(nose.plugins.Plugin):
 
     def configure(self, options, conf):
         if options.disable_async:
-            import concert.asynchronous
-            concert.asynchronous.DISABLE = True
+            import concert.helpers
+            concert.helpers.DISABLE = True
 
         super(DisableAsync, self).configure(options, conf)

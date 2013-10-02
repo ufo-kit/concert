@@ -1,6 +1,6 @@
 import time
 from concert.tests import VisitChecker
-from concert.asynchronous import Dispatcher
+from concert.helpers import Dispatcher
 from concert.tests.base import ConcertTest
 
 SLEEP_TIME = 0.0005

@@ -1,8 +1,8 @@
 """Aerotech Controller."""
 import logbook
-from concert.devices.base import Device
+from concert.helpers import async
 from concert.connections.inet import Aerotech
-from concert.asynchronous import async
+from concert.devices.base import Device
 from concert.devices.io.aerotech import IO
 
 
