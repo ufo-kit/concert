@@ -313,7 +313,8 @@ def _run_shell(handler, module=None):
                 from IPython.Shell import IPShellEmbed
                 shell = IPShellEmbed()
             elif _compare_versions(version, '1.0') < 0:
-                from IPython.frontend.terminal.embed import InteractiveShellEmbed
+                from IPython.frontend.terminal.embed import \
+                    InteractiveShellEmbed
                 shell = InteractiveShellEmbed(banner1='')
             else:
                 from IPython.terminal.embed import InteractiveShellEmbed

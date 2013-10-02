@@ -58,4 +58,3 @@ class TestDataTransfers(ConcertTest):
     def test_injection(self):
         inject(generator(), self.consume())
         self.assertEqual(self.data, 4)
-

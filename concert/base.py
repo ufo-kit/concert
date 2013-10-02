@@ -389,6 +389,8 @@ class Parameterizable(object):
 
         if parameter.is_writable():
             setattr(self, 'set_%s' % underscored, self[parameter.name].set)
+
+
 class Process(Parameterizable):
 
     """Base process."""

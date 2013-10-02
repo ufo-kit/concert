@@ -10,8 +10,6 @@ def _pull_first(tuple_list):
             yield tup[0]
 
 
-
-
 @async
 def scan(param, feedback, minimum=None, maximum=None, intervals=64,
          convert=lambda x: x):
@@ -114,7 +112,7 @@ def focus(camera, motor, measure=np.std):
 
     camera.start_recording()
     f = optimize_parameter(motor['position'], get_measure, motor.position,
-                       halver, alg_kwargs=opts)
+                           halver, alg_kwargs=opts)
     f.add_done_callback(lambda unused: camera.stop_recording())
     return f
 
