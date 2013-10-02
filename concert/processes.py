@@ -123,9 +123,9 @@ def focus(camera, motor, measure=np.std):
     return f
 
 
-class TomographicRotationAxisAligner(Process):
+class RotationAxisAligner(Process):
 
-    """Tomographic rotation axis alignment procedure."""
+    """Rotation axis alignment."""
     # Aligned message
     AXIS_ALIGNED = "axis-aligned"
 
@@ -136,7 +136,7 @@ class TomographicRotationAxisAligner(Process):
         *x_motor* turns the sample around x-axis, *z_motor* is optional
         and turns the sample around z-axis
         """
-        super(TomographicRotationAxisAligner, self).__init__(None)
+        super(RotationAxisAligner, self).__init__(None)
         self._axis_measure = axis_measure
         self.x_motor = x_motor
         self.z_motor = z_motor
