@@ -1,6 +1,6 @@
 import numpy as np
 from concert.base import Process
-from concert.helpers import async, wait
+from concert.helpers import async, wait, dispatcher
 from concert.quantities import q
 from concert.optimization.algorithms import halver
 from concert.optimization.optimizers import Maximizer
