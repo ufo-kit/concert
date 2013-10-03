@@ -3,7 +3,7 @@ from concert.tests import VisitChecker
 from concert.helpers import Dispatcher
 from concert.tests.base import ConcertTest
 
-SLEEP_TIME = 0.0005
+SLEEP_TIME = 0.05
 
 
 class TestDispatcher(ConcertTest):
