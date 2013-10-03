@@ -32,8 +32,8 @@ class FileCamera(base.Camera):
         self._trigger_time = None
         self.roi_x = 0
         self.roi_y = 0
-        self.roi_width = -1
-        self.roi_height = -1
+        self.roi_width = None
+        self.roi_height = None
         self._files = [os.path.join(folder, file_name) for file_name in
                        sorted(os.listdir(folder))]
 
@@ -97,8 +97,17 @@ class FileCamera(base.Camera):
                 return None
 
         image = read_image(self._files[self._index]).result()
-        return image[self.roi_y:self.roi_y + self.roi_height,
-                     self.roi_x:self.roi_x + self.roi_width]
+        if self.roi_height is None:
+            y_region = image.shape[0]
+        else:
+            y_region = self.roi_y + self.roi_height
+
+        if self.roi_width is None:
+            x_region = image.shape[1]
+        else:
+            x_region = self.roi_x + self.roi_width
+
+        return image[self.roi_y:y_region, self.roi_x:x_region]
 
 
 class Camera(base.Camera):
