@@ -30,6 +30,10 @@ class FileCamera(base.Camera):
         self._stop_time = None
         self._trigger = Event()
         self._trigger_time = None
+        self.roi_x = 0
+        self.roi_y = 0
+        self.roi_width = -1
+        self.roi_height = -1
         self._files = [os.path.join(folder, file_name) for file_name in
                        sorted(os.listdir(folder))]
 
@@ -92,7 +96,9 @@ class FileCamera(base.Camera):
                     self._index >= len(self._files):
                 return None
 
-        return read_image(self._files[self._index]).result()
+        image = read_image(self._files[self._index]).result()
+        return image[self.roi_y:self.roi_y + self.roi_height,
+                     self.roi_x:self.roi_x + self.roi_width]
 
 
 class Camera(base.Camera):
