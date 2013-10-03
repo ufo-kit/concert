@@ -8,7 +8,7 @@ import numpy as np
 from concert.helpers import dispatcher, coroutine, threaded
 from concert.storage import write_tiff
 from concert.imageprocessing import backproject, get_backprojection_norm,\
-    get_ramp_filter
+    get_ramp_filter, flat_correct as make_flat_correct
 
 
 LOG = logbook.Logger(__name__)
@@ -96,7 +96,7 @@ def flat_correct(consumer, dark, flat):
     """
     while True:
         radio = yield
-        consumer.send((radio - dark) / (flat - dark))
+        consumer.send(make_flat_correct(radio, flat, dark))
 
 
 @coroutine
