@@ -17,10 +17,14 @@ the UFO data processing framework. The simplest example could look like this::
     proc.push(scipy.misc.lena())
     proc.wait()
 """
-from gi.repository import Ufo
 import threading
-import ufonp
 import numpy as np
+
+try:
+    from gi.repository import Ufo
+    import ufonp
+except ImportError:
+    print("Ufo typelibs or ufonp are not installed")
 
 
 class PluginManager(object):
