@@ -1,5 +1,8 @@
 """Qt Widget."""
-from PyQt4 import QtGui
+try:
+    from PyQt4 import QtGui
+except ImportError:
+    print("PyQt4 is not installed")
 
 
 def make(device):

@@ -7,10 +7,14 @@ sets. It uses NeXpy_ to interface with NeXus.
 .. _NeXpy: http://wiki.nexusformat.org/NeXpy
 """
 import numpy as np
-from nexpy.api import nexus as nx
 from concert.base import Parameter
 from concert.devices import cameras, monochromators
 from concert.helpers import async
+
+try:
+    from nexpy.api import nexus as nx
+except ImportError:
+    print("NeXpy or libnexus are not installed")
 
 
 def get_detector(_camera):
