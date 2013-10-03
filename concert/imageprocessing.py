@@ -12,6 +12,14 @@ from concert.helpers import threaded
 LOG = logbook.Logger(__name__)
 
 
+def flat_correct(radio, flat, dark=None):
+    """
+    Flat field correction of a radiograph *radio* with *flat* field.
+    If *dark* field is supplied it is taken into account as well.
+    """
+    return radio / flat if dark is None else (radio - dark) / (flat - dark)
+
+
 def backproject(sinogram, center, angle_step=None, start_projection=0,
                 x_points=None, y_points=None, normalize=False, fast=True):
     """
