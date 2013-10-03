@@ -1,10 +1,10 @@
 """Imaging experiments usually conducted at synchrotrons."""
 import time
-from concert.processes.base import inject, multicast, coroutine
-from concert.processes.sinks import write_images
 import os
-from concert.storage import write_tiff, create_folder
 import numpy as np
+from concert.storage import write_tiff, create_folder
+from concert.sinks import write_images
+from concert.helpers import inject, multicast, coroutine
 
 DARKS = "darks"
 FLATS = "flats"

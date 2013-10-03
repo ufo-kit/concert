@@ -9,13 +9,12 @@ import logbook
 from logbook.handlers import FileHandler
 from concert.helpers import async
 from concert.storage import create_folder
-from concert.processes.base import Process
 
 
 LOGGER = logbook.Logger(__name__)
 
 
-class Experiment(Process):
+class Experiment(object):
 
     """
     Experiment base class. An experiment can be run multiple times
@@ -40,8 +39,6 @@ class Experiment(Process):
     """
 
     def __init__(self, run, root_folder, log_file_name="experiment.log"):
-        super(Experiment, self).__init__(None)
-
         self.root_folder = root_folder
         self.log_file_name = log_file_name
         pattern = re.compile(".*\{.*\}.*")
