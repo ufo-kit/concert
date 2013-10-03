@@ -192,3 +192,14 @@ class RotationAxisAligner(Process):
 
             x_last = np.abs(x_angle)
             z_last = np.abs(z_angle)
+
+
+class ProcessException(Exception):
+
+    """
+    Exception raised by a process when something goes wrong with the procedure
+    it tries to accomplish, e.g. cannot focus, cannot align rotation axis, etc.
+
+    """
+
+    pass
