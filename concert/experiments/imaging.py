@@ -1,10 +1,9 @@
 """Imaging experiments usually conducted at synchrotrons."""
 import time
 import os
-import numpy as np
 from concert.storage import write_tiff, create_folder
-from concert.sinks import write_images
-from concert.helpers import inject, multicast, coroutine
+from concert.coroutines import write_images, ImageAverager, flat_correct
+from concert.helpers import inject, multicast
 
 DARKS = "darks"
 FLATS = "flats"
@@ -17,6 +16,8 @@ def acquire_images_dummy(num_images, images, value=None):
     is provided, the images will have every pixel set to *value*,
     otherwise the pixels are filled with random numbers.
     """
+    import numpy as np
+
     for i in range(num_images):
         if value is None:
             image = np.random.random(size=(512, 512))
@@ -78,7 +79,7 @@ def take_continuous(camera, num_images):
 def add_writer(folder, take_images, process_images, image_type,
                writer=write_tiff):
     """
-    Add image writer to sinks. The resulting folder of the data
+    Add image writer to consumers. The resulting folder of the data
     is obtained by joining the *folder* and a subfolder determined
     by *image_type*. *process_images* is an originally assigned
     image processing coroutine. *writer* specifies which image
@@ -86,13 +87,14 @@ def add_writer(folder, take_images, process_images, image_type,
     """
     folder = os.path.join(folder, image_type)
     create_folder(folder)
-    sinks = [write_images(writer=writer, prefix=os.path.join(folder,
-                                                             image_type[:-1] +
-                                                             "_{:>05}"))]
+    coroutines = [write_images(writer=writer,
+                               prefix=os.path.join(folder,
+                                                   image_type[:-1] +
+                                                   "_{:>05}"))]
     if process_images is not None:
-        sinks.append(process_images)
+        coroutines.append(process_images)
 
-    inject(take_images, multicast(*sinks))
+    inject(take_images, multicast(*coroutines))
 
 
 def add_averager(process_image, flat_correction):
@@ -101,15 +103,15 @@ def add_averager(process_image, flat_correction):
     *process_image* coroutine if *flat_correction* is True.
     """
     averager = None
-    sinks = []
+    coroutines = []
 
     if flat_correction:
         averager = ImageAverager()
-        sinks.append(averager.average_images())
+        coroutines.append(averager.average_images())
     if process_image is not None:
-        sinks.append(process_image)
+        coroutines.append(process_image)
 
-    return averager, multicast(*sinks)
+    return averager, multicast(*coroutines)
 
 
 def execute(folder, take_darks=None, take_flats=None, take_radios=None,
@@ -154,34 +156,3 @@ def execute(folder, take_darks=None, take_flats=None, take_radios=None,
         else:
             _process_radios = process_radios
         add_writer(folder, take_radios, _process_radios, RADIOS, writer=writer)
-
-
-class ImageAverager(object):
-
-    """Average images in a coroutine without knowing how many will come."""
-
-    def __init__(self):
-        self.average = None
-
-    @coroutine
-    def average_images(self):
-        """Average images as they come."""
-        i = 0
-        while True:
-            data = yield
-            if self.average is None:
-                self.average = np.zeros_like(data, dtype=np.float32)
-            self.average = (self.average * i + data) / (i + 1)
-            i += 1
-
-
-@coroutine
-def flat_correct(sink, dark, flat):
-    """
-    Flat correction intermediate coroutine. It takes a *dark*, a *flat*,
-    gets a radiograph from a generator, calculates flat corrected image
-    and sends it forward to *sink*.
-    """
-    while True:
-        radio = yield
-        sink.send((radio - dark) / (flat - dark))

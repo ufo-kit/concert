@@ -54,3 +54,36 @@ def generate_sinograms(sinograms):
         else:
             dispatcher.send(sinograms, SINOGRAMS_FULL)
         i += 1
+
+
+class ImageAverager(object):
+
+    """Average images in a coroutine without knowing how many will come."""
+
+    def __init__(self):
+        self.average = None
+
+    @coroutine
+    def average_images(self):
+        """Average images as they come."""
+        import numpy as np
+
+        i = 0
+        while True:
+            data = yield
+            if self.average is None:
+                self.average = np.zeros_like(data, dtype=np.float32)
+            self.average = (self.average * i + data) / (i + 1)
+            i += 1
+
+
+@coroutine
+def flat_correct(consumer, dark, flat):
+    """
+    Flat correction intermediate coroutine. It takes a *dark*, a *flat*,
+    gets a radiograph from a generator, calculates flat corrected image
+    and sends it forward to *consumer*.
+    """
+    while True:
+        radio = yield
+        consumer.send((radio - dark) / (flat - dark))
