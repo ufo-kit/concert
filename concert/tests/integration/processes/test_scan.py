@@ -2,7 +2,7 @@ from concert.quantities import q
 from concert.tests import assert_almost_equal
 from concert.devices.motors.dummy import Motor as DummyMotor
 from concert.devices.cameras.dummy import Camera
-from concert.processes import scan, ascan, dscan, scan_from_param
+from concert.processes import scan, ascan, dscan, scan_param_feedback
 from concert.tests import slow
 from concert.tests.base import ConcertTest
 
@@ -50,7 +50,7 @@ class TestScan(ConcertTest):
                     1 * q.mm, 10 * q.mm, 10).result()
         compare_sequences(x, y, self.assertEqual)
 
-    def test_scan_from_param(self):
+    def test_scan_param_feedback(self):
         p = self.motor['position']
-        x, y = scan_from_param(p, p, 1 * q.mm, 10 * q.mm, 10).result()
+        x, y = scan_param_feedback(p, p, 1 * q.mm, 10 * q.mm, 10).result()
         compare_sequences(x, y, self.assertEqual)
