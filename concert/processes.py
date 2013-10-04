@@ -38,6 +38,22 @@ def scan(param, feedback, minimum=None, maximum=None, intervals=64,
     return (xss, yss)
 
 
+def scan_param_feedback(scan_param, feedback_param,
+                        minimum=None, maximum=None, intervals=64,
+                        convert=lambda x: x):
+    """Convenience function to scan one parameter and measure another.
+
+    Scan the *scan_param* object and measure *feedback_param* at each of the
+    *intervals* steps between *minimum* and *maximum*.
+
+    Returns a tuple *(x, y)* with scanned parameter and measured values.
+    """
+    def feedback():
+        return feedback_param.get().result()
+
+    return scan(scan_param, feedback, minimum, maximum, intervals, convert)
+
+
 def ascan(param_list, n_intervals, handler, initial_values=None):
     """
     For each of the *n_intervals* and for each of the *(parameter, start,
