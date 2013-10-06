@@ -40,8 +40,14 @@ def async(func):
     if DISABLE:
         @wraps(func)
         def _sync(*args, **kwargs):
-            result = func(*args, **kwargs)
-            return _FakeFuture(result)
+            future = _FakeFuture(None)
+            try:
+                result = func(*args, **kwargs)
+                future.set_result(result)
+            except Exception as e:
+                future.set_exception(e)
+
+            return future
 
         _sync.__dict__["_async"] = True
         return _sync
