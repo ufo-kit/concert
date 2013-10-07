@@ -140,7 +140,10 @@ dispatcher = Dispatcher()
 
 
 def coroutine(func):
-    """Start a generator automatically."""
+    """
+    Start a coroutine automatically without the need to call
+    next() or send(None) first.
+    """
     @wraps(func)
     def start(*args, **kwargs):
         """Starts the generator."""
@@ -150,22 +153,22 @@ def coroutine(func):
     return start
 
 
-def inject(generator, destination):
+def inject(generator, consumer):
     """
-    Let a *generator* produce a value and forward it to *destination*.
+    Let a *generator* produce a value and forward it to *consumer*.
     """
     for item in generator:
-        destination.send(item)
+        consumer.send(item)
 
 
 @coroutine
-def multicast(*destinations):
+def multicast(*consumers):
     """
-    multicast(*destinations)
+    multicast(*consumers)
 
-    Provide data to all *destinations*.
+    Forward data to all *consumers*.
     """
     while True:
         item = yield
-        for destination in destinations:
-            destination.send(item)
+        for consumer in consumers:
+            consumer.send(item)
