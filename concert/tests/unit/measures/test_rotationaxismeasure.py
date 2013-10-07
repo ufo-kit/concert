@@ -52,6 +52,7 @@ class TestRotationAxisMeasure(ConcertTest):
         assert np.abs(psi) - np.abs(z_angle) < self.eps
 
     def center_check(self):
+        self.measure()
         assert np.abs(self.measure.center[1] -
                       self.image_source.ellipse_center[1]) < 2
         assert np.abs(self.measure.center[0] -

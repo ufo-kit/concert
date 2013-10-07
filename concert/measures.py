@@ -111,11 +111,7 @@ class SimpleArea(Area):
         self.flat_avg = (self._flat_1 + self._flat_2) / 2.0
 
 
-EPSILON = 1e-3
-
-
-class Ellipse(object):
-
+def get_rotation_axis(images):
     """
     Determine a 3D circle normal inclination angles towards the
     :math:`y`-axis (0,1,0) and the center of the circle.
@@ -148,10 +144,6 @@ class Ellipse(object):
     around the axis of rotation. It is highly recommended to use more images
     in order to obtain more precise results from noisy data.
 
-    **Output**
-
-    :math:`\phi` and :math:`\psi` angles.
-
     **Steps**
 
     The measuring procedure is done in the following steps:
@@ -162,148 +154,101 @@ class Ellipse(object):
     #. Ellipse fitting to the set of tip points.
     #. Determine :math:`\phi` and :math:`\psi` from the projected circle.
 
-    **Asumptions**
+    **Assumptions**
 
-    The procedure assumes a high-absorbing sample with conical shape. Thanks to
+    The procedure assumes a high-absorbing sample with conic shape. Thanks to
     such sample the segmentation procedure can be simplified to a thresholding
     technique.
+
+    **Output**
+
+    The measure returns a tuple (:math:`\phi`, :math:`\psi`, center).
     """
+    if len(images) < 5:
+        raise ValueError("At least 5 images are needed")
+    params, tips = _fit_ellipse(images)
+    phi, psi = _get_ellipse_angles(params, tips)
+    center = _get_ellipse_center(params, tips)
 
-    def __init__(self, images=None):
-        self._images = images
-        # XY angle.
-        self._phi = None
-        # ZY angle.
-        self._psi = None
-        # Ellipse center.
-        self._center = None
-        # Ellipse parameters.
-        self._params = None
-        # Sample tips
-        self._tips = None
+    return phi, psi, center
 
-    def __call__(self):
-        if self._images is None:
-            raise RuntimeError("Images have not been set.")
-        if self._phi is None or self._psi is None:
-            self._determine_angles()
-        return self._phi, self._psi
 
-    @property
-    def images(self):
-        """Images of the rotated sample."""
-        return self._images
+def _get_ellipse_center(params, tips):
+    """Determine the center of the ellipse from its parameters."""
+    a_33 = _get_conic_submatrix(params)
+    if np.linalg.det(a_33) > 1e-3:
+        x_pos = (params[1] * params[4] -
+                 2 * params[3] * params[2]) /\
+            (4 * params[0] * params[2] - params[1] ** 2)
+        y_pos = (params[3] * params[1] -
+                 2 * params[0] * params[4]) /\
+            (4 * params[0] * params[2] - params[1] ** 2)
+    else:
+        # We are not dealing with an ellipse, use center of mass.
+        y_pos, x_pos = center_of_mass(tips)
 
-    @images.setter
-    def images(self, images):
-        """Set image sequence to *images*."""
-        self._phi = None
-        self._psi = None
-        self._center = None
-        self._params = None
-        self._tips = None
-        self._images = images
+    # +1 for image edge-clipping compensation.
+    return y_pos + 1, x_pos + 1
 
-    @property
-    def center(self):
-        """Ellipse center (y, x)."""
-        if self._center is None:
-            self._determine_center()
 
-        return self._center
+def _get_ellipse_angles(params, tips):
+    """
+    Determine the :math:`xy` :math:`(\phi)` and :math:`zy` angle
+    :math:`(\psi)` of the normal of the circle defined by the axis
+    of rotation. The axis is determined by fitting an ellipse
+    to the sample rotation visible by different tips positions
+    in images. Return a tuple :math:`(\phi`, :math:`\psi)`.
+    """
+    y_ind, x_ind = zip(*tips)
+    x_ind = np.array(x_ind)
+    y_ind = np.array(y_ind)
+    d_x = x_ind.max() - x_ind.min()
+    if d_x < 10:
+        raise ValueError("Sample off-centering too small, " +
+                         "enlarge rotation radius.")
 
-    @property
-    def xy_angle(self):
-        """Angle between x and y axes :math:`(\phi)`."""
-        if self._phi is None:
-            self._determine_angles()
-        return self._phi
+    a_33 = _get_conic_submatrix(params)
 
-    @property
-    def zy_angle(self):
-        """Angle between z and y axes :math:`(\psi)`."""
-        if self._psi is None:
-            self._determine_angles()
-        return self._psi
+    usv = np.linalg.svd(a_33)
+    s_vec = usv[1]
+    v_mat = usv[2]
 
-    @property
-    def points(self):
-        """Return sample tip points."""
-        if self._tips is None:
-            self._tips = get_needle_tips(self.images)
+    if np.linalg.det(a_33) <= 0:
+        # Not an ellipse
+        d_y = float(y_ind.max() - y_ind.min())
+        angle = np.arctan(d_y / d_x) * q.rad
+        if x_ind[y_ind.argmax()] <= x_ind[y_ind.argmin()]:
+            # More than pi/4.
+            angle = -angle
+        phi, psi = angle, 0.0 * q.rad
+    else:
+        phi, psi = \
+            np.arctan(v_mat[1][1] / v_mat[1][0]) * q.rad, \
+            np.arcsin(np.sqrt(s_vec[1]) / np.sqrt(s_vec[0])) * q.rad
 
-        return self._tips
+    return phi, psi
 
-    def _fit_ellipse(self):
-        """Ellipse fitting based on *points* and singular value
-        decomposition.
-        """
-        if self._tips is None:
-            self._tips = get_needle_tips(self.images)
 
-        a_matrix = _construct_matrix(self._tips)
-        v_mat = np.linalg.svd(a_matrix)[2]
-        self._params = v_mat.T[:, -1]
+def _get_conic_submatrix(params):
+    """
+    Get the conic section submatrix for determining the conic section
+    type. *params* are the conic section parameters A, B, C, D, E, F,
+    where the conic section is :math:`Ax^2 + Bxy + Cy^2 + Dx + Ey + F = 0`.
+    """
+    return np.array([[params[0], params[1] / 2], [params[1] / 2, params[2]]])
 
-    def _determine_center(self):
-        """Determine the center of the ellipse from its parameters."""
-        if self._params is None:
-            self._fit_ellipse()
 
-        a_33 = np.array([[self._params[0], self._params[1] / 2],
-                        [self._params[1] / 2, self._params[2]]])
-        if np.linalg.det(a_33) > EPSILON:
-            x_pos = (self._params[1] * self._params[4] -
-                     2 * self._params[3] * self._params[2]) /\
-                (4 * self._params[0] * self._params[2] - self._params[1] ** 2)
-            y_pos = (self._params[3] * self._params[1] -
-                     2 * self._params[0] * self._params[4]) /\
-                (4 * self._params[0] * self._params[2] - self._params[1] ** 2)
-        else:
-            # We are not dealing with an ellipse, use center of mass.
-            y_pos, x_pos = center_of_mass(self._tips)
+def _fit_ellipse(images):
+    """Ellipse fitting based on *points* and singular value
+    decomposition.
+    """
+    tips = get_needle_tips(images)
 
-        # +1 for image edge-clipping compensation.
-        self._center = y_pos + 1, x_pos + 1
+    a_matrix = _construct_matrix(tips)
+    v_mat = np.linalg.svd(a_matrix)[2]
+    params = v_mat.T[:, -1]
 
-    def _determine_angles(self):
-        """
-        Determine the :math:`xy` :math:`(\phi)` and :math:`zy` angle
-        :math:`(\psi)` of the normal of the circle defined by the axis
-        of rotation. The axis is determined by fitting an ellipse
-        to the sample rotation visible by different tips positions
-        in images. Return a tuple :math:`(\phi`, :math:`\psi)`.
-        """
-        if self._params is None:
-            self._fit_ellipse()
-
-        y_ind, x_ind = zip(*self._tips)
-        x_ind = np.array(x_ind)
-        y_ind = np.array(y_ind)
-        d_x = x_ind.max() - x_ind.min()
-        if d_x < 10:
-            raise ValueError("Sample off-centering too small, " +
-                             "enlarge rotation radius.")
-
-        a_33 = np.array([[self._params[0], self._params[1] / 2],
-                         [self._params[1] / 2, self._params[2]]])
-
-        usv = np.linalg.svd(a_33)
-        s_vec = usv[1]
-        v_mat = usv[2]
-
-        if np.linalg.det(a_33) <= 0:
-            # Not an ellipse
-            d_y = float(y_ind.max() - y_ind.min())
-            angle = np.arctan(d_y / d_x) * q.rad
-            if x_ind[y_ind.argmax()] <= x_ind[y_ind.argmin()]:
-                # More than pi/4.
-                angle = -angle
-            self._phi, self._psi = angle, 0.0 * q.rad
-        else:
-            self._phi, self._psi = \
-                np.arctan(v_mat[1][1] / v_mat[1][0]) * q.rad, \
-                np.arcsin(np.sqrt(s_vec[1]) / np.sqrt(s_vec[0])) * q.rad
+    return params, tips
 
 
 def _construct_matrix(points):
