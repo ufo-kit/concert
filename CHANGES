@@ -6,6 +6,8 @@ Here you can see the full list of changes between each Concert release.
 Version 0.4
 -----------
 
+Released on October 7th 2013.
+
 Improvements:
 
 - Tests and rotation axis alignment is faster now.
@@ -23,6 +25,7 @@ Improvements:
 - Parameters can now be locked independently of the parent device. However, if
   done so, no one else can lock the device.
 - Add ``code_of`` function to show the source of a function.
+- Introduced coroutine based data processing facility.
 
 API breaks:
 
@@ -32,12 +35,14 @@ API breaks:
   ``uca`` instead of ``camera``.
 - ``minimum``, ``maximum`` and ``intervals`` are now longer implemented as
   ``Parameter`` objects of ``Scanner`` but simple attributes.
+- ``asynchronous`` module content has been moved to ``helpers``
+- Removed ``Scanner`` class in favor of ``scan`` function.
 
 Fixes:
 
-- Integration with latest IPython releases works again.
+- Integration with all IPython releases works again.
 - runtests.py returns 0 on success.
-- #19, #55
+- #19, #55, #71, #78, #79
 
 
 Version 0.3
