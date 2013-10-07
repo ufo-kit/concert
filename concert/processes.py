@@ -135,7 +135,7 @@ def focus(camera, motor, measure=np.std):
 
 @async
 def align_rotation_axis(measure, image_getter, x_motor, z_motor=None,
-                        absolute_eps=0.1 * q.deg):
+                        absolute_eps=0.1 * q.deg, max_iterations=5):
     """
     run(measure, image_getter, x_motor, z_motor=None,
     absolute_eps=0.1 * q.deg, max_iterations=5)
@@ -145,7 +145,8 @@ def align_rotation_axis(measure, image_getter, x_motor, z_motor=None,
     sequences with sample rotated around the axis of rotation (a callable).
     *x_motor* turns the sample around x-axis, *z_motor* is optional
     and turns the sample around z-axis. *absolute_eps* is the threshold
-    for stopping the procedure.
+    for stopping the procedure. If *max_iterations* is reached the
+    procedure stops as well.
 
     The procedure finishes when it finds the minimum angle between an
     ellipse extracted from the sample movement and respective axes or the
@@ -156,6 +157,7 @@ def align_rotation_axis(measure, image_getter, x_motor, z_motor=None,
     # Sometimes both z-directions need to be tried out because of the
     # projection ambiguity.
     z_direction = -1
+    i = 0
 
     x_last = None
     z_last = None
@@ -196,6 +198,14 @@ def align_rotation_axis(measure, image_getter, x_motor, z_motor=None,
 
         x_last = np.abs(x_angle)
         z_last = np.abs(z_angle)
+
+        i += 1
+
+        if i == max_iterations:
+            # If we reached maximum iterations we consider it a failure
+            # because the algorithm was not able to get to the desired
+            # solution within the max_iterations limit.
+            raise ProcessException("Maximum iterations reached")
 
 
 class ProcessException(Exception):
