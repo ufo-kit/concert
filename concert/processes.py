@@ -133,81 +133,69 @@ def focus(camera, motor, measure=np.std):
     return f
 
 
-class RotationAxisAligner(Process):
+@async
+def align_rotation_axis(measure, image_getter, x_motor, z_motor=None,
+                        absolute_eps=0.1 * q.deg):
+    """
+    run(measure, image_getter, x_motor, z_motor=None,
+    absolute_eps=0.1 * q.deg, max_iterations=5)
 
-    """Rotation axis alignment."""
-    # Aligned message
-    AXIS_ALIGNED = "axis-aligned"
+    Align rotation axis. *measure* provides axis of rotation angular
+    misalignment data (a callable), *image_getter* provides image
+    sequences with sample rotated around the axis of rotation (a callable).
+    *x_motor* turns the sample around x-axis, *z_motor* is optional
+    and turns the sample around z-axis. *absolute_eps* is the threshold
+    for stopping the procedure.
 
-    def __init__(self, axis_measure, get_images, x_motor, z_motor=None):
-        """Contructor. *axis_measure* provides axis of rotation angular
-        misalignment data, *get_images* provides image sequences with
-        sample rotated around axis of rotation (it is a callable).
-        *x_motor* turns the sample around x-axis, *z_motor* is optional
-        and turns the sample around z-axis
-        """
-        super(RotationAxisAligner, self).__init__(None)
-        self._axis_measure = axis_measure
-        self.x_motor = x_motor
-        self.z_motor = z_motor
-        self.get_images = get_images
+    The procedure finishes when it finds the minimum angle between an
+    ellipse extracted from the sample movement and respective axes or the
+    found angle drops below *absolute_eps*. The axis of rotation after
+    the procedure is (0,1,0), which is the direction perpendicular
+    to the beam direction and the lateral direction.
+    """
+    # Sometimes both z-directions need to be tried out because of the
+    # projection ambiguity.
+    z_direction = -1
 
-    @async
-    def run(self, absolute_eps=0.1 * q.deg):
-        """
-        run(absolute_eps=0.1*q.deg)
+    x_last = None
+    z_last = None
+    z_turn_counter = 0
 
-        The procedure finishes when it finds the minimum angle between an
-        ellipse extracted from the sample movement and respective axes or the
-        found angle drops below *absolute_eps*. The axis of rotation after
-        the procedure is (0,1,0), which is the direction perpendicular
-        to the beam direction and the lateral direction.
-        """
-        # Sometimes both z-directions need to be tried out because of the
-        # projection ambiguity.
-        z_direction = -1
+    while True:
+        x_angle, z_angle = measure(image_getter())[:2]
 
-        x_last = None
-        z_last = None
-        z_turn_counter = 0
+        x_better = True if z_motor is not None and\
+            (x_last is None or np.abs(x_angle) < x_last) else False
+        z_better = True if z_last is None or np.abs(z_angle) < z_last\
+            else False
 
-        while True:
-            self._axis_measure.images = self.get_images()
-            x_angle, z_angle = self._axis_measure()
+        if z_better:
+            z_turn_counter = 0
+        elif z_turn_counter < 1:
+            # We might have rotated in the opposite direction because
+            # of the projection ambiguity. However, that must be picked up
+            # in the next iteration, so if the two consequent angles
+            # are worse than the minimum, we have the result.
+            z_better = True
+            z_direction = -z_direction
+            z_turn_counter += 1
 
-            x_better = True if self.z_motor is not None and\
-                (x_last is None or np.abs(x_angle) < x_last) else False
-            z_better = True if z_last is None or np.abs(z_angle) < z_last\
-                else False
+        x_future, z_future = None, None
+        if z_better and np.abs(z_angle) >= absolute_eps:
+            x_future = x_motor.move(z_direction * z_angle)
+        if x_better and np.abs(x_angle) >= absolute_eps:
+            z_future = z_motor.move(x_angle)
+        elif (np.abs(z_angle) < absolute_eps or not z_better):
+            # The newly calculated angles are worse than the previous
+            # ones or the absolute threshold has been reached,
+            # stop iteration.
+            break
 
-            if z_better:
-                z_turn_counter = 0
-            elif z_turn_counter < 1:
-                # We might have rotated in the opposite direction because
-                # of the projection ambiguity. However, that must be picked up
-                # in the next iteration, so if the two consequent angles
-                # are worse than the minimum, we have the result.
-                z_better = True
-                z_direction = -z_direction
-                z_turn_counter += 1
+        wait([future for future in [x_future, z_future]
+              if future is not None])
 
-            x_future, z_future = None, None
-            if z_better and np.abs(z_angle) >= absolute_eps:
-                x_future = self.x_motor.move(z_direction * z_angle)
-            if x_better and np.abs(x_angle) >= absolute_eps:
-                z_future = self.z_motor.move(x_angle)
-            elif (np.abs(z_angle) < absolute_eps or not z_better):
-                # The newly calculated angles are worse than the previous
-                # ones or the absolute threshold has been reached,
-                # stop iteration.
-                dispatcher.send(self, self.AXIS_ALIGNED)
-                break
-
-            wait([future for future in [x_future, z_future]
-                  if future is not None])
-
-            x_last = np.abs(x_angle)
-            z_last = np.abs(z_angle)
+        x_last = np.abs(x_angle)
+        z_last = np.abs(z_angle)
 
 
 class ProcessException(Exception):
