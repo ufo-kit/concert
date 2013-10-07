@@ -1,13 +1,13 @@
 import numpy as np
 from nose.plugins.attrib import attr
 from concert.quantities import q
-from concert.measures import Ellipse
 from concert.devices.base import LinearCalibration
 from concert.devices.motors.dummy import Motor
 from concert.tests import slow
 from concert.tests.base import ConcertTest
 from concert.tests.util.rotationaxis import SimulationCamera
 from concert.processes import scan
+from concert.measures import get_rotation_axis
 
 
 @attr('skip-travis')
@@ -31,76 +31,73 @@ class TestRotationAxisMeasure(ConcertTest):
                                              self.y_motor["position"],
                                              self.z_motor["position"])
 
-        self.measure = Ellipse()
-
         # Allow 1 px misalignment in y-direction.
         self.eps = np.arctan(2.0 / self.image_source.rotation_radius) * q.rad
 
     def make_images(self, x_angle, z_angle, intervals=10):
         self.x_motor.position = z_angle
         self.z_motor.position = x_angle
-        self.measure.images = scan(self.y_motor["position"],
-                                   self.image_source.grab, minimum=0 * q.rad,
-                                   maximum=2 * np.pi * q.rad,
-                                   intervals=intervals).result()[1]
+        return scan(self.y_motor["position"],
+                    self.image_source.grab, minimum=0 * q.rad,
+                    maximum=2 * np.pi * q.rad,
+                    intervals=intervals).result()[1]
 
     def align_check(self, x_angle, z_angle):
-        self.make_images(x_angle, z_angle)
-        phi, psi = self.measure()
+        images = self.make_images(x_angle, z_angle)
+        phi, psi = get_rotation_axis(images)[:2]
 
         assert phi + x_angle < self.eps
         assert np.abs(psi) - np.abs(z_angle) < self.eps
 
-    def center_check(self):
-        assert np.abs(self.measure.center[1] -
-                      self.image_source.ellipse_center[1]) < 2
-        assert np.abs(self.measure.center[0] -
-                      self.image_source.ellipse_center[0]) < 2
+    def center_check(self, images):
+        center = get_rotation_axis(images)[2]
+
+        assert np.abs(center[1] - self.image_source.ellipse_center[1]) < 2
+        assert np.abs(center[0] - self.image_source.ellipse_center[0]) < 2
 
     @slow
     def test_out_of_fov(self):
-        self.measure.images = np.ones((10,
-                                       self.image_source.size,
-                                       self.image_source.size))
+        images = np.ones((10, self.image_source.size,
+                          self.image_source.size))
         with self.assertRaises(ValueError) as ctx:
-            self.measure()
+            get_rotation_axis(images)
 
         self.assertEqual("No sample tip points found.", ctx.exception.message)
 
     @slow
     def test_center_no_rotation(self):
-        self.make_images(0 * q.deg, 0 * q.deg, intervals=15)
-        self.center_check()
+        images = self.make_images(0 * q.deg, 0 * q.deg, intervals=15)
+        self.center_check(images)
 
     @slow
     def test_center_only_x(self):
-        self.make_images(17 * q.deg, 0 * q.deg, intervals=15)
-        self.center_check()
+        images = self.make_images(17 * q.deg, 0 * q.deg, intervals=15)
+        self.center_check(images)
 
     @slow
     def test_center_only_z(self):
-        self.make_images(0 * q.deg, 11 * q.deg, intervals=15)
-        self.center_check()
+        images = self.make_images(0 * q.deg, 11 * q.deg, intervals=15)
+        self.center_check(images)
 
     @slow
     def test_center_positive(self):
-        self.make_images(17 * q.deg, 11 * q.deg, intervals=15)
-        self.center_check()
+        images = self.make_images(17 * q.deg, 11 * q.deg, intervals=15)
+        self.center_check(images)
 
     @slow
     def test_center_negative_positive(self):
-        self.make_images(-17 * q.deg, 11 * q.deg, intervals=15)
-        self.center_check()
+        images = self.make_images(-17 * q.deg, 11 * q.deg, intervals=15)
+        self.center_check(images)
 
     @slow
     def test_center_positive_negative(self):
-        self.make_images(17 * q.deg, -11 * q.deg, intervals=15)
-        self.center_check()
+        images = self.make_images(17 * q.deg, -11 * q.deg, intervals=15)
+        self.center_check(images)
 
     @slow
     def test_center_negative(self):
-        self.make_images(-17 * q.deg, -11 * q.deg, intervals=15)
-        self.center_check()
+        images = self.make_images(-17 * q.deg, -11 * q.deg, intervals=15)
+        self.center_check(images)
 
     @slow
     def test_only_x(self):

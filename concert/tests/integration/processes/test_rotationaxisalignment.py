@@ -3,11 +3,11 @@ from nose.plugins.attrib import attr
 from concert.quantities import q
 from concert.devices.motors.dummy import Motor
 from concert.devices.base import LinearCalibration
-from concert.processes import RotationAxisAligner, scan
-from concert.measures import Ellipse
+from concert.processes import scan, align_rotation_axis
 from concert.tests import slow
 from concert.tests.util.rotationaxis import SimulationCamera
 from concert.tests.base import ConcertTest
+from concert.measures import get_rotation_axis
 
 
 @attr('skip-travis')
@@ -29,10 +29,6 @@ class TestDummyAlignment(ConcertTest):
                                              self.z_motor["position"])
 
         self.feedback = self.image_source.grab
-        self.aligner = RotationAxisAligner(Ellipse(),
-                                           self.get_images,
-                                           self.x_motor,
-                                           self.z_motor)
 
         # Allow 1 px misalignment in y-direction.
         self.eps = np.arctan(2.0 / self.image_source.rotation_radius) * q.rad
@@ -46,8 +42,10 @@ class TestDummyAlignment(ConcertTest):
         self.x_motor.position = z_angle
         self.z_motor.position = x_angle
 
-        self.aligner.z_motor = self.z_motor if has_z_motor else None
-        self.aligner.run().wait()
+        z_motor = self.z_motor if has_z_motor else None
+
+        align_rotation_axis(get_rotation_axis, self.get_images,
+                            self.x_motor, z_motor).wait()
 
         # In our case the best perfectly aligned position is when both
         # motors are in 0.
@@ -63,7 +61,8 @@ class TestDummyAlignment(ConcertTest):
 
         self.feedback = get_ones
         with self.assertRaises(ValueError) as ctx:
-            self.aligner.run().wait()
+            align_rotation_axis(get_rotation_axis, self.get_images,
+                                self.x_motor, self.z_motor).wait()
 
         self.assertEqual("No sample tip points found.", ctx.exception.message)
 
@@ -71,7 +70,8 @@ class TestDummyAlignment(ConcertTest):
     def test_not_offcentered(self):
         self.image_source.rotation_radius = 0
         with self.assertRaises(ValueError) as ctx:
-            self.aligner.run().wait()
+            align_rotation_axis(get_rotation_axis, self.get_images,
+                                self.x_motor, self.z_motor).wait()
 
         self.assertEqual("Sample off-centering too " +
                          "small, enlarge rotation radius.",
