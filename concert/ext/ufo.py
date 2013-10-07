@@ -1,22 +1,3 @@
-"""
-The :mod:`.ufo` module provides classes to process data from an experiment with
-the UFO data processing framework. The simplest example could look like this::
-
-    from concert.ext.ufo import InjectProcess
-    from gi.repository import Ufo
-    import numpy as np
-    import scipy.misc
-
-    pm = Ufo.PluginManager()
-    writer = pm.get_task('writer')
-    writer.props.filename = 'foo-%05i.tif'
-
-    proc = InjectProcess(writer)
-
-    proc.run()
-    proc.push(scipy.misc.lena())
-    proc.wait()
-"""
 import threading
 import numpy as np
 
