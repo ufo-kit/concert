@@ -9,7 +9,9 @@ except ImportError:
 
 
 class PluginManager(object):
+
     """Plugin manager that initializes new tasks."""
+
     def __init__(self):
         self._wrapped = Ufo.PluginManager()
 
