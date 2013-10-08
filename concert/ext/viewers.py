@@ -1,5 +1,4 @@
 """Opening images in external programs."""
-import atexit
 import os
 import tempfile
 from multiprocessing import Queue as MultiprocessingQueue, Process
@@ -35,19 +34,18 @@ def imagej(image, path="imagej", writer=write_tiff):
     _start_command(path, image, writer)
 
 
-class PyplotViewer(Process):
+class PyplotViewer(object):
 
     """Image viewer which updates the plot in a separate process."""
 
     def __init__(self, imshow_kwargs=None, colorbar=True):
-        super(PyplotViewer, self).__init__()
         self._has_colorbar = colorbar
         self._imshow_kwargs = {} if imshow_kwargs is None else imshow_kwargs
         self._queue = MultiprocessingQueue()
         self._stopped = False
         self._make_imshow_defaults()
-        # Make sure the window doesn't hang when the parent process exits
-        atexit.register(self.stop)
+        self._proc = Process(target=self.run)
+        self._proc.start()
 
     @coroutine
     def __call__(self, size=None):
@@ -57,8 +55,6 @@ class PyplotViewer(Process):
         when *size* images come.
         """
         i = 0
-        if not self.is_alive():
-            self.start()
 
         while True:
             image = yield
@@ -72,6 +68,11 @@ class PyplotViewer(Process):
 
             i += 1
 
+    def terminate(self):
+        """Close all communication and terminate child process."""
+        self._queue.close()
+        self._proc.terminate()
+
     def show(self, item, force=False):
         """
         show *item* into the redrawing queue. The item is truly inserted
@@ -83,9 +84,6 @@ class PyplotViewer(Process):
 
         if self._queue.empty() or force:
             self._queue.put(item)
-
-        if not self.is_alive():
-            self.start()
 
     def stop(self):
         """Stop, no more images will be displayed from now on."""
@@ -101,36 +99,40 @@ class PyplotViewer(Process):
         """
         # This import *must* be here, otherwise it doesn't work on Linux
         from matplotlib import pyplot as plt
-        plt.ion()
+        try:
+            plt.ion()
 
-        mpl_image = None
-        shape = None
+            mpl_image = None
+            shape = None
 
-        while True:
-            image = self._queue.get()
+            while True:
+                image = self._queue.get()
 
-            if image is None:
-                break
+                if image is None:
+                    break
 
-            if shape is not None and shape != image.shape:
-                # When the shape changes the axes needs to be reset
-                mpl_image.axes.clear()
-                mpl_image = None
+                if shape is not None and shape != image.shape:
+                    # When the shape changes the axes needs to be reset
+                    mpl_image.axes.clear()
+                    mpl_image = None
 
-            if mpl_image is None:
-                mpl_image = plt.imshow(image, **self._imshow_kwargs)
-                if self._has_colorbar and shape is None:
-                    plt.colorbar()
-            else:
-                mpl_image.set_data(image)
-                # Rescale the image and colorbar (updates the figure)
-                mpl_image.set_clim(image.min(), image.max())
+                if mpl_image is None:
+                    mpl_image = plt.imshow(image, **self._imshow_kwargs)
+                    if self._has_colorbar and shape is None:
+                        plt.colorbar()
+                else:
+                    mpl_image.set_data(image)
+                    # Rescale the image and colorbar (updates the figure)
+                    mpl_image.set_clim(image.min(), image.max())
 
-            plt.draw()
-            shape = image.shape
+                plt.draw()
+                shape = image.shape
 
-        plt.ioff()
-        plt.show()
+            plt.ioff()
+            plt.show()
+        except KeyboardInterrupt:
+            plt.ioff()
+            plt.close("all")
 
     def _make_imshow_defaults(self):
         """Override matplotlib's image showing defafults."""
