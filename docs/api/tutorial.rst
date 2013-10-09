@@ -46,19 +46,7 @@ the core or fixing a known bug.
 .. _nose: https://nose.readthedocs.org/en/latest/
 
 
-Contributing
-------------
-
-If you found a problem, don't hesitate to open a ticket on the GitHub `issue
-tracker`_.
-
-In case you want to contribute changes, just issue a `pull request`_. Please
-follow the current source conventions (essentially `PEP 8`_) and make sure that
-your changes do not break any tests.
-
-.. _issue tracker: https://github.com/ufo-kit/concert/issues
-.. _pull request: https://github.com/ufo-kit/concert/pulls
-.. _PEP 8: http://www.python.org/dev/peps/pep-0008/
+.. include:: ../../CONTRIBUTING.rst
 
 
 Basic concepts
