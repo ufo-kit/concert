@@ -28,12 +28,6 @@ def get_docstring_summary(doc):
     return doc
 
 
-def exit_if_not_exists(session):
-    if not concert.session.exists(session):
-        message = "Session `{0}' does not exist. Run `concert init {0}' first."
-        sys.exit(message.format(session))
-
-
 def cmp_versions(v1, v2):
     """Compare two version numbers and return cmp compatible result"""
     def normalize(v):
@@ -63,6 +57,7 @@ def get_ipython_shell():
         shell = InteractiveShellEmbed(banner1='')
 
     return shell
+
 
 class InitCommand(Command):
     """Create a new session.
@@ -108,7 +103,7 @@ class EditCommand(Command):
         super(EditCommand, self).__init__('edit', opts)
 
     def run(self, session=None):
-        exit_if_not_exists(session)
+        concert.session.exit_if_not_exists(session)
         env = os.environ
         editor = env['EDITOR'] if 'EDITOR' in env else 'vi'
         subprocess.call([editor, concert.session.path(session)])
@@ -136,7 +131,7 @@ class LogCommand(Command):
         # which we check first and the logfile itself.
 
         if session:
-            _exit_if_not_exists(session)
+            concert.session.exit_if_not_exists(session)
             cmd = 'grep "{0}:" {1} | less'.format(session, logfile)
         else:
             cmd = 'less {0}'.format(logfile)
@@ -283,8 +278,6 @@ class FetchCommand(Command):
         return urlparse.urlunsplit(result)
 
 
-
-
 class StartCommand(Command):
     """Start a session.
 
@@ -323,7 +316,7 @@ class StartCommand(Command):
         self.handler = None
 
     def run(self, session=None, logto='file', logfile=None):
-        exit_if_not_exists(session)
+        concert.session.exit_if_not_exists(session)
 
         if logto == 'file':
             filename = logfile if logfile else concert.session.DEFAULT_LOGFILE

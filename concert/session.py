@@ -3,6 +3,7 @@
 A session is an ordinary Python module that is stored in a per-user
 directory."""
 import os
+import sys
 import imp
 import inspect
 from concert.ui import get_default_table
@@ -188,3 +189,10 @@ def get_existing():
 def exists(session):
     """Check if *session* already exists."""
     return os.access(path(session), os.R_OK)
+
+
+def exit_if_not_exists(session):
+    """Exit if *session* does not exist with a message."""
+    if not exists(session):
+        message = "Session `{0}' does not exist. Run `concert init {0}' first."
+        sys.exit(message.format(session))
