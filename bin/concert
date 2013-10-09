@@ -11,10 +11,10 @@ import tempfile
 import traceback
 import urlparse
 import urllib2
-import logbook
 import concert
 import concert.session
 from concert.helpers import Command
+from concert.ext.cmd import plugins
 from concert.base import (UnitError,
                           LimitError,
                           ParameterError,
@@ -316,6 +316,8 @@ class StartCommand(Command):
         self.handler = None
 
     def run(self, session=None, logto='file', logfile=None):
+        import logbook
+
         concert.session.exit_if_not_exists(session)
 
         if logto == 'file':
@@ -383,6 +385,8 @@ def main():
                 RemoveCommand(),
                 FetchCommand(),
                 StartCommand()]
+
+    commands.extend(plugins)
 
     for command in commands:
         summary = get_docstring_summary(command.__doc__)
