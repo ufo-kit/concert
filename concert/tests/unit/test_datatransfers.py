@@ -1,11 +1,7 @@
-import time
 import numpy as np
-from threading import Event
-from concert.quantities import q
 from concert.helpers import coroutine, multicast, inject
 from concert.coroutines import generate_sinograms
-from concert.tests.base import suppressed_logging, ConcertTest
-from concert.devices.motors.dummy import Motor
+from concert.tests.base import ConcertTest
 
 
 def producer(consumer):

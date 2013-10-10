@@ -1,6 +1,5 @@
 import numpy as np
-from concert.base import Process
-from concert.helpers import async, wait, dispatcher
+from concert.helpers import async, wait
 from concert.quantities import q
 from concert.optimization import halver, optimize_parameter
 

@@ -1,6 +1,4 @@
 """Dummy"""
-import random
-import time
 from concert.base import Parameter
 from concert.devices.base import Device
 from concert.helpers import async

@@ -19,7 +19,7 @@ position on an axis, you can also use :meth:`.Axis.set_position`.
 import threading
 from logbook import Logger
 from concert.base import Parameterizable, Parameter
-from concert.quantities import q, numerator_units, denominator_units
+from concert.quantities import numerator_units, denominator_units
 
 
 LOG = Logger(__name__)

@@ -1,6 +1,8 @@
 from concert.quantities import q
-from concert.base import *
 from concert.tests.base import ConcertTest
+from concert.base import (Parameterizable, Parameter,
+                          WriteAccessError, ReadAccessError, UnitError,
+                          SoftLimitError, HardLimitError)
 
 
 class BaseDevice(Parameterizable):

@@ -1,9 +1,7 @@
 from concert.quantities import q
 from concert.tests import assert_almost_equal
 from concert.devices.motors.dummy import Motor as DummyMotor
-from concert.devices.cameras.dummy import Camera
 from concert.processes import scan, ascan, dscan, scan_param_feedback
-from concert.tests import slow
 from concert.tests.base import ConcertTest
 
 

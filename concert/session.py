@@ -79,6 +79,8 @@ def dstate():
 
 def ddoc():
     """Render device documentation."""
+    from concert.devices.base import Device
+
     field_names = ["Name", "Description", "Parameters"]
     table = get_default_table(field_names)
 

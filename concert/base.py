@@ -43,7 +43,6 @@ To get all parameters of an object, you can iterate over the device itself ::
 """
 import re
 from logbook import Logger
-from functools import wraps
 from concert.helpers import dispatcher, async
 from concert.ui import get_default_table
 
