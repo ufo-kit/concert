@@ -6,7 +6,6 @@ import os
 import imp
 import inspect
 from concert.ui import get_default_table
-from concert.devices.base import Device
 
 
 def _get_save_data_path():
@@ -66,6 +65,8 @@ def _current_instances(instance_type):
 
 def dstate():
     """Render device state in a table."""
+    from concert.devices.base import Device
+
     field_names = ["Name", "Parameters"]
     table = get_default_table(field_names)
 
