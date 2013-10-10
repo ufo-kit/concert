@@ -10,7 +10,6 @@ import subprocess
 import tempfile
 import traceback
 import urlparse
-import urllib2
 import concert
 import concert.session
 from concert.helpers import Command
@@ -250,6 +249,8 @@ class FetchCommand(Command):
         shutil.rmtree(path)
 
     def _fetch_file(self, url, force):
+        import urllib2
+
         if not url.endswith('.py'):
             sys.exit("`{0}' is not a Python module".format(url))
 
