@@ -261,8 +261,7 @@ class FetchCommand(Command):
         local_url = _get_url(url)
 
         with contextlib.closing(urllib2.urlopen(local_url)) as data:
-            save_path = os.path.join(concert.session.PATH, session_name + '.py')
-            with open(save_path, 'w') as output:
+            with open(concert.session.path(session_name), 'w') as output:
                 output.write(data.read())
 
     def _get_url(self, path_or_url):
