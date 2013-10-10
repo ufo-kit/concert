@@ -20,7 +20,7 @@ class SpyderCommand(Command):
         # This should come from our command line parser, however, Spyder does
         # not provide a way to get the argument parser but only the parsed
         # arguments.
-        opts = {'working_directory': concert.session.PATH,
+        opts = {'working_directory': concert.session.path(),
                 'debug': False,
                 'profile': False,
                 'multithreaded': False,

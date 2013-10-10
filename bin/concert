@@ -9,7 +9,6 @@ import shutil
 import subprocess
 import tempfile
 import traceback
-import urlparse
 import concert
 import concert.session
 from concert.helpers import Command
@@ -19,7 +18,6 @@ from concert.base import (UnitError,
                           ParameterError,
                           ReadAccessError,
                           WriteAccessError)
-
 
 def get_docstring_summary(doc):
     if doc and doc.find('.'):
@@ -120,7 +118,7 @@ class LogCommand(Command):
         super(LogCommand, self).__init__('log', opts)
 
     def run(self, session=None):
-        logfile = concert.session.DEFAULT_LOGFILE
+        logfile = concert.session.logfile_path()
 
         if not os.path.exists(logfile):
             return
@@ -244,7 +242,8 @@ class FetchCommand(Command):
                       " anyway)".format(session_name))
             else:
                 print("Add session {0} ...".format(filename[:-3]))
-                shutil.copy(os.path.join(path, filename), concert.session.PATH)
+                shutil.copy(os.path.join(path, filename),
+                            concert.session.path())
 
         shutil.rmtree(path)
 
@@ -259,13 +258,15 @@ class FetchCommand(Command):
         if concert.session.exists(session_name) and not force:
             sys.exit("`{0}' already exists".format(session_name))
 
-        local_url = _get_url(url)
+        local_url = self._get_url(url)
 
         with contextlib.closing(urllib2.urlopen(local_url)) as data:
             with open(concert.session.path(session_name), 'w') as output:
                 output.write(data.read())
 
     def _get_url(self, path_or_url):
+        import urlparse
+
         result = urlparse.urlsplit(path_or_url)
 
         if result.scheme:
@@ -321,7 +322,7 @@ class StartCommand(Command):
         concert.session.exit_if_not_exists(session)
 
         if logto == 'file':
-            filename = logfile if logfile else concert.session.DEFAULT_LOGFILE
+            filename = logfile if logfile else concert.session.logfile_path()
             self.handler = logbook.FileHandler(filename)
         else:
             self.handler = logbook.StderrHandler()
@@ -330,7 +331,7 @@ class StartCommand(Command):
     %s: {record.channel}: {record.message}' % session
 
         # Add session path, so that sessions can import other sessions
-        sys.path.append(concert.session.PATH)
+        sys.path.append(concert.session.path())
         try:
             module = concert.session.load(session)
         except:
