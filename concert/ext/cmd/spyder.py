@@ -1,12 +1,7 @@
 import sys
 import spyderlib
 import concert.session
-from concert.helpers import Command
-
-
-class Bunch(object):
-    def __init__(self, some_dict):
-        self.__dict__.update(some_dict)
+from concert.helpers import Command, Bunch
 
 
 class SpyderCommand(Command):

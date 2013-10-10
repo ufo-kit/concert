@@ -192,3 +192,17 @@ class Command(object):
     def run(self, *args, **kwargs):
         """Run the command"""
         raise NotImplementedError
+
+
+class Bunch(object):
+    """Encapsulate a dictionary to provide attribute-like access.
+
+    Common use cases look like this::
+
+        d = {'foo': 123, 'bar': 'baz'}
+        b = Bunch(d)
+        print(b.foo)
+        >>> 123
+    """
+    def __init__(self, some_dict):
+        self.__dict__.update(some_dict)
