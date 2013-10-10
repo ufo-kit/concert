@@ -164,7 +164,7 @@ def align_rotation_axis(measure, image_getter, x_motor, z_motor=None,
     z_turn_counter = 0
 
     while True:
-        x_angle, z_angle = measure(image_getter())[:2]
+        x_angle, z_angle, center = measure(image_getter())
 
         x_better = True if z_motor is not None and\
             (x_last is None or np.abs(x_angle) < x_last) else False
@@ -206,6 +206,9 @@ def align_rotation_axis(measure, image_getter, x_motor, z_motor=None,
             # because the algorithm was not able to get to the desired
             # solution within the max_iterations limit.
             raise ProcessException("Maximum iterations reached")
+
+    # Return the last known ellipse fit
+    return x_angle, z_angle, center
 
 
 class ProcessException(Exception):
