@@ -1,13 +1,11 @@
 from concert.quantities import q
-from concert.tests import assert_almost_equal
-from concert.devices.motors.dummy import Motor
 from concert import optimization
-from concert.tests import slow
-from concert.tests.base import ConcertTest
+from concert.tests import slow, assert_almost_equal, TestCase
 from concert.optimization import optimize_parameter
+from concert.devices.motors.dummy import Motor
 
 
-class TestOptimizers(ConcertTest):
+class TestOptimizers(TestCase):
 
     def setUp(self):
         super(TestOptimizers, self).setUp()

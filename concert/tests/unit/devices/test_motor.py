@@ -3,7 +3,7 @@ from concert.devices.base import LinearCalibration
 from concert.devices.motors.base import Motor
 from concert.devices.motors.dummy import Motor as DummyMotor,\
     ContinuousMotor as DummyContinuousMotor
-from concert.tests.base import ConcertTest, suppressed_logging
+from concert.tests import TestCase, suppressed_logging
 
 
 @suppressed_logging
@@ -37,7 +37,7 @@ def test_different_calibration_unit():
     assert motor.position == 1 * q.deg
 
 
-class TestDummyMotor(ConcertTest):
+class TestDummyMotor(TestCase):
 
     def setUp(self):
         super(TestDummyMotor, self).setUp()
@@ -56,7 +56,7 @@ class TestDummyMotor(ConcertTest):
         self.assertEqual(position + delta, self.motor.position)
 
 
-class TestContinuousDummyMotor(ConcertTest):
+class TestContinuousDummyMotor(TestCase):
 
     def setUp(self):
         super(TestContinuousDummyMotor, self).setUp()
@@ -73,7 +73,7 @@ class TestContinuousDummyMotor(ConcertTest):
         self.assertEqual(velocity, self.motor.velocity)
 
 
-class TestMotorCalibration(ConcertTest):
+class TestMotorCalibration(TestCase):
 
     def setUp(self):
         super(TestMotorCalibration, self).setUp()

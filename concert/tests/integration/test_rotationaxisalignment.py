@@ -4,14 +4,13 @@ from concert.quantities import q
 from concert.devices.motors.dummy import Motor
 from concert.devices.base import LinearCalibration
 from concert.processes import scan, align_rotation_axis
-from concert.tests import slow
+from concert.tests import slow, TestCase
 from concert.tests.util.rotationaxis import SimulationCamera
-from concert.tests.base import ConcertTest
 from concert.measures import get_rotation_axis
 
 
 @attr('skip-travis')
-class TestDummyAlignment(ConcertTest):
+class TestDummyAlignment(TestCase):
 
     def setUp(self):
         super(TestDummyAlignment, self).setUp()

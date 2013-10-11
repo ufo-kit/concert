@@ -1,13 +1,12 @@
 from concert.quantities import q
-from concert.tests import slow, assert_almost_equal
+from concert.tests import slow, assert_almost_equal, TestCase
 from concert.measures import DummyGradientMeasure
 from concert.devices.motors.dummy import Motor as DummyMotor
 from concert import optimization
-from concert.tests.base import ConcertTest
 from concert.optimization import optimize_parameter
 
 
-class TestDummyFocusingWithSoftLimits(ConcertTest):
+class TestDummyFocusingWithSoftLimits(TestCase):
 
     def setUp(self):
         super(TestDummyFocusingWithSoftLimits, self).setUp()
@@ -34,7 +33,7 @@ class TestDummyFocusingWithSoftLimits(ConcertTest):
         assert_almost_equal(self.motor.position, 25 * q.mm)
 
 
-class TestDummyFocusing(ConcertTest):
+class TestDummyFocusing(TestCase):
 
     def setUp(self):
         super(TestDummyFocusing, self).setUp()

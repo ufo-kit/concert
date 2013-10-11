@@ -1,8 +1,7 @@
 from concert.quantities import q
-from concert.tests import assert_almost_equal
+from concert.tests import assert_almost_equal, TestCase
 from concert.devices.motors.dummy import Motor as DummyMotor
 from concert.processes import scan, ascan, dscan, scan_param_feedback
-from concert.tests.base import ConcertTest
 
 
 def compare_sequences(first_sequence, second_sequence, assertion):
@@ -10,7 +9,7 @@ def compare_sequences(first_sequence, second_sequence, assertion):
         assertion(x, y)
 
 
-class TestScan(ConcertTest):
+class TestScan(TestCase):
 
     def setUp(self):
         super(TestScan, self).setUp()
