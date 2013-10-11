@@ -1,7 +1,7 @@
 import numpy as np
 from concert.helpers import coroutine, multicast, inject
 from concert.coroutines import generate_sinograms
-from concert.tests.base import ConcertTest
+from concert.tests import TestCase
 
 
 def producer(consumer):
@@ -14,7 +14,7 @@ def generator():
         yield i
 
 
-class TestDataTransfers(ConcertTest):
+class TestDataTransfers(TestCase):
 
     def setUp(self):
         super(TestDataTransfers, self).setUp()

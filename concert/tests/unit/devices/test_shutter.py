@@ -1,8 +1,8 @@
 from concert.devices.shutters.dummy import Shutter as DummyShutter
-from concert.tests.base import ConcertTest
+from concert.tests import TestCase
 
 
-class TestDummyShutter(ConcertTest):
+class TestDummyShutter(TestCase):
 
     def setUp(self):
         super(TestDummyShutter, self).setUp()

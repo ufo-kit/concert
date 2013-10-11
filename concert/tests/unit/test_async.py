@@ -3,8 +3,7 @@ import random
 from concurrent.futures import Future
 from concert.devices.dummy import DummyDevice
 from concert.helpers import async, wait, is_async
-from concert.tests import slow
-from concert.tests.base import ConcertTest
+from concert.tests import slow, TestCase
 
 
 @async
@@ -17,7 +16,7 @@ def bad_func():
     raise RuntimeError
 
 
-class TestAsync(ConcertTest):
+class TestAsync(TestCase):
 
     def setUp(self):
         super(TestAsync, self).setUp()

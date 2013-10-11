@@ -1,10 +1,10 @@
-from concert.tests.base import ConcertTest
-from concert.devices.cameras.dummy import FileCamera
 from concert.quantities import q
+from concert.tests import TestCase
+from concert.devices.cameras.dummy import FileCamera
 from concert.devices.cameras.base import CameraError
 
 
-class TestFileCamera(ConcertTest):
+class TestFileCamera(TestCase):
 
     def setUp(self):
         super(TestFileCamera, self).setUp()

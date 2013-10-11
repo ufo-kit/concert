@@ -1,5 +1,5 @@
 from concert.quantities import q
-from concert.tests.base import ConcertTest
+from concert.tests import TestCase
 from concert.base import (Parameterizable, Parameter,
                           WriteAccessError, ReadAccessError, UnitError,
                           SoftLimitError, HardLimitError)
@@ -47,7 +47,7 @@ def empty_setter(v):
     pass
 
 
-class TestParameterizable(ConcertTest):
+class TestParameterizable(TestCase):
 
     def setUp(self):
         super(TestParameterizable, self).setUp()
@@ -67,7 +67,7 @@ class TestParameterizable(ConcertTest):
         self.assertEqual(self.foo2.get_foo().result(), 23)
 
 
-class TestParameter(ConcertTest):
+class TestParameter(TestCase):
 
     def test_names(self):
         self.assertRaises(ValueError, Parameter, '1pm')

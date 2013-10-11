@@ -1,12 +1,11 @@
 import random
-from concert.tests import assert_almost_equal
+from concert.tests import assert_almost_equal, TestCase
 from concert.quantities import q
 from concert.devices.base import LinearCalibration
 from concert.devices.monochromators.dummy import\
     Monochromator as DummyMonochromator
 from concert.devices.monochromators import base
 from concert.devices.monochromators.base import Monochromator
-from concert.tests.base import ConcertTest
 
 
 class WavelengthMonochromator(Monochromator):
@@ -35,7 +34,7 @@ class UselessMonochromator(Monochromator):
         super(UselessMonochromator, self).__init__(self)
 
 
-class TestDummyMonochromator(ConcertTest):
+class TestDummyMonochromator(TestCase):
 
     def setUp(self):
         super(TestDummyMonochromator, self).setUp()

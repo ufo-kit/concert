@@ -1,8 +1,8 @@
 from concert.quantities import q, numerator_units, denominator_units
-from concert.tests.base import ConcertTest
+from concert.tests import TestCase
 
 
-class TestUnits(ConcertTest):
+class TestUnits(TestCase):
 
     def setUp(self):
         super(TestUnits, self).setUp()
