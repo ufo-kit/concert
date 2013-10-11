@@ -1,7 +1,7 @@
 from concert.base import Parameter, ParameterError
 from concert.devices.base import Device
 from concert.ui import get_default_table
-from concert.tests.base import ConcertTest
+from concert.tests import TestCase
 
 
 class MockDevice(Device):
@@ -19,7 +19,7 @@ class MockDevice(Device):
         super(MockDevice, self).__init__(self.params)
 
 
-class TestDevice(ConcertTest):
+class TestDevice(TestCase):
 
     def setUp(self):
         super(TestDevice, self).setUp()

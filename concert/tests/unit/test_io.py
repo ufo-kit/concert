@@ -1,9 +1,9 @@
 from concert.devices.io.dummy import IO
 from concert.base import ReadAccessError, WriteAccessError
-from concert.tests.base import ConcertTest
+from concert.tests import TestCase
 
 
-class TestDummyIO(ConcertTest):
+class TestDummyIO(TestCase):
 
     def setUp(self):
         super(TestDummyIO, self).setUp()

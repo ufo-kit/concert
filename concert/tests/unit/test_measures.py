@@ -3,15 +3,14 @@ from nose.plugins.attrib import attr
 from concert.quantities import q
 from concert.devices.base import LinearCalibration
 from concert.devices.motors.dummy import Motor
-from concert.tests import slow
-from concert.tests.base import ConcertTest
+from concert.tests import slow, TestCase
 from concert.tests.util.rotationaxis import SimulationCamera
 from concert.processes import scan
 from concert.measures import get_rotation_axis
 
 
 @attr('skip-travis')
-class TestRotationAxisMeasure(ConcertTest):
+class TestRotationAxisMeasure(TestCase):
 
     def setUp(self):
         super(TestRotationAxisMeasure, self).setUp()

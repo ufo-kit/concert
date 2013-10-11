@@ -1,9 +1,9 @@
 from concert.quantities import q
 from concert.devices.base import Calibration, LinearCalibration
-from concert.tests.base import ConcertTest
+from concert.tests import TestCase
 
 
-class TestLinearCalibration(ConcertTest):
+class TestLinearCalibration(TestCase):
     STEPS_PER_UNIT = 5000 * q.count / q.mm
     OFFSET = 0 * q.mm
 
