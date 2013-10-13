@@ -1,4 +1,5 @@
-"""Connection."""
+"""Connection protocols for network communication."""
+import os
 import logbook
 import socket
 from threading import Lock
@@ -7,7 +8,7 @@ from threading import Lock
 LOG = logbook.Logger(__name__)
 
 
-class Connection(object):
+class SocketConnection(object):
 
     """A two-way socket connection. *return_sequence* is a string appended
     after every command indicating the end of it, the default value
@@ -61,7 +62,7 @@ class Connection(object):
         return result
 
 
-class Aerotech(Connection):
+class Aerotech(SocketConnection):
 
     """Aerotech Connection. """
     EOS_CHAR = "\n"  # string termination character
@@ -103,3 +104,22 @@ class Aerotech(Connection):
     def recv(self):
         """Return properly interpreted answer from the controller."""
         return self._interpret_response(super(Aerotech, self).recv())
+
+
+def get_tango_device(self, uri, peer=None):
+    """
+    Get a Tango device by specifying its *uri*. If *peer* is given change the
+    tango_host specifying which database to connect to. Format is host:port
+    as a string.
+    """
+    import PyTango
+    # TODO: check if there is a way to adjust the host in PyTango.
+    if peer is not None:
+        os.environ["TANGO_HOST"] = peer
+
+    return PyTango.DeviceProxy(uri)
+
+
+def get_topotomo_tango_device(uri):
+    """Get a Tango device at ANKA's TopoTomo beam line specified by *uri*."""
+    return get_tango_device(uri, peer="anka-tango:10018")
