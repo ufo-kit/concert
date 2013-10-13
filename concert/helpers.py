@@ -172,3 +172,37 @@ def broadcast(*consumers):
         item = yield
         for consumer in consumers:
             consumer.send(item)
+
+
+class Command(object):
+    """Command class for the CLI script"""
+
+    def __init__(self, name, opts):
+        """
+        Command objects are loaded at run-time and injected into Concert's
+        command parser.
+
+        *name* denotes the name of the sub-command parser, e.g. "mv" for the
+        MoveCommand. *opts* must be an argparse-compatible dictionary
+        of command options.
+        """
+        self.name = name
+        self.opts = opts
+
+    def run(self, *args, **kwargs):
+        """Run the command"""
+        raise NotImplementedError
+
+
+class Bunch(object):
+    """Encapsulate a dictionary to provide attribute-like access.
+
+    Common use cases look like this::
+
+        d = {'foo': 123, 'bar': 'baz'}
+        b = Bunch(d)
+        print(b.foo)
+        >>> 123
+    """
+    def __init__(self, some_dict):
+        self.__dict__.update(some_dict)

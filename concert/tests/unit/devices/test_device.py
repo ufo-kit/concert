@@ -1,6 +1,6 @@
 from concert.base import Parameter, ParameterError
 from concert.devices.base import Device
-from concert.ui import get_default_table
+from concert.session.utils import get_default_table
 from concert.tests import TestCase
 
 

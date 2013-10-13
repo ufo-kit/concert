@@ -1,24 +1,6 @@
-"""Handle session management.
-
-A session is an ordinary Python module that is stored in a per-user
-directory."""
-import os
-import imp
 import inspect
-from concert.ui import get_default_table
-
-
-def _get_save_data_path():
-    env = os.environ
-    if "VIRTUAL_ENV" in env:
-        env["XDG_DATA_HOME"] = os.path.join(env["VIRTUAL_ENV"], "share")
-
-    import xdg.BaseDirectory
-    return xdg.BaseDirectory.save_data_path('concert')
-
-
-PATH = _get_save_data_path()
-DEFAULT_LOGFILE = os.path.join(PATH, 'concert.log')
+import prettytable
+from concert.devices.base import Device
 
 
 def _get_param_description_table(motor):
@@ -63,9 +45,21 @@ def _current_instances(instance_type):
             if isinstance(obj, instance_type))
 
 
+def get_default_table(field_names):
+    """Return a prettytable styled for use in the shell. *field_names* is a
+    list of table header strings."""
+    table = prettytable.PrettyTable(field_names)
+    table.border = True
+    table.hrules = prettytable.ALL
+    table.vertical_char = ' '
+    table.junction_char = '-'
+    for name in field_names:
+        table.align[name] = 'l'
+    return table
+
+
 def dstate():
     """Render device state in a table."""
-    from concert.devices.base import Device
 
     field_names = ["Name", "Parameters"]
     table = get_default_table(field_names)
@@ -120,71 +114,3 @@ def code_of(func):
         print(highlight(source, PythonLexer(), TerminalFormatter()))
     except ImportError:
         print(source)
-
-
-def path(session):
-    """Get absolute path of *session* module."""
-    return os.path.join(PATH, session + '.py')
-
-
-def create(session, imports=()):
-    """Create a template with *session* name and write it.
-
-    For each name in *imports* try to load it and insert `from
-    concert.processes.name import *` into the session file.
-
-    .. note:: This will *always* overwrite session.
-    """
-    template = 'from concert.quantities import q\n'
-    template += '\n'
-    template += 'from concert.session import ddoc, dstate, pdoc\n'
-    template += '\n'
-    template += '__doc__ = "This is session %s"\n' % session
-
-    def _module_exists(module_name):
-        try:
-            __import__(module_name)
-            return True
-        except ImportError:
-            return False
-
-    for module in imports:
-        module_name = 'concert.processes.{0}'.format(module)
-
-        if _module_exists(module_name):
-            template += 'from {0} import *'.format(module_name)
-        else:
-            print("{0} not found.".format(module_name))
-
-    if not os.path.exists(PATH):
-        os.mkdir(PATH)
-
-    with open(path(session), 'w') as session_file:
-        session_file.write(template)
-
-
-def remove(session):
-    """Remove a *session*."""
-    if exists(session):
-        os.unlink(path(session))
-
-
-def move(source, target):
-    """Move *source* to *target*."""
-    os.rename(path(source), path(target))
-
-
-def load(session):
-    """Load *session* and return the module."""
-    return imp.load_source('m', path(session))
-
-
-def get_existing():
-    """Get all existing session names."""
-    sessions = [f for f in os.listdir(PATH) if f.endswith('.py')]
-    return [os.path.splitext(f)[0] for f in sessions]
-
-
-def exists(session):
-    """Check if *session* already exists."""
-    return os.access(path(session), os.R_OK)
