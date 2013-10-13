@@ -3,7 +3,7 @@ import time
 import os
 from concert.storage import write_tiff, create_folder
 from concert.coroutines import write_images, ImageAverager, flat_correct
-from concert.helpers import inject, multicast
+from concert.helpers import inject, broadcast
 
 DARKS = "darks"
 FLATS = "flats"
@@ -94,7 +94,7 @@ def add_writer(folder, take_images, process_images, image_type,
     if process_images is not None:
         coroutines.append(process_images)
 
-    inject(take_images, multicast(*coroutines))
+    inject(take_images, broadcast(*coroutines))
 
 
 def add_averager(process_image, flat_correction):
@@ -111,7 +111,7 @@ def add_averager(process_image, flat_correction):
     if process_image is not None:
         coroutines.append(process_image)
 
-    return averager, multicast(*coroutines)
+    return averager, broadcast(*coroutines)
 
 
 def execute(folder, take_darks=None, take_flats=None, take_radios=None,

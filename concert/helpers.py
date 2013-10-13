@@ -162,9 +162,9 @@ def inject(generator, consumer):
 
 
 @coroutine
-def multicast(*consumers):
+def broadcast(*consumers):
     """
-    multicast(*consumers)
+    broadcast(*consumers)
 
     Forward data to all *consumers*.
     """

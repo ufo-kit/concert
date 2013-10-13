@@ -106,10 +106,10 @@ This will print::
     1
     2
 
-If there are more than one consumer which want to get the data, one can use
-the :py:func:`multicast` which maps 1 source to N consumers.
+If there are more than one consumer which want to get the data, one can use the
+:py:func:`broadcast` which maps 1 source to N consumers.
 
-.. autofunction:: multicast
+.. autofunction:: broadcast
  
 
 The generators and coroutines yield execution, but if the data production
