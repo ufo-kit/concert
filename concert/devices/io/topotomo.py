@@ -1,6 +1,6 @@
 """Tomo Table"""
 from concert.devices.io.base import IO, Port
-from concert.connections.tango import TopoTomo
+from concert.networking import get_topotomo_tango_device
 
 
 class TomoTable(IO):
@@ -12,7 +12,7 @@ class TomoTable(IO):
                       "Trigger input to the table."),
                  Port(6, "output", None, self.write_port,
                       "Trigger output from the table.")]
-        self._device = TopoTomo().get_device("iss/toto/modbusTomotable")
+        self._device = get_topotomo_tango_device("iss/toto/modbusTomotable")
         super(TomoTable, self).__init__(ports)
 
     def read_port(self, port):
