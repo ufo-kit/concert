@@ -10,6 +10,8 @@ API breaks:
 
 - Renamed ``concert.helpers.multicast`` to ``broadcast`` to reflect its true
   purpose.
+- Session helpers such as ``dstate`` and ``ddoc`` have been moved to
+  ``concert.session.utils``.
 
 
 Version 0.4

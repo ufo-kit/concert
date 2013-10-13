@@ -44,7 +44,6 @@ To get all parameters of an object, you can iterate over the device itself ::
 import re
 from logbook import Logger
 from concert.helpers import dispatcher, async
-from concert.ui import get_default_table
 
 
 LOG = Logger(__name__)
@@ -338,6 +337,8 @@ class Parameterizable(object):
                 self.add_parameter(parameter)
 
     def __str__(self):
+        from concert.session.utils import get_default_table
+
         table = get_default_table(["Parameter", "Value"])
         table.border = False
         readable = (param for param in self if param.is_readable())
