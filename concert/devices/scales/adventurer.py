@@ -2,7 +2,7 @@
 
 from concert.devices.scales import base
 from concert.devices.base import LinearCalibration, Device
-from concert.connections.inet import Connection
+from concert.networking import SocketConnection
 from concert.quantities import q
 from concert.devices.scales.base import WeightError
 
@@ -16,7 +16,7 @@ class ARRW60(base.TarableScales):
     def __init__(self, host, port):
         super(ARRW60, self).__init__(LinearCalibration(q.counts / q.g,
                                                        0 * q.g))
-        self._connection = Connection(host, port, "\r\n")
+        self._connection = SocketConnection(host, port, "\r\n")
         self._states = self._states.union(set([ARRW60.OK, ARRW60.ERROR]))
 
     def _execute(self, cmd):

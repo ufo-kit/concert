@@ -1,6 +1,6 @@
 """Topotomo"""
 from concert.devices.shutters import base
-from concert.connections.tango import TopoTomo
+from concert.networking import get_topotomo_tango_device
 import time
 
 
@@ -13,7 +13,7 @@ class Shutter(base.Shutter):
             raise ValueError("Index must be in range [0-2].")
 
         super(Shutter, self).__init__()
-        self._device = TopoTomo().get_device("iss/toto/rato_toto")
+        self._device = get_topotomo_tango_device("iss/toto/rato_toto")
         self._index = index
 
     @property

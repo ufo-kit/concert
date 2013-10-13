@@ -5,7 +5,7 @@ import readline
 from concert.quantities import q
 from concert.devices.base import LinearCalibration
 from concert.devices.motors.base import Motor
-from concert.connections.inet import Connection
+from concert.networking import SocketConnection
 
 
 CRIO_HOST = 'cRIO9074-Motion.ka.fzk.de'
@@ -20,7 +20,7 @@ class LinearMotor(Motor):
         calibration = LinearCalibration(50000 / q.mm, -1 * q.mm)
         super(LinearMotor, self).__init__(calibration)
 
-        self._connection = Connection(CRIO_HOST, CRIO_PORT)
+        self._connection = SocketConnection(CRIO_HOST, CRIO_PORT)
         self['position'].limiter = lambda x: x >= 0 * q.mm and x <= 2 * q.mm
 
         self._home()
@@ -50,7 +50,7 @@ class RotationMotor(Motor):
         super(RotationMotor, self).__init__(calibration)
 
         self._steps = 0
-        self._connection = Connection(CRIO_HOST, CRIO_PORT)
+        self._connection = SocketConnection(CRIO_HOST, CRIO_PORT)
         self['position'].limiter = lambda x: x >= 0 * q.mm and x <= 2 * q.mm
 
     def _get_position(self):
