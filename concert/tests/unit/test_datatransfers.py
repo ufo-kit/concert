@@ -1,5 +1,5 @@
 import numpy as np
-from concert.helpers import coroutine, multicast, inject
+from concert.helpers import coroutine, broadcast, inject
 from concert.coroutines import generate_sinograms
 from concert.tests import TestCase
 
@@ -31,8 +31,8 @@ class TestDataTransfers(TestCase):
         while True:
             self.data_2 = yield
 
-    def test_multicast(self):
-        producer(multicast(self.consume(), self.consume_2()))
+    def test_broadcast(self):
+        producer(broadcast(self.consume(), self.consume_2()))
         self.assertEqual(self.data, 4)
         self.assertEqual(self.data_2, 4)
 
