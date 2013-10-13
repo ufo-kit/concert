@@ -17,7 +17,8 @@ To define a function as asynchronous, use the :func:`.async` decorator::
         # long running operation
         return 1
 
-Every asynchronous function returns a *Future* that can be used for explicit synchronization::
+Every asynchronous function returns a *Future* that can be used for explicit
+synchronization::
 
     future = synchronous_function()
     print(future.done())
@@ -60,64 +61,6 @@ the test runner which in turn sets :data:`.DISABLE` to ``True``.
 
     A global configuration variable that will disable asynchronous execution
     when set to ``True``.
-
-
-Coroutines
-==========
-
-Coroutines provide a way to process data, yield execution until more data
-is produced and so on. They are used together with generators to provide
-such behavior. If one wants to program a coroutine then it must be
-decorated with :py:func:`coroutine`.
-
-.. autofunction:: coroutine
-
-To connect a generator and a coroutine Concert provides an :py:func:`inject`
-function which lets the generator produce the data and feeds a consumer with
-it.
-
-.. autofunction:: inject
-
-An example generator and coroutine pair could look like this::
-
-    from concert.helpers import coroutine, inject
-
-
-    def generate():
-        for i in range(3):
-            yield i
-
-
-    @coroutine
-    def consume():
-        while True:
-            item = yield
-            print(item)
-
-The generator produces some numbers and the consumer just prints them to
-stdout. To connect these two we use the :py:func:`inject` function,
-so the execution of the code could look like::
-
-    inject(generate(), consume())
-
-This will print::
-
-    0
-    1
-    2
-
-If there are more than one consumer which want to get the data, one can use the
-:py:func:`broadcast` which maps 1 source to N consumers.
-
-.. autofunction:: broadcast
- 
-
-The generators and coroutines yield execution, but if the data production
-should not be stalled by data consumption the coroutine should only provide
-data buffering and delegate the real consumption to a separate thread or
-process. The same can be achieved by first buffering the data and then
-yielding them by a generator. It comes from the fact that a generator
-will not produce a new value until the old one has been consumed.
 
 
 Messaging

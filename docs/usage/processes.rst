@@ -67,6 +67,94 @@ and routines for executing the optimization.
     :members:
 
 
+Coroutine-based processing
+==========================
+
+Coroutines provide a way to process data and yield execution until more data
+is produced. To build flexible coroutine-based processing pipelines in Python,
+the enhanced ``yield`` statement is used. To simplify startup of the coroutine,
+you can decorate a function with :py:func:`.coroutine`::
+
+    from concert.helpers import coroutine
+
+    @coroutine
+    def printer():
+        while True:
+            item = yield
+            print(item)
+
+Because the ``printer`` only consumes data it is an end point, hence called a
+sink. Filters on the other hand hook into the stream and turn the input into
+some output. For example, to generate a stream of squared input, you would
+write::
+
+    @coroutine
+    def square(target):
+        while True:
+            item = yield
+            target.send(item**2)
+
+.. autofunction:: concert.helpers.coroutine
+
+
+Connection data sources with coroutines
+---------------------------------------
+
+There are two ways to produce data for a coroutine. The recommended way is to
+write a function that sends data *into* a coroutine::
+
+    def source(n, target):
+        for i in range(n):
+            target.send(i)
+
+This inserts the numbers 0 to n-1 into the coroutine ``target``. To connect
+``source`` with the ``printer`` coroutine, you simply call the coroutine as the
+argument of the source::
+
+    source(5, printer())
+
+In some cases, you will be faced with a generator that ``yields`` data instead
+of sending it. In that case, use the :py:func:`.inject` function to forward
+generated data to a coroutine::
+
+    from concert.helpers import inject
+
+    def generator(n):
+        for i in range(n):
+            yield i
+
+    inject(generator(5), printer())
+
+To fan out a single input stream to multiple consumers, you can use the
+:py:func:`.broadcast` like this::
+
+    from concert.helpers import broadcast
+
+    source(5, broadcast(printer(),
+                        square(printer())))
+
+.. autofunction:: concert.helpers.inject
+.. autofunction:: concert.helpers.broadcast
+
+
+High-performance processing
+---------------------------
+
+The generators and coroutines yield execution, but if the data production
+should not be stalled by data consumption the coroutine should only provide
+data buffering and delegate the real consumption to a separate thread or
+process. The same can be achieved by first buffering the data and then
+yielding them by a generator. It comes from the fact that a generator
+will not produce a new value until the old one has been consumed.
+
+
+Pre-defined coroutines
+----------------------
+
+.. automodule:: concert.coroutines
+    :members:
+
+
 Data processing with Ufo
 ========================
 
