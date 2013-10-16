@@ -27,6 +27,7 @@ Developer documentation
 
     api/tutorial
     api/devices
+    api/networking
     api/helpers
 
 
