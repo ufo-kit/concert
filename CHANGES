@@ -8,6 +8,7 @@ Version 0.5
 
 API breaks:
 
+- ``concert.connections`` package moved to ``concert.networking`` module
 - Renamed ``concert.helpers.multicast`` to ``broadcast`` to reflect its true
   purpose.
 - Session helpers such as ``dstate`` and ``ddoc`` have been moved to
