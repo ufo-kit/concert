@@ -56,8 +56,6 @@ class Camera(base.Camera):
         from gi.repository import GObject, Uca
 
         self._manager = Uca.PluginManager()
-        self._data = None
-        self._array = None
 
         try:
             self.uca = self._manager.get_camerav(name, [])
@@ -99,7 +97,6 @@ class Camera(base.Camera):
         self.frames_per_second = frame_rate * q.s
 
     def _record_real(self):
-        self._array, self._data = _create_data_array(self.uca)
         self.uca.start_recording()
 
     def _stop_real(self):
@@ -109,10 +106,9 @@ class Camera(base.Camera):
         self.uca.trigger()
 
     def _grab_real(self):
-        if not self._data:
-            self._array, self._data = _create_data_array(self.uca)
+        array, data = _create_data_array(self.uca)
 
-        if self.uca.grab(self._data):
-            return self._array
+        if self.uca.grab(data):
+            return array
 
         return None
