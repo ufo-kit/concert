@@ -38,7 +38,7 @@ def _create_data_array(camera):
     bits = camera.props.sensor_bitdepth
     dtype = np.uint16 if bits > 8 else np.uint8
     dims = camera.props.roi_height, camera.props.roi_width
-    array = np.zeros(dims, dtype=dtype)
+    array = np.empty(dims, dtype=dtype)
     return (array, array.__array_interface__['data'][0])
 
 
