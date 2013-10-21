@@ -110,7 +110,14 @@ class PyplotViewer(object):
 
             def update_image(iteration):
                 try:
-                    image = self._queue.get(timeout=0.1)
+                    if update_image.first:
+                        # Wait as much time as it takes for the first
+                        # time beacuse we don't want to show a window
+                        # with no image in it.
+                        image = self._queue.get()
+                        update_image.first = False
+                    else:
+                        image = self._queue.get(timeout=0.1)
                     if image is not None:
                         if update_image.shape is not None and \
                                 update_image.shape != image.shape:
@@ -164,6 +171,7 @@ class PyplotViewer(object):
             update_image.lower = None
             update_image.upper = None
             update_image.colorbar = None
+            update_image.first = True
             _ = FuncAnimation(figure, update_image, interval=5,
                               blit=True)
             plt.show()
