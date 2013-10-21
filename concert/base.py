@@ -42,11 +42,11 @@ To get all parameters of an object, you can iterate over the device itself ::
         print("{0} => {1}".format(param.unit, param.name))
 """
 import re
-from logbook import Logger
+import logging
 from concert.helpers import dispatcher, async
 
 
-LOG = Logger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 class UnitError(ValueError):

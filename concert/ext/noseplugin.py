@@ -1,9 +1,5 @@
-import logging
 import os
 import nose.plugins
-
-
-LOG = logging.getLogger(__name__)
 
 
 class DisableAsync(nose.plugins.Plugin):

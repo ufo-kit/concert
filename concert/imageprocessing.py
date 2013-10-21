@@ -5,13 +5,13 @@ backprojection, flat field correction and other operations on images.
 
 import multiprocessing
 import numpy as np
-import logbook
+import logging
 from multiprocessing import Pool
 from scipy import ndimage
 from concert.helpers import threaded
 
 
-LOG = logbook.Logger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 def flat_correct(radio, flat, dark=None):

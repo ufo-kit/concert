@@ -2,11 +2,11 @@
 Tango motors with ANKA specific interfaces.
 """
 import time
-import logbook
+import logging
 from concert.quantities import q
 from concert.devices.motors import base
 
-LOG = logbook.Logger(__name__)
+LOG = logging.getLogger(__name__)
 
 try:
     import PyTango

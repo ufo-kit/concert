@@ -7,14 +7,14 @@ to
 
 This module provides execution routines and algorithms for optimization.
 """
+import logging
 from functools import wraps
-import logbook
 from concert.helpers import async
 from concert.base import LimitError
 from concert.quantities import q
 
 
-LOG = logbook.Logger()
+LOG = logging.getLogger(__name__)
 
 
 @async

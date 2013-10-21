@@ -8,15 +8,15 @@ try:
     from Queue import Empty
 except ImportError:
     from queue import Empty
-from multiprocessing import Queue as MultiprocessingQueue, Process
-from subprocess import Popen
-import logbook
+import logging
 import numpy as np
+from subprocess import Popen
+from multiprocessing import Queue as MultiprocessingQueue, Process
 from concert.helpers import coroutine, threaded
 from concert.storage import write_tiff
 
 
-LOG = logbook.Logger(__name__)
+LOG = logging.getLogger(__name__)
 _PYPLOT_VIEWERS = []
 _ORIG_SIGINT_HANDLER = signal.getsignal(signal.SIGINT)
 

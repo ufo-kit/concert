@@ -1,11 +1,11 @@
 """Connection protocols for network communication."""
 import os
-import logbook
+import logging
 import socket
 from threading import Lock
 
 
-LOG = logbook.Logger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 class SocketConnection(object):

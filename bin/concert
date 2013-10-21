@@ -2,6 +2,7 @@
 
 import argparse
 import contextlib
+import logging
 import os
 import re
 import sys
@@ -314,21 +315,25 @@ class StartCommand(Command):
                             'default': 'file'},
                 '--logfile': {'type': str}}
         super(StartCommand, self).__init__('start', opts)
-        self.handler = None
+        self.logger = None
 
     def run(self, session=None, logto='file', logfile=None):
-        import logbook
-
         concert.session.exit_if_not_exists(session)
 
         if logto == 'file':
             filename = logfile if logfile else concert.session.logfile_path()
-            self.handler = logbook.FileHandler(filename)
+            handler = logging.FileHandler(filename)
         else:
-            self.handler = logbook.StderrHandler()
+            handler = logging.StreamHandler(sys.stderr)
 
-        self.handler.format_string = '[{record.time}] {record.level_name}: \
-    %s: {record.channel}: {record.message}' % session
+        handler.setLevel(logging.DEBUG)
+        logformat = '[%(asctime)s] %(name)s: {}: %(message)s'
+        formatter = logging.Formatter(logformat.format(session))
+        handler.setFormatter(formatter)
+
+        self.logger = logging.getLogger()
+        self.logger.addHandler(handler)
+        self.logger.setLevel(logging.DEBUG)
 
         # Add session path, so that sessions can import other sessions
         sys.path.append(concert.session.path())
@@ -357,12 +362,11 @@ class StartCommand(Command):
         globals().update(mvars)
 
         try:
-            with self.handler.applicationbound():
-                shell = get_ipython_shell()
-                exceptions = (UnitError, LimitError, ParameterError,
-                              ReadAccessError, WriteAccessError)
-                shell.set_custom_exc(exceptions, _handler)
-                shell()
+            shell = get_ipython_shell()
+            exceptions = (UnitError, LimitError, ParameterError,
+                          ReadAccessError, WriteAccessError)
+            shell.set_custom_exc(exceptions, _handler)
+            shell()
         except ImportError as exception:
             msg = "You must install IPython to run the Concert shell: {0}"
             print(msg.format(exception))

@@ -1,12 +1,12 @@
 """Aerotech Controller."""
-import logbook
+import logging
 from concert.helpers import async
 from concert.connections.inet import Aerotech
 from concert.devices.base import Device
 from concert.devices.io.aerotech import IO
 
 
-LOG = logbook.Logger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 class HLe(Device):
