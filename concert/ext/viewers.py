@@ -1,7 +1,10 @@
 """Opening images in external programs."""
 import os
 import tempfile
-from Queue import Empty
+try:
+    from Queue import Empty
+except ImportError:
+    from queue import Empty
 from multiprocessing import Queue as MultiprocessingQueue, Process
 from subprocess import Popen
 import logbook
