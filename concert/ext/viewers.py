@@ -135,8 +135,8 @@ class PyplotViewer(object):
                             plt.draw()
                         else:
                             update_image.mpl_image.set_data(image)
-                            new_lower = image.min()
-                            new_upper = image.max()
+                            new_lower = float(image.min())
+                            new_upper = float(image.max())
                             if update_image.lower is None:
                                 update_image.lower = new_lower
                                 update_image.upper = new_upper
