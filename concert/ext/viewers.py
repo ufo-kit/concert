@@ -45,7 +45,7 @@ class PyplotViewer(object):
         self._queue = MultiprocessingQueue()
         self._stopped = False
         self._make_imshow_defaults()
-        self._proc = Process(target=self.run)
+        self._proc = Process(target=self._run)
         self._proc.start()
 
     @coroutine
@@ -93,7 +93,7 @@ class PyplotViewer(object):
             self._queue.put(None)
             self._stopped = True
 
-    def run(self):
+    def _run(self):
         """
         Run the process, i.e. wait for an image to come to the queue
         and dispaly it. This method is executed in a separate process.
