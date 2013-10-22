@@ -1,4 +1,5 @@
 """Opening images in external programs."""
+import atexit
 import os
 import signal
 import tempfile
@@ -36,8 +37,12 @@ def _sigint_handler(signum, frame):
     if hasattr(_ORIG_SIGINT_HANDLER, "__call__"):
         _ORIG_SIGINT_HANDLER(signum, frame)
 
+
 # Register sigint handler for closing all PyplotViewer instances
 signal.signal(signal.SIGINT, _sigint_handler)
+# Register termination of all the PyplotViewer isntances also on
+# normal exit
+atexit.register(_terminate_pyplotviewers)
 
 
 def _start_command(program, image, writer=write_tiff):
