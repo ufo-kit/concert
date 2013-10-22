@@ -1,5 +1,6 @@
 """Opening images in external programs."""
 import os
+import signal
 import tempfile
 try:
     from Queue import Empty
@@ -13,6 +14,30 @@ from concert.storage import write_tiff
 
 
 LOG = logbook.Logger(__name__)
+_PYPLOT_VIEWERS = []
+_ORIG_SIGINT_HANDLER = signal.getsignal(signal.SIGINT)
+
+
+def _terminate_pyplotviewers():
+    """Terminate all :py:class:`PyplotViewer` isntances."""
+    for viewer in _PYPLOT_VIEWERS:
+        if viewer is not None:
+            viewer.terminate()
+
+
+def _sigint_handler(signum, frame):
+    """
+    Handle the interrupt signal in order to exit gracefully
+    by terminating all the :py:class:`PyplotViewer` processes.
+    """
+    _terminate_pyplotviewers()
+    # Call the original handler, but first check if it
+    # actually can be called (depends on OS)
+    if hasattr(_ORIG_SIGINT_HANDLER, "__call__"):
+        _ORIG_SIGINT_HANDLER(signum, frame)
+
+# Register sigint handler for closing all PyplotViewer instances
+signal.signal(signal.SIGINT, _sigint_handler)
 
 
 def _start_command(program, image, writer=write_tiff):
@@ -48,8 +73,10 @@ class PyplotViewer(object):
         self._queue = MultiprocessingQueue()
         self._stopped = False
         self._make_imshow_defaults()
+        self._terminated = False
         self._proc = Process(target=self._run)
         self._proc.start()
+        _PYPLOT_VIEWERS.append(self)
 
     @coroutine
     def __call__(self, size=None):
@@ -74,8 +101,9 @@ class PyplotViewer(object):
 
     def terminate(self):
         """Close all communication and terminate child process."""
-        self._queue.close()
-        self._proc.terminate()
+        if not self._terminated:
+            self._queue.close()
+            self._proc.terminate()
 
     def show(self, item, force=False):
         """
