@@ -10,6 +10,7 @@ except ImportError:
 from multiprocessing import Queue as MultiprocessingQueue, Process
 from subprocess import Popen
 import logbook
+import numpy as np
 from concert.helpers import coroutine, threaded
 from concert.storage import write_tiff
 
@@ -135,77 +136,14 @@ class PyplotViewer(object):
         and dispaly it. This method is executed in a separate process.
         """
         # This import *must* be here, otherwise it doesn't work on Linux
-        import numpy as np
         from matplotlib import pyplot as plt
         from matplotlib.animation import FuncAnimation
+
         try:
             figure = plt.figure()
-
-            def update_image(iteration):
-                try:
-                    if update_image.first:
-                        # Wait as much time as it takes for the first
-                        # time beacuse we don't want to show a window
-                        # with no image in it.
-                        image = self._queue.get()
-                        update_image.first = False
-                    else:
-                        image = self._queue.get(timeout=0.1)
-                    if image is not None:
-                        if update_image.shape is not None and \
-                                update_image.shape != image.shape:
-                            # When the shape changes the axes needs to be reset
-                            update_image.mpl_image.axes.clear()
-                            update_image.mpl_image = None
-
-                        if update_image.mpl_image is None:
-                            update_image.mpl_image = \
-                                plt.imshow(image,
-                                           **self._imshow_kwargs)
-                            if self._has_colorbar and update_image.colorbar \
-                                    is None:
-                                update_image.colorbar = plt.colorbar()
-                            plt.draw()
-                        else:
-                            update_image.mpl_image.set_data(image)
-                            new_lower = float(image.min())
-                            new_upper = float(image.max())
-                            if update_image.lower is None:
-                                update_image.lower = new_lower
-                                update_image.upper = new_upper
-                            else:
-                                range = new_upper - new_lower
-                                lower_ratio = \
-                                    np.abs(new_lower -
-                                           update_image.lower) / range
-                                upper_ratio = \
-                                    np.abs(new_upper -
-                                           update_image.upper) / range
-                                # If the lower or upper bound changed more
-                                # than 10 % of the whole range we update the
-                                # colorbar.
-                                if lower_ratio > 0.1 or upper_ratio > 0.1:
-                                    update_image.lower = new_lower
-                                    update_image.upper = new_upper
-                                    # We need to redraw in order to update
-                                    # the ticklabels
-                                    update_image.colorbar.set_clim(new_lower,
-                                                                   new_upper)
-                                    update_image.colorbar.draw_all()
-                                    plt.draw()
-                        update_image.shape = image.shape
-                except Empty:
-                    pass
-                finally:
-                    return update_image.mpl_image,
-
-            update_image.mpl_image = None
-            update_image.shape = None
-            update_image.lower = None
-            update_image.upper = None
-            update_image.colorbar = None
-            update_image.first = True
-            _ = FuncAnimation(figure, update_image, interval=5,
+            updater = _PyplotUpdater(self._queue, self._imshow_kwargs,
+                                     self._has_colorbar)
+            _ = FuncAnimation(figure, updater.update, interval=5,
                               blit=True)
             plt.show()
 
@@ -220,3 +158,93 @@ class PyplotViewer(object):
             self._imshow_kwargs["cmap"] = cm.gray
         if "interpolation" not in self._imshow_kwargs:
             self._imshow_kwargs["interpolation"] = "nearest"
+
+
+class _PyplotUpdater(object):
+    """
+    Private class for updating a matplotlib figure with an image stream.
+    """
+    def __init__(self, queue, imshow_kwargs, has_colorbar):
+        self.queue = queue
+        self.imshow_kwargs = imshow_kwargs
+        self.has_colorbar = has_colorbar
+        self.mpl_image = None
+        self.shape = None
+        self.lower = None
+        self.upper = None
+        self.colorbar = None
+        self.first = True
+
+    def update(self, iteration):
+        """
+        Update function which is going to be called by matplotlib's
+        FuncAnimation instance.
+        """
+        try:
+            if self.first:
+                # Wait as much time as it takes for the first
+                # time beacuse we don't want to show a window
+                # with no image in it.
+                image = self.queue.get()
+                self.first = False
+            else:
+                image = self.queue.get(timeout=0.1)
+            if image is not None:
+                if self.shape is not None and self.shape != image.shape:
+                    # When the shape changes the axes needs to be reset
+                    self.mpl_image.axes.clear()
+                    self.mpl_image = None
+
+                if self.mpl_image is None:
+                    # Either removed by shape change or first time drawing
+                    self.make_image(image)
+                else:
+                    self.update_all(image)
+                # Remember the shape because when it changes we need to
+                # recreate the matplotlib image.
+                self.shape = image.shape
+        except Empty:
+            pass
+        finally:
+            retval = [] if self.mpl_image is None else [self.mpl_image]
+            return retval
+
+    def update_all(self, image):
+        """Update image and colorbar."""
+        self.mpl_image.set_data(image)
+        new_lower = float(image.min())
+        new_upper = float(image.max())
+        if self.lower is None:
+            self.lower = new_lower
+            self.upper = new_upper
+        elif self.limits_changed(new_lower, new_upper):
+            self.lower = new_lower
+            self.upper = new_upper
+            self.update_colorbar()
+
+    def update_colorbar(self):
+        """Update the colorbar (rescale and redraw)."""
+        from matplotlib import pyplot as plt
+        lower, upper = self.mpl_image.get_clim()
+        self.colorbar.set_clim(lower, upper)
+        self.colorbar.draw_all()
+        plt.draw()
+
+    def make_image(self, image):
+        """Create an image with colorbar"""
+        from matplotlib import pyplot as plt
+        self.mpl_image = plt.imshow(image, **self.imshow_kwargs)
+        if self.has_colorbar and self.colorbar is None:
+            self.colorbar = plt.colorbar()
+        plt.draw()
+
+    def limits_changed(self, lower, upper):
+        """
+        Determine whether the colormap limits changed enough for colorbar
+        redrawing.
+        """
+        new_range = upper - lower
+        lower_ratio = np.abs(lower - self.lower) / new_range
+        upper_ratio = np.abs(upper - self.upper) / new_range
+
+        return lower_ratio > 0.1 or upper_ratio > 0.1
