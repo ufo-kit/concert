@@ -112,3 +112,22 @@ class Camera(base.Camera):
             return array
 
         return None
+
+
+class Pco(Camera):
+
+    def __init__(self):
+        super(Pco, self).__init__('pco')
+
+        # Hopefully this won't do too much harm ...
+
+        def patch_enum(enum):
+            for key, value in enum.__enum_values__.items():
+                name = value.value_nick.upper()
+                if not hasattr(enum, name):
+                    setattr(enum, name, key)
+
+        patch_enum(self.uca.props.storage_mode)
+        patch_enum(self.uca.props.record_mode)
+        patch_enum(self.uca.props.acquire_mode)
+        patch_enum(self.uca.props.timestamp)
