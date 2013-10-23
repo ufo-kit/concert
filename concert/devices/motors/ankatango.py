@@ -3,6 +3,7 @@ Tango motors with ANKA specific interfaces.
 """
 import time
 import logbook
+from concert.quantities import q
 from concert.devices.motors import base
 
 LOG = logbook.Logger(__name__)
@@ -44,7 +45,7 @@ class Motor(base.Motor):
         return state
 
     def _set_position(self, position):
-        self._device.position = position
+        self._device.position = position.magnitude
 
         time.sleep(SLOW_SLEEP_TIME)
 
@@ -52,7 +53,7 @@ class Motor(base.Motor):
             time.sleep(SLEEP_TIME)
 
     def _get_position(self):
-        return self._device.position
+        return self._device.position * q.count
 
     def _stop(self):
         self._device.Stop()
