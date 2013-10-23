@@ -132,6 +132,14 @@ class PyplotViewer(object):
             LOG.debug("Stopping viewer")
             self._stopped = True
 
+    def set_limits(self, clim):
+        """
+        Update the colormap limits by *clim*, which is a (lower, upper)
+        tuple.
+        """
+        if not self._stopped:
+            self._queue.put((_PyplotUpdater.CLIM, clim))
+
     def _run(self):
         """
         Run the process, i.e. wait for an image to come to the queue
@@ -169,18 +177,22 @@ class _PyplotUpdater(object):
     """
 
     IMAGE = "image"
+    CLIM = "clim"
 
     def __init__(self, queue, imshow_kwargs, has_colorbar):
         self.queue = queue
         self.imshow_kwargs = imshow_kwargs
         self.has_colorbar = has_colorbar
         self.mpl_image = None
-        self.shape = None
         self.lower = None
         self.upper = None
         self.colorbar = None
         self.first = True
-        self.commands = {_PyplotUpdater.IMAGE: self.process_image}
+        self.image = None
+        self.clim = None
+        self.image = None
+        self.commands = {_PyplotUpdater.IMAGE: self.process_image,
+                         _PyplotUpdater.CLIM: self.update_limits}
 
     def process(self, iteration):
         """
@@ -205,25 +217,45 @@ class _PyplotUpdater(object):
             return retval
 
     def process_image(self, image):
-        if self.shape is not None and self.shape != image.shape:
+        """Process the incoming *image*."""
+        if self.image is not None and self.image.shape != image.shape:
             # When the shape changes the axes needs to be reset
             self.mpl_image.axes.clear()
             self.mpl_image = None
 
+        self.image = image
+
         if self.mpl_image is None:
             # Either removed by shape change or first time drawing
-            self.make_image(image)
+            self.make_image()
         else:
-            self.update_all(image)
-        # Remember the shape because when it changes we need to
-        # recreate the matplotlib image.
-        self.shape = image.shape
+            self.update_all()
 
-    def update_all(self, image):
+    def update_limits(self, clim):
+        """
+        Update current colormap limits by *clim*, which is a tuple
+        (lower, upper). If *clim* is None, the limit is reset to the span of
+        the current image.
+        """
+        self.clim = clim
+
+        if clim is None and self.image is not None:
+            # Restore the full clim
+            clim = self.image.min(), self.image.max()
+
+        if self.mpl_image is not None and clim is not None:
+            self.mpl_image.set_clim(clim)
+
+    def update_all(self):
         """Update image and colorbar."""
-        self.mpl_image.set_data(image)
-        new_lower = float(image.min())
-        new_upper = float(image.max())
+        self.mpl_image.set_data(self.image)
+        if self.clim is None:
+            new_lower = float(self.image.min())
+            new_upper = float(self.image.max())
+        else:
+            new_lower = self.clim[0]
+            new_upper = self.clim[1]
+
         if self.lower is None:
             self.lower = new_lower
             self.upper = new_upper
@@ -240,10 +272,12 @@ class _PyplotUpdater(object):
         self.colorbar.draw_all()
         plt.draw()
 
-    def make_image(self, image):
+    def make_image(self):
         """Create an image with colorbar"""
         from matplotlib import pyplot as plt
-        self.mpl_image = plt.imshow(image, **self.imshow_kwargs)
+        self.mpl_image = plt.imshow(self.image, **self.imshow_kwargs)
+        if self.clim is not None:
+            self.mpl_image.set_clim(self.clim)
         if self.has_colorbar and self.colorbar is None:
             self.colorbar = plt.colorbar()
         plt.draw()
