@@ -96,12 +96,12 @@ class PyplotViewer(object):
         while True:
             image = yield
             if size is None or i < size:
-                self.show(image)
-
                 if size is not None and i == size - 1:
                     # Maximum number of images has come, end redrawing
                     self.show(image, force=True)
                     self.stop()
+                else:
+                    self.show(image)
 
             i += 1
 
