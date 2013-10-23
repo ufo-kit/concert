@@ -106,7 +106,7 @@ class Aerotech(SocketConnection):
         return self._interpret_response(super(Aerotech, self).recv())
 
 
-def get_tango_device(self, uri, peer=None):
+def get_tango_device(uri, peer=None):
     """
     Get a Tango device by specifying its *uri*. If *peer* is given change the
     tango_host specifying which database to connect to. Format is host:port
