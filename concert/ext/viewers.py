@@ -3,6 +3,7 @@ import atexit
 import os
 import signal
 import tempfile
+import time
 try:
     from Queue import Empty
 except ImportError:
@@ -102,6 +103,8 @@ class PyplotViewer(object):
                     self.stop()
                 else:
                     self.show(image)
+                # This helps with the smoothness of drawing
+                time.sleep(0.001)
 
             i += 1
 
