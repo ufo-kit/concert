@@ -124,13 +124,12 @@ class PyplotViewer(object):
             raise ValueError("Cannot add images to a stopped viewer")
 
         if self._queue.empty() or force:
-            self._queue.put(item)
+            self._queue.put((_PyplotUpdater.IMAGE, item))
 
     def stop(self):
         """Stop, no more images will be displayed from now on."""
         if not self._stopped:
             LOG.debug("Stopping viewer")
-            self._queue.put(None)
             self._stopped = True
 
     def _run(self):
@@ -146,7 +145,7 @@ class PyplotViewer(object):
             figure = plt.figure()
             updater = _PyplotUpdater(self._queue, self._imshow_kwargs,
                                      self._has_colorbar)
-            _ = FuncAnimation(figure, updater.update, interval=5,
+            _ = FuncAnimation(figure, updater.process, interval=5,
                               blit=True)
             plt.show()
 
@@ -164,9 +163,13 @@ class PyplotViewer(object):
 
 
 class _PyplotUpdater(object):
+
     """
     Private class for updating a matplotlib figure with an image stream.
     """
+
+    IMAGE = "image"
+
     def __init__(self, queue, imshow_kwargs, has_colorbar):
         self.queue = queue
         self.imshow_kwargs = imshow_kwargs
@@ -177,8 +180,9 @@ class _PyplotUpdater(object):
         self.upper = None
         self.colorbar = None
         self.first = True
+        self.commands = {_PyplotUpdater.IMAGE: self.process_image}
 
-    def update(self, iteration):
+    def process(self, iteration):
         """
         Update function which is going to be called by matplotlib's
         FuncAnimation instance.
@@ -188,29 +192,32 @@ class _PyplotUpdater(object):
                 # Wait as much time as it takes for the first
                 # time beacuse we don't want to show a window
                 # with no image in it.
-                image = self.queue.get()
+                item = self.queue.get()
                 self.first = False
             else:
-                image = self.queue.get(timeout=0.1)
-            if image is not None:
-                if self.shape is not None and self.shape != image.shape:
-                    # When the shape changes the axes needs to be reset
-                    self.mpl_image.axes.clear()
-                    self.mpl_image = None
-
-                if self.mpl_image is None:
-                    # Either removed by shape change or first time drawing
-                    self.make_image(image)
-                else:
-                    self.update_all(image)
-                # Remember the shape because when it changes we need to
-                # recreate the matplotlib image.
-                self.shape = image.shape
+                item = self.queue.get(timeout=0.1)
+            command, data = item
+            self.commands[command](data)
         except Empty:
             pass
         finally:
             retval = [] if self.mpl_image is None else [self.mpl_image]
             return retval
+
+    def process_image(self, image):
+        if self.shape is not None and self.shape != image.shape:
+            # When the shape changes the axes needs to be reset
+            self.mpl_image.axes.clear()
+            self.mpl_image = None
+
+        if self.mpl_image is None:
+            # Either removed by shape change or first time drawing
+            self.make_image(image)
+        else:
+            self.update_all(image)
+        # Remember the shape because when it changes we need to
+        # recreate the matplotlib image.
+        self.shape = image.shape
 
     def update_all(self, image):
         """Update image and colorbar."""
