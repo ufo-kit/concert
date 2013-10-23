@@ -91,6 +91,31 @@ class Camera(base.Camera):
 
         super(Camera, self).__init__(parameters)
 
+    def readout(self, condition=lambda: True):
+        """
+        Readout images from the camera buffer. *condition* is a callable,
+        as long as it resolves to True the camera keeps grabbing.
+        """
+        while condition():
+            image = self.grab()
+            if image is None:
+                break
+            yield image
+
+    def acquire(self, num_frames):
+        """
+        Acquire *num_frames* frames. The camera is triggered explicitly from
+        Concert so the number of recorded frames is exact. The frames are
+        yielded as they are being acquired.
+        """
+        try:
+            self.start_recording()
+            for i in xrange(num_frames):
+                self.trigger()
+                yield self.grab()
+        finally:
+            self.stop_recording()
+
     def _get_frame_rate(self):
         return self.frames_per_second / q.s
 
