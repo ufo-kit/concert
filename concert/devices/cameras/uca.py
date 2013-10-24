@@ -2,6 +2,7 @@
 Cameras supported by the libuca library.
 """
 import time
+import logbook
 import numpy as np
 from concert.coroutines import null
 from concert.helpers import async, inject
@@ -9,6 +10,9 @@ from concert.quantities import q
 from concert.base import Parameter
 from concert.helpers import Bunch
 from concert.devices.cameras import base
+
+
+LOG = logbook.Logger(__name__)
 
 
 def _new_setter_wrapper(camera, name, unit=None):
@@ -100,7 +104,12 @@ class Camera(base.Camera):
         as long as it resolves to True the camera keeps grabbing.
         """
         while condition():
-            image = self.grab()
+            image = None
+            try:
+                image = self.grab()
+            except Exception as exc:
+                LOG.debug("An error {} occured".format(exc) +
+                          " during readout, stopping")
             if image is None:
                 break
             yield image
