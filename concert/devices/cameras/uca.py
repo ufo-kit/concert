@@ -4,6 +4,7 @@ Cameras supported by the libuca library.
 import numpy as np
 from concert.quantities import q
 from concert.base import Parameter
+from concert.helpers import Bunch
 from concert.devices.cameras import base
 
 
@@ -112,3 +113,28 @@ class Camera(base.Camera):
             return array
 
         return None
+
+
+class Pco(Camera):
+
+    def __init__(self):
+        super(Pco, self).__init__('pco')
+
+        class _Dummy(object):
+            pass
+
+        setattr(self.uca, 'enum_values', _Dummy())
+
+        def get_enum_bunch(enum):
+            enum_map = {}
+
+            for key, value in enum.__enum_values__.items():
+                name = value.value_nick.upper().replace('-', '_')
+                enum_map[name] = key
+
+            return Bunch(enum_map)
+
+        for prop in self.uca.props:
+            if hasattr(prop, 'enum_class'):
+                setattr(self.uca.enum_values, prop.name.replace('-', '_'),
+                        get_enum_bunch(prop.default_value))
