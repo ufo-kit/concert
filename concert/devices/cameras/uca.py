@@ -167,13 +167,28 @@ class Pco(Camera):
                 setattr(self.uca.enum_values, prop.name.replace('-', '_'),
                         get_enum_bunch(prop.default_value))
 
+    @async
+    def freerun(self, consumer):
+        """Start recording and send live frames to *consumer*."""
+        self.uca.props.trigger_mode = \
+            self.uca.enum_values.trigger_mode.AUTO
+        try:
+            self.uca.props.storage_mode = \
+                self.uca.enum_values.storage_mode.RECORDER
+            self.uca.props.record_mode = \
+                self.uca.enum_values.record_mode.RING_BUFFER
+        except:
+            pass
+        self.start_recording()
+        inject(self.readout(lambda: self.uca.props.is_recording), consumer)
 
-class Dimax(Camera):
+
+class Dimax(Pco):
 
     """A PCO.dimax camera implementation based on libuca :py:class:`Camera`."""
 
     def __init__(self):
-        super(Dimax, self).__init__("pco")
+        super(Dimax, self).__init__()
 
     def readout_blocking(self, condition=lambda: True):
         """
