@@ -33,7 +33,8 @@ def suppress_logging():
 
 def assert_almost_equal(x, y, epsilon=1e-10):
     """Discard unit on x and y and assert that they are almost equal"""
-    assert abs((x - y).magnitude) < epsilon
+    assert abs((x - y).magnitude) < epsilon, \
+           "{} != {} (within {})".format(x, y, epsilon)
 
 
 class TestCase(unittest.TestCase):
