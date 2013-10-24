@@ -63,7 +63,7 @@ class TestDummyAlignment(TestCase):
             align_rotation_axis(get_rotation_axis, self.get_images,
                                 self.x_motor, self.z_motor).wait()
 
-        self.assertEqual("No sample tip points found.", ctx.exception.message)
+        self.assertEqual("No sample tip points found.", str(ctx.exception))
 
     @slow
     def test_not_offcentered(self):
@@ -74,7 +74,7 @@ class TestDummyAlignment(TestCase):
 
         self.assertEqual("Sample off-centering too " +
                          "small, enlarge rotation radius.",
-                         ctx.exception.message)
+                         str(ctx.exception))
 
     @slow
     def test_no_x_axis(self):
