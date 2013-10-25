@@ -81,12 +81,24 @@ class PyplotViewer(object):
         self._stopped = False
         self._make_imshow_defaults()
         self._terminated = False
+        self._coroutine = None
         self._proc = Process(target=self._run)
         self._proc.start()
         _PYPLOT_VIEWERS.append(self)
 
-    @coroutine
     def __call__(self, size=None):
+        """
+        Display a dynamic image in a separate thread in order not to
+        stall program execution. If *size* is specified, the redrawing stops
+        when *size* images come.
+        """
+        if self._coroutine is None:
+            self._coroutine = self._updater(size=size)
+
+        return self._coroutine
+
+    @coroutine
+    def _updater(self, size=None):
         """
         Display a dynamic image in a separate thread in order not to
         stall program execution. If *size* is specified, the redrawing stops
