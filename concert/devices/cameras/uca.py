@@ -1,11 +1,18 @@
 """
 Cameras supported by the libuca library.
 """
+import time
+import logbook
 import numpy as np
+from concert.coroutines import null
+from concert.helpers import async, inject
 from concert.quantities import q
 from concert.base import Parameter
 from concert.helpers import Bunch
 from concert.devices.cameras import base
+
+
+LOG = logbook.Logger(__name__)
 
 
 def _new_setter_wrapper(camera, name, unit=None):
@@ -91,6 +98,36 @@ class Camera(base.Camera):
 
         super(Camera, self).__init__(parameters)
 
+    def readout(self, condition=lambda: True):
+        """
+        Readout images from the camera buffer. *condition* is a callable,
+        as long as it resolves to True the camera keeps grabbing.
+        """
+        while condition():
+            image = None
+            try:
+                image = self.grab()
+            except Exception as exc:
+                LOG.debug("An error {} occured".format(exc) +
+                          " during readout, stopping")
+            if image is None:
+                break
+            yield image
+
+    def acquire(self, num_frames):
+        """
+        Acquire *num_frames* frames. The camera is triggered explicitly from
+        Concert so the number of recorded frames is exact. The frames are
+        yielded as they are being acquired.
+        """
+        try:
+            self.start_recording()
+            for i in xrange(num_frames):
+                self.trigger()
+                yield self.grab()
+        finally:
+            self.stop_recording()
+
     def _get_frame_rate(self):
         return self.frames_per_second / q.s
 
@@ -138,3 +175,93 @@ class Pco(Camera):
             if hasattr(prop, 'enum_class'):
                 setattr(self.uca.enum_values, prop.name.replace('-', '_'),
                         get_enum_bunch(prop.default_value))
+
+    @async
+    def freerun(self, consumer):
+        """Start recording and send live frames to *consumer*."""
+        self.uca.props.trigger_mode = \
+            self.uca.enum_values.trigger_mode.AUTO
+        try:
+            self.uca.props.storage_mode = \
+                self.uca.enum_values.storage_mode.RECORDER
+            self.uca.props.record_mode = \
+                self.uca.enum_values.record_mode.RING_BUFFER
+        except:
+            pass
+        self.start_recording()
+        inject(self.readout(lambda: self.uca.props.is_recording), consumer)
+
+
+class Dimax(Pco):
+
+    """A PCO.dimax camera implementation based on libuca :py:class:`Camera`."""
+
+    def __init__(self):
+        super(Dimax, self).__init__()
+
+    def readout_blocking(self, condition=lambda: True):
+        """
+        Readout the frames and don't allow recording in the meantime.
+        *condition* is the same as in :py:meth:`Camera.readout`.
+        """
+        try:
+            self.uca.start_readout()
+            for frame in super(Dimax, self).readout(condition):
+                yield frame
+        finally:
+            self.uca.stop_readout()
+
+    def record_auto(self, num_frames):
+        """
+        Record approximately *num_frames* frames into the internal camera
+        buffer. Camera is set to a mode when it is triggered automatically and
+        live images streaming is enabled.  Live frames are yielded as they are
+        being grabbed.
+
+        **Note** the number of actually recorded images may differ.
+        """
+        @async
+        def async_wait():
+            try:
+                sleep_time = (num_frames /
+                              self.frame_rate).to_base_units().magnitude
+                time.sleep(sleep_time)
+            finally:
+                self.stop_recording()
+
+        self.uca.props.trigger_mode = \
+            self.uca.enum_values.trigger_mode.AUTO
+        self.uca.props.storage_mode = \
+            self.uca.enum_values.storage_mode.RECORDER
+        self.uca.props.record_mode = \
+            self.uca.enum_values.record_mode.SEQUENCE
+
+        # We need to make sure that the camera is in recording mode when we
+        # start grabbing live frames, thus we start it synchronously.
+        self.start_recording()
+
+        # The sleeping and camera stopping can be handled asynchronously
+        acq_future = async_wait()
+
+        # Yield live frames
+        for frame in self.readout(condition=lambda:
+                                  self.uca.props.is_recording):
+            yield frame
+
+        # Wait for the acquisition to end
+        acq_future.result()
+
+    def acquire_auto(self, num_frames, consumer=None):
+        """
+        Acquire and readout *num_frames*. Frames are first recorded to the
+        internal camera memory and then read out. The camera is triggered
+        automatically. *consumer* is a coroutine which is fed with live
+        frames. After the recording is done the frames are yielded as they are
+        being grabbed from the camera.
+        """
+        # We need to provide a consumer, otherwise the generator method
+        # wouldn't start
+        consumer = null() if consumer is None else consumer
+        inject(self.record_auto(num_frames), consumer)
+
+        return (frame for frame in self.readout_blocking())

@@ -18,6 +18,13 @@ SINOGRAMS_FULL = "sinos-full"
 
 
 @coroutine
+def null():
+    """A coroutine which does nothing."""
+    while True:
+        item = yield
+
+
+@coroutine
 def write_images(writer=write_tiff, prefix="image_{:>05}"):
     """
     write_images(writer, prefix="image_{:>05}")
