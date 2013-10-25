@@ -19,7 +19,7 @@ class StorageRing(BaseStorageRing):
         return self._device.ECurrent * q.mA
 
     def _get_energy(self):
-        return self._device.Energy * q.MeV
+        return self._device.Energy * q.GeV
 
     def _get_lifetime(self):
         return self._device.Lifetime * q.hour
