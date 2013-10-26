@@ -152,6 +152,11 @@ class PyplotViewer(object):
         if not self._stopped:
             self._queue.put((_PyplotUpdater.CLIM, clim))
 
+    def set_colormap(self, colormap):
+        """Set colormp of the shown image to *colormap*."""
+        if not self._stopped:
+            self._queue.put((_PyplotUpdater.COLORMAP, colormap))
+
     def _run(self):
         """
         Run the process, i.e. wait for an image to come to the queue
@@ -190,6 +195,7 @@ class _PyplotUpdater(object):
 
     IMAGE = "image"
     CLIM = "clim"
+    COLORMAP = "colormap"
 
     def __init__(self, queue, imshow_kwargs, has_colorbar):
         self.queue = queue
@@ -203,8 +209,10 @@ class _PyplotUpdater(object):
         self.image = None
         self.clim = None
         self.image = None
+        self.colormap = None
         self.commands = {_PyplotUpdater.IMAGE: self.process_image,
-                         _PyplotUpdater.CLIM: self.update_limits}
+                         _PyplotUpdater.CLIM: self.update_limits,
+                         _PyplotUpdater.COLORMAP: self.update_colormap}
 
     def process(self, iteration):
         """
@@ -258,6 +266,21 @@ class _PyplotUpdater(object):
         if self.mpl_image is not None and clim is not None:
             self.mpl_image.set_clim(clim)
 
+    def update_colormap(self, colormap):
+        """Update colormap to *colormap*."""
+        from matplotlib import pyplot as plt
+
+        self.colormap = colormap
+
+        if self.mpl_image is not None:
+            self.mpl_image.set_cmap(self.colormap)
+        if "cmap" in self.imshow_kwargs:
+            self.imshow_kwargs["cmap"] = self.colormap
+        if self.colorbar is not None:
+            self.colorbar.set_cmap(self.colormap)
+            self.colorbar.draw_all()
+        plt.draw()
+
     def update_all(self):
         """Update image and colorbar."""
         self.mpl_image.set_data(self.image)
@@ -284,6 +307,18 @@ class _PyplotUpdater(object):
         self.colorbar.draw_all()
         plt.draw()
 
+    def make_colorbar(self):
+        """Make colorbar according to the current colormap."""
+        from matplotlib import pyplot as plt
+
+        colormap = None
+        if self.colormap is not None:
+            colormap = self.colormap
+        elif "cmap" in self.imshow_kwargs:
+            colormap = self.imshow_kwargs["cmap"]
+
+        self.colorbar = plt.colorbar(cmap=colormap)
+
     def make_image(self):
         """Create an image with colorbar"""
         from matplotlib import pyplot as plt
@@ -291,7 +326,7 @@ class _PyplotUpdater(object):
         if self.clim is not None:
             self.mpl_image.set_clim(self.clim)
         if self.has_colorbar and self.colorbar is None:
-            self.colorbar = plt.colorbar()
+            self.make_colorbar()
         plt.draw()
 
     def limits_changed(self, lower, upper):
