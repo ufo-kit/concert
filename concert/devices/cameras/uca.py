@@ -247,6 +247,7 @@ class Dimax(Pco):
         for frame in self.readout(condition=lambda:
                                   self.uca.props.is_recording):
             yield frame
+            time.sleep(0.001)
 
         # Wait for the acquisition to end
         acq_future.result()
