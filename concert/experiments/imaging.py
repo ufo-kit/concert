@@ -141,12 +141,18 @@ def execute(folder, take_darks=None, take_flats=None, take_radios=None,
         raise ValueError("Cannot flat correct, insufficient image sources")
 
     if take_darks is not None:
-        dark_averager, _process_darks = add_averager(process_darks,
-                                                     flat_correction)
+        if flat_correct:
+            dark_averager, _process_darks = add_averager(process_darks,
+                                                         flat_correction)
+        else:
+            _process_darks = process_darks
         add_writer(folder, take_darks, _process_darks, DARKS, writer=writer)
     if take_flats is not None:
-        flat_averager, _process_flats = add_averager(process_flats,
-                                                     flat_correction)
+        if flat_correct:
+            flat_averager, _process_flats = add_averager(process_flats,
+                                                         flat_correction)
+        else:
+            _process_flats = process_flats
         add_writer(folder, take_flats, _process_flats, FLATS, writer=writer)
     if take_radios is not None:
         if flat_correction and process_radios is not None:
