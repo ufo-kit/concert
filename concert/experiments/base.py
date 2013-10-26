@@ -36,22 +36,25 @@ class Experiment(object):
     .. py:attribute:: log_file_name
 
         Log file name used for storing logging information.
+
+    .. py:attribute:: iteration
+
+        Iteration number to start with. If the experiment runs scans in
+        separate folders then the first scan folder index will be the given
+        number.
+
     """
 
-    def __init__(self, run, root_folder, log_file_name="experiment.log"):
+    def __init__(self, run, root_folder, iteration=1,
+                 log_file_name="experiment.log"):
         self.root_folder = root_folder
         self.log_file_name = log_file_name
         pattern = re.compile(".*\{.*\}.*")
         self.has_multiple_folders = pattern.match(self.root_folder) is not None
         self._folder = None
         self.file_stream = None
-        self._iteration = 0
+        self.iteration = iteration
         self._run = run
-
-    @property
-    def iteration(self):
-        """Get experiment iteration."""
-        return self._iteration
 
     @property
     def folder(self):
@@ -88,4 +91,4 @@ class Experiment(object):
             # All logging output goes into the file stream handler as well
             LOGGER.info("{}. experiment run".format(self.iteration + 1))
             self._run(self.folder, *args, **kwargs)
-            self._iteration += 1
+            self.iteration += 1
