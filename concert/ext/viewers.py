@@ -78,7 +78,7 @@ class PyplotViewer(object):
         self._has_colorbar = colorbar
         self._imshow_kwargs = {} if imshow_kwargs is None else imshow_kwargs
         self._queue = MultiprocessingQueue()
-        self._stopped = False
+        self._paused = False
         self._make_imshow_defaults()
         self._terminated = False
         self._coroutine = None
@@ -132,30 +132,27 @@ class PyplotViewer(object):
         only if the queue is empty in order to guarantee that the newest
         image is drawn or if the *force* is True.
         """
-        if self._stopped:
-            raise ValueError("Cannot add images to a stopped viewer")
-
-        if self._queue.empty() or force:
+        if not self._paused and (self._queue.empty() or force):
             self._queue.put((_PyplotUpdater.IMAGE, item))
 
-    def stop(self):
-        """Stop, no more images will be displayed from now on."""
-        if not self._stopped:
-            LOG.debug("Stopping viewer")
-            self._stopped = True
+    def pause(self):
+        """Pause, no images are dispayed but image commands work."""
+        self._paused = True
+
+    def resume(self):
+        """Resume the viewer."""
+        self._paused = False
 
     def set_limits(self, clim):
         """
         Update the colormap limits by *clim*, which is a (lower, upper)
         tuple.
         """
-        if not self._stopped:
-            self._queue.put((_PyplotUpdater.CLIM, clim))
+        self._queue.put((_PyplotUpdater.CLIM, clim))
 
     def set_colormap(self, colormap):
         """Set colormp of the shown image to *colormap*."""
-        if not self._stopped:
-            self._queue.put((_PyplotUpdater.COLORMAP, colormap))
+        self._queue.put((_PyplotUpdater.COLORMAP, colormap))
 
     def _run(self):
         """
