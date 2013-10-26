@@ -148,7 +148,7 @@ def coroutine(func):
     def start(*args, **kwargs):
         """Starts the generator."""
         gen = func(*args, **kwargs)
-        gen.next()
+        next(gen)
         return gen
     return start
 

@@ -81,8 +81,8 @@ def ascan(param_list, n_intervals, handler, initial_values=None):
             else:
                 initial_values.append(0)
 
-    initialized_params = map(lambda (tup, single): tup + (single,),
-                             zip(param_list, initial_values))
+    initialized_params = list(map(lambda x: x[0] + (x[1],),
+                                  zip(param_list, initial_values)))
 
     for i in range(n_intervals + 1):
         futures = []

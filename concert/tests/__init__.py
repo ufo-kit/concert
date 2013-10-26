@@ -1,4 +1,4 @@
-import logbook
+import logging
 import unittest
 
 
@@ -15,9 +15,7 @@ def slow(func):
 def suppressed_logging(func):
     """Decorator for test functions."""
     def test_wrapper(*args, **kwargs):
-        handler = suppress_logging()
-        func(*args, **kwargs)
-        handler.pop_application()
+        suppress_logging()
 
     test_wrapper.__name__ = func.__name__
     return test_wrapper
@@ -25,10 +23,7 @@ def suppressed_logging(func):
 
 def suppress_logging():
     """Discard logger output and disable bubbling."""
-    handler = logbook.NullHandler()
-    handler.push_application()
-
-    return handler
+    logging.disable(logging.CRITICAL)
 
 
 def assert_almost_equal(x, y, epsilon=1e-10):
@@ -42,10 +37,7 @@ class TestCase(unittest.TestCase):
     """Base class for tests which suppress logger output."""
 
     def setUp(self):
-        self.handler = suppress_logging()
-
-    def tearDown(self):
-        self.handler.pop_application()
+        suppress_logging()
 
 
 class VisitChecker(object):

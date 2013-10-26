@@ -61,7 +61,7 @@ class TestRotationAxisMeasure(TestCase):
         with self.assertRaises(ValueError) as ctx:
             get_rotation_axis(images)
 
-        self.assertEqual("No sample tip points found.", ctx.exception.message)
+        self.assertEqual("No sample tip points found.", str(ctx.exception))
 
     @slow
     def test_center_no_rotation(self):

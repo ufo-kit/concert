@@ -5,13 +5,13 @@ backprojection, flat field correction and other operations on images.
 
 import multiprocessing
 import numpy as np
-import logbook
+import logging
 from multiprocessing import Pool
 from scipy import ndimage
 from concert.helpers import threaded
 
 
-LOG = logbook.Logger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 def flat_correct(radio, flat, dark=None):
@@ -340,8 +340,8 @@ def _get_sample_tip(image):
     y_ind = y_ind[below]
     x_ind = x_ind[below]
     above = np.where(0 <= y_ind)[0]
-    y_ind = y_ind[above]
-    x_ind = x_ind[above]
+    y_ind = y_ind[above].astype(np.int)
+    x_ind = x_ind[above].astype(np.int)
 
     # Drop indices at which there is no object in the image.
     nonzero = np.where(image[y_ind, x_ind] > 0)[0]

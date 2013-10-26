@@ -17,12 +17,12 @@ position on an axis, you can also use :meth:`.Axis.set_position`.
 :meth:`Device.get` simply returns the current value.
 """
 import threading
-from logbook import Logger
+import logging
 from concert.base import Parameterizable, Parameter
 from concert.quantities import numerator_units, denominator_units
 
 
-LOG = Logger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 class Device(Parameterizable):

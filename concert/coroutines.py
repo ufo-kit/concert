@@ -3,7 +3,7 @@ try:
 except ImportError:
     import queue
 
-import logbook
+import logging
 import numpy as np
 from concert.helpers import dispatcher, coroutine, threaded
 from concert.storage import write_tiff
@@ -11,7 +11,7 @@ from concert.imageprocessing import backproject, get_backprojection_norm,\
     get_ramp_filter, flat_correct as make_flat_correct
 
 
-LOG = logbook.Logger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 SINOGRAMS_FULL = "sinos-full"

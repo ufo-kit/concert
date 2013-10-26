@@ -90,7 +90,7 @@ class TestParameter(TestCase):
             parameter.set(None).result()
 
         self.assertEqual("parameter `foo' cannot be written",
-                         ctx.exception.message)
+                         str(ctx.exception))
 
     def test_write_only_parameter(self):
         parameter = Parameter('foo', fset=empty_setter)
@@ -103,7 +103,7 @@ class TestParameter(TestCase):
             parameter.get().result()
 
         self.assertEqual("parameter `foo' cannot be read",
-                         ctx.exception.message)
+                         str(ctx.exception))
 
     def test_invalid_unit(self):
         parameter = Parameter('foo', fset=empty_setter, unit=q.mm)

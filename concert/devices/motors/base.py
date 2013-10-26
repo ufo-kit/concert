@@ -15,13 +15,13 @@ with an motor, the position can be changed with :meth:`Motor.set_position` and
 
 As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 """
-import logbook
+import logging 
 from concert.quantities import q
 from concert.devices.base import Device, Parameter, LinearCalibration
 from concert.helpers import async
 
 
-LOG = logbook.Logger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 class Motor(Device):

@@ -5,13 +5,13 @@ takes care of proper logging structure.
 
 import os
 import re
-import logbook
+import logging
 from logbook.handlers import FileHandler
 from concert.helpers import async
 from concert.storage import create_folder
 
 
-LOGGER = logbook.Logger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 class Experiment(object):
@@ -91,6 +91,6 @@ class Experiment(object):
 
         with self.file_stream:
             # All logging output goes into the file stream handler as well
-            LOGGER.info("{}. experiment run".format(self.iteration + 1))
+            LOG.info("{}. experiment run".format(self.iteration + 1))
             self._run(self.folder, *args, **kwargs)
             self.iteration += 1
