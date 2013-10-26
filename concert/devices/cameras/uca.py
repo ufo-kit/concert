@@ -1,8 +1,8 @@
 """
 Cameras supported by the libuca library.
 """
+import logging
 import time
-import logbook
 import numpy as np
 from concert.coroutines import null
 from concert.helpers import async, inject
@@ -12,7 +12,7 @@ from concert.helpers import Bunch
 from concert.devices.cameras import base
 
 
-LOG = logbook.Logger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 def _new_setter_wrapper(camera, name, unit=None):

@@ -6,7 +6,7 @@ takes care of proper logging structure.
 import os
 import re
 import logging
-from logbook.handlers import FileHandler
+from logging import FileHandler, Formatter
 from concert.helpers import async
 from concert.storage import create_folder
 
@@ -72,12 +72,17 @@ class Experiment(object):
         to the current folder.
         """
         path = os.path.join(self.folder, self.log_file_name)
+        root_logger = logging.getLogger("")
 
         if self.has_multiple_folders and self.file_stream is not None:
             self.file_stream.close()
+            root_logger.removeHandler(self.file_stream)
         if self.has_multiple_folders or self.file_stream is None:
-            self.file_stream = FileHandler(path, level=logbook.INFO,
-                                           bubble=True)
+            self.file_stream = FileHandler(path)
+            self.file_stream.setLevel(logging.INFO)
+            formatter = Formatter("[%(asctime)s] %(message)s")
+            self.file_stream.setFormatter(formatter)
+            root_logger.addHandler(self.file_stream)
 
     @async
     def run(self, *args, **kwargs):
@@ -86,11 +91,10 @@ class Experiment(object):
         create_folder(self.folder)
         if os.listdir(self.folder) != []:
             raise ValueError("Folder {} is not empty".format(self.folder))
+
         # Initiate new logger for this scan
         self._create_stream_handler()
 
-        with self.file_stream:
-            # All logging output goes into the file stream handler as well
-            LOG.info("{}. experiment run".format(self.iteration + 1))
-            self._run(self.folder, *args, **kwargs)
-            self.iteration += 1
+        LOG.info("{}. experiment run".format(self.iteration + 1))
+        self._run(self.folder, *args, **kwargs)
+        self.iteration += 1
