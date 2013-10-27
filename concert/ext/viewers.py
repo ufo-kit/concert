@@ -72,19 +72,33 @@ def imagej(image, path="imagej", writer=write_tiff):
 
 class PyplotViewer(object):
 
-    """Image viewer which updates the plot in a separate process."""
+    """
+    A base class for data viewer which sends commands to a matplotlib updater
+    which runs in a separate process.
 
-    def __init__(self, imshow_kwargs=None, colorbar=True):
-        self._has_colorbar = colorbar
-        self._imshow_kwargs = {} if imshow_kwargs is None else imshow_kwargs
+    .. py:attribute:: view_function
+
+        The function which updates the figure based on the changed data. Its
+        nomenclature has to be::
+
+            foo(data, force=False)
+
+        Where *force* determines whether the redrawing must be done or not. If
+        it is False, the redrawing takes place if the data queue contains only
+        the current data item. This prevents the actual drawer from being
+        overwhelmed by the amount of incoming data.
+    """
+
+    def __init__(self, view_function):
         self._queue = MultiprocessingQueue()
         self._paused = False
-        self._make_imshow_defaults()
         self._terminated = False
         self._coroutine = None
-        self._proc = Process(target=self._run)
-        self._proc.start()
-        _PYPLOT_VIEWERS.append(self)
+        self._proc = None
+        # The udater is implementation-specific and must be provided by
+        # the subclass by calling self._set_updater
+        self._updater = None
+        self.view_function = view_function
 
     def __call__(self, size=None):
         """
@@ -93,47 +107,49 @@ class PyplotViewer(object):
         when *size* images come.
         """
         if self._coroutine is None:
-            self._coroutine = self._updater(size=size)
+            self._coroutine = self._update(size=size)
 
         return self._coroutine
 
     @coroutine
-    def _updater(self, size=None):
+    def _update(self, size=None):
         """
-        Display a dynamic image in a separate thread in order not to
-        stall program execution. If *size* is specified, the redrawing stops
-        when *size* images come.
+        Display data image in a separate thread in order not to stall program
+        execution. If *size* is specified, the redrawing stops when *size*
+        data items come. This method does not force the redrawing unless the
+        last item has come. The subclass must provide the view function
+        :py:attr:`PyplotViewer.view_function`.
         """
         i = 0
 
         while True:
-            image = yield
+            item = yield
             if size is None or i < size:
                 if size is not None and i == size - 1:
-                    # Maximum number of images has come, end redrawing
-                    self.show(image, force=True)
-                    self.stop()
+                    # Maximum number of items has come, end redrawing
+                    self.view_function(item, force=True)
                 else:
-                    self.show(image)
+                    self.view_function(item)
                 # This helps with the smoothness of drawing
                 time.sleep(0.001)
 
             i += 1
+
+    def _set_updater(self, updater):
+        """
+        Set the *updater*, now the process can start. This has to be called
+        by the subclasses.
+        """
+        self._updater = updater
+        self._proc = Process(target=self._run)
+        self._proc.start()
+        _PYPLOT_VIEWERS.append(self)
 
     def terminate(self):
         """Close all communication and terminate child process."""
         if not self._terminated:
             self._queue.close()
             self._proc.terminate()
-
-    def show(self, item, force=False):
-        """
-        show *item* into the redrawing queue. The item is truly inserted
-        only if the queue is empty in order to guarantee that the newest
-        image is drawn or if the *force* is True.
-        """
-        if not self._paused and (self._queue.empty() or force):
-            self._queue.put((_PyplotImageUpdater.IMAGE, item))
 
     def pause(self):
         """Pause, no images are dispayed but image commands work."""
@@ -142,17 +158,6 @@ class PyplotViewer(object):
     def resume(self):
         """Resume the viewer."""
         self._paused = False
-
-    def set_limits(self, clim):
-        """
-        Update the colormap limits by *clim*, which is a (lower, upper)
-        tuple.
-        """
-        self._queue.put((_PyplotImageUpdater.CLIM, clim))
-
-    def set_colormap(self, colormap):
-        """Set colormp of the shown image to *colormap*."""
-        self._queue.put((_PyplotImageUpdater.COLORMAP, colormap))
 
     def _run(self):
         """
@@ -165,14 +170,46 @@ class PyplotViewer(object):
 
         try:
             figure = plt.figure()
-            updater = _PyplotImageUpdater(self._queue, self._imshow_kwargs,
-                                          self._has_colorbar)
-            _ = FuncAnimation(figure, updater.process, interval=5,
+            _ = FuncAnimation(figure, self._updater.process, interval=5,
                               blit=True)
             plt.show()
 
         except KeyboardInterrupt:
             plt.close("all")
+
+
+class PyplotImageViewer(PyplotViewer):
+
+    """Dynamic image viewer using matplotlib."""
+
+    def __init__(self, imshow_kwargs=None, colorbar=True):
+        super(PyplotImageViewer, self).__init__(self.show)
+        self._has_colorbar = colorbar
+        self._imshow_kwargs = {} if imshow_kwargs is None else imshow_kwargs
+        self._make_imshow_defaults()
+        self._set_updater(_PyplotImageUpdater(self._queue,
+                                              self._imshow_kwargs,
+                                              self._has_colorbar))
+
+    def show(self, item, force=False):
+        """
+        show *item* into the redrawing queue. The item is truly inserted
+        only if the queue is empty in order to guarantee that the newest
+        image is drawn or if the *force* is True.
+        """
+        if not self._paused and (self._queue.empty() or force):
+            self._queue.put((_PyplotImageUpdater.IMAGE, item))
+
+    def set_limits(self, clim):
+        """
+        Update the colormap limits by *clim*, which is a (lower, upper)
+        tuple.
+        """
+        self._queue.put((_PyplotImageUpdater.CLIM, clim))
+
+    def set_colormap(self, colormap):
+        """Set colormp of the shown image to *colormap*."""
+        self._queue.put((_PyplotImageUpdater.COLORMAP, colormap))
 
     def _make_imshow_defaults(self):
         """Override matplotlib's image showing defafults."""
