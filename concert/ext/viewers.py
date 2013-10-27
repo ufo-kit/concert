@@ -133,7 +133,7 @@ class PyplotViewer(object):
         image is drawn or if the *force* is True.
         """
         if not self._paused and (self._queue.empty() or force):
-            self._queue.put((_PyplotUpdater.IMAGE, item))
+            self._queue.put((_PyplotImageUpdater.IMAGE, item))
 
     def pause(self):
         """Pause, no images are dispayed but image commands work."""
@@ -148,11 +148,11 @@ class PyplotViewer(object):
         Update the colormap limits by *clim*, which is a (lower, upper)
         tuple.
         """
-        self._queue.put((_PyplotUpdater.CLIM, clim))
+        self._queue.put((_PyplotImageUpdater.CLIM, clim))
 
     def set_colormap(self, colormap):
         """Set colormp of the shown image to *colormap*."""
-        self._queue.put((_PyplotUpdater.COLORMAP, colormap))
+        self._queue.put((_PyplotImageUpdater.COLORMAP, colormap))
 
     def _run(self):
         """
@@ -165,8 +165,8 @@ class PyplotViewer(object):
 
         try:
             figure = plt.figure()
-            updater = _PyplotUpdater(self._queue, self._imshow_kwargs,
-                                     self._has_colorbar)
+            updater = _PyplotImageUpdater(self._queue, self._imshow_kwargs,
+                                          self._has_colorbar)
             _ = FuncAnimation(figure, updater.process, interval=5,
                               blit=True)
             plt.show()
@@ -187,29 +187,19 @@ class PyplotViewer(object):
 class _PyplotUpdater(object):
 
     """
-    Private class for updating a matplotlib figure with an image stream.
+    Base class for animating a matploblib figure in a separate process.
+
+    .. py:attribute:: queue
+
+        A multiprocessing queue for receiving commands
     """
 
-    IMAGE = "image"
-    CLIM = "clim"
-    COLORMAP = "colormap"
-
-    def __init__(self, queue, imshow_kwargs, has_colorbar):
+    def __init__(self, queue):
         self.queue = queue
-        self.imshow_kwargs = imshow_kwargs
-        self.has_colorbar = has_colorbar
-        self.mpl_image = None
-        self.lower = None
-        self.upper = None
-        self.colorbar = None
         self.first = True
-        self.image = None
-        self.clim = None
-        self.image = None
-        self.colormap = None
-        self.commands = {_PyplotUpdater.IMAGE: self.process_image,
-                         _PyplotUpdater.CLIM: self.update_limits,
-                         _PyplotUpdater.COLORMAP: self.update_colormap}
+        # A dictionary in form command: method which tells the class what to do
+        # for every received command
+        self.commands = {}
 
     def process(self, iteration):
         """
@@ -230,23 +220,57 @@ class _PyplotUpdater(object):
         except Empty:
             pass
         finally:
-            retval = [] if self.mpl_image is None else [self.mpl_image]
-            return retval
+            return self.get_artists()
+
+    def get_artists(self):
+        """
+        Abstract function for getting all matplotlib artists which we want
+        to redraw. Needs to be implemented by the subclass.
+        """
+        raise NotImplementedError
+
+
+class _PyplotImageUpdater(_PyplotUpdater):
+
+    """
+    Private class for updating a matplotlib figure with an image stream.
+    """
+
+    IMAGE = "image"
+    CLIM = "clim"
+    COLORMAP = "colormap"
+
+    def __init__(self, queue, imshow_kwargs, has_colorbar):
+        super(_PyplotImageUpdater, self).__init__(queue)
+        self.imshow_kwargs = imshow_kwargs
+        self.has_colorbar = has_colorbar
+        self.mpl_image = None
+        self.colorbar = None
+        self.clim = None
+        self.colormap = None
+        self.commands = {_PyplotImageUpdater.IMAGE: self.process_image,
+                         _PyplotImageUpdater.CLIM: self.update_limits,
+                         _PyplotImageUpdater.COLORMAP: self.update_colormap}
+
+    def get_artists(self):
+        """Get artists to return for matplotlib's animation."""
+        retval = [] if self.mpl_image is None else [self.mpl_image]
+
+        return retval
 
     def process_image(self, image):
         """Process the incoming *image*."""
-        if self.image is not None and self.image.shape != image.shape:
+        if self.mpl_image is not None and \
+                self.mpl_image.get_size() != image.shape:
             # When the shape changes the axes needs to be reset
             self.mpl_image.axes.clear()
             self.mpl_image = None
 
-        self.image = image
-
         if self.mpl_image is None:
             # Either removed by shape change or first time drawing
-            self.make_image()
+            self.make_image(image)
         else:
-            self.update_all()
+            self.update_all(image)
 
     def update_limits(self, clim):
         """
@@ -254,14 +278,18 @@ class _PyplotUpdater(object):
         (lower, upper). If *clim* is None, the limit is reset to the span of
         the current image.
         """
+        from matplotlib import pyplot as plt
         self.clim = clim
 
-        if clim is None and self.image is not None:
+        if clim is None and self.mpl_image is not None:
             # Restore the full clim
-            clim = self.image.min(), self.image.max()
+            clim = self.mpl_image.get_array().min(), \
+                self.mpl_image.get_array().max()
 
         if self.mpl_image is not None and clim is not None:
             self.mpl_image.set_clim(clim)
+            self.update_colorbar()
+            plt.draw()
 
     def update_colormap(self, colormap):
         """Update colormap to *colormap*."""
@@ -278,31 +306,24 @@ class _PyplotUpdater(object):
             self.colorbar.draw_all()
         plt.draw()
 
-    def update_all(self):
+    def update_all(self, image):
         """Update image and colorbar."""
-        self.mpl_image.set_data(self.image)
-        if self.clim is None:
-            new_lower = float(self.image.min())
-            new_upper = float(self.image.max())
-        else:
-            new_lower = self.clim[0]
-            new_upper = self.clim[1]
+        from matplotlib import pyplot as plt
 
-        if self.lower is None:
-            self.lower = new_lower
-            self.upper = new_upper
-        elif self.limits_changed(new_lower, new_upper):
-            self.lower = new_lower
-            self.upper = new_upper
-            self.update_colorbar()
+        self.mpl_image.set_data(image)
+        if self.clim is None:
+            # If the limit is not set to a value we autoscale
+            new_lower = float(image.min())
+            new_upper = float(image.max())
+            if self.limits_changed(new_lower, new_upper):
+                self.mpl_image.set_clim(new_lower, new_upper)
+                self.update_colorbar()
+                plt.draw()
 
     def update_colorbar(self):
         """Update the colorbar (rescale and redraw)."""
-        from matplotlib import pyplot as plt
-        lower, upper = self.mpl_image.get_clim()
-        self.colorbar.set_clim(lower, upper)
+        self.colorbar.set_clim(self.mpl_image.get_clim())
         self.colorbar.draw_all()
-        plt.draw()
 
     def make_colorbar(self):
         """Make colorbar according to the current colormap."""
@@ -316,14 +337,17 @@ class _PyplotUpdater(object):
 
         self.colorbar = plt.colorbar(cmap=colormap)
 
-    def make_image(self):
+    def make_image(self, image):
         """Create an image with colorbar"""
         from matplotlib import pyplot as plt
-        self.mpl_image = plt.imshow(self.image, **self.imshow_kwargs)
+        self.mpl_image = plt.imshow(image, **self.imshow_kwargs)
         if self.clim is not None:
             self.mpl_image.set_clim(self.clim)
-        if self.has_colorbar and self.colorbar is None:
-            self.make_colorbar()
+        if self.has_colorbar:
+            if self.colorbar is None:
+                self.make_colorbar()
+            else:
+                self.update_colorbar()
         plt.draw()
 
     def limits_changed(self, lower, upper):
@@ -332,7 +356,7 @@ class _PyplotUpdater(object):
         redrawing.
         """
         new_range = upper - lower
-        lower_ratio = np.abs(lower - self.lower) / new_range
-        upper_ratio = np.abs(upper - self.upper) / new_range
+        lower_ratio = np.abs(lower - self.mpl_image.get_clim()[0]) / new_range
+        upper_ratio = np.abs(upper - self.mpl_image.get_clim()[1]) / new_range
 
         return lower_ratio > 0.1 or upper_ratio > 0.1
