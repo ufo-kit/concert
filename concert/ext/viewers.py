@@ -256,6 +256,8 @@ class _PyplotUpdater(object):
             self.commands[command](data)
         except Empty:
             pass
+        except Exception as exc:
+            LOG.error("Pyplot Exception: {}".format(exc))
         finally:
             return self.get_artists()
 
