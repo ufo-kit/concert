@@ -8,7 +8,7 @@ openSUSE packages
 We use the `openSUSE Build Service`__ to provide packages for openSUSE 12.2
 until openSUSE 13.1. Add the repository first, e.g.::
 
-    $ sudo zypper ar http://download.opensuse.org/repositories/home:/matthias-vogelgesang/openSUSE_12.2/ concert-repo
+    $ sudo zypper ar http://download.opensuse.org/repositories/home:/ufo-kit/openSUSE_12.2/ concert-repo
 
 and update and install the packages. Note, that you have to install IPython on
 your own, if you intend to use the ``concert`` binary for execution::
@@ -16,7 +16,7 @@ your own, if you intend to use the ``concert`` binary for execution::
     $ sudo zypper update
     $ sudo zypper in python-concert
 
-__ https://build.opensuse.org/project/show/home:matthias-vogelgesang
+__ https://build.opensuse.org/project/show/home:ufo-kit
 
 
 Installation from PyPI
