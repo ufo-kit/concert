@@ -178,6 +178,59 @@ class PyplotViewer(object):
             plt.close("all")
 
 
+class PyplotCurveViewer(PyplotViewer):
+
+    """
+    Dynamic plot viewer using matplotlib.
+
+    .. py:attribute:: style
+
+        One of matplotlib's linestyle format strings
+
+    .. py:attribute:: plt_kwargs
+
+        Keyword arguments accepted by matplotlib's plot()
+
+    .. py:attribute:: autoscale
+
+        If True, the axes limits will be expanded as needed by the new data,
+        otherwise the user needs to rescale the axes
+
+    """
+
+    def __init__(self, style="o", plot_kwargs=None, autoscale=True):
+        super(PyplotCurveViewer, self).__init__(self.plot)
+        self._first = True
+        self._set_updater(_PyplotCurveUpdater(self._queue, style,
+                                              plot_kwargs, autoscale))
+
+    def plot(self, data, force=False):
+        """
+        Plot *data*, which is an (x, y) tuple. If *force* is True the
+        plotting is guaranteed, otherwise it might be skipped for the sake of
+        plotting speed.
+        """
+        if not self._paused and (self._queue.empty() or force):
+            if self._first:
+                # Make sure there is some backgroung set for canvas blitting by
+                # matplotlib
+                self._queue.put((_PyplotCurveUpdater.CLEAR, None))
+                self._first = False
+            self._queue.put((_PyplotCurveUpdater.PLOT, data))
+
+    def set_style(self, style):
+        """Set line style to *style*."""
+        self._queue.put((_PyplotCurveUpdater.STYLE, style))
+
+    def clear(self):
+        """Clear the plotted data."""
+        self._queue.put((_PyplotCurveUpdater.CLEAR, None))
+
+    def set_autoscale(self, autoscale):
+        """Set *autoscale* on the axes, can be True or False."""
+        self._queue.put((_PyplotCurveUpdater.AUTOSCALE, autoscale))
+
+
 class PyplotImageViewer(PyplotViewer):
 
     """Dynamic image viewer using matplotlib."""
@@ -267,6 +320,103 @@ class _PyplotUpdater(object):
         to redraw. Needs to be implemented by the subclass.
         """
         raise NotImplementedError
+
+
+class _PyplotCurveUpdater(_PyplotUpdater):
+
+    """
+    Private class for updating a matplotlib figure with a 1D data stream.
+    The arguments are the same as by :py:class:`PyplotCurveViewer`.
+    """
+    CLEAR = "clear"
+    PLOT = "plot"
+    STYLE = "style"
+    AUTOSCALE = "autoscale"
+
+    def __init__(self, queue, style="o", plot_kwargs=None, autoscale=True):
+        super(_PyplotCurveUpdater, self).__init__(queue)
+        self.data = [[], []]
+        self.line = None
+        self.style = style
+        self.plot_kwargs = {} if plot_kwargs is None else plot_kwargs
+        self.autoscale = autoscale
+        self.commands = {_PyplotCurveUpdater.PLOT: self.plot,
+                         _PyplotCurveUpdater.STYLE: self.change_style,
+                         _PyplotCurveUpdater.CLEAR: self.clear,
+                         _PyplotCurveUpdater.AUTOSCALE: self.set_autoscale}
+
+    def get_artists(self):
+        """Get the artists for the drawing."""
+        return [] if self.line is None else [self.line]
+
+    def make_line(self):
+        """Create the line based on current settings."""
+        from matplotlib import pyplot as plt
+
+        self.line = plt.plot(self.data[0], self.data[1], self.style,
+                             **self.plot_kwargs)[0]
+
+    def clear(self, data):
+        """Clear everything from the plot."""
+        from matplotlib import pyplot as plt
+
+        self.data = [[], []]
+        if self.line is not None:
+            self.line.axes.clear()
+        self.make_line()
+
+        plt.draw()
+
+    def plot(self, data):
+        """Plot *data*, which is an (x, y) tuple."""
+        from matplotlib import pyplot as plt
+
+        self.data[0].append(data[0])
+        self.data[1].append(data[1])
+        first = len(self.data[0]) == 1
+
+        if first:
+            # Make sure the limits are set properly for the first time
+            self.line.axes.set_xlim(self.data[0][0] - 1e-7,
+                                    self.data[0][0] + 1e-7)
+            self.line.axes.set_ylim(self.data[1][0] - 1e-7,
+                                    self.data[1][0] + 1e-7)
+        else:
+            self.line.set_data(*self.data)
+
+        if self.autoscale or first:
+            # Draw for the first time or on limit change to update ticks and
+            # labels
+            self.autoscale_view()
+            plt.draw()
+
+    def change_style(self, style):
+        """Change line style to *style*."""
+        self.style = style
+        if self.line is not None:
+            # Just redrawing doesn't work
+            self.line.axes.clear()
+            self.make_line()
+
+    def set_autoscale(self, autoscale):
+        """If *autoscale* is True, the plit is rescaled when needed."""
+        from matplotlib import pyplot as plt
+
+        self.autoscale = autoscale
+        if self.autoscale:
+            self.autoscale_view()
+            plt.draw()
+
+    def autoscale_view(self):
+        """Autoscale axes limits."""
+        if self.line is not None:
+            self.line.axes.relim()
+            # For some reason the relim itself doesn't work, so we set the
+            # limits to the new values explicitly
+            if len(self.data[0]) > 1:
+                self.line.axes.set_xlim(min(self.data[0]), max(self.data[0]))
+                self.line.axes.set_ylim(min(self.data[1]), max(self.data[1]))
+            self.line.axes.autoscale_view()
 
 
 class _PyplotImageUpdater(_PyplotUpdater):
