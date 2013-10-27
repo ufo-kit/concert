@@ -97,5 +97,5 @@ class Experiment(object):
         self._create_stream_handler()
 
         LOG.info("{}. experiment run".format(self.iteration + 1))
-        self._run(self.folder, *args, **kwargs)
+        self._run(*args, **kwargs)
         self.iteration += 1
