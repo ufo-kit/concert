@@ -1,7 +1,7 @@
 """A dummy pump."""
 
 from concert.devices.pumps import base
-from concert.devices.motors.base import LinearCalibration
+from concert.devices.base import LinearCalibration
 from concert.quantities import q
 
 
@@ -11,8 +11,7 @@ class Pump(base.Pump):
 
     def __init__(self):
         super(Pump, self).__init__(LinearCalibration(q.count * q.min / q.ml,
-                                                     0 * q.ml / q.min),
-                                   0 * q.ml / q.min, 1000 * q.ml / q.min)
+                                                     0 * q.ml / q.min))
         self._flow_rate = 0 * q.count
         self._set_state(self.STANDBY)
 
