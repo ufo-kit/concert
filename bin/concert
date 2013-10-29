@@ -327,7 +327,7 @@ class StartCommand(Command):
             handler = logging.StreamHandler(sys.stderr)
 
         handler.setLevel(logging.DEBUG)
-        logformat = '[%(asctime)s] %(name)s: {}: %(message)s'
+        logformat = '[%(asctime)s] %(levelname)s: %(name)s: {}: %(message)s'
         formatter = logging.Formatter(logformat.format(session))
         handler.setFormatter(formatter)
 

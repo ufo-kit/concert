@@ -80,7 +80,8 @@ class Experiment(object):
         if self.has_multiple_folders or self.file_stream is None:
             self.file_stream = FileHandler(path)
             self.file_stream.setLevel(logging.INFO)
-            formatter = Formatter("[%(asctime)s] %(message)s")
+            formatter = Formatter("[%(asctime)s] %(levelname)s: " +
+                                  "%(name)s: %(message)s")
             self.file_stream.setFormatter(formatter)
             root_logger.addHandler(self.file_stream)
 
