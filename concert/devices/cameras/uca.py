@@ -121,6 +121,7 @@ class Camera(base.Camera):
         yielded as they are being acquired.
         """
         try:
+            self.trigger_mode = self.uca.enum_values.trigger_mode.SOFTWARE
             self.start_recording()
             for i in xrange(num_frames):
                 self.trigger()
