@@ -179,13 +179,10 @@ class Pco(Camera):
     @async
     def freerun(self, consumer):
         """Start recording and send live frames to *consumer*."""
-        self.uca.props.trigger_mode = \
-            self.uca.enum_values.trigger_mode.AUTO
+        self.trigger_mode = self.uca.enum_values.trigger_mode.AUTO
         try:
-            self.uca.props.storage_mode = \
-                self.uca.enum_values.storage_mode.RECORDER
-            self.uca.props.record_mode = \
-                self.uca.enum_values.record_mode.RING_BUFFER
+            self.storage_mode = self.uca.enum_values.storage_mode.RECORDER
+            self.record_mode = self.uca.enum_values.record_mode.RING_BUFFER
         except:
             pass
         self.start_recording()
@@ -229,12 +226,9 @@ class Dimax(Pco):
             finally:
                 self.stop_recording()
 
-        self.uca.props.trigger_mode = \
-            self.uca.enum_values.trigger_mode.AUTO
-        self.uca.props.storage_mode = \
-            self.uca.enum_values.storage_mode.RECORDER
-        self.uca.props.record_mode = \
-            self.uca.enum_values.record_mode.SEQUENCE
+        self.trigger_mode = self.uca.enum_values.trigger_mode.AUTO
+        self.storage_mode = self.uca.enum_values.storage_mode.RECORDER
+        self.record_mode = self.uca.enum_values.record_mode.SEQUENCE
 
         # We need to make sure that the camera is in recording mode when we
         # start grabbing live frames, thus we start it synchronously.
