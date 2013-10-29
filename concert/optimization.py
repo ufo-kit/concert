@@ -93,6 +93,8 @@ def halver(function, x_0, initial_step=None, epsilon=None,
     last_x = x_0
 
     y_0 = function(x_0)
+    # Remember the best x and y
+    best = x_0, y_0
 
     def turn(direction, step):
         """Turn to opposite direction and reduce the step by half."""
@@ -117,13 +119,19 @@ def halver(function, x_0, initial_step=None, epsilon=None,
             x_0 = (x_0 + last_x) / 2
         else:
             # OK, move forward.
+            if y_1 < best[1]:
+                # The new y is better then the so far obtained one
+                best = x_0, y_1
             last_x = x_0
             x_0 = move(x_0, direction, step)
 
         y_0 = y_1
         i += 1
 
-    return x_0
+    # Apply the best known value
+    function(best[0])
+
+    return best[0]
 
 
 def _quantized(strip_func):
