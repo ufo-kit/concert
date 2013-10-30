@@ -1,6 +1,7 @@
 """Storage implementations."""
 import os
 import logging
+import numpy as np
 from concert.ext import tifffile
 from concert.helpers import async
 
@@ -55,6 +56,11 @@ def write_libtiff(file_name_prefix, data):
         tiff_file.close()
 
     return file_name
+
+
+def write_numpy(file_name_prefix, data):
+    """Save image *data* to file named *file_name_prefix*."""
+    np.save(file_name_prefix, data)
 
 
 def create_folder(folder, rights=0o0750):
