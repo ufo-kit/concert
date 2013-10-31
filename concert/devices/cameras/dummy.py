@@ -118,11 +118,17 @@ class Camera(base.Camera):
     when calling :meth:`.grab`. The final image will be the background +
     poisson depending on the currently set exposure time.
 
-    :py:attribute:: exposure_time
-    :py:attribute:: roi_width
-    :py:attribute:: roi_height
-    :py:attribute:: sensor_pixel_width
-    :py:attribute:: sensor_pixel_height
+    .. py:attribute:: exposure_time
+    .. py:attribute:: roi_width
+
+        Width of the image returned by :meth:`.grab`.
+
+    .. py:attribute:: roi_height
+
+        Height of the image returned by :meth:`.grab`.
+
+    .. py:attribute:: sensor_pixel_width
+    .. py:attribute:: sensor_pixel_height
     """
 
     def __init__(self, background=None):

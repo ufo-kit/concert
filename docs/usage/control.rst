@@ -31,5 +31,8 @@ Cameras
 
 The following camera devices are available:
 
+*   .. automodule:: concert.devices.cameras.dummy
+        :members:
+
 *   .. automodule:: concert.devices.cameras.uca
         :members:

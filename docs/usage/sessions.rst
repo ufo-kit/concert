@@ -264,5 +264,5 @@ or if you want to get rid of any log data use ::
 Session API
 ===========
 
-.. automodule:: concert.session
+.. automodule:: concert.session.utils
     :members:
