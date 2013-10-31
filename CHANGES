@@ -15,7 +15,7 @@ Improvements:
 - Most imports are delayed in the concert binary to reduce startup time.
 - We do not depend on Logbook anymore but use Python's logging module.
 - Experiments can now be modelled with the ``concert.experiments`` module.
-- ``concert.ext.viewers.PyplotViewer`` can be used to show 2D and 1D data.
+- ``concert.ext.viewers.PyplotViewer`` can be used to show 2D image data.
 - Spyder command plugin is now available. That means if you have Spyder
   installed you can control Concert from an IDE instead of from IPython.
 - Tests were restructured for easier access.
