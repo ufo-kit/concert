@@ -3,8 +3,22 @@ Concert changelog
 
 Here you can see the full list of changes between each Concert release.
 
+
 Version 0.5
 -----------
+
+Released on October 31st 2013.
+
+Improvements:
+
+- Python 3 is supported and can be tested with tox.
+- Most imports are delayed in the concert binary to reduce startup time.
+- We do not depend on Logbook anymore but use Python's logging module.
+- Experiments can now be modelled with the ``concert.experiments`` module.
+- ``concert.ext.viewers.PyplotViewer`` can be used to show 2D and 1D data.
+- Spyder command plugin is now available. That means if you have Spyder
+  installed you can control Concert from an IDE instead of from IPython.
+- Tests were restructured for easier access.
 
 API breaks:
 
@@ -13,6 +27,12 @@ API breaks:
   purpose.
 - Session helpers such as ``dstate`` and ``ddoc`` have been moved to
   ``concert.session.utils``.
+- Frames grabbed with the libuca devices will return a copy instead of the same
+  buffer.
+
+Fixes:
+
+- #106, #113 and many more which did not deserve an issue number.
 
 
 Version 0.4
