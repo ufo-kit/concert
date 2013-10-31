@@ -43,7 +43,7 @@ To get all parameters of an object, you can iterate over the device itself ::
 """
 import re
 import logging
-from concert.helpers import dispatcher, async
+from concert.helpers import dispatcher, async, wait
 
 
 LOG = logging.getLogger(__name__)
@@ -194,6 +194,7 @@ class Parameter(object):
         self._fset = fset
         self._fget = fget
         self._value = None
+        self._saved = []
         self.__doc__ = doc
 
         self.upper = upper if upper is not None else float('Inf')
@@ -285,6 +286,27 @@ class Parameter(object):
 
         log_access('set')
         self.notify()
+
+    @async
+    def stash(self):
+        """Save the current value internally on a growing stack.
+
+        If the parameter is writable the current value is saved on a stack and
+        to be later retrieved with :meth:`Parameter.restore`.
+        """
+        if self.is_writable():
+            self._saved.append(self.get().result())
+
+    @async
+    def restore(self):
+        """Restore the last value saved with :meth:`Parameter.stash`.
+
+        If the parameter can only be read or no value has been saved, this
+        operation does nothing.
+        """
+        if self.is_writable() and self._saved:
+            val = self._saved.pop()
+            self.set(val).wait()
 
     def notify(self):
         """Notify that the parameter value has changed."""
@@ -389,6 +411,22 @@ class Parameterizable(object):
 
         if parameter.is_writable():
             setattr(self, 'set_%s' % underscored, self[parameter.name].set)
+
+    @async
+    def stash(self):
+        """
+        Save all writable parameters that can be restored with
+        :meth:`Parameterizable.restore`.
+
+        The values are stored on a stacked, hence subsequent saved states can
+        be restored one by one.
+        """
+        wait((param.stash() for param in self))
+
+    @async
+    def restore(self):
+        """Restore all parameters saved with :meth:`Parameterizable.stash`."""
+        wait((param.restore() for param in self))
 
 
 class Process(Parameterizable):
