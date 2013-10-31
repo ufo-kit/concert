@@ -198,11 +198,12 @@ class PyplotCurveViewer(PyplotViewer):
 
     """
 
-    def __init__(self, style="o", plot_kwargs=None, autoscale=True):
+    def __init__(self, style="o", plot_kwargs=None, autoscale=True, title=""):
         super(PyplotCurveViewer, self).__init__(self.plot)
         self._first = True
         self._set_updater(_PyplotCurveUpdater(self._queue, style,
-                                              plot_kwargs, autoscale))
+                                              plot_kwargs, autoscale,
+                                              title=title))
 
     def plot(self, data, force=False):
         """
@@ -235,14 +236,15 @@ class PyplotImageViewer(PyplotViewer):
 
     """Dynamic image viewer using matplotlib."""
 
-    def __init__(self, imshow_kwargs=None, colorbar=True):
+    def __init__(self, imshow_kwargs=None, colorbar=True, title=""):
         super(PyplotImageViewer, self).__init__(self.show)
         self._has_colorbar = colorbar
         self._imshow_kwargs = {} if imshow_kwargs is None else imshow_kwargs
         self._make_imshow_defaults()
         self._set_updater(_PyplotImageUpdater(self._queue,
                                               self._imshow_kwargs,
-                                              self._has_colorbar))
+                                              self._has_colorbar,
+                                              title=title))
 
     def show(self, item, force=False):
         """
@@ -284,9 +286,10 @@ class _PyplotUpdater(object):
         A multiprocessing queue for receiving commands
     """
 
-    def __init__(self, queue):
+    def __init__(self, queue, title=""):
         self.queue = queue
         self.first = True
+        self.title = title
         # A dictionary in form command: method which tells the class what to do
         # for every received command
         self.commands = {}
@@ -333,8 +336,9 @@ class _PyplotCurveUpdater(_PyplotUpdater):
     STYLE = "style"
     AUTOSCALE = "autoscale"
 
-    def __init__(self, queue, style="o", plot_kwargs=None, autoscale=True):
-        super(_PyplotCurveUpdater, self).__init__(queue)
+    def __init__(self, queue, style="o", plot_kwargs=None, autoscale=True,
+                 title=""):
+        super(_PyplotCurveUpdater, self).__init__(queue, title=title)
         self.data = [[], []]
         self.line = None
         self.style = style
@@ -355,6 +359,7 @@ class _PyplotCurveUpdater(_PyplotUpdater):
 
         self.line = plt.plot(self.data[0], self.data[1], self.style,
                              **self.plot_kwargs)[0]
+        self.line.axes.set_title(self.title)
 
     def clear(self, data):
         """Clear everything from the plot."""
@@ -429,8 +434,8 @@ class _PyplotImageUpdater(_PyplotUpdater):
     CLIM = "clim"
     COLORMAP = "colormap"
 
-    def __init__(self, queue, imshow_kwargs, has_colorbar):
-        super(_PyplotImageUpdater, self).__init__(queue)
+    def __init__(self, queue, imshow_kwargs, has_colorbar, title=""):
+        super(_PyplotImageUpdater, self).__init__(queue, title=title)
         self.imshow_kwargs = imshow_kwargs
         self.has_colorbar = has_colorbar
         self.mpl_image = None
@@ -530,6 +535,7 @@ class _PyplotImageUpdater(_PyplotUpdater):
         """Create an image with colorbar"""
         from matplotlib import pyplot as plt
         self.mpl_image = plt.imshow(image, **self.imshow_kwargs)
+        self.mpl_image.axes.set_title(self.title)
         if self.clim is not None:
             self.mpl_image.set_clim(self.clim)
         if self.has_colorbar:
