@@ -376,8 +376,21 @@ class _PyplotCurveUpdater(_PyplotUpdater):
         """Plot *data*, which is an (x, y) tuple."""
         from matplotlib import pyplot as plt
 
-        self.data[0].append(data[0])
-        self.data[1].append(data[1])
+        def get_magnitude_and_unit(value):
+            if hasattr(value, "magnitude"):
+                dimless = value.magnitude
+                unit = value.units
+            else:
+                dimless = value
+                unit = None
+
+            return dimless, unit
+
+        x_item, x_units = get_magnitude_and_unit(data[0])
+        y_item, y_units = get_magnitude_and_unit(data[1])
+
+        self.data[0].append(x_item)
+        self.data[1].append(y_item)
         first = len(self.data[0]) == 1
 
         if first:
@@ -386,6 +399,10 @@ class _PyplotCurveUpdater(_PyplotUpdater):
                                     self.data[0][0] + 1e-7)
             self.line.axes.set_ylim(self.data[1][0] - 1e-7,
                                     self.data[1][0] + 1e-7)
+            if x_units is not None:
+                self.line.axes.get_xaxis().set_label_text(str(x_units))
+            if y_units is not None:
+                self.line.axes.get_yaxis().set_label_text(str(y_units))
         else:
             self.line.set_data(*self.data)
 
