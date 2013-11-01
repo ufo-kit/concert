@@ -2,13 +2,11 @@
 import os
 import logging
 from concert.ext import tifffile
-from concert.helpers import async
 
 
 LOG = logging.getLogger(__name__)
 
 
-@async
 def read_image(file_name):
     """
     Read image from file with *file_name*. The file type is detected
@@ -30,7 +28,6 @@ READERS = {".tif": read_tiff,
            ".tiff": read_tiff}
 
 
-@async
 def write_tiff(file_name_prefix, data):
     """
     The default TIFF writer which uses :py:mod:`tifffile` module.
@@ -42,7 +39,6 @@ def write_tiff(file_name_prefix, data):
     return file_name
 
 
-@async
 def write_libtiff(file_name_prefix, data):
     """Write a TIFF file using pylibtiff. Return the written file name."""
     from libtiff import TIFF

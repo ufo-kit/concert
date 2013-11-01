@@ -96,7 +96,7 @@ class FileCamera(base.Camera):
                     self._index >= len(self._files):
                 return None
 
-        image = read_image(self._files[self._index]).result()
+        image = read_image(self._files[self._index])
         if self.roi_height is None:
             y_region = image.shape[0]
         else:
