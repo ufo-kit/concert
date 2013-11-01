@@ -99,6 +99,6 @@ class Experiment(object):
         # Initiate new logger for this scan
         self._create_stream_handler()
 
-        LOG.info("{}. experiment run".format(self.iteration + 1))
+        LOG.info("{}. experiment run".format(self.iteration))
         self._run(*args, **kwargs)
         self.iteration += 1
