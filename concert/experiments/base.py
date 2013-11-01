@@ -7,7 +7,6 @@ import os
 import re
 import logging
 from logging import FileHandler, Formatter
-from concert.helpers import async
 from concert.storage import create_folder
 
 
@@ -85,7 +84,6 @@ class Experiment(object):
             self.file_stream.setFormatter(formatter)
             root_logger.addHandler(self.file_stream)
 
-    @async
     def run(self, *args, **kwargs):
         """
         Run the experiment with logging to file, *args* and *kwargs* are
