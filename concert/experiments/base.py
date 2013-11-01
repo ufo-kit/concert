@@ -93,7 +93,7 @@ class Experiment(object):
         """
         # Create folder for next scan
         create_folder(self.folder)
-        if os.listdir(self.folder) != []:
+        if self.has_multiple_folders and os.listdir(self.folder):
             raise ValueError("Folder {} is not empty".format(self.folder))
 
         # Initiate new logger for this scan
