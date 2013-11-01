@@ -17,6 +17,7 @@ User documentation
     usage/control
     usage/processes
     measures/measures
+    usage/experiments
 
 
 Developer documentation

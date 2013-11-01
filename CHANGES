@@ -10,6 +10,7 @@ Version 0.6
 Improvements:
 
 - 1D data plotting support by PyplotCurveViewer
+- ``concert.experiments.imaging.Radiography`` experiment type added
 
 API breaks:
 

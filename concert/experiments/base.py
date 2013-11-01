@@ -7,7 +7,6 @@ import os
 import re
 import logging
 from logging import FileHandler, Formatter
-from concert.helpers import async
 from concert.storage import create_folder
 
 
@@ -20,7 +19,7 @@ class Experiment(object):
     Experiment base class. An experiment can be run multiple times
     with logging output saved on disk. The log from every
     :py:meth:`Experiment.run` can be either appended or saved
-    has_multiple_foldersly, based on *root_folder* parameter.
+    has_multiple_folders, based on *root_folder* parameter.
 
     .. py:attribute:: run
 
@@ -85,17 +84,21 @@ class Experiment(object):
             self.file_stream.setFormatter(formatter)
             root_logger.addHandler(self.file_stream)
 
-    @async
     def run(self, *args, **kwargs):
-        """Run the experiment with logging to file."""
+        """
+        Run the experiment with logging to file, *args* and *kwargs* are
+        arguments and keyword arguments to be passed to the method which
+        actually conducts the experiment. The method is specified in the
+        constructor.
+        """
         # Create folder for next scan
         create_folder(self.folder)
-        if os.listdir(self.folder) != []:
+        if self.has_multiple_folders and os.listdir(self.folder):
             raise ValueError("Folder {} is not empty".format(self.folder))
 
         # Initiate new logger for this scan
         self._create_stream_handler()
 
-        LOG.info("{}. experiment run".format(self.iteration + 1))
-        self._run(self.folder, *args, **kwargs)
+        LOG.info("{}. experiment run".format(self.iteration))
+        self._run(*args, **kwargs)
         self.iteration += 1
