@@ -182,6 +182,6 @@ class Camera(base.Camera):
         to_sleep = q.count / self.frame_rate
         to_sleep = to_sleep.to_base_units() - duration * q.s
         if to_sleep > 0 * q.s:
-            time.sleep(to_sleep)
+            time.sleep(to_sleep.magnitude)
 
         return np.cast[np.uint16](tmp)
