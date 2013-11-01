@@ -3,6 +3,7 @@ from concert.tests import TestCase
 from concert.base import (Parameterizable, Parameter,
                           WriteAccessError, ReadAccessError, UnitError,
                           SoftLimitError, HardLimitError)
+from concert.devices.motors.dummy import Motor
 
 
 class BaseDevice(Parameterizable):
@@ -66,6 +67,21 @@ class TestParameterizable(TestCase):
         self.assertEqual(self.foo1.get_foo().result(), 15)
         self.assertEqual(self.foo2.get_foo().result(), 23)
 
+    def test_saving(self):
+        m = Motor()
+
+        m.position = 1 * q.mm
+        m.stash().wait()
+        m.position = 2 * q.mm
+        m.stash().wait()
+        m.position = 0.123 * q.mm
+        m.position = 1.234 * q.mm
+
+        m.restore().wait()
+        self.assertEqual(m.position, 2 * q.mm)
+
+        m.restore().wait()
+        self.assertEqual(m.position, 1 * q.mm)
 
 class TestParameter(TestCase):
 
@@ -141,3 +157,14 @@ class TestParameter(TestCase):
         with self.assertRaises(HardLimitError):
             in_limit.in_limit = True
             parameter.set(1.5).result()
+
+    def test_saving(self):
+        m = Motor()
+        param = m['position']
+
+        param.set(1.0 * q.mm).wait()
+        param.stash().wait()
+        param.set(2.0 * q.mm).wait()
+        param.set(0.02 * q.mm).wait()
+        param.restore().wait()
+        self.assertEqual(param.get().result(), 1.0 * q.mm)
