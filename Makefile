@@ -2,12 +2,12 @@ PYTHON = python
 SETUP = $(PYTHON) setup.py
 RUNTEST = $(PYTHON) runtests.py
 
-.PHONY: build clean check check-fast dist init install html
+.PHONY: build clean check check-fast check-without-async dist init install html
 
 all: build
 
-install: clean build dist
-	pip install dist/*.tar.gz
+install:
+	$(PYTHON) setup.py install
 
 build:
 	$(SETUP) build
@@ -20,6 +20,9 @@ check:
 
 check-fast:
 	$(RUNTEST) -a '!slow'
+
+check-without-async:
+	$(RUNTEST) --disable-async
 
 clean:
 	$(SETUP) clean --all
