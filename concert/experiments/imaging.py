@@ -1,7 +1,7 @@
 """Imaging experiments usually conducted at synchrotrons."""
 import os
 import logging
-from concert.storage import write_tiff, create_folder
+from concert.storage import write_tiff, create_directory
 from concert.coroutines import write_images, ImageAverager, flat_correct as \
     do_flat_correct
 from concert.helpers import inject, broadcast
@@ -31,23 +31,23 @@ class Radiography(Experiment):
     True, the radiographs are first flat corrected
     and then send to *process_radios*.  *writer* specifies image writer
     which will handle the image storage.
-    Every image is stored in a subfolder based on its type, moreover it is
-    stored in a particular scan number subfolder if the experiment should
-    store scans in separate subfolders, i.e.::
+    Every image is stored in a subdirectory based on its type, moreover it is
+    stored in a particular scan number subdirectory if the experiment should
+    store scans in separate subdirectories, i.e.::
 
-        root_folder/[scan_folder/]darks
-        root_folder/[scan_folder/]flats
-        root_folder/[scan_folder/]radios
+        root_directory/[scan_directory/]darks
+        root_directory/[scan_directory/]flats
+        root_directory/[scan_directory/]radios
 
-    folders exist after the run and are filled with images of a particular
+    directories exist after the run and are filled with images of a particular
     type. Note that radiographs are stored as they are taken without
     flat correction even if *flat_correct* is True.
     """
 
-    def __init__(self, root_folder, iteration=1,
+    def __init__(self, root_directory, iteration=1,
                  log_file_name="experiment.log", flat_correct=False,
                  writer=write_tiff):
-        super(Radiography, self).__init__(self.execute, root_folder,
+        super(Radiography, self).__init__(self.execute, root_directory,
                                           iteration=iteration,
                                           log_file_name=log_file_name)
         self.flat_correct = flat_correct
@@ -135,15 +135,15 @@ class Radiography(Experiment):
 
     def add_writer(self, process_images, image_type):
         """
-        Add image writer to consumers. The resulting folder of the data
-        is obtained by joining the *folder* and a subfolder determined
+        Add image writer to consumers. The resulting directory of the data
+        is obtained by joining the *directory* and a subdirectory determined
         by *image_type*. *process_images* is an originally assigned
         image processing coroutine. *writer* specifies which image
         writer will be used, and thus also the file type.
         """
-        folder = os.path.join(self.folder, image_type)
-        create_folder(folder)
-        prefix = os.path.join(folder, image_type[:-1] + "_{:>05}")
+        directory = os.path.join(self.directory, image_type)
+        create_directory(directory)
+        prefix = os.path.join(directory, image_type[:-1] + "_{:>05}")
         coroutines = [write_images(writer=self.writer, prefix=prefix)]
         if process_images is not None:
             coroutines.append(process_images)
