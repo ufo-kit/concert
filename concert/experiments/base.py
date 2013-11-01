@@ -20,7 +20,7 @@ class Experiment(object):
     Experiment base class. An experiment can be run multiple times
     with logging output saved on disk. The log from every
     :py:meth:`Experiment.run` can be either appended or saved
-    has_multiple_foldersly, based on *root_folder* parameter.
+    has_multiple_folders, based on *root_folder* parameter.
 
     .. py:attribute:: run
 
@@ -87,7 +87,12 @@ class Experiment(object):
 
     @async
     def run(self, *args, **kwargs):
-        """Run the experiment with logging to file."""
+        """
+        Run the experiment with logging to file, *args* and *kwargs* are
+        arguments and keyword arguments to be passed to the method which
+        actually conducts the experiment. The method is specified in the
+        constructor.
+        """
         # Create folder for next scan
         create_folder(self.folder)
         if os.listdir(self.folder) != []:
