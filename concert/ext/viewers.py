@@ -54,7 +54,7 @@ def _start_command(program, image, writer=write_tiff):
     """
     tmp_file = tempfile.mkstemp()[1]
     try:
-        full_path = writer(tmp_file, image).result()
+        full_path = writer(tmp_file, image)
         process = Popen([program, full_path])
         process.wait()
     finally:
