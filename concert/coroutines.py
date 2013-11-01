@@ -3,10 +3,11 @@ try:
 except ImportError:
     import queue
 
+import os
 import logging
 import numpy as np
 from concert.helpers import dispatcher, coroutine, threaded
-from concert.storage import write_tiff
+from concert.storage import create_folder, write_tiff
 from concert.imageprocessing import backproject, get_backprojection_norm,\
     get_ramp_filter, flat_correct as make_flat_correct
 
@@ -37,6 +38,10 @@ def write_images(writer=write_tiff, prefix="image_{:>05}"):
     The file extension needs to be applied by a particular writer.
     """
     i = 0
+
+    dir_name = os.path.dirname(prefix)
+    if dir_name != "" and not os.path.exists(dir_name):
+        create_folder(dir_name)
 
     while True:
         data = yield
