@@ -4,6 +4,20 @@ Concert changelog
 Here you can see the full list of changes between each Concert release.
 
 
+Version 0.6
+-----------
+
+Improvements:
+
+- 1D data plotting support by PyplotCurveViewer
+
+API breaks:
+
+- ``concert.ext.viewers.PyplotViewer`` substituted by 1D and 2D viewers
+  ``concert.ext.viewers.PyplotCurveViewer`` and
+  `concert.ext.viewers.PyplotImageViewer`
+
+
 Version 0.5
 -----------
 
