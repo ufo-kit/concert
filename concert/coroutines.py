@@ -22,7 +22,7 @@ SINOGRAMS_FULL = "sinos-full"
 def null():
     """A coroutine which does nothing."""
     while True:
-        item = yield
+        yield
 
 
 @coroutine
