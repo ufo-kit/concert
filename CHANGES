@@ -35,6 +35,13 @@ Fixes:
 - #106, #113 and many more which did not deserve an issue number.
 
 
+Version 0.5.1
+~~~~~~~~~~~~~
+
+- Fix sleep time in dummy camera
+- Fix imports in ``concert.ext.ufo``
+
+
 Version 0.4
 -----------
 
