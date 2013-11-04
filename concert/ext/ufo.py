@@ -1,11 +1,12 @@
+from __future__ import absolute_import
 import threading
 import numpy as np
 
 try:
     from gi.repository import Ufo
-    import ufonp
-except ImportError:
-    print("Ufo typelibs or ufonp are not installed")
+    import ufo.numpy
+except ImportError as e:
+    print(str(e))
 
 
 class PluginManager(object):
@@ -81,10 +82,10 @@ class InjectProcess(object):
         .. note:: *array* must be a NumPy compatible array.
         """
         if self.ufo_buffer is None:
-            self.ufo_buffer = ufonp.fromarray(array.astype(np.float32))
+            self.ufo_buffer = ufo.numpy.fromarray(array.astype(np.float32))
         else:
             self.ufo_buffer = self.input_task.get_input_buffer()
-            ufonp.fromarray_inplace(self.ufo_buffer, array.astype(np.float32))
+            ufo.numpy.fromarray_inplace(self.ufo_buffer, array.astype(np.float32))
 
         self.input_task.release_input_buffer(self.ufo_buffer)
 
