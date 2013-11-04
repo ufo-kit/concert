@@ -308,16 +308,21 @@ class StartCommand(Command):
 
         Specify a log file if ``--logto`` is set to ``file``.
 
+    .. cmdoption:: --non-interactive
+
+        Run the session as a script and do not launch a shell.
     """
     def __init__(self):
         opts = {'session': {'type': str},
                 '--logto': {'choices': ['stderr', 'file'],
                             'default': 'file'},
-                '--logfile': {'type': str}}
+                '--logfile': {'type': str},
+                '--non-interactive': {'action': 'store_true'}}
         super(StartCommand, self).__init__('start', opts)
         self.logger = None
 
-    def run(self, session=None, logto='file', logfile=None):
+    def run(self, session=None, logto='file', logfile=None,
+            non_interactive=False):
         concert.session.exit_if_not_exists(session)
 
         if logto == 'file':
@@ -337,13 +342,17 @@ class StartCommand(Command):
 
         # Add session path, so that sessions can import other sessions
         sys.path.append(concert.session.path())
-        try:
-            module = concert.session.load(session)
-        except:
-            traceback.print_exc()
-            sys.exit(1)
 
-        self.run_shell(module)
+        if non_interactive:
+            execfile(concert.session.path(session), globals())
+        else:
+            try:
+                module = concert.session.load(session)
+            except:
+                traceback.print_exc()
+                sys.exit(1)
+
+            self.run_shell(module)
 
     def run_shell(self, module=None):
         def _handler(_shell, _etype, evalue, _traceback_, tb_offset=None):
