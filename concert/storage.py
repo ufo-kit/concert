@@ -53,8 +53,8 @@ def write_libtiff(file_name_prefix, data):
     return file_name
 
 
-def create_folder(folder, rights=0o0750):
-    """Create *folder* and all paths along the way if necessary."""
-    if not os.path.exists(folder):
-        LOG.info("Creating folder {}".format(folder))
-        os.makedirs(folder, rights)
+def create_directory(directory, rights=0o0750):
+    """Create *directory* and all paths along the way if necessary."""
+    if not os.path.exists(directory):
+        LOG.info("Creating directory {}".format(directory))
+        os.makedirs(directory, rights)

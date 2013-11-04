@@ -12,13 +12,13 @@ from concert.devices.cameras.base import CameraError
 
 class FileCamera(base.Camera):
 
-    """A camera that reads files in a *folder*."""
+    """A camera that reads files in a *directory*."""
     TRIGGER_AUTO = 0
     TRIGGER_SOFTWARE = 1
 
-    def __init__(self, folder):
-        # Let users change the folder
-        self.folder = folder
+    def __init__(self, directory):
+        # Let users change the directory
+        self.directory = directory
         params = [Parameter('trigger-mode', lower=FileCamera.TRIGGER_AUTO,
                   upper=FileCamera.TRIGGER_SOFTWARE)]
         super(FileCamera, self).__init__(params)
@@ -34,8 +34,8 @@ class FileCamera(base.Camera):
         self.roi_y = 0
         self.roi_width = None
         self.roi_height = None
-        self._files = [os.path.join(folder, file_name) for file_name in
-                       sorted(os.listdir(folder))]
+        self._files = [os.path.join(directory, file_name) for file_name in
+                       sorted(os.listdir(directory))]
 
     def _get_index(self, stop_time=None):
         if stop_time is None:
