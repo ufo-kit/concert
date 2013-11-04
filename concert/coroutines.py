@@ -90,7 +90,10 @@ class ImageAverager(object):
     @coroutine
     def average_images(self):
         """Average images as they come."""
+        # Reset the average for every coroutine start
+        self.average = None
         i = 0
+
         while True:
             data = yield
             if self.average is None:
