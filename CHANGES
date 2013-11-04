@@ -14,6 +14,8 @@ Improvements:
 
 API breaks:
 
+- ``concert.storage.create_folder`` renamed to
+  ``concert.storage.create_directory``
 - ``concert.ext.viewers.PyplotViewer`` substituted by 1D and 2D viewers
   ``concert.ext.viewers.PyplotCurveViewer`` and
   ``concert.ext.viewers.PyplotImageViewer``
