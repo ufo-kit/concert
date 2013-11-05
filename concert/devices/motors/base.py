@@ -15,7 +15,7 @@ with an motor, the position can be changed with :meth:`Motor.set_position` and
 
 As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 """
-import logging 
+import logging
 from concert.quantities import q
 from concert.devices.base import Device, Parameter, LinearCalibration
 from concert.helpers import async
@@ -117,11 +117,20 @@ class ContinuousMotor(Motor):
 
     """
 
-    def __init__(self, position_calibration, velocity_calibration,
+    def __init__(self, position_calibration=None, velocity_calibration=None,
                  in_position_hard_limit=None,
                  in_velocity_hard_limit=None):
-        super(ContinuousMotor, self).__init__(position_calibration,
+        super(ContinuousMotor, self).__init__(calibration=
+                                              position_calibration,
+                                              in_hard_limit=
                                               in_position_hard_limit)
+
+        if not velocity_calibration:
+            self._velocity_calibration = LinearCalibration(q.count * q.s /
+                                                           q.deg,
+                                                           0 * q.deg / q.s)
+        else:
+            self._velocity_calibration = velocity_calibration
 
         param = Parameter(name='velocity',
                           fget=self._get_calibrated_velocity,
@@ -131,7 +140,6 @@ class ContinuousMotor(Motor):
                           doc="Velocity of the motor")
 
         self.add_parameter(param)
-        self._velocity_calibration = velocity_calibration
 
     def _get_calibrated_velocity(self):
         return self._velocity_calibration.to_user(self._get_velocity())
