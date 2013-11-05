@@ -15,8 +15,8 @@ To setup and use a camera in a typical environment, you would do::
 
     camera = UcaCamera('pco')
     camera.exposure_time = 0.2 * q.s
-    camera.start_recording().wait()
-    camera.trigger().wait()
+    camera.start_recording()
+    camera.trigger()
     data = camera.grab()
     camera.stop_recording()
 
