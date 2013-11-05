@@ -61,14 +61,14 @@ class TestContinuousDummyMotor(TestCase):
     def setUp(self):
         super(TestContinuousDummyMotor, self).setUp()
         position_calibration = LinearCalibration(q.count / q.mm, 0 * q.mm)
-        velocity_calibration = LinearCalibration(q.count / (q.mm / q.s),
-                                                 0 * (q.mm / q.s))
+        velocity_calibration = LinearCalibration(q.count / (q.deg / q.s),
+                                                 0 * (q.deg / q.s))
 
         self.motor = DummyContinuousMotor(position_calibration,
                                           velocity_calibration)
 
     def test_set_velocity(self):
-        velocity = 1 * q.mm / q.s
+        velocity = 1 * q.deg / q.s
         self.motor.velocity = velocity
         self.assertEqual(velocity, self.motor.velocity)
 
