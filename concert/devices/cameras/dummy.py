@@ -3,45 +3,28 @@ import numpy as np
 from concert.quantities import q
 from concert.base import Parameter
 from concert.devices.cameras import base
-from threading import Event
 import os
 import time
 from concert.storage import read_image
-from concert.devices.cameras.base import CameraError
 
 
 class FileCamera(base.Camera):
 
     """A camera that reads files in a *directory*."""
-    TRIGGER_AUTO = 0
-    TRIGGER_SOFTWARE = 1
 
     def __init__(self, directory):
         # Let users change the directory
         self.directory = directory
-        params = [Parameter('trigger-mode', lower=FileCamera.TRIGGER_AUTO,
-                  upper=FileCamera.TRIGGER_SOFTWARE)]
-        super(FileCamera, self).__init__(params)
+        super(FileCamera, self).__init__()
 
-        self._frame_rate = None
-        self._recording = None
-        self._index = -1
-        self._start_time = None
-        self._stop_time = None
-        self._trigger = Event()
-        self._trigger_time = None
+        self._frame_rate = 1000 * q.count / q.s
+        self._index = 0
         self.roi_x = 0
         self.roi_y = 0
         self.roi_width = None
         self.roi_height = None
         self._files = [os.path.join(directory, file_name) for file_name in
                        sorted(os.listdir(directory))]
-
-    def _get_index(self, stop_time=None):
-        if stop_time is None:
-            stop_time = time.time() * q.s
-
-        return int(self.frame_rate * (stop_time - self._start_time))
 
     def _get_frame_rate(self):
         return self._frame_rate
@@ -50,64 +33,34 @@ class FileCamera(base.Camera):
         self._frame_rate = frame_rate
 
     def _record_real(self):
-        self._start_time = time.time() * q.s
-        self._recording = True
+        pass
 
     def _stop_real(self):
-        if not self._recording:
-            raise CameraError("start_recording() not called")
-        self._stop_time = time.time() * q.s
-        self._trigger.clear()
-        self._trigger_time = None
-        self._recording = False
+        pass
 
     def _trigger_real(self):
-        if self.trigger_mode == FileCamera.TRIGGER_SOFTWARE:
-            self._trigger.set()
-            self._trigger_time = time.time()
-        else:
-            raise CameraError("Cannot trigger in current trigger mode")
+        pass
 
     def _grab_real(self):
-        if self._recording is None:
-            raise CameraError("Camera hasn't been in recording mode yet")
+        if self._index < len(self._files):
+            image = read_image(self._files[self._index])
 
-        if self._recording:
-            if self.trigger_mode == FileCamera.TRIGGER_SOFTWARE:
-                self._trigger.wait()
-                self._trigger.clear()
-
-            if self._get_index() == self._index:
-                # Wait for the next frame if the readout is too fast
-                time.sleep(1.0 / self.frame_rate)
-            self._index = self._get_index()
-        else:
-            if self.trigger_mode == FileCamera.TRIGGER_AUTO:
-                self._index += 1
+            if self.roi_height is None:
+                y_region = image.shape[0]
             else:
-                if self._trigger.is_set():
-                    self._trigger.clear()
-                else:
-                    # Camera hasn't been triggered, don't return anything
-                    return None
-                self._index = self._get_index(self._trigger_time)
+                y_region = self.roi_y + self.roi_height
 
-            if self._index > self._get_index(self._stop_time) or \
-                    self._index >= len(self._files):
-                return None
+            if self.roi_width is None:
+                x_region = image.shape[1]
+            else:
+                x_region = self.roi_x + self.roi_width
 
-        image = read_image(self._files[self._index])
-        if self.roi_height is None:
-            y_region = image.shape[0]
+            result = image[self.roi_y:y_region, self.roi_x:x_region]
+            self._index += 1
         else:
-            y_region = self.roi_y + self.roi_height
+            result = None
 
-        if self.roi_width is None:
-            x_region = image.shape[1]
-        else:
-            x_region = self.roi_x + self.roi_width
-
-        return image[self.roi_y:y_region, self.roi_x:x_region]
+        return result
 
 
 class Camera(base.Camera):
