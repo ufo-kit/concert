@@ -1,4 +1,5 @@
 from concert.quantities import q
+from concert.base import HardLimitError
 from concert.devices.base import LinearCalibration
 from concert.devices.motors.base import Motor
 from concert.devices.motors.dummy import Motor as DummyMotor,\
@@ -48,6 +49,10 @@ class TestDummyMotor(TestCase):
         self.motor.position = position
         self.assertEqual(position, self.motor.position)
 
+    def test_hard_limit(self):
+        self.assertRaises(HardLimitError, self.motor.set_position(1e6 *
+                                                                  q.m).result)
+
     def test_move(self):
         position = 1 * q.mm
         delta = 0.5 * q.mm
@@ -71,6 +76,10 @@ class TestContinuousDummyMotor(TestCase):
         velocity = 1 * q.deg / q.s
         self.motor.velocity = velocity
         self.assertEqual(velocity, self.motor.velocity)
+
+    def test_hard_limit(self):
+        self.assertRaises(HardLimitError, self.motor.set_velocity(1e6 * q.deg /
+                                                                  q.s).result)
 
 
 class TestMotorCalibration(TestCase):
