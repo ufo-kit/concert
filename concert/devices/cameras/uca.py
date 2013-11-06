@@ -123,6 +123,11 @@ class Camera(base.Camera):
         """
         try:
             self.trigger_mode = self.uca.enum_values.trigger_mode.SOFTWARE
+        except:
+            LOG.warn("Trigger mode cannot be set by '{}'".
+                     format(self.name))
+
+        try:
             self.start_recording()
             for i in xrange(num_frames):
                 self.trigger()
