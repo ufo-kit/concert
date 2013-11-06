@@ -49,9 +49,11 @@ class ContinuousMotor(base.ContinuousMotor):
 
     """Dummy ContinuousMotor class implementation."""
 
-    def __init__(self, position_calibration, velocity_calibration):
-        super(ContinuousMotor, self).__init__(position_calibration,
-                                              velocity_calibration)
+    def __init__(self, position_calibration=None, velocity_calibration=None):
+        super(ContinuousMotor,
+              self).__init__(position_calibration=position_calibration,
+                             velocity_calibration=
+                             velocity_calibration)
         self._position_hard_limits = -10 * q.count, 10 * q.count
         self._velocity_hard_limits = -100 * q.count, 100 * q.count
         self._position = 0 * q.count
