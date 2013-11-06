@@ -25,7 +25,7 @@ class Motor(base.Motor):
             self._position = random.uniform(self.lower, self.upper)
 
     def _in_hard_limit(self):
-        return self._position < self.lower or not self._position < self.upper
+        return self._position <= self.lower or self._position >= self.upper
 
     def _stop_real(self):
         pass
@@ -53,21 +53,23 @@ class ContinuousMotor(base.ContinuousMotor):
         super(ContinuousMotor,
               self).__init__(position_calibration=position_calibration,
                              velocity_calibration=
-                             velocity_calibration)
-        self._position_hard_limits = -10 * q.count, 10 * q.count
-        self._velocity_hard_limits = -100 * q.count, 100 * q.count
+                             velocity_calibration,
+                             in_velocity_hard_limit=
+                             self._in_velocity_hard_limit)
+        self.velocity_lower, self.velocity_upper = -100 * q.count, \
+            100 * q.count
         self._position = 0 * q.count
         self._velocity = 0 * q.count
+
+    def _in_velocity_hard_limit(self):
+        return self._velocity <= self.velocity_lower or \
+            self._velocity >= self.velocity_upper
 
     def _stop_real(self):
         self._velocity = 0 * q.count
 
     def _set_position(self, position):
         self._position = position
-        if self._position < self._position_hard_limits[0]:
-            self._position = self._position_hard_limits[0]
-        elif not self._position < self._position_hard_limits[1]:
-            self._position = self._position_hard_limits[1]
 
     def _get_position(self):
         return self._position
@@ -75,12 +77,10 @@ class ContinuousMotor(base.ContinuousMotor):
     def _set_velocity(self, velocity):
         self._velocity = velocity
 
-        if self._velocity < self._velocity_hard_limits[0]:
-            self._velocity = self._velocity_hard_limits[0]
-            # self.send(MotorMessage.VELOCITY_LIMIT)
-        elif not self._velocity < self._velocity_hard_limits[1]:
-            self._velocity = self._velocity_hard_limits[1]
-            # self.send(MotorMessage.VELOCITY_LIMIT)
+        if self._velocity < self.velocity_lower:
+            self._velocity = self.velocity_lower
+        elif not self._velocity < self.velocity_upper:
+            self._velocity = self.velocity_upper
 
     def _get_velocity(self):
         return self._velocity
