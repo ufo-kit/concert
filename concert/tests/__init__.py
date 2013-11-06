@@ -16,6 +16,7 @@ def suppressed_logging(func):
     """Decorator for test functions."""
     def test_wrapper(*args, **kwargs):
         suppress_logging()
+        func(*args, **kwargs)
 
     test_wrapper.__name__ = func.__name__
     return test_wrapper
