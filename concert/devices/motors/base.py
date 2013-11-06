@@ -132,10 +132,12 @@ class ContinuousMotor(Motor):
         else:
             self._velocity_calibration = velocity_calibration
 
+        unit = q.count / self._velocity_calibration.device_units_per_user_units
+
         param = Parameter(name='velocity',
                           fget=self._get_calibrated_velocity,
                           fset=self._set_calibrated_velocity,
-                          unit=q.deg / q.s,
+                          unit=unit,
                           in_hard_limit=in_velocity_hard_limit,
                           doc="Velocity of the motor")
 
