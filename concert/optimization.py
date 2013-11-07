@@ -18,13 +18,15 @@ LOG = logging.getLogger(__name__)
 
 
 @async
-def optimize(function, x_0, algorithm, alg_args=(), alg_kwargs=None):
+def optimize(function, x_0, algorithm, alg_args=(), alg_kwargs=None,
+             consumer=None):
     """
     Optimize y = *function* (x), where *x_0* is the initial guess.
     *algorithm* is the optimization algorithm to be used::
 
         algorithm(x_0, *alg_args, **alg_kwargs)
 
+    *consumer* receives all the (x, y) values as they are obtained.
     """
     alg_kwargs = {} if alg_kwargs is None else alg_kwargs
     data = []
@@ -32,7 +34,10 @@ def optimize(function, x_0, algorithm, alg_args=(), alg_kwargs=None):
     def evaluate(x_val):
         """Execute y = f(*x*), save (x, y) pair and return y."""
         result = function(x_val)
-        data.append((x_val, result))
+        pair = x_val, result
+        if consumer:
+            consumer.send(pair)
+        data.append(pair)
 
         return result
 
@@ -42,7 +47,7 @@ def optimize(function, x_0, algorithm, alg_args=(), alg_kwargs=None):
 
 
 def optimize_parameter(parameter, feedback, x_0, algorithm, alg_args=(),
-                       alg_kwargs=None):
+                       alg_kwargs=None, consumer=None):
     """
     Optimize *parameter* and use the *feedback* (a callable)
     as a result. Other arguments are the same as by :func:`optimize`.
@@ -51,6 +56,7 @@ def optimize_parameter(parameter, feedback, x_0, algorithm, alg_args=(),
         parameter.set(x)
         y = feedback()
 
+    *consumer* is the same as by :func:`optimize`.
     """
     def function(x_val):
         """
@@ -68,7 +74,8 @@ def optimize_parameter(parameter, feedback, x_0, algorithm, alg_args=(),
 
         return feedback()
 
-    return optimize(function, x_0, algorithm, alg_args, alg_kwargs)
+    return optimize(function, x_0, algorithm, alg_args=alg_args,
+                    alg_kwargs=alg_kwargs, consumer=consumer)
 
 
 def halver(function, x_0, initial_step=None, epsilon=None,

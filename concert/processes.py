@@ -108,26 +108,33 @@ def dscan(parameter_list, n_intervals, handler):
     return ascan(parameter_list, n_intervals, handler, initial_values)
 
 
-def focus(camera, motor, measure=np.std):
+def focus(camera, motor, measure=np.std, opt_kwargs=None,
+          optimization_consumer=None, frame_consumer=None):
     """
     Focus *camera* by moving *motor*. *measure* is a callable that computes a
     scalar that has to be maximized from an image taken with *camera*.
+    *opt_kwargs* are keyword arguments sent to the optimization algorithm.
+    *optimization_consumer* is fed with (x, y) values from the optimization and
+    *frame_consumer* is fed with the incoming frames.
 
     This function is returning a future encapsulating the focusing event. Note,
     that the camera is stopped from recording as soon as the optimal position
     is found.
     """
-    # we should guess this from motor limits
-    opts = {'initial_step': 10 * q.mm,
-            'epsilon': 5e-3 * q.mm}
+    if opt_kwargs is None:
+        opt_kwargs = {'initial_step': 0.5 * q.mm,
+                      'epsilon': 1e-2 * q.mm}
 
     def get_measure():
         frame = camera.grab()
+        if frame_consumer:
+            frame_consumer.send(frame)
         return - measure(frame)
 
     camera.start_recording()
     f = optimize_parameter(motor['position'], get_measure, motor.position,
-                           halver, alg_kwargs=opts)
+                           halver, alg_kwargs=opt_kwargs,
+                           consumer=optimization_consumer)
     f.add_done_callback(lambda unused: camera.stop_recording())
     return f
 
