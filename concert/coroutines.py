@@ -103,15 +103,15 @@ class ImageAverager(object):
 
 
 @coroutine
-def flat_correct(consumer, dark, flat):
+def flat_correct(consumer, flat, dark=None):
     """
-    Flat correction intermediate coroutine. It takes a *dark*, a *flat*,
-    gets a radiograph from a generator, calculates flat corrected image
-    and sends it forward to *consumer*.
+    Flat correcting corounte, which takes a *flat* field, a *dark* field (if
+    given), calculates a flat corrected radiograph and forwards it to
+    *consumer*.
     """
     while True:
         radio = yield
-        consumer.send(make_flat_correct(radio, flat, dark))
+        consumer.send(make_flat_correct(radio, flat, dark=dark))
 
 
 @coroutine
