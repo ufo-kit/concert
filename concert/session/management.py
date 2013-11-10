@@ -9,6 +9,14 @@ import imp
 
 _CACHED_PATH = None
 
+_SESSION_TEMPLATE = """from concert.quantities import q
+
+from concert.session.utils import ddoc, dstate, pdoc
+from concert.session.utils import code_of
+
+__doc__ = "This is session {}"
+"""
+
 
 def path(session=None):
     """
@@ -42,11 +50,7 @@ def create(session, imports=()):
 
     .. note:: This will *always* overwrite session.
     """
-    template = 'from concert.quantities import q\n'
-    template += '\n'
-    template += 'from concert.session.utils import ddoc, dstate, pdoc\n'
-    template += '\n'
-    template += '__doc__ = "This is session %s"\n' % session
+    template = _SESSION_TEMPLATE.format(session)
 
     def _module_exists(module_name):
         try:
