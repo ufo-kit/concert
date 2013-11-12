@@ -76,6 +76,8 @@ class Aerotech(SocketConnection):
 
     @classmethod
     def _interpret_response(cls, hle_response):
+        if not hle_response:
+            raise ValueError("Not enough data received")
         if (hle_response[0] == Aerotech.ACK_CHAR):
             # return the data
             res = hle_response[1:]
