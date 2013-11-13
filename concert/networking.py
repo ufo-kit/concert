@@ -120,8 +120,3 @@ def get_tango_device(uri, peer=None):
         os.environ["TANGO_HOST"] = peer
 
     return PyTango.DeviceProxy(uri)
-
-
-def get_topotomo_tango_device(uri):
-    """Get a Tango device at ANKA's TopoTomo beam line specified by *uri*."""
-    return get_tango_device(uri, peer="anka-tango:10018")
