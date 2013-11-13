@@ -45,7 +45,7 @@ class Camera(Device):
         frame_rate_param = Parameter(name='frame-rate',
                                      fget=self._get_frame_rate,
                                      fset=self._set_frame_rate,
-                                     unit=q.count / q.second,
+                                     unit=1.0 / q.second,
                                      doc="Frame rate of image acquisition")
 
         if params is not None:
@@ -70,6 +70,14 @@ class Camera(Device):
     def grab(self):
         """Return a NumPy array with data of the current frame."""
         return self._grab_real()
+
+    def acquire(self, num_frames, trigger=False):
+        """Acquire *num_frames* frames and *trigger* if necessary."""
+        for i in range(num_frames):
+            if trigger:
+                self.trigger()
+
+            yield self.grab()
 
     def _get_frame_rate(self):
         raise NotImplementedError

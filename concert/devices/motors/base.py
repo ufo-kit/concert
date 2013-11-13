@@ -4,11 +4,9 @@ real-world coordinates to devices coordinates. When a calibration is associated
 with an motor, the position can be changed with :meth:`Motor.set_position` and
 :meth:`Motor.move`::
 
-    from concert.devices.base import LinearCalibration
-    from concert.devices.motors.ankatango import ANKATangoDiscreteMotor
+    from concert.devices.motors.dummy import Motor
 
-    calibration = LinearCalibration(1 / q.mm, 0 * q.mm)
-    motor1 = ANKATangoDiscreteMotor(connection, calibration)
+    motor = Motor()
 
     motor.position = 2 * q.mm
     motor.move(-0.5 * q.mm)
