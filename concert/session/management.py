@@ -50,7 +50,8 @@ def create(session, imports=()):
 
     .. note:: This will *always* overwrite session.
     """
-    template = _SESSION_TEMPLATE.format(session)
+    from concert import get_canonical_version
+    template = _SESSION_TEMPLATE.format(get_canonical_version(), session)
 
     def _module_exists(module_name):
         try:
