@@ -9,8 +9,6 @@ from concert.devices.motors.base import ContinuousMotor, Motor
 class Aerorot(ContinuousMotor):
 
     """Aerorot (Continuous Motor) class implementation."""
-    HOST = "192.168.18.19"
-    PORT = 8001
     AXIS = "X"
 
     # status constants (bits of the AXISSTATUS output (see HLe docs))
@@ -25,7 +23,7 @@ class Aerorot(ContinuousMotor):
 
     SLEEP_TIME = 0.01
 
-    def __init__(self):
+    def __init__(self, host, port=8001, enable=True):
         pos_calib = LinearCalibration(q.count / q.deg, 0 * q.deg)
         velo_calib = LinearCalibration(q.count * q.s / q.deg,
                                        0 * q.deg / q.sec)
@@ -33,10 +31,16 @@ class Aerorot(ContinuousMotor):
 
         self["position"].unit = q.deg
 
-        self._connection = Aerotech(Aerorot.HOST, Aerorot.PORT)
+        self._connection = Aerotech(host, port)
+        if enable:
+            self.enable()
+
+    def enable(self):
+        """Enable the motor."""
         self._connection.execute("ENABLE %s" % (Aerorot.AXIS))
 
-    def __del__(self):
+    def disable(self):
+        """Disable the motor."""
         self._connection.execute("DISABLE %s" % (Aerorot.AXIS))
 
     def _query_state(self):
