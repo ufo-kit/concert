@@ -93,7 +93,7 @@ class Camera(base.Camera):
 
         super(Camera, self).__init__(params)
 
-        self._frame_rate = None
+        self._frame_rate = 10.0 / q.s
         self.exposure_time = 1 * q.ms
         self.sensor_pixel_width = 5 * q.micrometer
         self.sensor_pixel_height = 5 * q.micrometer
@@ -132,7 +132,7 @@ class Camera(base.Camera):
         # Cut values beyond the bit-depth.
         tmp[tmp > max_value] = max_value
         duration = time.time() - start
-        to_sleep = q.count / self.frame_rate
+        to_sleep = 1.0 / self.frame_rate
         to_sleep = to_sleep.to_base_units() - duration * q.s
         if to_sleep > 0 * q.s:
             time.sleep(to_sleep.magnitude)
