@@ -1,7 +1,7 @@
 """Aerotech"""
 import time
 from concert.quantities import q
-from concert.connections.inet import Aerotech
+from concert.networking import Aerotech
 from concert.devices.base import LinearCalibration
 from concert.devices.motors.base import ContinuousMotor, Motor
 
@@ -26,12 +26,12 @@ class Aerorot(ContinuousMotor):
     SLEEP_TIME = 0.01
 
     def __init__(self):
-        pos_calib = LinearCalibration(1 / q.deg, 0 * q.deg)
-        velo_calib = LinearCalibration(1 / (q.deg / q.sec), 0 * q.deg / q.sec)
+        pos_calib = LinearCalibration(q.count / q.deg, 0 * q.deg)
+        velo_calib = LinearCalibration(q.count * q.s / q.deg,
+                                       0 * q.deg / q.sec)
         super(Aerorot, self).__init__(pos_calib, velo_calib)
 
         self["position"].unit = q.deg
-        self["velocity"].unit = q.deg / q.sec
 
         self._connection = Aerotech(Aerorot.HOST, Aerorot.PORT)
         self._connection.execute("ENABLE %s" % (Aerorot.AXIS))
@@ -43,19 +43,23 @@ class Aerorot(ContinuousMotor):
         return int(self._connection.execute("AXISSTATUS(%s)" % (Aerorot.AXIS)))
 
     def _get_position(self):
-        return float(self._connection.execute("PFBK(%s)" % (Aerorot.AXIS)))
+        return float(self._connection.execute("PFBK(%s)" % (Aerorot.AXIS))) \
+            * q.count
 
     def _set_position(self, steps):
-        self._connection.execute("MOVEABS %s %f" % (Aerorot.AXIS, steps))
+        self._connection.execute("MOVEABS %s %f" % (Aerorot.AXIS,
+                                                    steps.magnitude))
 
         while not self._query_state() >> Aerorot.AXISSTATUS_IN_POSITION & 1:
             time.sleep(Aerorot.SLEEP_TIME)
 
     def _get_velocity(self):
-        return float(self._connection.execute("VFBK(%s)" % (Aerorot.AXIS)))
+        return float(self._connection.execute("VFBK(%s)" % (Aerorot.AXIS))) \
+            * q.count
 
     def _set_velocity(self, steps):
-        self._connection.execute("FREERUN %s %f" % (Aerorot.AXIS, steps))
+        self._connection.execute("FREERUN %s %f" % (Aerorot.AXIS,
+                                                    steps.magnitude))
 
         while self._query_state() >> Aerorot.AXISSTATUS_ACCEL_PHASE & 1:
             time.sleep(Aerorot.SLEEP_TIME)
