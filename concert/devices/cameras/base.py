@@ -45,7 +45,7 @@ class Camera(Device):
         frame_rate_param = Parameter(name='frame-rate',
                                      fget=self._get_frame_rate,
                                      fset=self._set_frame_rate,
-                                     unit=q.count / q.second,
+                                     unit=1.0 / q.second,
                                      doc="Frame rate of image acquisition")
 
         if params is not None:
