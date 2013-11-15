@@ -91,14 +91,3 @@ class Aerorot(ContinuousMotor):
 
         while self.state == Motor.MOVING:
             time.sleep(Aerorot.SLEEP_TIME)
-
-    def get_digital_in(self, port, bit):
-        """Get TTL level on *port* and *bit*."""
-        res = self._connection.execute("DIN(%s,%d,%d)" %
-                                       (Aerorot.AXIS, port, bit))
-        return res == "1"
-
-    def set_digital_out(self, port, bit, value):
-        """Set TTL level on *port* and *bit* to *value*"""
-        self._connection.execute("DOUT %s, %d, %d:%d" % (Aerorot.AXIS, port,
-                                                         bit, value))
