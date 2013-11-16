@@ -3,10 +3,9 @@ from nose.plugins.attrib import attr
 from concert.quantities import q
 from concert.devices.motors.dummy import Motor
 from concert.devices.base import LinearCalibration
-from concert.processes import scan, align_rotation_axis
+from concert.processes import align_rotation_axis
 from concert.tests import slow, TestCase
 from concert.tests.util.rotationaxis import SimulationCamera
-from concert.measures import get_rotation_axis
 
 
 @attr('skip-travis')
@@ -21,20 +20,15 @@ class TestDummyAlignment(TestCase):
         self.z_motor = Motor(calibration=calibration, hard_limits=hard_limits)
 
         self.x_motor.position = 0 * q.deg
+        self.y_motor.position = 0 * q.deg
         self.z_motor.position = 0 * q.deg
 
         self.image_source = SimulationCamera(128, self.x_motor["position"],
                                              self.y_motor["position"],
                                              self.z_motor["position"])
 
-        self.feedback = self.image_source.grab
-
         # Allow 1 px misalignment in y-direction.
         self.eps = np.arctan(2.0 / self.image_source.rotation_radius) * q.rad
-
-    def get_images(self):
-        return scan(self.y_motor["position"], self.feedback, minimum=0 * q.rad,
-                    maximum=2 * np.pi * q.rad, intervals=10).result()[1]
 
     def align_check(self, x_angle, z_angle, has_z_motor=True):
         """"Align and check the results."""
@@ -43,7 +37,7 @@ class TestDummyAlignment(TestCase):
 
         z_motor = self.z_motor if has_z_motor else None
 
-        align_rotation_axis(get_rotation_axis, self.get_images,
+        align_rotation_axis(self.image_source, self.y_motor,
                             self.x_motor, z_motor).wait()
 
         # In our case the best perfectly aligned position is when both
@@ -58,9 +52,10 @@ class TestDummyAlignment(TestCase):
             return np.ones((self.image_source.size,
                             self.image_source.size))
 
-        self.feedback = get_ones
+        self.image_source._grab_real = get_ones
+
         with self.assertRaises(ValueError) as ctx:
-            align_rotation_axis(get_rotation_axis, self.get_images,
+            align_rotation_axis(self.image_source, self.y_motor,
                                 self.x_motor, self.z_motor).wait()
 
         self.assertEqual("No sample tip points found.", str(ctx.exception))
@@ -69,7 +64,7 @@ class TestDummyAlignment(TestCase):
     def test_not_offcentered(self):
         self.image_source.rotation_radius = 0
         with self.assertRaises(ValueError) as ctx:
-            align_rotation_axis(get_rotation_axis, self.get_images,
+            align_rotation_axis(self.image_source, self.y_motor,
                                 self.x_motor, self.z_motor).wait()
 
         self.assertEqual("Sample off-centering too " +

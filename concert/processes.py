@@ -1,6 +1,7 @@
 import numpy as np
 from concert.helpers import async, wait
 from concert.quantities import q
+from concert.measures import get_rotation_axis
 from concert.optimization import halver, optimize_parameter
 
 
@@ -140,19 +141,21 @@ def focus(camera, motor, measure=np.std, opt_kwargs=None,
 
 
 @async
-def align_rotation_axis(measure, image_getter, x_motor, z_motor=None,
+def align_rotation_axis(camera, rotation_motor, x_motor, z_motor=None,
+                        measure=get_rotation_axis, num_frames=10,
                         absolute_eps=0.1 * q.deg, max_iterations=5):
     """
-    run(measure, image_getter, x_motor, z_motor=None,
-    absolute_eps=0.1 * q.deg, max_iterations=5)
+    run(camera, rotation_motor, x_motor, z_motor=None,
+    measure=get_rotation_axis, num_frames=10, absolute_eps=0.1 * q.deg,
+    max_iterations=5)
 
-    Align rotation axis. *measure* provides axis of rotation angular
-    misalignment data (a callable), *image_getter* provides image
-    sequences with sample rotated around the axis of rotation (a callable).
-    *x_motor* turns the sample around x-axis, *z_motor* is optional
-    and turns the sample around z-axis. *absolute_eps* is the threshold
-    for stopping the procedure. If *max_iterations* is reached the
-    procedure stops as well.
+    Align rotation axis. *camera* is used to obtain frames, *rotation_motor*
+    rotates the sample around the tomographic axis of rotation, *x_motor* turns
+    the sample around x-axis, *z_motor* turns the sample around z-axis.
+    *measure* provides axis of rotation angular misalignment data (a callable),
+    *num_frames* defines how many frames are acquired and passed to the
+    *measure*.  *absolute_eps* is the threshold for stopping the procedure. If
+    *max_iterations* is reached the procedure stops as well.
 
     The procedure finishes when it finds the minimum angle between an
     ellipse extracted from the sample movement and respective axes or the
@@ -160,6 +163,16 @@ def align_rotation_axis(measure, image_getter, x_motor, z_motor=None,
     the procedure is (0,1,0), which is the direction perpendicular
     to the beam direction and the lateral direction.
     """
+    step = 2 * np.pi / num_frames * q.rad
+
+    def get_frames():
+        frames = []
+        for i in range(num_frames):
+            rotation_motor.move(i * step).wait()
+            frames.append(camera.grab())
+
+        return frames
+
     # Sometimes both z-directions need to be tried out because of the
     # projection ambiguity.
     z_direction = -1
@@ -170,7 +183,7 @@ def align_rotation_axis(measure, image_getter, x_motor, z_motor=None,
     z_turn_counter = 0
 
     while True:
-        x_angle, z_angle, center = measure(image_getter())
+        x_angle, z_angle, center = measure(get_frames())
 
         x_better = True if z_motor is not None and\
             (x_last is None or np.abs(x_angle) < x_last) else False
