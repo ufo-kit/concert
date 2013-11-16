@@ -23,12 +23,12 @@ class TestDummyAlignment(TestCase):
         self.y_motor.position = 0 * q.deg
         self.z_motor.position = 0 * q.deg
 
-        self.image_source = SimulationCamera(128, self.x_motor["position"],
-                                             self.y_motor["position"],
-                                             self.z_motor["position"])
+        self.camera = SimulationCamera(128, self.x_motor["position"],
+                                       self.y_motor["position"],
+                                       self.z_motor["position"])
 
         # Allow 1 px misalignment in y-direction.
-        self.eps = np.arctan(2.0 / self.image_source.rotation_radius) * q.rad
+        self.eps = np.arctan(2.0 / self.camera.rotation_radius) * q.rad
 
     def align_check(self, x_angle, z_angle, has_z_motor=True):
         """"Align and check the results."""
@@ -37,7 +37,7 @@ class TestDummyAlignment(TestCase):
 
         z_motor = self.z_motor if has_z_motor else None
 
-        align_rotation_axis(self.image_source, self.y_motor,
+        align_rotation_axis(self.camera, self.y_motor,
                             self.x_motor, z_motor).wait()
 
         # In our case the best perfectly aligned position is when both
@@ -49,22 +49,22 @@ class TestDummyAlignment(TestCase):
     @slow
     def test_out_of_fov(self):
         def get_ones():
-            return np.ones((self.image_source.size,
-                            self.image_source.size))
+            return np.ones((self.camera.size,
+                            self.camera.size))
 
-        self.image_source._grab_real = get_ones
+        self.camera._grab_real = get_ones
 
         with self.assertRaises(ValueError) as ctx:
-            align_rotation_axis(self.image_source, self.y_motor,
+            align_rotation_axis(self.camera, self.y_motor,
                                 self.x_motor, self.z_motor).wait()
 
         self.assertEqual("No sample tip points found.", str(ctx.exception))
 
     @slow
     def test_not_offcentered(self):
-        self.image_source.rotation_radius = 0
+        self.camera.rotation_radius = 0
         with self.assertRaises(ValueError) as ctx:
-            align_rotation_axis(self.image_source, self.y_motor,
+            align_rotation_axis(self.camera, self.y_motor,
                                 self.x_motor, self.z_motor).wait()
 
         self.assertEqual("Sample off-centering too " +
@@ -93,12 +93,12 @@ class TestDummyAlignment(TestCase):
 
     @slow
     def test_huge_x(self):
-        self.image_source.scale = (3, 0.25, 3)
+        self.camera.scale = (3, 0.25, 3)
         self.align_check(60 * q.deg, 11 * q.deg)
 
     @slow
     def test_huge_z(self):
-        self.image_source.scale = (3, 0.25, 3)
+        self.camera.scale = (3, 0.25, 3)
         self.align_check(11 * q.deg, 60 * q.deg)
 
     @slow
