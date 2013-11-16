@@ -34,8 +34,8 @@ class BlurringCamera(Camera):
 
 @suppressed_logging
 def test_focusing():
-    motor = Motor(hard_limits=(MIN_POSITION.magnitude,
-                               MAX_POSITION.magnitude))
+    motor = Motor(hard_limits=(MIN_POSITION.magnitude * q.count,
+                               MAX_POSITION.magnitude * q.count))
     motor.position = 40. * q.mm
     camera = BlurringCamera(motor)
     focus(camera, motor).wait()
