@@ -141,11 +141,11 @@ def focus(camera, motor, measure=np.std, opt_kwargs=None,
 
 
 @async
-def align_rotation_axis(camera, rotation_motor, x_motor, z_motor=None,
+def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
                         measure=get_rotation_axis, num_frames=10,
                         absolute_eps=0.1 * q.deg, max_iterations=5):
     """
-    run(camera, rotation_motor, x_motor, z_motor=None,
+    run(camera, rotation_motor, x_motor=None, z_motor=None,
     measure=get_rotation_axis, num_frames=10, absolute_eps=0.1 * q.deg,
     max_iterations=5)
 
@@ -163,6 +163,9 @@ def align_rotation_axis(camera, rotation_motor, x_motor, z_motor=None,
     the procedure is (0,1,0), which is the direction perpendicular
     to the beam direction and the lateral direction.
     """
+    if not x_motor and not z_motor:
+        raise ValueError("At least one of the x, z motors must be given")
+
     step = 2 * np.pi / num_frames * q.rad
 
     def get_frames():
@@ -187,19 +190,20 @@ def align_rotation_axis(camera, rotation_motor, x_motor, z_motor=None,
 
         x_better = True if z_motor is not None and\
             (x_last is None or np.abs(x_angle) < x_last) else False
-        z_better = True if z_last is None or np.abs(z_angle) < z_last\
-            else False
+        z_better = True if x_motor is not None and\
+            (z_last is None or np.abs(z_angle) < z_last) else False
 
-        if z_better:
-            z_turn_counter = 0
-        elif z_turn_counter < 1:
-            # We might have rotated in the opposite direction because
-            # of the projection ambiguity. However, that must be picked up
-            # in the next iteration, so if the two consequent angles
-            # are worse than the minimum, we have the result.
-            z_better = True
-            z_direction = -z_direction
-            z_turn_counter += 1
+        if x_motor:
+            if z_better:
+                z_turn_counter = 0
+            elif z_turn_counter < 1:
+                # We might have rotated in the opposite direction because
+                # of the projection ambiguity. However, that must be picked up
+                # in the next iteration, so if the two consequent angles
+                # are worse than the minimum, we have the result.
+                z_better = True
+                z_direction = -z_direction
+                z_turn_counter += 1
 
         x_future, z_future = None, None
         if z_better and np.abs(z_angle) >= absolute_eps:
