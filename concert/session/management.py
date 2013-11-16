@@ -6,10 +6,14 @@ import os
 import sys
 import imp
 
+from concert import __version__
 
 _CACHED_PATH = None
 
-_SESSION_TEMPLATE = """from concert.quantities import q
+_SESSION_TEMPLATE = """import concert
+concert.require("{}")
+
+from concert.quantities import q
 
 from concert.session.utils import ddoc, dstate, pdoc
 from concert.session.utils import code_of
@@ -50,7 +54,8 @@ def create(session, imports=()):
 
     .. note:: This will *always* overwrite session.
     """
-    template = _SESSION_TEMPLATE.format(session)
+    from concert import get_canonical_version
+    template = _SESSION_TEMPLATE.format(get_canonical_version(), session)
 
     def _module_exists(module_name):
         try:
