@@ -15,9 +15,7 @@ class Motor(base.Motor):
         if hard_limits:
             self.lower, self.upper = hard_limits
         else:
-            self.lower, self.upper = -100, 100
-        self.lower = self.lower * q.count
-        self.upper = self.upper * q.count
+            self.lower, self.upper = -100 * q.count, 100 * q.count
 
         if position is not None:
             self._position = position

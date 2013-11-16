@@ -15,13 +15,13 @@ class TestRotationAxisMeasure(TestCase):
     def setUp(self):
         super(TestRotationAxisMeasure, self).setUp()
         self.x_motor = Motor(LinearCalibration(q.count / q.deg, 0 * q.deg),
-                             hard_limits=(-1e5, 1e5))
+                             hard_limits=(-1e5 * q.count, 1e5 * q.count))
         self.x_motor["position"].unit = q.deg
         self.y_motor = Motor(LinearCalibration(q.count / q.deg, 0 * q.deg),
-                             hard_limits=(-1e5, 1e5))
+                             hard_limits=(-1e5 * q.count, 1e5 * q.count))
         self.y_motor["position"].unit = q.deg
         self.z_motor = Motor(LinearCalibration(q.count / q.deg, 0 * q.deg),
-                             hard_limits=(-1e5, 1e5))
+                             hard_limits=(-1e5 * q.count, 1e5 * q.count))
         self.z_motor["position"].unit = q.deg
 
         # The bigger the image size, the more images we need to determine
