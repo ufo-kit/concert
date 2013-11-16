@@ -322,9 +322,10 @@ class StartCommand(Command):
 
         This is session tomo
         Welcome to Concert 0.0.1
-        In [1]: m.crio1.set_positon(2.23 * q.mm)
-        In [2]: m.crio1.get_position()
-        Out[2]: array(2.23) * mm
+
+        tomo > m.crio1.set_positon(2.23 * q.mm)
+        tomo > m.crio1.get_position()
+        tomo > array(2.23) * mm
 
     *Additional options*:
 

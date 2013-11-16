@@ -30,7 +30,7 @@ or from a session and within an integrated `IPython`_ shell::
     $ concert init session
     $ concert start session
 
-    In [1]: motor.position = 10 * q.mm
+    session > motor.position = 10 * q.mm
     10.0 millimeter
 
 .. _Ipython: http://ipython.org
