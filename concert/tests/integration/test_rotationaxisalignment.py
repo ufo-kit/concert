@@ -46,6 +46,12 @@ class TestDummyAlignment(TestCase):
         if has_z_motor:
             assert np.abs(self.z_motor.position) < self.eps
 
+    def test_no_motor(self):
+        self.assertRaises(ValueError, align_rotation_axis(self.camera,
+                                                          self.y_motor,
+                                                          x_motor=None,
+                                                          z_motor=None).wait)
+
     @slow
     def test_out_of_fov(self):
         def get_ones():
