@@ -36,7 +36,7 @@ def cmp_versions(v1, v2):
     return (n1 > n2) - (n1 < n2)
 
 
-def get_ipython_shell():
+def get_ipython_shell(config=None):
     import IPython
 
     version = IPython.__version__
@@ -49,13 +49,28 @@ def get_ipython_shell():
     elif cmp_versions(version, '1.0') < 0:
         from IPython.frontend.terminal.embed import \
             InteractiveShellEmbed
-        shell = InteractiveShellEmbed(banner1='')
+        shell = InteractiveShellEmbed(config=config, banner1='')
     else:
         from IPython.terminal.embed import InteractiveShellEmbed
-        shell = InteractiveShellEmbed(banner1='')
+        shell = InteractiveShellEmbed(config=config, banner1='')
 
     return shell
 
+
+def get_prompt_config(session_name):
+    """Customize the prompt for the *session_name*."""
+    try:
+        from IPython.config.loader import Config
+        cfg = Config()
+        prompt_config = cfg.PromptManager
+        trig = ">"
+        prompt =  '{} {} '.format(session_name, trig)
+        prompt_config.in_template = '{color.LightGreen}' + prompt
+        prompt_config.in2_template = '   .\\D. {} '.format(trig)
+        prompt_config.out_template = '\r'.format(trig)
+        return cfg
+    except:
+        pass
 
 class InitCommand(Command):
     """Create a new session.
@@ -371,7 +386,8 @@ class StartCommand(Command):
         globals().update(mvars)
 
         try:
-            shell = get_ipython_shell()
+            cfg = get_prompt_config(module.__name__)
+            shell = get_ipython_shell(config=cfg)
             exceptions = (UnitError, LimitError, ParameterError,
                           ReadAccessError, WriteAccessError)
             shell.set_custom_exc(exceptions, _handler)
