@@ -92,7 +92,7 @@ def move(source, target):
 
 def load(session):
     """Load *session* and return the module."""
-    return imp.load_source('m', path(session))
+    return imp.load_source(session, path(session))
 
 
 def get_existing():
