@@ -10,7 +10,8 @@ from concert import __version__
 
 _CACHED_PATH = None
 
-_SESSION_TEMPLATE = """import concert
+_SESSION_TEMPLATE = """import logging
+import concert
 concert.require("{}")
 
 from concert.quantities import q
@@ -19,6 +20,8 @@ from concert.session.utils import ddoc, dstate, pdoc
 from concert.session.utils import code_of
 
 __doc__ = "This is session {}"
+
+LOG = logging.getLogger(__name__)
 """
 
 
