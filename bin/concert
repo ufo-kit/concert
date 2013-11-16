@@ -20,6 +20,7 @@ from concert.base import (UnitError,
                           ReadAccessError,
                           WriteAccessError)
 
+
 def get_docstring_summary(doc):
     if doc and doc.find('.'):
         return doc[:doc.find('.')]
@@ -72,7 +73,9 @@ def get_prompt_config(session_name):
     except:
         pass
 
+
 class InitCommand(Command):
+
     """Create a new session.
 
     *Additional options*:
@@ -86,9 +89,9 @@ class InitCommand(Command):
         opts = {'session': {'type': str},
                 '--force': {'action': 'store_true',
                             'help': "Overwrite existing sessions"},
-                 '--imports': {'help': "Pre-import processes",
-                               'metavar': 'modules',
-                               'default': ''}}
+                '--imports': {'help': "Pre-import processes",
+                              'metavar': 'modules',
+                              'default': ''}}
         super(InitCommand, self).__init__('init', opts)
 
     def run(self, session=None, imports="", force=False):
@@ -101,6 +104,7 @@ class InitCommand(Command):
 
 
 class EditCommand(Command):
+
     """Edit a session.
 
     Edit the session file by launching ``$EDITOR`` with the associated Python
@@ -111,6 +115,7 @@ class EditCommand(Command):
 
         crio1 = LinearAxis(None)
     """
+
     def __init__(self):
         opts = {'session': {'type': str}}
         super(EditCommand, self).__init__('edit', opts)
@@ -123,11 +128,13 @@ class EditCommand(Command):
 
 
 class LogCommand(Command):
+
     """Show session logs.
 
     If a *session* is not given, the log command shows entries from all
     sessions.
     """
+
     def __init__(self):
         opts = {'session': {'type': str,
                             'nargs': '?'}}
@@ -153,7 +160,9 @@ class LogCommand(Command):
 
 
 class ShowCommand(Command):
+
     """Show available sessions or details of a given *session*."""
+
     def __init__(self):
         opts = {'session': {'type': str,
                             'nargs': '?',
@@ -179,7 +188,9 @@ class ShowCommand(Command):
 
 
 class MoveCommand(Command):
+
     """Move session *source* to *target*."""
+
     def __init__(self):
         opts = {'source': {'type': str,
                            'help': "Name of the source session"},
@@ -199,6 +210,7 @@ class MoveCommand(Command):
 
 
 class RemoveCommand(Command):
+
     """Remove one or more sessions.
 
     .. note::
@@ -207,6 +219,7 @@ class RemoveCommand(Command):
         backup is made.
 
     """
+
     def __init__(self):
         opts = {'sessions': {'type': str,
                              'nargs': '+',
@@ -220,18 +233,19 @@ class RemoveCommand(Command):
 
 
 class FetchCommand(Command):
+
     """Import an existing *session*."""
 
     def __init__(self):
         opts = {'url': {'type': str,
-                      'help': "Fetch a Python module and save as a session."
-                              " Note: Server certificates of HTTPS requests"
-                              " are NOT verified!"},
+                        'help': "Fetch a Python module and save as a session."
+                        " Note: Server certificates of HTTPS requests"
+                        " are NOT verified!"},
                 '--force': {'action': 'store_true',
                             'help': "Overwrite existing sessions"},
                 '--repo': {'action': 'store_true',
-                            'help':
-                            "Checkout Git repository and import all files"}}
+                           'help':
+                           "Checkout Git repository and import all files"}}
         super(FetchCommand, self).__init__('fetch', opts)
 
     def run(self, url, force=False, repo=False):
@@ -296,6 +310,7 @@ class FetchCommand(Command):
 
 
 class StartCommand(Command):
+
     """Start a session.
 
     Load the session file and launch an IPython shell. Every definition that
@@ -327,6 +342,7 @@ class StartCommand(Command):
 
         Run the session as a script and do not launch a shell.
     """
+
     def __init__(self):
         opts = {'session': {'type': str},
                 '--logto': {'choices': ['stderr', 'file'],
@@ -373,8 +389,6 @@ class StartCommand(Command):
         def _handler(_shell, _etype, evalue, _traceback_, tb_offset=None):
             print("Sorry, {0}".format(str(evalue)))
             return None
-
-        from concert.quantities import q
 
         print("Welcome to Concert {0}".format(concert.__version__))
 
@@ -424,7 +438,7 @@ def main():
         cmd_parser.set_defaults(func=command.run)
 
         for arg in command.opts.keys():
-             cmd_parser.add_argument(arg, **command.opts[arg])
+            cmd_parser.add_argument(arg, **command.opts[arg])
 
     if len(sys.argv) == 1:
         parser.print_help()
