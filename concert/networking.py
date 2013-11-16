@@ -89,20 +89,6 @@ class Aerotech(SocketConnection):
         if (hle_response[0] == Aerotech.FAULT_CHAR):
             raise RuntimeError("Controller task error.")
 
-    def send(self, data):
-        """Add eos special character after the command."""
-        try:
-            super(Aerotech, self).send(data + Aerotech.EOS_CHAR)
-        except socket.error as err:
-            if err.errno == socket.errno.ECONNRESET:
-                LOG.debug("Connection reset by peer, reconnecting...")
-                self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self._sock.settimeout(20)
-                self._sock.connect(self._peer)
-                # Try again.
-                super(Aerotech, self).\
-                    send(data.upper() + Aerotech.EOS_CHAR)
-
     def recv(self):
         """Return properly interpreted answer from the controller."""
         return self._interpret_response(super(Aerotech, self).recv())
