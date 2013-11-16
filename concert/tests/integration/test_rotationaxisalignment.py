@@ -30,19 +30,21 @@ class TestDummyAlignment(TestCase):
         # Allow 1 px misalignment in y-direction.
         self.eps = np.arctan(2.0 / self.camera.rotation_radius) * q.rad
 
-    def align_check(self, x_angle, z_angle, has_z_motor=True):
+    def align_check(self, x_angle, z_angle, has_x_motor=True,
+                    has_z_motor=True):
         """"Align and check the results."""
         self.x_motor.position = z_angle
         self.z_motor.position = x_angle
 
+        x_motor = self.x_motor if has_x_motor else None
         z_motor = self.z_motor if has_z_motor else None
 
-        align_rotation_axis(self.camera, self.y_motor,
-                            self.x_motor, z_motor).wait()
+        align_rotation_axis(self.camera, self.y_motor, x_motor, z_motor).wait()
 
         # In our case the best perfectly aligned position is when both
         # motors are in 0.
-        assert np.abs(self.x_motor.position) < self.eps
+        if has_x_motor:
+            assert np.abs(self.x_motor.position) < self.eps
         if has_z_motor:
             assert np.abs(self.z_motor.position) < self.eps
 
@@ -81,6 +83,11 @@ class TestDummyAlignment(TestCase):
     def test_no_x_axis(self):
         """Test the case when there is no x-axis motor available."""
         self.align_check(17 * q.deg, 11 * q.deg, has_z_motor=False)
+
+    @slow
+    def test_no_z_axis(self):
+        """Test the case when there is no x-axis motor available."""
+        self.align_check(17 * q.deg, 11 * q.deg, has_x_motor=False)
 
     @slow
     def test_not_misaligned(self):
