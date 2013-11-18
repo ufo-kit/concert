@@ -10,7 +10,8 @@ from concert import __version__
 
 _CACHED_PATH = None
 
-_SESSION_TEMPLATE = """import concert
+_SESSION_TEMPLATE = """import logging
+import concert
 concert.require("{}")
 
 from concert.quantities import q
@@ -19,6 +20,8 @@ from concert.session.utils import ddoc, dstate, pdoc
 from concert.session.utils import code_of
 
 __doc__ = "This is session {}"
+
+LOG = logging.getLogger(__name__)
 """
 
 
@@ -92,7 +95,7 @@ def move(source, target):
 
 def load(session):
     """Load *session* and return the module."""
-    return imp.load_source('m', path(session))
+    return imp.load_source(session, path(session))
 
 
 def get_existing():
