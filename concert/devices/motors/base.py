@@ -15,8 +15,9 @@ As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 """
 import logging
 from concert.quantities import q
-from concert.devices.base import Device, Parameter, LinearCalibration
 from concert.helpers import async
+from concert.fsm import State, transition
+from concert.devices.base import Device, Parameter, LinearCalibration
 
 
 LOG = logging.getLogger(__name__)
@@ -36,9 +37,7 @@ class Motor(Device):
         Motor position
     """
 
-    STANDBY = 'standby'
-    MOVING = 'moving'
-    LIMIT = 'limit'
+    state = State(default='standby')
 
     def __init__(self, calibration=None, in_hard_limit=None):
         params = [Parameter(name='position',
@@ -58,9 +57,6 @@ class Motor(Device):
             if calibration_unit != self['position'].unit:
                 self['position'].update_unit(calibration_unit)
 
-        self._states = \
-            self._states.union(set([self.STANDBY, self.MOVING, self.LIMIT]))
-
     @async
     def move(self, delta):
         """
@@ -70,6 +66,7 @@ class Motor(Device):
         self.position += delta
 
     @async
+    @transition(source='moving', target='standby')
     def stop(self):
         """
         stop()
@@ -78,6 +75,7 @@ class Motor(Device):
         self._stop()
 
     @async
+    @transition(source='*', target='standby', immediate='moving')
     def home(self):
         """
         home()
@@ -86,13 +84,12 @@ class Motor(Device):
         """
         self._home()
 
+    @transition(source='*', target='standby', immediate='moving')
+    def _set_calibrated_position(self, position):
+        self._set_position(self._calibration.to_device(position))
+
     def _get_calibrated_position(self):
         return self._calibration.to_user(self._get_position())
-
-    def _set_calibrated_position(self, position):
-        self._set_state(self.MOVING)
-        self._set_position(self._calibration.to_device(position))
-        self._set_state(self.STANDBY)
 
     def _get_position(self):
         raise NotImplementedError

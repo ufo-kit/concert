@@ -23,6 +23,7 @@ To setup and use a camera in a typical environment, you would do::
     print("mean=%f, stddev=%f" % (np.mean(data), np.std(data))
 """
 from concert.quantities import q
+from concert.fsm import State, transition
 from concert.devices.base import Device, Parameter
 
 
@@ -41,6 +42,8 @@ class Camera(Device):
         Frame rate of acquisition in q.count per time unit.
     """
 
+    state = State(default='standby')
+
     def __init__(self, params=None):
         frame_rate_param = Parameter(name='frame-rate',
                                      fget=self._get_frame_rate,
@@ -55,10 +58,12 @@ class Camera(Device):
 
         super(Camera, self).__init__(params)
 
+    @transition(source='standby', target='recording')
     def start_recording(self):
         """Start recording frames."""
         self._record_real()
 
+    @transition(source='recording', target='standby')
     def stop_recording(self):
         """Stop recording frames."""
         self._stop_real()

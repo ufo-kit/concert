@@ -1,20 +1,20 @@
 """Shutter Device."""
 from concert.helpers import async
 from concert.devices.base import Device
+from concert.fsm import State, transition
 
 
 class Shutter(Device):
 
     """Shutter device class implementation."""
-    OPEN = "open"
-    CLOSED = "closed"
+
+    state = State(default="open")
 
     def __init__(self):
         super(Shutter, self).__init__()
-        self._states = self._states.union(set([self.OPEN, self.CLOSED]))
-        self._state = self.NA
 
     @async
+    @transition(source='closed', target='open')
     def open(self):
         """open()
 
@@ -22,6 +22,7 @@ class Shutter(Device):
         self._open()
 
     @async
+    @transition(source='open', target='closed')
     def close(self):
         """close()
 
