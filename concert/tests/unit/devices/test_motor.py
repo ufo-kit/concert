@@ -1,41 +1,9 @@
 from concert.quantities import q
 from concert.base import HardLimitError
-from concert.devices.base import LinearCalibration
 from concert.devices.motors.base import Motor
 from concert.devices.motors.dummy import Motor as DummyMotor,\
     ContinuousMotor as DummyContinuousMotor
 from concert.tests import TestCase, suppressed_logging
-
-
-@suppressed_logging
-def test_default_motor_has_default_calibration():
-    class MockMotor(Motor):
-
-        def __init__(self):
-            self._position = 0 * q.count
-            super(MockMotor, self).__init__()
-
-        def _set_position(self, position):
-            self._position = position
-
-        def _get_position(self):
-            return self._position
-
-    motor = MockMotor()
-    motor.move(-1 * q.mm).wait()
-    assert motor.position == -1 * q.mm
-    motor.position = 2.3 * q.mm
-    assert motor.position == 2.3 * q.mm
-
-
-@suppressed_logging
-def test_different_calibration_unit():
-    calibration = LinearCalibration(q.count / q.deg, 0 * q.deg)
-
-    motor = DummyMotor(calibration)
-    motor.position = 0 * q.deg
-    motor.move(1 * q.deg).wait()
-    assert motor.position == 1 * q.deg
 
 
 class TestDummyMotor(TestCase):
@@ -50,8 +18,8 @@ class TestDummyMotor(TestCase):
         self.assertEqual(position, self.motor.position)
 
     def test_hard_limit(self):
-        self.assertRaises(HardLimitError, self.motor.set_position(1e6 *
-                                                                  q.m).result)
+        with self.assertRaises(HardLimitError):
+            self.motor.set_position(1e6 * q.m).result()
 
     def test_move(self):
         position = 1 * q.mm
@@ -65,12 +33,7 @@ class TestContinuousDummyMotor(TestCase):
 
     def setUp(self):
         super(TestContinuousDummyMotor, self).setUp()
-        position_calibration = LinearCalibration(q.count / q.mm, 0 * q.mm)
-        velocity_calibration = LinearCalibration(q.count / (q.deg / q.s),
-                                                 0 * (q.deg / q.s))
-
-        self.motor = DummyContinuousMotor(position_calibration,
-                                          velocity_calibration)
+        self.motor = DummyContinuousMotor()
 
     def test_set_velocity(self):
         velocity = 1 * q.deg / q.s
@@ -78,38 +41,5 @@ class TestContinuousDummyMotor(TestCase):
         self.assertEqual(velocity, self.motor.velocity)
 
     def test_hard_limit(self):
-        self.assertRaises(HardLimitError, self.motor.set_velocity(1e6 * q.deg /
-                                                                  q.s).result)
-
-
-class TestMotorCalibration(TestCase):
-
-    def setUp(self):
-        super(TestMotorCalibration, self).setUp()
-        self.steps_per_mm = 10. * q.count / q.mm
-        calibration = LinearCalibration(self.steps_per_mm, 0 * q.mm)
-
-        class MockMotor(Motor):
-
-            def __init__(self):
-                super(MockMotor, self).__init__(calibration)
-                self._position = 0 * q.count
-
-            def _stop_real(self):
-                pass
-
-            def _set_position(self, position):
-                self._position = position
-
-            def _get_position(self):
-                return self._position
-
-        self.motor = MockMotor()
-
-    def test_set_position(self):
-        position = 100 * q.mm
-        steps = position * self.steps_per_mm
-
-        self.motor.position = position
-        self.assertEqual(self.motor._position, steps)
-        self.assertEqual(self.motor.position, position)
+        with self.assertRaises(HardLimitError):
+            self.motor.set_velocity(1e6 * q.deg / q.s).result()

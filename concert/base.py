@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Core module Parameters"""
-import re
 import logging
-from concert.helpers import dispatcher, async, wait
+import six
+from concert.helpers import async, wait
 
 
 LOG = logging.getLogger(__name__)
@@ -91,71 +91,16 @@ class MultiContext(object):
                     for obj in self.objs])
 
 
-def value_compatible(value, unit):
-    """Check if a *value* of a quantity is compatible with *unit* and return
-    ``True``."""
-    try:
-        _ = unit + value
-        return True
-    except ValueError:
-        return False
-
-
-def parameter_name_valid(name):
-    """Check if a parameter *name* is correct and return ``True`` if so."""
-    expr = r'^[a-zA-Z]+[a-zA-Z0-9_-]*$'
-    return re.match(expr, name) is not None
-
-
 class Parameter(object):
-
-    """
-    A parameter with a *name* and an optional *unit* and *in_hard_limit*.
-
-    .. py:attribute:: name
-
-        The name of the parameter.
-
-    .. py:attribute:: unit
-
-        The unit that is expected when setting a value and that is returned. If
-        a unit is not compatible, a :class:`.UnitError` will be raised.
-
-    .. py:attribute:: in_hard_limit
-
-        A callable that receives the value and returns True or False, depending
-        if the value is out of limits or not.
-
-    .. py:attribute:: upper
-
-        Upper soft limit that is checked before setting the value.
-
-    .. py:attribute:: lower
-
-        Lower soft limit that is checked before setting the value.
-    """
-
-    CHANGED = 'changed'
-
-    def __init__(self, name, fget=None, fset=None,
-                 unit=None, in_hard_limit=None,
-                 upper=None, lower=None,
-                 doc=None):
-
-        if not parameter_name_valid(name):
-            raise ValueError('{0} is not a valid parameter name'.format(name))
-
-        self.name = name
+    def __init__(self, fget=None, fset=None, unit=None, lower=None, upper=None,
+                 conversion=1, data=None, in_hard_limit=None):
+        self.name = None
+        self.fget = fget
+        self.fset = fset
         self.unit = unit
+        self.data_args = (data,) if data is not None else ()
+        self.conversion = conversion
         self.in_hard_limit = in_hard_limit
-        self.owner = None
-        self.lock = None
-        self._fset = fset
-        self._fget = fget
-        self._value = None
-        self._saved = []
-        self.__doc__ = doc
-
         self.upper = upper if upper is not None else float('Inf')
         self.lower = lower if lower is not None else -float('Inf')
 
@@ -164,6 +109,84 @@ class Parameter(object):
 
         if unit and lower is None:
             self.lower = self.lower * unit
+
+    def is_compatible(self, value):
+        try:
+            _ = self.unit + value
+            return True
+        except ValueError:
+            return False
+
+    def setter_name(self):
+        if self.fset:
+            return self.fset.__name__
+
+        return '_set_' + self.name
+
+    def getter_name(self):
+        if self.fget:
+            return self.fget.__name__
+
+        return '_get_' + self.name
+
+    def __get__(self, instance, owner):
+        # If we would just call self.fset(value) we would call the method
+        # defined in the base class. This is a hack (?) to call the function on
+        # the instance where we actually want the function to be called.
+        try:
+            if self.fget:
+                value = self.fget(instance, *self.data_args)
+            else:
+                value = getattr(instance, self.getter_name())(*self.data_args)
+
+            return value * self.conversion
+        except NotImplementedError:
+            raise ReadAccessError(self.name)
+
+    def __set__(self, instance, value):
+        converted = 1 / self.conversion * value
+
+        if self.unit and not self.is_compatible(converted):
+            msg = "Can only receive values of unit {} but got {}"
+            raise UnitError(msg.format(self.unit, value))
+
+        if not instance[self.name].lower <= converted <= instance[self.name].upper:
+            msg = "{} is out of range [{}, {}]"
+            raise SoftLimitError(msg.format(value, self.lower, self.upper))
+
+        def log_access(what):
+            """Log access."""
+            msg = "{}: {}='{}'"
+            name = instance.__class__.__name__
+            LOG.info(msg.format(name, what, value))
+
+        log_access('try')
+
+        # The same idea as sketched in __get__
+        if self.fset:
+            self.fset(instance, converted, *self.data_args)
+        else:
+            try:
+                setter = getattr(instance, self.setter_name())
+                setter(converted, *self.data_args)
+            except NotImplementedError:
+                raise WriteAccessError(self.name)
+
+        if self.in_hard_limit and self.in_hard_limit(instance):
+            msg = "{0} for `{1}' is out of range"
+            raise HardLimitError(msg.format(value, self.name))
+
+        log_access('set')
+
+
+class ParameterValue(object):
+    def __init__(self, instance, parameter):
+        self.lock = None
+        self._instance = instance
+        self._parameter = parameter
+        self._saved = []
+        self._lower = parameter.lower
+        self._upper = parameter.upper
 
     def __enter__(self):
         if self.lock is not None:
@@ -174,77 +197,41 @@ class Parameter(object):
         if self.lock is not None:
             self.lock.release()
 
-    def __lt__(self, other):
-        return str(self) <= str(other)
+    @property
+    def name(self):
+        return self._parameter.name
 
-    def update_unit(self, unit):
-        self.unit = unit
-        self.upper = self.upper.magnitude * unit
-        self.lower = self.lower.magnitude * unit
+    @property
+    def unit(self):
+        return self._parameter.unit * self._parameter.conversion
+
+    @property
+    def lower(self):
+        return self._lower
+
+    @lower.setter
+    def lower(self, value):
+        self._lower = value
+
+    @property
+    def upper(self):
+        return self._upper
+
+    @upper.setter
+    def upper(self, value):
+        self._upper = value
+
+    @property
+    def data(self):
+        return self._parameter.data
 
     @async
     def get(self):
-        """
-        get()
-        Read and return the current value.
-
-        If the parameter cannot be read, :class:`.ReadAccessError` is raised.
-        """
-        if not self.is_readable():
-            raise ReadAccessError(self.name)
-
-        if self._is_simple():
-            return self._value
-
-        return self._fget()
+        return getattr(self._instance, self.name)
 
     @async
-    def set(self, value, owner=None):
-        """
-        set(value, owner=None)
-        Write *value*.
-
-        If the parameter cannot be written, :class:`.WriteAccessError` is
-        raised. If :attr:`unit` is set and not compatible with *value*,
-        :class:`.UnitError` is raised.
-
-        Once the value has been written on the device, all associated
-        callbacks are called and a message is placed on the dispatcher bus.
-        """
-        if owner is not None and owner != self.owner:
-            raise WriteAccessError(self.name)
-
-        if not self.is_writable():
-            raise WriteAccessError(self.name)
-
-        if self.unit and not value_compatible(value, self.unit):
-            msg = "`{0}' can only receive values of unit {1} but got {2}"
-            raise UnitError(msg.format(self.name, self.unit, value))
-
-        if not self.lower <= value <= self.upper:
-            msg = "{0} for `{1}' is out of range [{2}, {3}]"
-            raise SoftLimitError(msg.format(value, self.name,
-                                            self.lower, self.upper))
-
-        def log_access(what):
-            """Log access."""
-            msg = "{0}: {1} {2}='{3}'"
-            name = self.owner.__class__.__name__
-            LOG.debug(msg.format(name, what, self.name, value))
-
-        log_access('try')
-
-        if self._is_simple():
-            self._value = value
-        else:
-            self._fset(value)
-
-            if self.in_hard_limit and self.in_hard_limit():
-                msg = "{0} for `{1}' is out of range"
-                raise HardLimitError(msg.format(value, self.name))
-
-        log_access('set')
-        self.notify()
+    def set(self, value):
+        setattr(self._instance, self.name, value)
 
     @async
     def stash(self):
@@ -253,47 +240,58 @@ class Parameter(object):
         If the parameter is writable the current value is saved on a stack and
         to be later retrieved with :meth:`Parameter.restore`.
         """
-        if self.is_writable():
-            self._saved.append(self.get().result())
+        self._saved.append(self.get().result())
 
-    @async
     def restore(self):
         """Restore the last value saved with :meth:`Parameter.stash`.
 
         If the parameter can only be read or no value has been saved, this
         operation does nothing.
         """
-        if self.is_writable() and self._saved:
+        if self._saved:
             val = self._saved.pop()
-            self.set(val).wait()
-
-    def notify(self):
-        """Notify that the parameter value has changed."""
-        dispatcher.send(self, self.CHANGED)
-
-    def _is_simple(self):
-        return self._fget is None and self._fset is None
-
-    def is_readable(self):
-        """Return `True` if parameter can be read."""
-        return self._fget is not None or self._is_simple()
-
-    def is_writable(self):
-        """Return `True` if parameter can be written."""
-        return self._fset is not None or self._is_simple()
+            return self.set(val)
 
 
+class MetaParameterizable(type):
+    def __init__(cls, name, bases, dic):
+        super(MetaParameterizable, cls).__init__(name, bases, dic)
+
+        def get_base_parameter_names():
+            for base in bases:
+                if hasattr(base, '_parameter_names'):
+                    return getattr(base, '_parameter_names')
+            return {}
+
+        if not hasattr(cls, '_parameter_names'):
+            setattr(cls, '_parameter_names', get_base_parameter_names())
+
+        for attr_name, attr_type in dic.items():
+            if isinstance(attr_type, Parameter):
+                attr_type.name = attr_name
+                cls._parameter_names[(cls, attr_name)] = attr_type
+
+
+@six.add_metaclass(MetaParameterizable)
 class Parameterizable(object):
 
     """Collection of parameters.
 
+    For each class of type :class:`Parameterizable`, :class:`Parameter`s can be
+    set as class attributes ::
+
+        class Device(Parameterizable):
+
+            def get_something(self):
+                return 'something'
+
+            something = Parameter(get_something)
+
     A :class:`Parameterizable` is iterable and returns its parameters of type
-    :class:`Parameter` ::
+    :class:`ParameterValue` ::
 
         for param in device:
-            msg = "{0} readable={1}, writable={2}"
-            print(msg.format(param.name,
-                             param.is_readable(), param.is_writable())
+            print("name={}".format(param.name))
 
     To access a single name parameter object, you can use the ``[]`` operator::
 
@@ -309,22 +307,40 @@ class Parameterizable(object):
         print param.position
     """
 
-    def __init__(self, parameters=None):
-        self._params = {}
+    def __init__(self):
+        if not hasattr(self, '_params'):
+            self._params = {}
 
-        if parameters:
-            for parameter in parameters:
-                parameter.owner = self
-                self.add_parameter(parameter)
+        for (cls, name), parameter in self._parameter_names.items():
+
+            if not isinstance(self, cls):
+                continue
+
+            value = ParameterValue(self, parameter)
+            self._params[name] = value
+
+            def setter_not_implemented(value, *args):
+                raise NotImplementedError
+
+            def getter_not_implemented(*args):
+                raise NotImplementedError
+
+            setattr(self, 'set_' + name, value.set)
+            setattr(self, 'get_' + name, value.get)
+
+            if not hasattr(self, '_set_' + name):
+                setattr(self, '_set_' + name, setter_not_implemented)
+
+            if not hasattr(self, '_get_' + name):
+                setattr(self, '_get_' + name, getter_not_implemented)
 
     def __str__(self):
         from concert.session.utils import get_default_table
 
         table = get_default_table(["Parameter", "Value"])
         table.border = False
-        readable = (param for param in self if param.is_readable())
 
-        for param in readable:
+        for param in self:
             table.add_row([param.name, str(param.get().result())])
 
         return table.get_string(sortby="Parameter")
@@ -342,34 +358,6 @@ class Parameterizable(object):
             raise ParameterError(param)
 
         return self._params[param]
-
-    def add_parameter(self, parameter):
-        """Add *parameter*.
-
-        This will install a property :attr:`.Parameter.name` with its getter
-        set to :meth:`.Parameter.get` and the setter set to
-        :meth:`.Parameter.get`.  The name will only consist of underscores.
-
-        Furthermore, two functions `set_parameter_name` and
-        `get_parameter_name` will be installed that are asynchronous.
-        """
-        self._params[parameter.name] = parameter
-        parameter.owner = self
-        underscored = parameter.name.replace('-', '_')
-
-        def _getter(self):
-            return self[parameter.name].get().result()
-
-        def _setter(self, value):
-            self[parameter.name].set(value).wait()
-
-        setattr(self.__class__, underscored, property(_getter, _setter))
-
-        if parameter.is_readable():
-            setattr(self, 'get_%s' % underscored, self[parameter.name].get)
-
-        if parameter.is_writable():
-            setattr(self, 'set_%s' % underscored, self[parameter.name].set)
 
     @async
     def stash(self):

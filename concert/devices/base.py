@@ -42,13 +42,12 @@ class Device(Parameterizable):
         # device is unlocked again
     """
 
-    def __init__(self, parameters=None):
+    def __init__(self):
         # We have to create the lock early on because it will be accessed in
         # any add_parameter calls, especially those in the Parameterizable base
         # class
         self._lock = threading.Lock()
-
-        super(Device, self).__init__(parameters)
+        super(Device, self).__init__()
 
     def __enter__(self):
         self._lock.acquire()
@@ -56,10 +55,6 @@ class Device(Parameterizable):
 
     def __exit__(self, exc_type, exc_value, traceback):
         self._lock.release()
-
-    def add_parameter(self, parameter):
-        parameter.lock = self._lock
-        super(Device, self).add_parameter(parameter)
 
 
 class Calibration(object):

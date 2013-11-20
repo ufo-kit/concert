@@ -31,6 +31,9 @@ class BlurringCamera(Camera):
     def _trigger_real(self):
         pass
 
+    def _get_frame_rate(self):
+        return 100 / q.s
+
 
 @suppressed_logging
 def test_focusing():

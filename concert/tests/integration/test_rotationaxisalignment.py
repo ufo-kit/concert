@@ -1,7 +1,7 @@
 import numpy as np
 from nose.plugins.attrib import attr
 from concert.quantities import q
-from concert.devices.motors.dummy import Motor
+from concert.devices.motors.dummy import ContinuousMotor
 from concert.devices.base import LinearCalibration
 from concert.processes import align_rotation_axis
 from concert.tests import slow, TestCase
@@ -13,11 +13,11 @@ class TestDummyAlignment(TestCase):
 
     def setUp(self):
         super(TestDummyAlignment, self).setUp()
-        calibration = LinearCalibration(q.count / q.deg, 0 * q.deg)
-        hard_limits = (-np.Inf * q.count, np.Inf * q.count)
-        self.x_motor = Motor(calibration=calibration, hard_limits=hard_limits)
-        self.y_motor = Motor(calibration=calibration, hard_limits=hard_limits)
-        self.z_motor = Motor(calibration=calibration, hard_limits=hard_limits)
+        # calibration = LinearCalibration(q.count / q.deg, 0 * q.deg)
+        # hard_limits = (-np.Inf * q.count, np.Inf * q.count)
+        self.x_motor = ContinuousMotor()
+        self.y_motor = ContinuousMotor()
+        self.z_motor = ContinuousMotor()
 
         self.x_motor.position = 0 * q.deg
         self.y_motor.position = 0 * q.deg

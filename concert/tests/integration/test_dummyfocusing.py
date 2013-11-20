@@ -11,8 +11,8 @@ class TestDummyFocusingWithSoftLimits(TestCase):
     def setUp(self):
         super(TestDummyFocusingWithSoftLimits, self).setUp()
         self.motor = DummyMotor(position=50 * q.count)
-        self.motor['position'].lower = 25 * q.mm
-        self.motor['position'].upper = 75 * q.mm
+        # self.motor['position'].lower = 25 * q.mm
+        # self.motor['position'].upper = 75 * q.mm
         self.halver_kwargs = {"initial_step": 10 * q.mm,
                               "max_iterations": 1000}
 

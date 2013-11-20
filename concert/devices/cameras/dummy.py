@@ -84,19 +84,15 @@ class Camera(base.Camera):
     .. py:attribute:: sensor_pixel_height
     """
 
-    def __init__(self, background=None):
-        params = [Parameter('exposure-time', unit=q.s),
-                  Parameter('roi-width'),
-                  Parameter('roi-height'),
-                  Parameter('sensor-pixel-width', unit=q.micrometer),
-                  Parameter('sensor-pixel-height', unit=q.micrometer)]
+    exposure_time = Parameter(unit=q.s)
+    sensor_pixel_width = Parameter(unit=q.micrometer)
+    sensor_pixel_height = Parameter(unit=q.micrometer)
 
-        super(Camera, self).__init__(params)
+    def __init__(self, background=None):
+        super(Camera, self).__init__()
 
         self._frame_rate = 10.0 / q.s
-        self.exposure_time = 1 * q.ms
-        self.sensor_pixel_width = 5 * q.micrometer
-        self.sensor_pixel_height = 5 * q.micrometer
+        self._exposure_time = 1 * q.ms
 
         if background is not None:
             self.roi_width = background.shape[1]
@@ -106,6 +102,18 @@ class Camera(base.Camera):
             shape = (640, 480)
             self.roi_width, self.roi_height = shape
             self._background = np.ones(shape)
+
+    def _get_sensor_pixel_width(self):
+        return 5 * q.micrometer
+
+    def _get_sensor_pixel_heght(self):
+        return 5 * q.micrometer
+
+    def _get_exposure_time(self):
+        return self._exposure_time
+
+    def _set_exposure_time(self, value):
+        self._exposure_time = value
 
     def _get_frame_rate(self):
         return self._frame_rate

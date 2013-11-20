@@ -16,54 +16,24 @@ class WavelengthMonochromator(Monochromator):
     """
 
     def __init__(self):
-        super(WavelengthMonochromator, self).__init__(self)
+        super(WavelengthMonochromator, self).__init__()
         self._wavelength = random.random() * 1e-10 * q.m
 
-    def _get_wavelength(self):
+    def _get_wavelength_real(self):
         return self._wavelength
 
-    def _set_wavelength(self, wavelength):
+    def _set_wavelength_real(self, wavelength):
         self._wavelength = wavelength
-
-
-class UselessMonochromator(Monochromator):
-
-    """A monochromator wihch does not implement anything."""
-
-    def __init__(self):
-        super(UselessMonochromator, self).__init__(self)
 
 
 class TestDummyMonochromator(TestCase):
 
     def setUp(self):
         super(TestDummyMonochromator, self).setUp()
-        calibration = LinearCalibration(1 * q.eV, 0 * q.eV)
-        self.mono = DummyMonochromator(calibration)
+        self.mono = DummyMonochromator()
         self.wave_mono = WavelengthMonochromator()
-        self.useless_mono = UselessMonochromator()
         self.energy = 25 * q.keV
         self.wavelength = 0.1 * q.nm
-
-    def test_useless_mono_energy(self):
-        def query_energy():
-            self.useless_mono.energy
-
-        def set_energy():
-            self.useless_mono.energy = 25 * q.keV
-
-        self.assertRaises(NotImplementedError, query_energy)
-        self.assertRaises(NotImplementedError, set_energy)
-
-    def test_useless_mono_wavelength(self):
-        def query_wavelength():
-            self.useless_mono.energy
-
-        def set_wavelength():
-            self.useless_mono.wavelength = 1e-10 * q.m
-
-        self.assertRaises(NotImplementedError, query_wavelength)
-        self.assertRaises(NotImplementedError, set_wavelength)
 
     def test_energy_mono_energy(self):
         self.mono.energy = self.energy
