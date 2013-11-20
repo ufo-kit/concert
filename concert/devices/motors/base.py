@@ -17,7 +17,8 @@ import logging
 from concert.quantities import q
 from concert.helpers import async
 from concert.fsm import State, transition
-from concert.devices.base import Device, Parameter, LinearCalibration
+from concert.base import Parameter
+from concert.devices.base import Device, LinearCalibration
 
 
 LOG = logging.getLogger(__name__)

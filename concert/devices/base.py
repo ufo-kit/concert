@@ -18,7 +18,7 @@ position on an axis, you can also use :meth:`.Axis.set_position`.
 """
 import threading
 import logging
-from concert.base import Parameterizable, Parameter
+from concert.base import Parameterizable
 from concert.quantities import numerator_units, denominator_units
 
 

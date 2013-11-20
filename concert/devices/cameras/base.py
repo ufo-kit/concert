@@ -24,7 +24,8 @@ To setup and use a camera in a typical environment, you would do::
 """
 from concert.quantities import q
 from concert.fsm import State, transition
-from concert.devices.base import Device, Parameter
+from concert.base import Parameter
+from concert.devices.base import Device
 
 
 class CameraError(Exception):
