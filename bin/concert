@@ -349,12 +349,14 @@ class StartCommand(Command):
                 '--logto': {'choices': ['stderr', 'file'],
                             'default': 'file'},
                 '--logfile': {'type': str},
+                '--loglevel': {'choices': ['debug', 'info', 'warning', 'error',
+                                           'critical'],
+                               'default': 'info'},
                 '--non-interactive': {'action': 'store_true'}}
         super(StartCommand, self).__init__('start', opts)
-        self.logger = None
 
-    def run(self, session=None, logto='file', logfile=None,
-            non_interactive=False):
+    def run(self, session=None, non_interactive=False,
+            logto='file', logfile=None, loglevel=None):
         concert.session.exit_if_not_exists(session)
 
         if logto == 'file':
@@ -363,14 +365,15 @@ class StartCommand(Command):
         else:
             handler = logging.StreamHandler(sys.stderr)
 
-        handler.setLevel(logging.DEBUG)
+        numeric_level = getattr(logging, loglevel.upper())
+
+        handler.setLevel(numeric_level)
         logformat = '[%(asctime)s] %(levelname)s: %(name)s: {}: %(message)s'
         formatter = logging.Formatter(logformat.format(session))
         handler.setFormatter(formatter)
 
-        self.logger = logging.getLogger()
-        self.logger.addHandler(handler)
-        self.logger.setLevel(logging.DEBUG)
+        logger = logging.getLogger(__name__)
+        logger.addHandler(handler)
 
         # Add session path, so that sessions can import other sessions
         sys.path.append(concert.session.path())
