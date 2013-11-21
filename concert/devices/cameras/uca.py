@@ -253,17 +253,20 @@ class Dimax(Pco):
         # Wait for the acquisition to end
         acq_future.result()
 
-    def acquire_auto(self, num_frames, consumer=None):
+    def acquire_auto(self, num_frames, consumer=None, readout_condition=lambda:
+                     True):
         """
         Acquire and readout *num_frames*. Frames are first recorded to the
         internal camera memory and then read out. The camera is triggered
         automatically. *consumer* is a coroutine which is fed with live
         frames. After the recording is done the frames are yielded as they are
-        being grabbed from the camera.
+        being grabbed from the camera. *readout_condition* is a callable which
+        returns True if the next frame should be read out, False otherwise.
         """
         # We need to provide a consumer, otherwise the generator method
         # wouldn't start
         consumer = null() if consumer is None else consumer
         inject(self.record_auto(num_frames), consumer)
 
-        return (frame for frame in self.readout_blocking())
+        return (frame for frame in
+                self.readout_blocking(condition=readout_condition))
