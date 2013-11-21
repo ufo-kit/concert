@@ -56,5 +56,5 @@ def write_libtiff(file_name_prefix, data):
 def create_directory(directory, rights=0o0750):
     """Create *directory* and all paths along the way if necessary."""
     if not os.path.exists(directory):
-        LOG.info("Creating directory {}".format(directory))
+        LOG.debug("Creating directory {}".format(directory))
         os.makedirs(directory, rights)
