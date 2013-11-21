@@ -1,6 +1,6 @@
-======
-Topics
-======
+===========
+User manual
+===========
 
 .. toctree::
     :maxdepth: 2

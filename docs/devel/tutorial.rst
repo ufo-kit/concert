@@ -1,5 +1,5 @@
 ===============
-Getting started
+Writing devices
 ===============
 
 .. _get-the-code:

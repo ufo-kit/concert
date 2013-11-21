@@ -23,10 +23,8 @@ Developer documentation
 .. toctree::
     :maxdepth: 2
 
-    devel/tutorial
     devel/topics
     devel/reference
-    devel/contrib
 
 
 
