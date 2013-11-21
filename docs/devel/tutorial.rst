@@ -45,8 +45,6 @@ the core or fixing a known bug.
 .. _nose: https://nose.readthedocs.org/en/latest/
 
 
-.. include:: ../../CONTRIBUTING.rst
-
 
 Basic concepts
 ==============
@@ -166,4 +164,3 @@ values for the parameters (by tying them to getter and setter callables)::
 
     Parameter names can only start with a letter whereas the rest of the string
     can only contain letters, numbers, dashes and underscores.
-

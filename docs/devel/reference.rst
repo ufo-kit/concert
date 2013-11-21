@@ -1,6 +1,6 @@
-=================================
-Application Programming Interface
-=================================
+=============
+API reference
+=============
 
 Base objects
 ============
@@ -38,7 +38,7 @@ Exceptions
 
 
 Calibration
-===========
+-----------
 
 .. autoclass:: concert.devices.base.Calibration
     :show-inheritance:
@@ -49,16 +49,12 @@ Calibration
     :members:
 
 
-Motors
-======
-
-.. autoclass:: concert.devices.motors.base.Motor
-    :show-inheritance:
-    :members:
+Base devices
+============
 
 
 Cameras
-=======
+-------
 
 .. autoclass:: concert.devices.cameras.base.Camera
     :show-inheritance:
@@ -66,7 +62,7 @@ Cameras
 
 
 I/O
-===
+---
 
 .. autoclass:: concert.devices.io.base.Port
     :show-inheritance:
@@ -78,15 +74,23 @@ I/O
 
 
 Monochromators
-==============
+--------------
 
 .. autoclass:: concert.devices.monochromators.base.Monochromator
     :show-inheritance:
     :members:
 
 
+Motors
+------
+
+.. autoclass:: concert.devices.motors.base.Motor
+    :show-inheritance:
+    :members:
+
+
 Pumps
-=====
+-----
 
 .. autoclass:: concert.devices.pumps.base.Pump
     :show-inheritance:
@@ -94,7 +98,7 @@ Pumps
 
 
 Scales
-======
+------
 
 .. autoclass:: concert.devices.scales.base.Scales
     :show-inheritance:
@@ -106,7 +110,7 @@ Scales
 
 
 Shutters
-========
+--------
 
 .. autoclass:: concert.devices.shutters.base.Shutter
     :show-inheritance:
@@ -114,8 +118,74 @@ Shutters
 
 
 Storage rings
-=============
+-------------
 
 .. autoclass:: concert.devices.storagerings.base.StorageRing
     :show-inheritance:
+    :members:
+
+
+Helpers
+=======
+
+.. automodule:: concert.helpers
+    :members:
+
+.. automodule:: concert.coroutines
+    :members:
+
+Sessions
+========
+
+.. automodule:: concert.session.utils
+    :members:
+
+
+Processes
+=========
+
+.. automodule:: concert.processes
+    :members:
+
+
+Optimization
+============
+
+.. automodule:: concert.optimization
+    :members:
+
+
+Networking
+==========
+
+.. automodule:: concert.networking
+
+
+Socket Connections
+------------------
+
+.. autoclass:: SocketConnection
+    :members:
+
+.. autoclass:: Aerotech
+    :members:
+
+
+TANGO
+-----
+
+.. _Tango: http://www.tango-controls.org/
+.. _PyTango: http://www.tango-controls.org/static/PyTango/latest/doc/html/index.html
+.. _DeviceProxy: http://www.tango-controls.org/static/PyTango/latest/doc/html/client/device_proxy.html
+
+Tango_ devices are interfaced by PyTango_, one can obtain the DeviceProxy_ by
+the :py:func:`get_tango_device` function.
+
+.. autofunction:: get_tango_device
+
+
+Extensions
+==========
+
+.. automodule:: concert.ext.ufo
     :members:

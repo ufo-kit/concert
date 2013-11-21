@@ -68,17 +68,3 @@ As long as ``my_new_environment`` is active, you can use Concert.
 
 .. _pip: https://pypi.python.org/pypi
 .. _virtualenv: http://virtualenv.org
-
-
-Getting started
-===============
-
-You can now run the ``concert`` binary to enter the IPython command-line shell
-for manipulating devices. There won't be much to see, but if you just want to
-play a bit you can fetch some example sessions with ::
-
-    $ concert fetch --repo https://github.com/ufo-kit/concert-examples
-
-and start the provided sessions with ::
-
-    $ concert start zig-zag-scan

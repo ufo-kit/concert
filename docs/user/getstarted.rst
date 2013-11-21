@@ -1,6 +1,6 @@
-========
-Sessions
-========
+===============
+Getting started
+===============
 
 Each beamline consists of many devices, of which only a subset is useful in a
 particular experiment. To group this subset in a meaningful way, Concert
@@ -90,6 +90,10 @@ Session version controlled with Git can also be fetched by using the ``--repo``
 flag::
 
     concert fetch --repo git@foo.com:sessions
+
+We prepared some sample and real-live sessions that you can get with ::
+
+    $ concert fetch --repo https://github.com/ufo-kit/concert-examples
 
 During an experiment, devices will output logging information. By default, this
 information is gathered in a central file. To view the log for all experiments
@@ -259,10 +263,3 @@ change this, you can pass the ``--logto`` and ``--logfile`` options to the
 or if you want to get rid of any log data use ::
 
     concert --logto=file --logfile=/dev/null start experiment
-
-
-Session API
-===========
-
-.. automodule:: concert.session.utils
-    :members:

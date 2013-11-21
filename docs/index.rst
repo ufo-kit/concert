@@ -12,12 +12,9 @@ User documentation
     :maxdepth: 2
     :glob:
 
-    usage/install
-    usage/sessions
-    usage/control
-    usage/processes
-    measures/measures
-    usage/experiments
+    user/install
+    user/getstarted
+    user/topics
 
 
 Developer documentation
@@ -26,10 +23,11 @@ Developer documentation
 .. toctree::
     :maxdepth: 2
 
-    api/tutorial
-    api/devices
-    api/networking
-    api/helpers
+    devel/tutorial
+    devel/topics
+    devel/reference
+    devel/contrib
+
 
 
 Additional notes

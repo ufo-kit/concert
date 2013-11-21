@@ -1,6 +1,3 @@
-Contributing
-============
-
 Reporting bugs
 --------------
 
