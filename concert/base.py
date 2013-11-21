@@ -230,7 +230,7 @@ class Parameter(object):
             """Log access."""
             msg = "{0}: {1} {2}='{3}'"
             name = self.owner.__class__.__name__
-            LOG.info(msg.format(name, what, self.name, value))
+            LOG.debug(msg.format(name, what, self.name, value))
 
         log_access('try')
 
