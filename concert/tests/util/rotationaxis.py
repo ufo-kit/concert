@@ -93,16 +93,13 @@ def get_projection(thickness):
     if max_val > 0:
         thickness = thickness / thickness.max()
 
-    # Make the projected thickness to be max. 0.1 mm.
-    thickness = 0.1 * thickness * q.mm
-
     # Iron and 20 keV
     ref_index = 3.85263274e-06 + 9.68238822e-08j
     lam = 6.1992e-11 * q.m
 
     # Do not take noise into account in order to make test results
     # reproducible.
-    return transfer(thickness, ref_index, lam)
+    return transfer(thickness * q.mm, ref_index, lam)
 
 
 class SimulationCamera(Camera):

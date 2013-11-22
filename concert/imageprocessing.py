@@ -195,10 +195,7 @@ def _segment(image):
     the sample. The sample must be highly absorbing. The baseline
     for the background is taken from the top row of the image.
     """
-
-    thr = np.mean(image[-1, :]) - np.sqrt(-2 * np.log(0.001)) * \
-        np.std(image[-1, :])
-
+    thr = 0.5
     image[image < thr] = 0
     image[image >= thr] = 1
     image = 1 - image
