@@ -3,6 +3,7 @@
 from concert.base import Parameter
 from concert.quantities import q
 from concert.helpers import async
+from concert.fsm import State, transition
 from concert.devices.base import Device
 
 
@@ -13,8 +14,7 @@ class Pump(Device):
     rate limit determined by *lower* and *upper*.
     """
 
-    PUMPING = "pumping"
-    STANDBY = "standby"
+    state = State(default='standby')
 
     def __init__(self, calibration):
         params = [Parameter('flow_rate',
@@ -23,9 +23,9 @@ class Pump(Device):
                             unit=q.l / q.s, doc="Pump flow rate.")]
         super(Pump, self).__init__(params)
         self._calibration = calibration
-        self._states = self._states.union(set([self.STANDBY, self.PUMPING]))
 
     @async
+    @transition(source='standby', target='pumping')
     def start(self):
         """
         start()
@@ -35,6 +35,7 @@ class Pump(Device):
         self._start()
 
     @async
+    @transition(source='pumping', target='standby')
     def stop(self):
         """
         stop()

@@ -8,9 +8,10 @@ class Shutter(base.Shutter):
 
     def __init__(self):
         super(Shutter, self).__init__()
+        self._dummy_state = 'open'
 
     def _open(self):
-        self._set_state(self.OPEN)
+        self._dummy_state = 'open'
 
     def _close(self):
-        self._set_state(self.CLOSED)
+        self._dummy_state = 'closed'

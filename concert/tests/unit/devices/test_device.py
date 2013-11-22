@@ -31,7 +31,7 @@ class TestDevice(TestCase):
 
     def test_iterable(self):
         for param in self.device:
-            self.assertTrue(param.name in ('readonly', 'writeonly', 'state'))
+            self.assertTrue(param.name in ('readonly', 'writeonly'))
 
     def test_get_parameter(self):
         self.assertEqual(self.device['readonly'], self.device.params[0])
@@ -47,7 +47,6 @@ class TestDevice(TestCase):
         table = get_default_table(["Parameter", "Value"])
         table.border = False
         table.add_row(["readonly", "1"])
-        table.add_row(["state", Device.NA])
 
         self.assertEqual(str(self.device), table.get_string())
 
@@ -59,7 +58,7 @@ class TestDevice(TestCase):
             d.writeonly = 2
 
     def test_parameter_locks_exist(self):
-        for param_name in ('state', 'readonly', 'writeonly'):
+        for param_name in ('readonly', 'writeonly'):
             self.assertEqual(self.device._lock, self.device[param_name].lock)
 
     def test_parameter_lock_acquisition(self):

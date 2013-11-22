@@ -18,7 +18,7 @@ position on an axis, you can also use :meth:`.Axis.set_position`.
 """
 import threading
 import logging
-from concert.base import Parameterizable, Parameter
+from concert.base import Parameterizable
 from concert.quantities import numerator_units, denominator_units
 
 
@@ -40,13 +40,7 @@ class Device(Parameterizable):
             ...
 
         # device is unlocked again
-
-    .. py:attribute:: state
-
-        Current state of the device.
     """
-
-    NA = "n/a"
 
     def __init__(self, parameters=None):
         # We have to create the lock early on because it will be accessed in
@@ -55,9 +49,6 @@ class Device(Parameterizable):
         self._lock = threading.Lock()
 
         super(Device, self).__init__(parameters)
-        self.add_parameter(Parameter('state', self._get_state))
-        self._states = set([self.NA])
-        self._state = self.NA
 
     def __enter__(self):
         self._lock.acquire()
@@ -65,16 +56,6 @@ class Device(Parameterizable):
 
     def __exit__(self, exc_type, exc_value, traceback):
         self._lock.release()
-
-    def _get_state(self):
-        return self._state
-
-    def _set_state(self, state):
-        if state in self._states:
-            self._state = state
-            self['state'].notify()
-        else:
-            LOG.warn("State {0} unknown.".format(state))
 
     def add_parameter(self, parameter):
         parameter.lock = self._lock

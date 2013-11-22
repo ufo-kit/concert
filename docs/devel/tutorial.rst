@@ -164,3 +164,46 @@ values for the parameters (by tying them to getter and setter callables)::
 
     Parameter names can only start with a letter whereas the rest of the string
     can only contain letters, numbers, dashes and underscores.
+
+
+State machine
+-------------
+
+A formally defined finite state machine is necessary to ensure and reason about
+correct behaviour. Concert provides an implicitly defined, decorator-based state
+machine. All you need to do is declare a :class:`.State` object on the base
+device class and apply the :func:`.transition` decorator on each method that
+changes the state of a device::
+
+    from concert.fsm import State, transition
+
+    class Motor(Device):
+
+        state = State(default='open')
+
+        ...
+
+        @transition(source='standby', target='moving')
+        def start_moving(self):
+            ...
+
+If the source state is valid on such a device, ``start_moving`` will run and
+eventually change the state to ``moving``. In case of two-step functions, an
+``immediate`` state can be set that is valid throughout the body of the
+function::
+
+        @transition(source='standby', target='standby', immediate='moving')
+        def move(self):
+            ...
+
+Besides single state strings you can also add arrays of strings and a catch-all
+``*`` state that matches all states.
+
+If an exceptional behaviour happens during the execution the device is put
+automatically into an error state::
+
+        @transition(source='*')
+        def move(self):
+            ...
+            if cannot_move:
+                raise Exception("Uh, something bad happened")
