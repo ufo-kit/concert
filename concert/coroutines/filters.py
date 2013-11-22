@@ -2,104 +2,64 @@ try:
     import Queue as queue
 except ImportError:
     import queue
-
-import os
 import logging
 import numpy as np
-from concert.helpers import dispatcher, coroutine, threaded
-from concert.storage import create_directory, write_tiff
-from concert.imageprocessing import backproject, get_backprojection_norm,\
-    get_ramp_filter, flat_correct as make_flat_correct
+from concert.imageprocessing import (backproject,
+                                     get_backprojection_norm,
+                                     get_ramp_filter)
+from concert.helpers import coroutine, threaded
+from concert.imageprocessing import flat_correct as make_flat_correct
 
 
 LOG = logging.getLogger(__name__)
 
 
-SINOGRAMS_FULL = "sinos-full"
-
-
 @coroutine
-def null():
-    """A coroutine which does nothing."""
-    while True:
-        yield
-
-
-@coroutine
-def write_images(writer=write_tiff, prefix="image_{:>05}"):
+def average_images(consumer, num_images):
     """
-    write_images(writer, prefix="image_{:>05}")
-
-    Write images on disk with specified *writer* and file name *prefix*.
-    *writer* is a callable with the following nomenclature::
-
-        writer(file_name_prefix, data)
-
-    The file extension needs to be applied by a particular writer.
+    Average *num_images* images as they come and send them to *consumer*.
     """
+    average = None
     i = 0
-
-    dir_name = os.path.dirname(prefix)
-    if dir_name != "" and not os.path.exists(dir_name):
-        create_directory(dir_name)
 
     while True:
         data = yield
-        writer(prefix.format(i), data)
+        if average is None:
+            average = np.zeros_like(data, dtype=np.float32)
+        average = (average * i + data) / (i + 1)
+        if i == num_images - 1:
+            consumer.send(average)
         i += 1
 
 
 @coroutine
-def generate_sinograms(sinograms):
+def make_sinograms(consumer, num_radiographs):
     """
-    generate_sinograms(sinograms)
-
-    Generate *sinograms* from radiographs. *sinograms* is a 3D numpy
-    array to which a radiograph will be inserted. The shape of
-    the array is (num_sinograms, slice_height, slice_width).
-    The number of sinograms must be a divisor of the radiograph height.
-    If the number of sinograms is lower, then every :math:`i`-th row of
-    a radiograph is taken into account, i.e.
-    :math:`i \cdot num\_sinograms = radio\_height`.
+    Convert *num_radiographs* into sinograms and send them to *consumer*.
     """
     i = 0
-    ith = None
+    sinograms = None
+
+    def is_compatible(radio_shape, sinos_shape):
+        return radio_shape[0] == sinos_shape[0] and \
+            radio_shape[1] == sinos_shape[2]
 
     while True:
         radiograph = yield
-        if i < sinograms.shape[0]:
-            if radiograph.shape[0] % sinograms.shape[0] != 0 or \
-                radiograph.shape[0] < sinograms.shape[0] or \
-                    radiograph.shape[1] != sinograms.shape[1]:
+
+        if sinograms is None:
+            sinograms = np.empty((radiograph.shape[0],
+                                  num_radiographs,
+                                  radiograph.shape[1]))
+        if i < num_radiographs:
+            if not is_compatible(radiograph.shape, sinograms.shape):
                 raise ValueError("Incompatible radiograph shape")
-            if ith is None:
-                ith = radiograph.shape[0] / sinograms.shape[0]
-            sinograms[:, i, :] = radiograph[::ith, :]
-        else:
-            dispatcher.send(sinograms, SINOGRAMS_FULL)
+
+            sinograms[:, i, :] = np.copy(radiograph)
+            if i == num_radiographs - 1:
+                consumer.send(sinograms)
+
         i += 1
-
-
-class ImageAverager(object):
-
-    """Average images in a coroutine without knowing how many will come."""
-
-    def __init__(self):
-        self.average = None
-
-    @coroutine
-    def average_images(self):
-        """Average images as they come."""
-        # Reset the average for every coroutine start
-        self.average = None
-        i = 0
-
-        while True:
-            data = yield
-            if self.average is None:
-                self.average = np.zeros_like(data, dtype=np.float32)
-            self.average = (self.average * i + data) / (i + 1)
-            i += 1
 
 
 @coroutine
@@ -115,8 +75,8 @@ def flat_correct(consumer, flat, dark=None):
 
 
 @coroutine
-def backprojector(row_number, center, num_projs=None, angle_step=None,
-                  nth_column=1, nth_projection=1, consumer=None,
+def backprojector(consumer, row_number, center, num_projs=None,
+                  angle_step=None, nth_column=1, nth_projection=1,
                   callback=None, fast=True):
     """
     Online filtered backprojection. Get a radiograph, extract row
@@ -205,9 +165,7 @@ def backprojector(row_number, center, num_projs=None, angle_step=None,
                                       x_points=x_points, y_points=y_points,
                                       fast=fast)
 
-            if consumer is not None:
-                # If there is a consumer, update it with the newest result
-                consumer.send(result * get_backprojection_norm(j + 1))
+            consumer.send(result * get_backprojection_norm(j + 1))
 
             j += 1
 
