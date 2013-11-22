@@ -39,7 +39,8 @@ class TestDummyAlignment(TestCase):
         x_motor = self.x_motor if has_x_motor else None
         z_motor = self.z_motor if has_z_motor else None
 
-        align_rotation_axis(self.camera, self.y_motor, x_motor, z_motor).wait()
+        align_rotation_axis(self.camera, self.y_motor, x_motor=x_motor,
+                            z_motor=z_motor).wait()
 
         # In our case the best perfectly aligned position is when both
         # motors are in 0.
@@ -64,7 +65,8 @@ class TestDummyAlignment(TestCase):
 
         with self.assertRaises(ValueError) as ctx:
             align_rotation_axis(self.camera, self.y_motor,
-                                self.x_motor, self.z_motor).wait()
+                                x_motor=self.x_motor,
+                                z_motor=self.z_motor).wait()
 
         self.assertEqual("No sample tip points found.", str(ctx.exception))
 
@@ -73,7 +75,8 @@ class TestDummyAlignment(TestCase):
         self.camera.rotation_radius = 0
         with self.assertRaises(ValueError) as ctx:
             align_rotation_axis(self.camera, self.y_motor,
-                                self.x_motor, self.z_motor).wait()
+                                x_motor=self.x_motor,
+                                z_motor=self.z_motor).wait()
 
         self.assertEqual("Sample off-centering too " +
                          "small, enlarge rotation radius.",
