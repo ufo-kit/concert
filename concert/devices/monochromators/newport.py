@@ -7,7 +7,7 @@ from concert.devices.monochromators.base import Monochromator
 from concert.devices.base import LinearCalibration
 
 
-class NPMono(Monochromator):
+class NewPort74000(Monochromator):
 
     """NewPort 74000 mocochromator class implementation"""
 
@@ -15,7 +15,7 @@ class NPMono(Monochromator):
 
         self._connection = SocketConnection(host, port)
         calibration = LinearCalibration(q.count / q.nm, 0 * q.nm)
-        super(NPMono, self).__init__(calibration)
+        super(NewPort74000, self).__init__(calibration)
         self.steps = 0
 
     def shutter_open(self):
