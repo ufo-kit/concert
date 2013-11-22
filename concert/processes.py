@@ -141,21 +141,26 @@ def focus(camera, motor, measure=np.std, opt_kwargs=None,
 
 
 @async
-def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
+def align_rotation_axis(camera, rotation_motor, flat_motor=None,
+                        flat_position=None, x_motor=None, z_motor=None,
                         measure=get_rotation_axis, num_frames=10,
                         absolute_eps=0.1 * q.deg, max_iterations=5):
     """
-    run(camera, rotation_motor, x_motor=None, z_motor=None,
-    measure=get_rotation_axis, num_frames=10, absolute_eps=0.1 * q.deg,
-    max_iterations=5)
+    run(camera, rotation_motor, flat_motor, flat_position, x_motor=None,
+    z_motor=None, measure=get_rotation_axis, num_frames=10, absolute_eps=0.1 *
+    q.deg, max_iterations=5)
 
     Align rotation axis. *camera* is used to obtain frames, *rotation_motor*
-    rotates the sample around the tomographic axis of rotation, *x_motor* turns
-    the sample around x-axis, *z_motor* turns the sample around z-axis.
-    *measure* provides axis of rotation angular misalignment data (a callable),
-    *num_frames* defines how many frames are acquired and passed to the
-    *measure*.  *absolute_eps* is the threshold for stopping the procedure. If
-    *max_iterations* is reached the procedure stops as well.
+    rotates the sample around the tomographic axis of rotation, *flat_motor* is
+    used to move the sample out of the field of view in order to produce a flat
+    field which will be used to correct the frame before segmentation.
+    *flat_position* is the flat motor position in which the sample is out of
+    the field of view. *x_motor* turns the sample around x-axis, *z_motor*
+    turns the sample around z-axis.  *measure* provides axis of rotation
+    angular misalignment data (a callable), *num_frames* defines how many
+    frames are acquired and passed to the *measure*.  *absolute_eps* is the
+    threshold for stopping the procedure. If *max_iterations* is reached the
+    procedure stops as well.
 
     The procedure finishes when it finds the minimum angle between an
     ellipse extracted from the sample movement and respective axes or the
@@ -168,11 +173,25 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
 
     step = 2 * np.pi / num_frames * q.rad
 
+    flat = None
+    if flat_motor:
+        # First take a flat
+        if flat_position is None:
+            raise ValueError("If flat motor is given then also " +
+                             "flat position must be given")
+        flat_motor["position"].stash().wait()
+        flat_motor.position = flat_position
+        flat = camera.grab().astype(np.float32)
+        flat_motor["position"].restore().wait()
+
     def get_frames():
         frames = []
         for i in range(num_frames):
             rotation_motor.move(i * step).wait()
-            frames.append(camera.grab())
+            frame = camera.grab()
+            if flat:
+                frame /= flat
+            frames.append(frame)
 
         return frames
 
