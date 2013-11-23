@@ -46,9 +46,6 @@ To get all parameters of an object, you can iterate over the device itself ::
     for param in motor:
         print("{0} => {1}".format(param.unit, param.name))
 
-Devices
-=======
-
 Saving state
 ------------
 

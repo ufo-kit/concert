@@ -19,8 +19,8 @@ your own, if you intend to use the ``concert`` binary for execution::
 __ https://build.opensuse.org/project/show/home:ufo-kit
 
 
-Installation from PyPI
-======================
+Install from PyPI
+=================
 
 It is recommended to use pip_ for installing Concert. The fastest way to install
 it is from PyPI::
