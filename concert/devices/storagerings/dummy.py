@@ -4,15 +4,15 @@ Dummy ring to test asychronous updates.
 import time
 import threading
 from concert.quantities import q
-from concert.devices.storagerings.base import StorageRing
+from concert.devices.storagerings import base
 
 
-class DummyRing(StorageRing):
+class StorageRing(base.StorageRing):
 
     """Create a Dummy Ring."""
 
     def __init__(self):
-        super(DummyRing, self).__init__()
+        super(StorageRing, self).__init__()
         self._lifetime = 10 * q.hour
         self._current = 100 * q.mA
         self._energy = 5 * q.MeV
