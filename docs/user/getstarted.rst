@@ -1,10 +1,11 @@
+.. _tutorial:
+
 ========
 Tutorial
 ========
 
 Concert is primarily a user interface to control devices commonly found at a
-Synchrotron beamline. This guide will briefly show you how to *use* it and how
-to *extend* it
+Synchrotron beamline. This guide will briefly show you how to use and extend it.
 
 
 Running a session
@@ -19,50 +20,69 @@ Now :ref:`start <start-command>` the tutorial session::
 
     $ concert start tutorial
 
-Concert uses the pint_ package to represent units in a programmatical way.
-Therefore, you will see ``UnitRegistry`` instance *imported* as the name ``q``
-into your session. When you start the session you can use it right away to do
-unit calculation::
+You will be greeted by an IPython shell loaded with pre-defined devices,
+processes and utilities like the pint_ package for unit calculation. Although,
+this package is primarily used for talking to devices, you can also use it to do
+simple calculations::
 
     tutorial > a = 9.81 * q.m / q.s**2
-    tutorial > v = 5 * q.s * a
-    tutorial > "Velocity after 5 seconds: {0}".format(v)
+    tutorial > "Velocity after 5 seconds: {0}".format(5 * q.s * a)
 
     'Velocity after 5 seconds: 49.05 meter / second'
 
-You will be greeted by an IPython shell loaded with pre-defined devices and
-processes. You can get an overview of all defined devices by calling the
-:func:`~.dstate` and :func:`~.ddoc` functions::
-
-    tutorial > dstate()
-
-    ---------------------------------------------
-      Name         Parameters
-    ---------------------------------------------
-      DummyMotor    position  99.382 millimeter
-                    state     standby
-    ---------------------------------------------
-      ... 
+You can get an overview of all defined devices by calling the 
+:func:`~.ddoc` function::
 
     tutorial > ddoc()
 
     ------------------------------------------------------------------------------
       Name         Description   Parameters
     ------------------------------------------------------------------------------
-      DummyMotor   None           Name      Access  Unit  Description
+      motor        None           Name      Access  Unit  Description
                                   position  rw      m     Position of the motor
-                                  state     r       None  None
     ------------------------------------------------------------------------------
       ...
 
-If you just type the name of a device, it will print out the current parameter
-values of it::
+Now, by typing just the name of a device, you can see it's currently set parameter
+values::
 
     tutorial > motor
 
     <concert.devices.motors.dummy.Motor object at 0x9419f0c>
      Parameter  Value                    
      position   12.729455653 millimeter
+
+To get an overview of all devices' parameter values, use the :func:`~.dstate`
+function::
+
+    tutorial > dstate()
+
+    ---------------------------------------------
+      Name         Parameters
+    ---------------------------------------------
+      motor        position  99.382 millimeter
+    ---------------------------------------------
+      ...
+
+To change the value of a parameter, you simply assign a new value to it::
+
+    tutorial > motor.position = 2 * q.mm
+
+Now, check the position to verify that the motor reached the target position::
+
+    tutorial > motor.position
+    <Quantity(2.0, 'millimeter')>
+
+Depending on the device, changing a parameter will block as long as the device
+has not yet reached the final target state. You can read more about asynchronous
+execution in the :ref:`controlling-devices` chapter.
+
+.. note::
+
+    A parameter value is always checked for the correct unit and soft limit
+    condition. If you get an error, check twice that you are using a compatible
+    unit (setting two seconds on a motor position is obviously not) and are
+    within the allowed parameter range.
 
 :func:`.pdoc` displays information about currently defined functions and
 processes and may look like this::
@@ -79,13 +99,19 @@ processes and may look like this::
 In case you are interested in the implementation of a function, you can use
 :func:`.code_of`. For example::
 
-    In [5]: code_of(pdoc)
-    def pdoc(hide_blacklisted=True):
-        """Render process documentation."""
-        black_listed = ('show', 'start', 'init', 'rm', 'log', 'edit', 'fetch')
-        field_names = ["Name", "Description"]
-        table = get_default_table(field_names)
-        ...
+    tutorial > code_of(code_of)
+    def code_of(func):
+        """Show implementation of *func*."""
+        source = inspect.getsource(func)
+
+        try:
+            ...
+
+.. note::
+
+    Because we are actually running an IPython shell, you can _always_
+    tab-complete objects and attributes. For example, to change the motor
+    position, you could simply type ``mo<Tab>.po<Tab> = q.me<Tab>``.
 
 .. _pint: https://pint.readthedocs.org/en/latest/
 
@@ -101,9 +127,9 @@ and :ref:`start <edit-command>` the default editor with ::
 
     $ concert edit new-session
 
-You will also notice the placeholder text assigned to the ``__doc__`` variable.
-This should be change to something descriptive as it will be shown each time you
-start the session.
+At the top of the file, you can see a string enclosed in three ``"``. This
+should changed to something descriptive as it will be shown each time you start
+the session.
 
 
 Adding devices
@@ -128,19 +154,6 @@ accessible from the command line shell::
     # Create a motor that moves one step per millimeter without an offset
     calibration = LinearCalibration(1 / q.mm, 0 * q.mm)
     motor = DummyMotor(calibration)
-
-To access a device, you can use the dot notation to read and write its parameters::
-
-    >>> motor.position = 2 * q.mm
-
-For more information on how to *use* devices, see :ref:`controlling-devices`.
-
-.. note::
-
-   If a device requires a unit for one of its parameters, you *must* use it.
-   This ensures consistent results throughout an experiment. However, you are
-   free to use any prefixed unit, like millimeter, centimeter or kilometer for a
-   motor's position.
 
 
 Importing other sessions
