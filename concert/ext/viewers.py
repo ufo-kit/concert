@@ -201,15 +201,19 @@ class PyplotViewer(PyplotViewerBase):
     def __init__(self, style="o", plot_kwargs=None, autoscale=True, title=""):
         super(PyplotViewer, self).__init__(self.plot)
         self._first = True
+        self._iteration = 0
         self._set_updater(_PyplotUpdater(self._queue, style,
                                          plot_kwargs, autoscale,
                                          title=title))
 
-    def plot(self, data, force=False):
+    def plot(self, x, y=None, force=False):
         """
-        Plot *data*, which is an (x, y) tuple. If *force* is True the
+        Plot *x* and *y*, if *y* is None, the real y is given by *x* and x is
+        the current iteration of plotting command. If *force* is True the
         plotting is guaranteed, otherwise it might be skipped for the sake of
         plotting speed.
+
+        Note: if x is not given, the iteration starts at 0.
         """
         if not self._paused and (self._queue.empty() or force):
             if self._first:
@@ -217,7 +221,14 @@ class PyplotViewer(PyplotViewerBase):
                 # matplotlib
                 self._queue.put((_PyplotUpdater.CLEAR, None))
                 self._first = False
-            self._queue.put((_PyplotUpdater.PLOT, data))
+            if y is None:
+                x_data = self._iteration
+                y_data = x
+                self._iteration += 1
+            else:
+                x_data = x
+                y_data = y
+            self._queue.put((_PyplotUpdater.PLOT, (x_data, y_data)))
 
     def set_style(self, style):
         """Set line style to *style*."""
@@ -225,6 +236,7 @@ class PyplotViewer(PyplotViewerBase):
 
     def clear(self):
         """Clear the plotted data."""
+        self._iteration = 0
         self._queue.put((_PyplotUpdater.CLEAR, None))
 
     def set_autoscale(self, autoscale):
