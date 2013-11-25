@@ -1,5 +1,5 @@
 import numpy as np
-from concert.helpers import async, wait
+from concert.helpers import async, wait, coroutine
 from concert.quantities import q
 from concert.measures import get_rotation_axis
 from concert.optimization import halver, optimize_parameter
@@ -110,12 +110,12 @@ def dscan(parameter_list, n_intervals, handler):
 
 
 def focus(camera, motor, measure=np.std, opt_kwargs=None,
-          optimization_consumer=None, frame_consumer=None):
+          plot_consumer=None, frame_consumer=None):
     """
     Focus *camera* by moving *motor*. *measure* is a callable that computes a
     scalar that has to be maximized from an image taken with *camera*.
     *opt_kwargs* are keyword arguments sent to the optimization algorithm.
-    *optimization_consumer* is fed with (x, y) values from the optimization and
+    *plot_consumer* is fed with y values from the optimization and
     *frame_consumer* is fed with the incoming frames.
 
     This function is returning a future encapsulating the focusing event. Note,
@@ -132,10 +132,21 @@ def focus(camera, motor, measure=np.std, opt_kwargs=None,
             frame_consumer.send(frame)
         return - measure(frame)
 
+    @coroutine
+    def filter_optimization():
+        """
+        Filter the optimization's (x, y) subresults to only the y part,
+        otherwise the the plot update is not lucid.
+        """
+        while True:
+            tup = yield
+            if plot_consumer:
+                plot_consumer.send(tup[1])
+
     camera.start_recording()
     f = optimize_parameter(motor['position'], get_measure, motor.position,
                            halver, alg_kwargs=opt_kwargs,
-                           consumer=optimization_consumer)
+                           consumer=filter_optimization())
     f.add_done_callback(lambda unused: camera.stop_recording())
     return f
 
