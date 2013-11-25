@@ -188,6 +188,7 @@ class Pco(Camera):
         """Start recording and send live frames to *consumer*."""
         self.trigger_mode = self.uca.enum_values.trigger_mode.AUTO
         try:
+            self.acquire_mode = self.uca.enum_values.acquire_mode.AUTO
             self.storage_mode = self.uca.enum_values.storage_mode.RECORDER
             self.record_mode = self.uca.enum_values.record_mode.RING_BUFFER
         except:
