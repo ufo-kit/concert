@@ -208,8 +208,9 @@ class PyplotViewer(PyplotViewerBase):
 
     def plot(self, x, y=None, force=False):
         """
-        Plot *x* and *y*, if *y* is None, the real y is given by *x* and x is
-        the current iteration of plotting command. If *force* is True the
+        Plot *x* and *y*, if *y* is None and *x* is a scalar the real y is
+        given by *x* and x is the current iteration of plotting command, if *x*
+        is a tuple then it is interpreted as (x, y). If *force* is True the
         plotting is guaranteed, otherwise it might be skipped for the sake of
         plotting speed.
 
@@ -222,9 +223,13 @@ class PyplotViewer(PyplotViewerBase):
                 self._queue.put((_PyplotUpdater.CLEAR, None))
                 self._first = False
             if y is None:
-                x_data = self._iteration
-                y_data = x
-                self._iteration += 1
+                if isinstance(x, tuple):
+                    x_data = x[0]
+                    y_data = x[1]
+                else:
+                    x_data = self._iteration
+                    y_data = x
+                    self._iteration += 1
             else:
                 x_data = x
                 y_data = y
