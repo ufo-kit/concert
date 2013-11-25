@@ -22,7 +22,7 @@ _ORIG_SIGINT_HANDLER = signal.getsignal(signal.SIGINT)
 
 
 def _terminate_pyplotviewers():
-    """Terminate all :py:class:`PyplotViewer` isntances."""
+    """Terminate all :py:class:`PyplotViewerBase` isntances."""
     for viewer in _PYPLOT_VIEWERS:
         if viewer is not None:
             viewer.terminate()
@@ -31,7 +31,7 @@ def _terminate_pyplotviewers():
 def _sigint_handler(signum, frame):
     """
     Handle the interrupt signal in order to exit gracefully
-    by terminating all the :py:class:`PyplotViewer` processes.
+    by terminating all the :py:class:`PyplotViewerBase` processes.
     """
     _terminate_pyplotviewers()
     # Call the original handler, but first check if it
@@ -40,9 +40,9 @@ def _sigint_handler(signum, frame):
         _ORIG_SIGINT_HANDLER(signum, frame)
 
 
-# Register sigint handler for closing all PyplotViewer instances
+# Register sigint handler for closing all PyplotViewerBase instances
 signal.signal(signal.SIGINT, _sigint_handler)
-# Register termination of all the PyplotViewer isntances also on
+# Register termination of all the PyplotViewerBase isntances also on
 # normal exit
 atexit.register(_terminate_pyplotviewers)
 
@@ -70,7 +70,7 @@ def imagej(image, path="imagej", writer=write_tiff):
     _start_command(path, image, writer)
 
 
-class PyplotViewer(object):
+class PyplotViewerBase(object):
 
     """
     A base class for data viewer which sends commands to a matplotlib updater
@@ -118,7 +118,7 @@ class PyplotViewer(object):
         execution. If *size* is specified, the redrawing stops when *size*
         data items come. This method does not force the redrawing unless the
         last item has come. The subclass must provide the view function
-        :py:attr:`PyplotViewer.view_function`.
+        :py:attr:`PyplotViewerBase.view_function`.
         """
         i = 0
 
@@ -178,7 +178,7 @@ class PyplotViewer(object):
             plt.close("all")
 
 
-class PyplotCurveViewer(PyplotViewer):
+class PyplotViewer(PyplotViewerBase):
 
     """
     Dynamic plot viewer using matplotlib.
@@ -199,11 +199,11 @@ class PyplotCurveViewer(PyplotViewer):
     """
 
     def __init__(self, style="o", plot_kwargs=None, autoscale=True, title=""):
-        super(PyplotCurveViewer, self).__init__(self.plot)
+        super(PyplotViewer, self).__init__(self.plot)
         self._first = True
-        self._set_updater(_PyplotCurveUpdater(self._queue, style,
-                                              plot_kwargs, autoscale,
-                                              title=title))
+        self._set_updater(_PyplotUpdater(self._queue, style,
+                                         plot_kwargs, autoscale,
+                                         title=title))
 
     def plot(self, data, force=False):
         """
@@ -215,24 +215,24 @@ class PyplotCurveViewer(PyplotViewer):
             if self._first:
                 # Make sure there is some backgroung set for canvas blitting by
                 # matplotlib
-                self._queue.put((_PyplotCurveUpdater.CLEAR, None))
+                self._queue.put((_PyplotUpdater.CLEAR, None))
                 self._first = False
-            self._queue.put((_PyplotCurveUpdater.PLOT, data))
+            self._queue.put((_PyplotUpdater.PLOT, data))
 
     def set_style(self, style):
         """Set line style to *style*."""
-        self._queue.put((_PyplotCurveUpdater.STYLE, style))
+        self._queue.put((_PyplotUpdater.STYLE, style))
 
     def clear(self):
         """Clear the plotted data."""
-        self._queue.put((_PyplotCurveUpdater.CLEAR, None))
+        self._queue.put((_PyplotUpdater.CLEAR, None))
 
     def set_autoscale(self, autoscale):
         """Set *autoscale* on the axes, can be True or False."""
-        self._queue.put((_PyplotCurveUpdater.AUTOSCALE, autoscale))
+        self._queue.put((_PyplotUpdater.AUTOSCALE, autoscale))
 
 
-class PyplotImageViewer(PyplotViewer):
+class PyplotImageViewer(PyplotViewerBase):
 
     """Dynamic image viewer using matplotlib."""
 
@@ -276,7 +276,7 @@ class PyplotImageViewer(PyplotViewer):
             self._imshow_kwargs["interpolation"] = "nearest"
 
 
-class _PyplotUpdater(object):
+class _PyplotUpdaterBase(object):
 
     """
     Base class for animating a matploblib figure in a separate process.
@@ -325,11 +325,11 @@ class _PyplotUpdater(object):
         raise NotImplementedError
 
 
-class _PyplotCurveUpdater(_PyplotUpdater):
+class _PyplotUpdater(_PyplotUpdaterBase):
 
     """
     Private class for updating a matplotlib figure with a 1D data stream.
-    The arguments are the same as by :py:class:`PyplotCurveViewer`.
+    The arguments are the same as by :py:class:`PyplotViewer`.
     """
     CLEAR = "clear"
     PLOT = "plot"
@@ -338,16 +338,16 @@ class _PyplotCurveUpdater(_PyplotUpdater):
 
     def __init__(self, queue, style="o", plot_kwargs=None, autoscale=True,
                  title=""):
-        super(_PyplotCurveUpdater, self).__init__(queue, title=title)
+        super(_PyplotUpdater, self).__init__(queue, title=title)
         self.data = [[], []]
         self.line = None
         self.style = style
         self.plot_kwargs = {} if plot_kwargs is None else plot_kwargs
         self.autoscale = autoscale
-        self.commands = {_PyplotCurveUpdater.PLOT: self.plot,
-                         _PyplotCurveUpdater.STYLE: self.change_style,
-                         _PyplotCurveUpdater.CLEAR: self.clear,
-                         _PyplotCurveUpdater.AUTOSCALE: self.set_autoscale}
+        self.commands = {_PyplotUpdater.PLOT: self.plot,
+                         _PyplotUpdater.STYLE: self.change_style,
+                         _PyplotUpdater.CLEAR: self.clear,
+                         _PyplotUpdater.AUTOSCALE: self.set_autoscale}
 
     def get_artists(self):
         """Get the artists for the drawing."""
@@ -441,7 +441,7 @@ class _PyplotCurveUpdater(_PyplotUpdater):
             self.line.axes.autoscale_view()
 
 
-class _PyplotImageUpdater(_PyplotUpdater):
+class _PyplotImageUpdater(_PyplotUpdaterBase):
 
     """
     Private class for updating a matplotlib figure with an image stream.
