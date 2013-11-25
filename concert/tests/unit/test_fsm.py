@@ -69,8 +69,6 @@ class TestStateMachine(TestCase):
 
     def test_async_transition(self):
         future = self.device.move_some_time(MOVE_VELOCITY, 0.01)
-        time.sleep(0.001)
-        self.assertTrue(self.device.state.is_currently('moving'))
         future.wait()
         self.assertTrue(self.device.state.is_currently('standby'))
 
