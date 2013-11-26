@@ -24,24 +24,12 @@ from concert.devices.base import Device, LinearCalibration
 LOG = logging.getLogger(__name__)
 
 
-class Motor(Device):
-
-    """Base class for everything that moves.
-
-    A motor is used with a *calibration* that conforms to the
-    :class:`~.Calibration` interface to convert between user and device units.
-    If *calibration* is not given, a default :class:`~.LinearCalibration`
-    mapping one step to one millimeter with zero offset is assumed.
-
-    .. py:attribute:: position
-
-        Motor position
-    """
+class PositionMixin(Device):
 
     state = State(default='standby')
 
     def __init__(self):
-        super(Motor, self).__init__()
+        super(PositionMixin, self).__init__()
 
     @async
     def move(self, delta):
@@ -70,17 +58,10 @@ class Motor(Device):
         """
         self._home()
 
-    def _get_position(self):
-        return self._calibration.to_user(self._get_device_position())
-
-    @transition(source='*', target='standby', immediate='moving')
-    def _set_position(self, position):
-        self._set_device_position(self._calibration.to_device(position))
-
-    def _get_device_position(self):
+    def _home(self):
         raise NotImplementedError
 
-    def _home(self):
+    def _stop(self):
         raise NotImplementedError
 
     def in_hard_limit(self):
@@ -89,18 +70,11 @@ class Motor(Device):
     def _in_hard_limit(self):
         raise NotImplementedError
 
-    position = Parameter(unit=q.count,
-                         conversion=q.m / q.count,
-                         in_hard_limit=in_hard_limit)
 
+class ContinuousMixin(Device):
 
-class ContinuousMotor(Motor):
-
-    """A movable on which one can set velocity.
-
-    This class is inherently capable of discrete movement.
-
-    """
+    def __init__(self):
+        super(ContinuousMixin, self).__init__()
 
     def in_velocity_hard_limit(self):
         return self._in_velocity_hard_limit()
@@ -108,9 +82,38 @@ class ContinuousMotor(Motor):
     def _in_velocity_hard_limit(self):
         raise NotImplementedError
 
-    position = Parameter(unit=q.count,
-                         conversion=q.deg / q.count)
 
-    velocity = Parameter(unit=q.count / q.s,
-                         conversion=q.deg / q.count,
-                         in_hard_limit=in_velocity_hard_limit)
+class Motor(PositionMixin):
+
+    position = Parameter(unit=q.m,
+                         in_hard_limit=PositionMixin.in_hard_limit)
+
+    def __init__(self):
+        super(Motor, self).__init__()
+
+
+class ContinuousMotor(Motor, ContinuousMixin):
+
+    velocity = Parameter(unit=q.m / q.s,
+                         in_hard_limit=ContinuousMixin.in_velocity_hard_limit)
+
+    def __init__(self):
+        super(ContinuousMotor, self).__init__()
+
+
+class RotationMotor(PositionMixin):
+
+    position = Parameter(unit=q.deg,
+                         in_hard_limit=PositionMixin.in_hard_limit)
+
+    def __init__(self):
+        super(RotationMotor, self).__init__()
+
+
+class ContinuousRotationMotor(RotationMotor, ContinuousMixin):
+
+    def __init__(self):
+        super(ContinuousRotationMotor, self).__init__()
+
+    velocity = Parameter(unit=q.deg / q.s,
+                         in_hard_limit=ContinuousMixin.in_velocity_hard_limit)

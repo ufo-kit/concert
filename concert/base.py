@@ -8,6 +8,10 @@ from concert.helpers import async, wait
 LOG = logging.getLogger(__name__)
 
 
+def identity(x):
+    return x
+
+
 class UnitError(ValueError):
 
     """Raised when an operation is passed value with an incompatible unit."""
@@ -93,13 +97,13 @@ class MultiContext(object):
 
 class Parameter(object):
     def __init__(self, fget=None, fset=None, unit=None, lower=None, upper=None,
-                 conversion=1, data=None, in_hard_limit=None):
+                 conversion=identity, data=None, in_hard_limit=None):
         self.name = None
         self.fget = fget
         self.fset = fset
         self.unit = unit
         self.data_args = (data,) if data is not None else ()
-        self.conversion = conversion
+        self.default_conversion = conversion
         self.in_hard_limit = in_hard_limit
         self.upper = upper if upper is not None else float('Inf')
         self.lower = lower if lower is not None else -float('Inf')
@@ -129,28 +133,46 @@ class Parameter(object):
 
         return '_get_' + self.name
 
+    def get_conversion(self, instance):
+        return instance[self.name].conversion
+
+    def convert_to(self, instance, value):
+        conversion = self.get_conversion(instance)
+
+        if conversion == identity:
+            return value
+
+        return conversion(value)
+
+    def convert_from(self, instance, value):
+        conversion = self.get_conversion(instance)
+
+        if conversion == identity:
+            return value
+
+        return 1 / conversion(1 / value)
+
     def __get__(self, instance, owner):
         # If we would just call self.fset(value) we would call the method
         # defined in the base class. This is a hack (?) to call the function on
         # the instance where we actually want the function to be called.
+
         try:
             if self.fget:
                 value = self.fget(instance, *self.data_args)
             else:
                 value = getattr(instance, self.getter_name())(*self.data_args)
 
-            return value * self.conversion
+            return self.convert_from(instance, value)
         except NotImplementedError:
             raise ReadAccessError(self.name)
 
     def __set__(self, instance, value):
-        converted = 1 / self.conversion * value
-
-        if self.unit and not self.is_compatible(converted):
+        if self.unit and not self.is_compatible(value):
             msg = "Can only receive values of unit {} but got {}"
             raise UnitError(msg.format(self.unit, value))
 
-        if not instance[self.name].lower <= converted <= instance[self.name].upper:
+        if not instance[self.name].lower <= value <= instance[self.name].upper:
             msg = "{} is out of range [{}, {}]"
             raise SoftLimitError(msg.format(value, self.lower, self.upper))
 
@@ -161,6 +183,7 @@ class Parameter(object):
             LOG.info(msg.format(name, what, value))
 
         log_access('try')
+        converted = self.convert_to(instance, value)
 
         # The same idea as sketched in __get__
         if self.fset:
@@ -185,8 +208,9 @@ class ParameterValue(object):
         self._instance = instance
         self._parameter = parameter
         self._saved = []
-        self._lower = parameter.lower
-        self._upper = parameter.upper
+        self.lower = parameter.lower
+        self.upper = parameter.upper
+        self.conversion = parameter.default_conversion
 
     def __enter__(self):
         if self.lock is not None:
@@ -203,23 +227,7 @@ class ParameterValue(object):
 
     @property
     def unit(self):
-        return self._parameter.unit * self._parameter.conversion
-
-    @property
-    def lower(self):
-        return self._lower
-
-    @lower.setter
-    def lower(self, value):
-        self._lower = value
-
-    @property
-    def upper(self):
-        return self._upper
-
-    @upper.setter
-    def upper(self, value):
-        self._upper = value
+        return self._parameter.unit
 
     @property
     def data(self):

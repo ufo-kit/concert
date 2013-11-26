@@ -33,6 +33,13 @@ class RestrictedFooDevice(FooDevice):
         self['foo'].lower = lower
         self['foo'].upper = upper
 
+
+class ConvertingDevice(FooDevice):
+    def __init__(self):
+        super(ConvertingDevice, self).__init__(0 * q.mm)
+        self['foo'].conversion = lambda x: x / q.m * q.count
+
+
 class TestParameterizable(TestCase):
 
     def setUp(self):
@@ -52,7 +59,6 @@ class TestParameterizable(TestCase):
 
     def test_parameter_property(self):
         self.assertEqual(self.foo1['foo'].unit, q.m)
-
 
     def test_saving(self):
         m = FooDevice(0 * q.mm)
@@ -85,3 +91,8 @@ class TestParameterizable(TestCase):
         limited = RestrictedFooDevice(-2 * q.mm, 2 * q.mm)
         self.assertEqual(limited['foo'].lower, -2 * q.mm)
         self.assertEqual(limited['foo'].upper, +2 * q.mm)
+
+    def test_conversion(self):
+        device = ConvertingDevice()
+        device.foo = 2 * q.m
+        self.assertEqual(device._value, 2 * q.count)

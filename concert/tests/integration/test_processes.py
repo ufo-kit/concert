@@ -15,6 +15,7 @@ FOCUS_POSITION = 35 * q.mm
 class BlurringCamera(Camera):
 
     def __init__(self, motor):
+        super(BlurringCamera, self).__init__()
         self._original = scipy.misc.lena()
         self.motor = motor
 
