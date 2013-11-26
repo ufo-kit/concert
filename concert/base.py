@@ -3,6 +3,7 @@
 import logging
 import six
 from concert.helpers import async, wait
+from concert.quantities import numerator_units, denominator_units
 
 
 LOG = logging.getLogger(__name__)
@@ -146,11 +147,13 @@ class Parameter(object):
 
     def convert_from(self, instance, value):
         conversion = self.get_conversion(instance)
+        num_units = numerator_units(conversion(1))
+        denom_units = denominator_units(conversion(1))
 
         if conversion == identity:
             return value
 
-        return 1 / conversion(1 / value)
+        return value * denom_units / num_units
 
     def __get__(self, instance, owner):
         # If we would just call self.fset(value) we would call the method

@@ -96,3 +96,6 @@ class TestParameterizable(TestCase):
         device = ConvertingDevice()
         device.foo = 2 * q.m
         self.assertEqual(device._value, 2 * q.count)
+
+        device.foo = 0 * q.m
+        self.assertEqual(device.foo, 0 * q.m)
