@@ -1,6 +1,6 @@
 from concert.quantities import q
 from concert.base import HardLimitError
-from concert.devices.motors.dummy import Motor, ContinuousMotor
+from concert.devices.motors.dummy import LinearMotor, ContinuousLinearMotor
 from concert.devices.motors.dummy import RotationMotor, ContinuousRotationMotor
 from concert.tests import TestCase, suppressed_logging
 
@@ -9,7 +9,7 @@ class TestMotor(TestCase):
 
     def setUp(self):
         super(TestMotor, self).setUp()
-        self.motor = Motor()
+        self.motor = LinearMotor()
 
     def test_set_position(self):
         position = 1 * q.mm
@@ -28,11 +28,11 @@ class TestMotor(TestCase):
         self.assertEqual(position + delta, self.motor.position)
 
 
-class TestContinuousMotor(TestCase):
+class TestContinuousLinearMotor(TestCase):
 
     def setUp(self):
-        super(TestContinuousMotor, self).setUp()
-        self.motor = ContinuousMotor()
+        super(TestContinuousLinearMotor, self).setUp()
+        self.motor = ContinuousLinearMotor()
 
     def test_set_position(self):
         position = 1 * q.mm

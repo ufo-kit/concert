@@ -4,7 +4,7 @@ from concert.tests import assert_almost_equal, suppressed_logging
 from concert.quantities import q
 from concert.processes import focus
 from concert.devices.cameras.base import Camera
-from concert.devices.motors.dummy import Motor
+from concert.devices.motors.dummy import LinearMotor
 
 
 MIN_POSITION = 0 * q.mm
@@ -38,8 +38,8 @@ class BlurringCamera(Camera):
 
 @suppressed_logging
 def test_focusing():
-    motor = Motor(hard_limits=(MIN_POSITION.magnitude * q.count,
-                               MAX_POSITION.magnitude * q.count))
+    motor = LinearMotor(hard_limits=(MIN_POSITION.magnitude * q.count,
+                                     MAX_POSITION.magnitude * q.count))
     motor.position = 40. * q.mm
     camera = BlurringCamera(motor)
     focus(camera, motor).wait()

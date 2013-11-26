@@ -55,10 +55,10 @@ class ContinuousMotorMixin(base.ContinuousMixin):
         return self._velocity
 
 
-class Motor(base.Motor, PositionMotorMixin):
+class LinearMotor(base.LinearMotor, PositionMotorMixin):
 
     def __init__(self, position=None, hard_limits=None):
-        super(Motor, self).__init__()
+        super(LinearMotor, self).__init__()
         self['position'].conversion = lambda x: x / q.m * q.count
 
         if hard_limits:
@@ -68,10 +68,11 @@ class Motor(base.Motor, PositionMotorMixin):
             self._position = position
 
 
-class ContinuousMotor(Motor, base.ContinuousMotor, ContinuousMotorMixin):
+class ContinuousLinearMotor(LinearMotor,
+                            base.ContinuousLinearMotor, ContinuousMotorMixin):
 
     def __init__(self):
-        super(ContinuousMotor, self).__init__()
+        super(ContinuousLinearMotor, self).__init__()
         self['velocity'].conversion = lambda x: x / q.m * q.count
 
 

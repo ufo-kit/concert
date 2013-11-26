@@ -2,7 +2,7 @@ from concert.quantities import q
 from concert import optimization
 from concert.tests import slow, assert_almost_equal, TestCase
 from concert.optimization import optimize_parameter
-from concert.devices.motors.dummy import Motor
+from concert.devices.motors.dummy import LinearMotor
 
 
 class TestOptimizers(TestCase):
@@ -15,7 +15,7 @@ class TestOptimizers(TestCase):
                            optimization.bfgs,
                            optimization.least_squares]
         self.center = 3.0 * q.mm
-        self.motor = Motor(position=0 * q.count)
+        self.motor = LinearMotor(position=0 * q.count)
 
     def feedback(self):
         return (self.motor.position.to(q.mm).magnitude -

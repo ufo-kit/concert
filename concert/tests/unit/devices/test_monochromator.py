@@ -1,7 +1,6 @@
 import random
 from concert.tests import assert_almost_equal, TestCase
 from concert.quantities import q
-from concert.devices.base import LinearCalibration
 from concert.devices.monochromators.dummy import\
     Monochromator as DummyMonochromator
 from concert.devices.monochromators import base

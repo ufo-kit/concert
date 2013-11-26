@@ -18,7 +18,7 @@ from concert.quantities import q
 from concert.helpers import async
 from concert.fsm import State, transition
 from concert.base import Parameter
-from concert.devices.base import Device, LinearCalibration
+from concert.devices.base import Device
 
 
 LOG = logging.getLogger(__name__)
@@ -83,22 +83,22 @@ class ContinuousMixin(Device):
         raise NotImplementedError
 
 
-class Motor(PositionMixin):
+class LinearMotor(PositionMixin):
 
     position = Parameter(unit=q.m,
                          in_hard_limit=PositionMixin.in_hard_limit)
 
     def __init__(self):
-        super(Motor, self).__init__()
+        super(LinearMotor, self).__init__()
 
 
-class ContinuousMotor(Motor, ContinuousMixin):
+class ContinuousLinearMotor(LinearMotor, ContinuousMixin):
 
     velocity = Parameter(unit=q.m / q.s,
                          in_hard_limit=ContinuousMixin.in_velocity_hard_limit)
 
     def __init__(self):
-        super(ContinuousMotor, self).__init__()
+        super(ContinuousLinearMotor, self).__init__()
 
 
 class RotationMotor(PositionMixin):

@@ -1,7 +1,7 @@
 from concert.quantities import q
 from concert.tests import slow, assert_almost_equal, TestCase
 from concert.measures import DummyGradientMeasure
-from concert.devices.motors.dummy import Motor as DummyMotor
+from concert.devices.motors.dummy import LinearMotor
 from concert import optimization
 from concert.optimization import optimize_parameter
 
@@ -10,9 +10,9 @@ class TestDummyFocusingWithSoftLimits(TestCase):
 
     def setUp(self):
         super(TestDummyFocusingWithSoftLimits, self).setUp()
-        self.motor = DummyMotor(position=50 * q.count)
-        # self.motor['position'].lower = 25 * q.mm
-        # self.motor['position'].upper = 75 * q.mm
+        self.motor = LinearMotor(position=50 * q.count)
+        self.motor['position'].lower = 25 * q.mm
+        self.motor['position'].upper = 75 * q.mm
         self.halver_kwargs = {"initial_step": 10 * q.mm,
                               "max_iterations": 1000}
 
@@ -37,7 +37,7 @@ class TestDummyFocusing(TestCase):
 
     def setUp(self):
         super(TestDummyFocusing, self).setUp()
-        self.motor = DummyMotor()
+        self.motor = LinearMotor()
         self.motor.position = 0 * q.mm
         self.feedback = DummyGradientMeasure(self.motor['position'],
                                              18.75 * q.mm)
