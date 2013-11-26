@@ -13,25 +13,16 @@ class FileCamera(base.Camera):
     """A camera that reads files in a *directory*."""
 
     def __init__(self, directory):
+        # Let users change the directory
+        self.directory = directory
         super(FileCamera, self).__init__()
+
         self._frame_rate = 1000 * q.count / q.s
         self._index = 0
         self.roi_x = 0
         self.roi_y = 0
         self.roi_width = None
         self.roi_height = None
-        self.directory = directory
-
-    @property
-    def directory(self):
-        """Get the current directory."""
-        return self._directory
-
-    @directory.setter
-    def directory(self, directory):
-        """Set the current *directory*."""
-        self._directory = directory
-        self._index = 0
         self._files = [os.path.join(directory, file_name) for file_name in
                        sorted(os.listdir(directory))]
 
