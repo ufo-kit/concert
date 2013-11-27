@@ -85,7 +85,7 @@ class ContinuousMixin(Device):
 
 class LinearMotor(PositionMixin):
 
-    position = Parameter(unit=q.m,
+    position = Parameter(unit=q.m, conversion=lambda x: x / q.mm * q.count,
                          in_hard_limit=PositionMixin.in_hard_limit)
 
     def __init__(self):
@@ -94,7 +94,8 @@ class LinearMotor(PositionMixin):
 
 class ContinuousLinearMotor(LinearMotor, ContinuousMixin):
 
-    velocity = Parameter(unit=q.m / q.s,
+    velocity = Parameter(unit=q.m / q.s, conversion=lambda x: x / q.mm * q.s *
+                         q.count,
                          in_hard_limit=ContinuousMixin.in_velocity_hard_limit)
 
     def __init__(self):
@@ -103,7 +104,7 @@ class ContinuousLinearMotor(LinearMotor, ContinuousMixin):
 
 class RotationMotor(PositionMixin):
 
-    position = Parameter(unit=q.deg,
+    position = Parameter(unit=q.deg, conversion=lambda x: x / q.deg * q.count,
                          in_hard_limit=PositionMixin.in_hard_limit)
 
     def __init__(self):
@@ -115,5 +116,6 @@ class ContinuousRotationMotor(RotationMotor, ContinuousMixin):
     def __init__(self):
         super(ContinuousRotationMotor, self).__init__()
 
-    velocity = Parameter(unit=q.deg / q.s,
+    velocity = Parameter(unit=q.deg / q.s, conversion=lambda x: x / q.deg * q.s
+                         * q.count,
                          in_hard_limit=ContinuousMixin.in_velocity_hard_limit)
