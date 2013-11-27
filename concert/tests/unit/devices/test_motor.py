@@ -69,7 +69,6 @@ class TestContinuousRotationMotor(TestCase):
     def setUp(self):
         super(TestContinuousRotationMotor, self).setUp()
         self.motor = ContinuousRotationMotor()
-        print self.motor['position'].unit
 
     def test_set_position(self):
         position = 1 * q.deg
