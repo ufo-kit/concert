@@ -75,6 +75,19 @@ def flat_correct(consumer, flat, dark=None):
 
 
 @coroutine
+def absorptivity(consumer):
+    """
+    Get the absorptivity from a flat corrected stream of images.
+    Absorptivity is defined as :math:`I = I_0 \cdot e^{-\mju t}` and we extract
+    :math:`\mju t` from the stream of flat corrected images
+    :math:`\frac{I}{I_0}`.
+    """
+    while True:
+        frame = yield
+        consumer.send(-np.log(frame))
+
+
+@coroutine
 def backprojector(consumer, row_number, center, num_projs=None,
                   angle_step=None, nth_column=1, nth_projection=1,
                   callback=None, fast=True):
