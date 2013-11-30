@@ -15,8 +15,10 @@ LOG = logging.getLogger(__name__)
 
 
 @coroutine
-def average_images(consumer, num_images):
+def average_images(num_images, consumer):
     """
+    average_images(num_images, consumer)
+
     Average *num_images* images as they come and send them to *consumer*.
     """
     average = None
@@ -33,8 +35,10 @@ def average_images(consumer, num_images):
 
 
 @coroutine
-def make_sinograms(consumer, num_radiographs):
+def make_sinograms(num_radiographs, consumer):
     """
+    make_sinograms(num_radiographs, consumer)
+
     Convert *num_radiographs* into sinograms and send them to *consumer*.
     """
     i = 0
@@ -63,8 +67,10 @@ def make_sinograms(consumer, num_radiographs):
 
 
 @coroutine
-def flat_correct(consumer, flat, dark=None):
+def flat_correct(flat, consumer, dark=None):
     """
+    flat_correct(flat, consumer, dark=None)
+
     Flat correcting corounte, which takes a *flat* field, a *dark* field (if
     given), calculates a flat corrected radiograph and forwards it to
     *consumer*.
@@ -76,11 +82,13 @@ def flat_correct(consumer, flat, dark=None):
 
 @coroutine
 def absorptivity(consumer):
-    """
-    Get the absorptivity from a flat corrected stream of images.
-    Absorptivity is defined as :math:`I = I_0 \cdot e^{-\mju t}` and we extract
-    :math:`\mju t` from the stream of flat corrected images
-    :math:`\frac{I}{I_0}`.
+    r"""
+    absorptivity(consumer)
+
+    Get the absorptivity from a flat corrected stream of images.  The intensity
+    after the object is defined as :math:`I = I_0 \cdot e^{-\mu t}` and we
+    extract the absorptivity :math:`\mu t` from the stream of flat corrected
+    images :math:`I / I_0`.
     """
     while True:
         frame = yield
@@ -88,10 +96,14 @@ def absorptivity(consumer):
 
 
 @coroutine
-def backprojector(consumer, row_number, center, num_projs=None,
+def backprojector(row_number, center, consumer, num_projs=None,
                   angle_step=None, nth_column=1, nth_projection=1,
                   callback=None, fast=True):
     """
+    backprojector(row_number, center, consumer, num_projs=None,\
+                      angle_step=None, nth_column=1, nth_projection=1,\
+                                        callback=None, fast=True)
+
     Online filtered backprojection. Get a radiograph, extract row
     *row_number*, backproject it and add to the so far computed slice.
     *center* is the center of rotation, *num_projs* determine how many

@@ -55,7 +55,7 @@ class TestCoroutines(TestCase):
                 consumer.send(ground_truth[i])
 
         result = Result()
-        image_producer(make_sinograms(result(), n))
+        image_producer(make_sinograms(n, result()))
 
         sinograms = result.result
         np.testing.assert_almost_equal(sinograms,
@@ -70,7 +70,7 @@ class TestCoroutines(TestCase):
         self.assertEquals(5, self.iteration)
 
     def test_averager(self):
-        frame_producer(average_images(self.consume(), 3))
+        frame_producer(average_images(3, self.consume()))
         truth = np.ones((2, 2)) * 2
         np.testing.assert_almost_equal(self.data, truth)
 
@@ -89,7 +89,7 @@ class TestCoroutines(TestCase):
                 np.testing.assert_almost_equal(frame, truth_base * value)
                 i += 1
 
-        frame_producer(flat_correct(check(), flat, dark=dark))
+        frame_producer(flat_correct(flat, check(), dark=dark))
 
     def test_result_object(self):
         result = Result()
