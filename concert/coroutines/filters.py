@@ -76,11 +76,11 @@ def flat_correct(consumer, flat, dark=None):
 
 @coroutine
 def absorptivity(consumer):
-    """
-    Get the absorptivity from a flat corrected stream of images.
-    Absorptivity is defined as :math:`I = I_0 \cdot e^{-\mju t}` and we extract
-    :math:`\mju t` from the stream of flat corrected images
-    :math:`\frac{I}{I_0}`.
+    r"""
+    Get the absorptivity from a flat corrected stream of images.  The intensity
+    after the object is defined as :math:`I = I_0 \cdot e^{-\mu t}` and we
+    extract the absorptivity :math:`\mu t` from the stream of flat corrected
+    images :math:`I / I_0`.
     """
     while True:
         frame = yield
