@@ -131,48 +131,16 @@ Helpers
 .. automodule:: concert.helpers
     :members:
 
-.. automodule:: concert.coroutines
-    :members:
-
-
-Coroutines
-==========
-
-Coroutines provide a way to process data and yield execution until more data
-is produced. To build flexible coroutine-based processing pipelines in Python,
-the enhanced ``yield`` statement is used. To simplify startup of the coroutine,
-you can decorate a function with :py:func:`.coroutine`::
-
-    from concert.helpers import coroutine
-
-    @coroutine
-    def printer():
-        while True:
-            item = yield
-            print(item)
 
 Sinks
 -----
 
-Sinks are the simpler version of coroutines where one processes the data but
-doesn't forward them, thus a sink is a pipeline terminal.
-
 .. automodule:: concert.coroutines.sinks
     :members:
 
+
 Filters
 -------
-
-Because the ``printer`` only consumes data it is an end point, hence called a
-sink. Filters on the other hand hook into the stream and turn the input into
-some output. For example, to generate a stream of squared input, you would
-write::
-
-    @coroutine
-    def square(target):
-        while True:
-            item = yield
-            target.send(item**2)
 
 .. automodule:: concert.coroutines.filters
     :members:
