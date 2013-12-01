@@ -3,6 +3,7 @@
 import logging
 import six
 from concert.helpers import async, wait
+from concert.fsm import transition
 from concert.quantities import numerator_units, denominator_units
 
 
@@ -98,7 +99,8 @@ class MultiContext(object):
 
 class Parameter(object):
     def __init__(self, fget=None, fset=None, unit=None, lower=None, upper=None,
-                 conversion=identity, data=None, in_hard_limit=None):
+                 conversion=identity, data=None, in_hard_limit=None,
+                 source=None, target=None, immediate=None):
         self.name = None
         self.fget = fget
         self.fset = fset
@@ -114,6 +116,11 @@ class Parameter(object):
 
         if unit and lower is None:
             self.lower = self.lower * unit
+
+        if source or target or immediate:
+            self.transition = transition(source, target, immediate)
+        else:
+            self.transition = None
 
     def is_compatible(self, value):
         try:
@@ -194,7 +201,12 @@ class Parameter(object):
         else:
             try:
                 setter = getattr(instance, self.setter_name())
-                setter(converted, *self.data_args)
+
+                if self.transition:
+                    decorated = self.transition(setter.__func__)
+                    decorated(instance, converted, *self.data_args)
+                else:
+                    setter(converted, *self.data_args)
             except NotImplementedError:
                 raise WriteAccessError(self.name)
 
@@ -223,6 +235,9 @@ class ParameterValue(object):
     def __exit__(self, exc_type, exc_value, traceback):
         if self.lock is not None:
             self.lock.release()
+
+    def __lt__(self, other):
+        return self._parameter.name < other._parameter.name
 
     @property
     def name(self):

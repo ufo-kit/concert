@@ -1,20 +1,22 @@
 from concert.quantities import q
 from concert.tests import TestCase
+from concert.fsm import State
 from concert.base import (Parameterizable, Parameter,
                           WriteAccessError, ReadAccessError, UnitError,
                           SoftLimitError, HardLimitError)
-# from concert.devices.motors.dummy import Motor
 
 
 class BaseDevice(Parameterizable):
 
-    foo = Parameter(unit=q.m)
+    state = State(default='standby')
 
     def __init__(self):
         super(BaseDevice, self).__init__()
 
 
 class FooDevice(BaseDevice):
+
+    foo = Parameter(unit=q.m, source='*', target='moved')
 
     def __init__(self, default):
         super(FooDevice, self).__init__()
@@ -99,3 +101,8 @@ class TestParameterizable(TestCase):
 
         device.foo = 0 * q.m
         self.assertEqual(device.foo, 0 * q.m)
+
+    def test_state(self):
+        self.assertEqual(self.foo1.state.value, 'standby')
+        self.foo1.foo = 2 * q.m
+        self.assertEqual(self.foo1.state.value, 'moved')
