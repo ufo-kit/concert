@@ -143,27 +143,30 @@ specify which kind of parameters we want to expose and how we get the
 values for the parameters (by tying them to getter and setter callables)::
 
     class Pump(Device):
+
+        flow_rate = Parameter(unit=q.m**3 / q.s)
+
         def __init__(self):
-            params = [Parameter('flow-rate',
-                                fget=self._get_flow_rate,
-                                fset=self._set_flow_rate,
-                                unit=q.m**3 / q.s,
-                                doc="Flow rate")]
+            super(Pump, self).__init__()
 
-            super(Pump, self).__init__(params)
+This installs implicit setters and getters called `_set_flow_rate` and
+`_get_flow_rate` that need to be implemented by the real devices. You can
+however, also specify explicit setters and getters in order to hook into the get
+and set process::
 
-        def _get_flow_rate(self):
-            # This must be implemented by the actual device
-            raise NotImplementedError
+    class Pump(Device):
 
-        def _set_flow_rate(self, value):
-            # This must be implemented by the actual device
-            raise NotImplementedError
+        def __init__(self):
+            super(Pump, self).__init__()
 
-.. note::
+        def _intercept_get_flow_rate(self):
+            return self._get_flow_rate() * 10
 
-    Parameter names can only start with a letter whereas the rest of the string
-    can only contain letters, numbers, dashes and underscores.
+        flow_rate = Parameter(unit=q.m**3 / q.s,
+                              fget=_intercept_get_flow_rate)
+
+Be aware, that in this case you have to list the parameter *after* the functions
+that you want to refer to.
 
 
 State machine
@@ -207,3 +210,18 @@ automatically into an error state::
             ...
             if cannot_move:
                 raise Exception("Uh, something bad happened")
+
+
+Parameters
+~~~~~~~~~~
+
+In case changing a parameter value causes a state transition, you can list
+the source and target states in the :class:`.Parameter` object::
+
+    class Motor(Device):
+
+        state = State(default='standby')
+
+        velocity = Parameter(unit=q.m / q.s,
+                             source='*',
+                             target='moving')
