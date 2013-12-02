@@ -68,7 +68,7 @@ def optimize_parameter(parameter, feedback, x_0, algorithm, alg_args=(),
                 x_val = parameter.lower
             if x_val > parameter.upper:
                 x_val = parameter.upper
-            parameter.set(x_val).wait()
+            parameter.set(x_val).join()
         except LimitError:
             LOG.debug("Limit reached")
 

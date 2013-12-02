@@ -69,7 +69,7 @@ class TestStateMachine(TestCase):
 
     def test_async_transition(self):
         future = self.device.move_some_time(MOVE_VELOCITY, 0.01)
-        future.wait()
+        future.join()
         self.assertTrue(self.device.state.is_currently('standby'))
 
     def test_multiple_source_states(self):

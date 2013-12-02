@@ -21,7 +21,7 @@ class TestDummyFocusingWithSoftLimits(TestCase):
         feedback = DummyGradientMeasure(self.motor['position'], 80 * q.mm)
         optimize_parameter(self.motor["position"], lambda: - feedback(),
                            self.motor.position, optimization.halver,
-                           alg_kwargs=self.halver_kwargs).wait()
+                           alg_kwargs=self.halver_kwargs).join()
         assert_almost_equal(self.motor.position, 75 * q.mm)
 
     @slow
@@ -29,7 +29,7 @@ class TestDummyFocusingWithSoftLimits(TestCase):
         feedback = DummyGradientMeasure(self.motor['position'], 20 * q.mm)
         optimize_parameter(self.motor["position"], lambda: - feedback(),
                            self.motor.position, optimization.halver,
-                           alg_kwargs=self.halver_kwargs).wait()
+                           alg_kwargs=self.halver_kwargs).join()
         assert_almost_equal(self.motor.position, 25 * q.mm)
 
 
@@ -50,7 +50,7 @@ class TestDummyFocusing(TestCase):
     def run_optimization(self, initial_position=1 * q.mm):
         optimize_parameter(self.motor["position"], lambda: - self.feedback(),
                            initial_position, optimization.halver,
-                           alg_kwargs=self.halver_kwargs).wait()
+                           alg_kwargs=self.halver_kwargs).join()
 
     def check(self, other):
         assert_almost_equal(self.motor.position, other, 0.1)

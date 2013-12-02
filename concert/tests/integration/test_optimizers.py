@@ -27,7 +27,7 @@ class TestOptimizers(TestCase):
 
     def optimize(self, algorithm):
         optimize_parameter(self.motor["position"], self.feedback,
-                           self.motor.position, algorithm).wait()
+                           self.motor.position, algorithm).join()
 
     @slow
     def test_algorithms(self):

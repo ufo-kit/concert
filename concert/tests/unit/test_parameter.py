@@ -60,7 +60,7 @@ class TestParameterizable(TestCase):
         self.assertEqual(self.foo2.foo, 23 * q.m)
 
     def test_func_identity(self):
-        self.foo1.set_foo(15 * q.m).wait()
+        self.foo1.set_foo(15 * q.m).join()
         self.assertEqual(self.foo1.get_foo().result(), 15 * q.m)
         self.assertEqual(self.foo2.get_foo().result(), 23 * q.m)
 
@@ -71,16 +71,16 @@ class TestParameterizable(TestCase):
         m = FooDevice(0 * q.mm)
 
         m.foo = 1 * q.mm
-        m.stash().wait()
+        m.stash().join()
         m.foo = 2 * q.mm
-        m.stash().wait()
+        m.stash().join()
         m.foo = 0.123 * q.mm
         m.foo = 1.234 * q.mm
 
-        m.restore().wait()
+        m.restore().join()
         self.assertEqual(m.foo, 2 * q.mm)
 
-        m.restore().wait()
+        m.restore().join()
         self.assertEqual(m.foo, 1 * q.mm)
 
     def test_soft_limit_change(self):

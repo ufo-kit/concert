@@ -12,12 +12,12 @@ from threading import Thread
 from concurrent.futures import ThreadPoolExecutor, Future
 
 
-# Patch futures so that they provide a wait() method
-def _wait(self, _timeout=None):
+# Patch futures so that they provide a join() method
+def _join(self, _timeout=None):
     self.result()
     return self
 
-Future.wait = _wait
+Future.join = _join
 
 # Module-wide executor
 EXECUTOR = ThreadPoolExecutor(max_workers=128)
@@ -74,7 +74,7 @@ def wait(futures):
     """Wait for the list of *futures* to finish and raise exceptions if
     happened."""
     for future in futures:
-        future.result()
+        future.join()
 
 
 class Dispatcher(object):

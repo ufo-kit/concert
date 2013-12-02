@@ -96,7 +96,7 @@ the UFO data processing framework. The simplest example could look like this::
 
     proc.run()
     proc.push(scipy.misc.lena())
-    proc.wait()
+    proc.join()
 
 
 To save yourself some time, the :mod:`.ufo` module provides a wrapper around the

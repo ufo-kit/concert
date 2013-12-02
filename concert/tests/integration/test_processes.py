@@ -30,5 +30,5 @@ def test_focusing():
                                      MAX_POSITION.magnitude * q.count))
     motor.position = 40. * q.mm
     camera = BlurringCamera(motor)
-    focus(camera, motor).wait()
+    focus(camera, motor).join()
     assert_almost_equal(motor.position, FOCUS_POSITION, 1e-2)

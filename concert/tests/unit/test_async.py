@@ -43,12 +43,12 @@ class TestAsync(TestCase):
 
     def test_futures(self):
         future1 = func()
-        future2 = func().wait()
+        future2 = func().join()
         self.assertEqual(future1.__class__, future2.__class__,
                          "Wait method does not return a future.")
 
-        self.assertRaises(TypeError, func(0).wait)
-        self.assertRaises(RuntimeError, bad_func().wait)
+        self.assertRaises(TypeError, func(0).join)
+        self.assertRaises(RuntimeError, bad_func().join)
 
     def test_async_function(self):
         future = func()
