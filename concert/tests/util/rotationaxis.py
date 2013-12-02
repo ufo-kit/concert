@@ -1,6 +1,6 @@
 import numpy as np
 from concert.quantities import q
-from concert.devices.cameras.base import Camera
+from concert.devices.cameras.dummy import Base as DummyBaseCamera
 
 
 def get_np_angle(angle):
@@ -102,7 +102,7 @@ def get_projection(thickness):
     return transfer(thickness * q.mm, ref_index, lam)
 
 
-class SimulationCamera(Camera):
+class SimulationCamera(DummyBaseCamera):
 
     """A dummy image source providing images of a rotated sample. Rotation
     is based on virtual motors.
@@ -131,7 +131,6 @@ class SimulationCamera(Camera):
         self.iteration = 0
 
         super(SimulationCamera, self).__init__()
-        self._trigger_mode = self.trigger_modes.AUTO
 
     @property
     def ellipse_center(self):
@@ -162,9 +161,3 @@ class SimulationCamera(Camera):
 
     def _grab_real(self):
         return get_projection(self.create_needle())
-
-    def _get_trigger_mode(self):
-        return self._trigger_mode
-
-    def _set_trigger_mode(self, mode):
-        self._trigger_mode = mode

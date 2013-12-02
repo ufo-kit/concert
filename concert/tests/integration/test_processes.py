@@ -3,7 +3,7 @@ from scipy.ndimage import fourier
 from concert.tests import assert_almost_equal, suppressed_logging
 from concert.quantities import q
 from concert.processes import focus
-from concert.devices.cameras.base import Camera
+from concert.devices.cameras.dummy import Base as DummyCameraBase
 from concert.devices.motors.dummy import LinearMotor
 
 
@@ -12,35 +12,16 @@ MAX_POSITION = 100 * q.mm
 FOCUS_POSITION = 35 * q.mm
 
 
-class BlurringCamera(Camera):
+class BlurringCamera(DummyCameraBase):
 
     def __init__(self, motor):
         super(BlurringCamera, self).__init__()
         self._original = scipy.misc.lena()
         self.motor = motor
-        self._trigger_mode = self.trigger_modes.AUTO
 
     def _grab_real(self):
         sigma = abs((self.motor.position - FOCUS_POSITION).magnitude)
         return fourier.fourier_gaussian(self._original, sigma)
-
-    def _record_real(self):
-        pass
-
-    def _stop_real(self):
-        pass
-
-    def _trigger_real(self):
-        pass
-
-    def _get_frame_rate(self):
-        return 100 / q.s
-
-    def _get_trigger_mode(self):
-        return self._trigger_mode
-
-    def _set_trigger_mode(self, mode):
-        pass
 
 
 @suppressed_logging
