@@ -27,7 +27,6 @@ class TestMotor(TestCase):
         self.motor.move(delta).wait()
         self.assertEqual(position + delta, self.motor.position)
 
-
 class TestContinuousLinearMotor(TestCase):
 
     def setUp(self):

@@ -122,6 +122,8 @@ class Parameter(object):
         else:
             self.transition = None
 
+        self.decorated = None
+
     def is_compatible(self, value):
         try:
             _ = self.unit + value
@@ -202,11 +204,14 @@ class Parameter(object):
             try:
                 setter = getattr(instance, self.setter_name())
 
-                if self.transition:
-                    decorated = self.transition(setter.__func__)
-                    decorated(instance, converted, *self.data_args)
+                if self.transition and not self.decorated and not hasattr(setter, '_concert_fsm'):
+                    self.decorated = self.transition(setter.__func__)
+
+                if self.decorated:
+                    self.decorated(instance, converted, *self.data_args)
                 else:
                     setter(converted, *self.data_args)
+
             except NotImplementedError:
                 raise WriteAccessError(self.name)
 
