@@ -49,14 +49,12 @@ def async(func):
 
             return future
 
-        _sync.__dict__["_async"] = True
         return _sync
     else:
         @wraps(func)
         def _async(*args, **kwargs):
             return EXECUTOR.submit(func, *args, **kwargs)
 
-        _async.__dict__["_async"] = True
         return _async
 
 
@@ -70,11 +68,6 @@ def threaded(func):
         return thread
 
     return wrapper
-
-
-def is_async(func):
-    """Returns *True* if the given function *func* is asynchronous."""
-    return hasattr(func, "_async") and getattr(func, "_async")
 
 
 def wait(futures):
