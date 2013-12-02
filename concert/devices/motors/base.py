@@ -17,7 +17,7 @@ import logging
 from concert.quantities import q
 from concert.helpers import async
 from concert.fsm import State, transition
-from concert.base import Parameter, HardLimitError
+from concert.base import Parameter
 from concert.devices.base import Device
 
 
@@ -58,12 +58,6 @@ class PositionMixin(Device):
         """
         self._home()
 
-    def _set_position_checked(self, position):
-        """Set position with after-check for hard limit."""
-        self._set_position(position)
-        if self.in_hard_limit():
-            raise HardLimitError("hard limit reached")
-
     def _home(self):
         raise NotImplementedError
 
@@ -71,9 +65,6 @@ class PositionMixin(Device):
         raise NotImplementedError
 
     def in_hard_limit(self):
-        return self._in_hard_limit()
-
-    def _in_hard_limit(self):
         raise NotImplementedError
 
 
@@ -93,7 +84,7 @@ class LinearMotor(PositionMixin):
 
     position = Parameter(unit=q.m,
                          source='standby', target='standby', immediate='moving',
-                         fset=PositionMixin._set_position_checked)
+                         in_hard_limit=PositionMixin.in_hard_limit)
 
     def __init__(self):
         super(LinearMotor, self).__init__()

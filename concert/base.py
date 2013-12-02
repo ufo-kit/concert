@@ -210,9 +210,12 @@ class Parameter(object):
             except NotImplementedError:
                 raise WriteAccessError(self.name)
 
-        if self.in_hard_limit and self.in_hard_limit(instance):
-            msg = "{0} for `{1}' is out of range"
-            raise HardLimitError(msg.format(value, self.name))
+        if self.in_hard_limit:
+            limit_checker = getattr(instance, self.in_hard_limit.__name__)
+
+            if limit_checker():
+                msg = "{0} for `{1}' is out of range"
+                raise HardLimitError(msg.format(value, self.name))
 
         log_access('set')
 

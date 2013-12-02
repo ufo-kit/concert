@@ -11,7 +11,7 @@ class PositionMotorMixin(base.PositionMixin):
         self.upper = +100 * q.count
         self._position = random.uniform(self.lower, self.upper)
 
-    def _in_hard_limit(self):
+    def in_hard_limit(self):
         return self._position <= self.lower or self._position >= self.upper
 
     def _set_position(self, position):
@@ -36,7 +36,7 @@ class ContinuousMotorMixin(base.ContinuousMixin):
         self.velocity_upper = 100 * q.count
         self._velocity = 0 * q.count
 
-    def _in_velocity_hard_limit(self):
+    def in_velocity_hard_limit(self):
         return self._velocity <= self.velocity_lower or \
             self._velocity >= self.velocity_upper
 
