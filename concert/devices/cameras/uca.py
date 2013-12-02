@@ -199,14 +199,14 @@ class Pco(Camera):
         inject(self.readout(lambda: self.uca.props.is_recording), consumer)
 
 
-class Dimax(Pco):
+class Dimax(Pco, base.BufferedMixin):
 
     """A PCO.dimax camera implementation based on libuca :py:class:`Camera`."""
 
     def __init__(self):
         super(Dimax, self).__init__()
 
-    def readout_blocking(self, condition=lambda: True):
+    def _readout_real(self, condition=lambda: True):
         """
         Readout the frames and don't allow recording in the meantime.
         *condition* is the same as in :py:meth:`Camera.readout`.

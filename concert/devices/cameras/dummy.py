@@ -160,3 +160,10 @@ class Camera(base.Camera):
             time.sleep(to_sleep.magnitude)
 
         return np.cast[np.uint16](tmp)
+
+
+class BufferedCamera(Camera, base.BufferedMixin):
+
+    def _readout_real(self):
+        for i in range(3):
+            yield self.grab()

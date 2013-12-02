@@ -120,3 +120,15 @@ class Camera(Device):
 
     def _grab_real(self):
         raise NotImplementedError
+
+
+class BufferedMixin(Device):
+
+    """A camera that stores the frames in an internal buffer"""
+
+    @transition(source='standby', target='standby', immediate='readout')
+    def readout_buffer(self, *args, **kwargs):
+        return self._readout_real(*args, **kwargs)
+
+    def _readout_real(self, *args, **kwargs):
+        raise NotImplementedError
