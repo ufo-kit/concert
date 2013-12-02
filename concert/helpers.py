@@ -7,17 +7,10 @@ except ImportError:
     import queue
 
 import threading
-from functools import wraps
+import functools
 from threading import Thread
 from concurrent.futures import ThreadPoolExecutor, Future
 
-
-# Patch futures so that they provide a join() method
-def _join(self, _timeout=None):
-    self.result()
-    return self
-
-Future.join = _join
 
 # Module-wide executor
 EXECUTOR = ThreadPoolExecutor(max_workers=128)
@@ -26,41 +19,116 @@ EXECUTOR = ThreadPoolExecutor(max_workers=128)
 DISABLE = False
 
 
-class _FakeFuture(Future):
+# Patch futures so that they provide a join() method
+def _join(self, _timeout=None):
+    self.result()
+    return self
+
+
+Future.join = _join
+
+
+class NoFuture(Future):
 
     def __init__(self, result):
-        super(_FakeFuture, self).__init__()
+        super(NoFuture, self).__init__()
         self.set_result(result)
 
 
-def async(func):
-    """A decorator for functions which are supposed to be executed
-    asynchronously."""
+def no_async(func):
+    @functools.wraps(func)
+    def _inner(*args, **kwargs):
+        future = NoFuture(None)
+        try:
+            result = func(*args, **kwargs)
+            future.set_result(result)
+        except Exception as e:
+            future.set_exception(e)
 
-    if DISABLE:
-        @wraps(func)
-        def _sync(*args, **kwargs):
-            future = _FakeFuture(None)
+        return future
+
+    return _inner
+
+
+try:
+    import gevent
+    HAVE_GEVENT = True
+
+    KillException = gevent.GreenletExit
+
+    class GreenletFuture(gevent.Greenlet):
+        """A common Greenlet/Future interface.
+
+        This class provides the :class:`concurrent.futures.Future` interface on
+        top of a Greenlet.
+        """
+
+        def __init__(self, func, args, kwargs):
+            super(GreenletFuture, self).__init__()
+            self.func = func
+            self.args = args
+            self.kwargs = kwargs
+            self.saved_exception = None
+
+        def _run(self, *args, **kwargs):
             try:
-                result = func(*args, **kwargs)
-                future.set_result(result)
-            except Exception as e:
-                future.set_exception(e)
+                return self.func(*self.args, **self.kwargs)
+            except Exception as exception:
+                self.saved_exception = exception
 
-            return future
+        def join(self):
+            super(GreenletFuture, self).join()
 
-        return _sync
-    else:
-        @wraps(func)
-        def _async(*args, **kwargs):
-            return EXECUTOR.submit(func, *args, **kwargs)
+            if self.saved_exception:
+                raise self.saved_exception
 
-        return _async
+        def result(self):
+            value = self.get()
+
+            if self.saved_exception:
+                raise self.saved_exception
+
+            return value
+
+        def done(self):
+            return self.ready()
+
+        def add_done_callback(self, callback):
+            self.link(callback)
+
+    def async(func):
+        @functools.wraps(func)
+        def _inner(*args, **kwargs):
+            g = GreenletFuture(func, args, kwargs)
+            g.start()
+            return g
+
+        return _inner
+
+except ImportError:
+    HAVE_GEVENT = False
+
+    # This is a stub exception that will never be raised.
+    class KillException(Exception):
+        pass
+
+    def async(func):
+        """A decorator for functions which are supposed to be executed
+        asynchronously."""
+
+        if DISABLE:
+            return no_async(func)
+        else:
+            @functools.wraps(func)
+            def _inner(*args, **kwargs):
+                return EXECUTOR.submit(func, *args, **kwargs)
+
+            return _inner
 
 
 def threaded(func):
     """Threaded execution of a function *func*."""
-    @wraps(func)
+    @functools.wraps(func)
     def wrapper(*args, **kwargs):
         """Execute in a separate thread."""
         thread = Thread(target=func, args=args, kwargs=kwargs)
@@ -137,7 +205,7 @@ def coroutine(func):
     Start a coroutine automatically without the need to call
     next() or send(None) first.
     """
-    @wraps(func)
+    @functools.wraps(func)
     def start(*args, **kwargs):
         """Starts the generator."""
         gen = func(*args, **kwargs)

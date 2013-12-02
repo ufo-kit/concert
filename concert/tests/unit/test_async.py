@@ -38,47 +38,8 @@ class TestAsync(TestCase):
             self.assertTrue(future.done(), "Not all futures finished.")
 
     def test_exceptions(self):
-        self.assertRaises(TypeError, wait, [func(0)])
-        self.assertRaises(RuntimeError, wait, [bad_func()])
+        with self.assertRaises(TypeError):
+            func(0).join()
 
-    def test_futures(self):
-        future1 = func()
-        future2 = func().join()
-        self.assertEqual(future1.__class__, future2.__class__,
-                         "Wait method does not return a future.")
-
-        self.assertRaises(TypeError, func(0).join)
-        self.assertRaises(RuntimeError, bad_func().join)
-
-    def test_async_function(self):
-        future = func()
-        self.assertTrue(isinstance(future, Future),
-                        "Function was not run asynchronously.")
-
-    def test_async_accessors(self):
-        future1 = self.device.set_value(15)
-        future2 = self.device.get_value()
-
-        self.assertTrue(isinstance(future1, Future),
-                        "Setter accessor does not return a future.")
-        self.assertTrue(isinstance(future2, Future),
-                        "Getter accessor does not return a future.")
-
-        wait([future1, future2])
-
-    def test_async_parameter(self):
-        future1 = self.device["value"].set(15)
-        future2 = self.device["value"].get()
-
-        self.assertTrue(isinstance(future1, Future),
-                        "Setter does not return a future.")
-        self.assertTrue(isinstance(future2, Future),
-                        "Getter does not return a future.")
-
-        wait([future1, future2])
-
-    def test_async_method(self):
-        future = self.device.do_nothing()
-
-        self.assertTrue(isinstance(future, Future),
-                        "Asynchronous method does not return a future.")
+        with self.assertRaises(RuntimeError):
+            bad_func().join()
