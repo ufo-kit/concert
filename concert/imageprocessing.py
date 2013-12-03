@@ -163,20 +163,8 @@ def get_needle_tips(images):
     tips = []
     results = []
 
-    # Do not make more processes than needed for the number of images.
-    if len(images) > multiprocessing.cpu_count():
-        proc_count = multiprocessing.cpu_count()
-    else:
-        proc_count = len(images)
-
-    pool = Pool(processes=proc_count)
-
     for image in images:
-        results.append(pool.apply_async(_get_ellipse_point,
-                                        args=(image,)))
-
-    for result in results:
-        tip = result.get()
+        tip = _get_ellipse_point(image)
         if tip is not None:
             tips.append(tip)
 
