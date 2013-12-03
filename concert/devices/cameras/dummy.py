@@ -106,7 +106,7 @@ class Camera(base.Camera):
     def _get_sensor_pixel_width(self):
         return 5 * q.micrometer
 
-    def _get_sensor_pixel_heght(self):
+    def _get_sensor_pixel_height(self):
         return 5 * q.micrometer
 
     def _get_exposure_time(self):
