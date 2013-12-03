@@ -76,10 +76,15 @@ try:
             self.args = args
             self.kwargs = kwargs
             self.saved_exception = None
+            self._cancelled = False
+            self._running = False
 
         def _run(self, *args, **kwargs):
             try:
-                return self.func(*self.args, **self.kwargs)
+                self._running = True
+                value = self.func(*self.args, **self.kwargs)
+                self._running = False
+                return value
             except Exception as exception:
                 self.saved_exception = exception
 
@@ -89,16 +94,27 @@ try:
             if self.saved_exception:
                 raise self.saved_exception
 
-        def result(self):
-            value = self.get()
+        def cancel(self):
+            self._cancelled = True
+            self.kill()
+            return True
+
+        def cancelled(self):
+            return self._cancelled
+
+        def running(self):
+            return self._running
+
+        def done(self):
+            return self.ready()
+
+        def result(self, timeout=None):
+            value = self.get(timeout=timeout)
 
             if self.saved_exception:
                 raise self.saved_exception
 
             return value
-
-        def done(self):
-            return self.ready()
 
         def add_done_callback(self, callback):
             self.link(callback)
