@@ -4,7 +4,7 @@ Cameras supported by the libuca library.
 import logging
 import time
 import numpy as np
-from concert.coroutines import null
+from concert.coroutines.sinks import null
 from concert.helpers import async, inject
 from concert.quantities import q
 from concert.base import Parameter
