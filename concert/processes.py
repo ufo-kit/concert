@@ -467,7 +467,7 @@ def center_of_mass(frame):
         return np.array([y, x])
 
 
-def center2beam(cam, xmotor, zmotor, pixelsize, tolerance=5,
+def center_to_beam(cam, xmotor, zmotor, pixelsize, tolerance=5,
                 max_iterations=100, abort=[False]):
     """
     Moves the camera *cam* with motors *xmotor* and *zmotor* until the
