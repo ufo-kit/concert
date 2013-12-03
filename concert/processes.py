@@ -264,6 +264,283 @@ def align_rotation_axis(camera, rotation_motor, flat_motor=None,
     return x_angle, z_angle, center
 
 
+def beam_visible(img, thres):
+    """
+    Simple grayvalue-threshold that defines the beam to be visible in *img*.
+    """
+    return (img >= thres).any()
+
+
+def find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
+              xstep=None, zstep=None, thres=1000, abort=[False]):
+    """
+    Scans the area defined by xborder and zborder for the beam until
+    beam_visible returns True.
+    Startpoint is the current motor-position if this position is inside the
+    defined area else it start from the center of that area.
+    It searches in a spiral around the startpoint.
+
+    *cam* is the camera-device, *xmotor* the motor-device horizontally aligned
+    to the image and *zmotor* the motor-device vertically aligned to the image.
+    *pixelsize* determines the realworld size of an image pixels (scalar or
+    2-element array-like, e.g. [4*q.um, 5*q.um]). *xborder* and *zborder*
+    define the search area. Each constructed with a start- and an end-value
+    (e.g. [-1.2*q.mm, 5.5*q.mm]).
+
+    Optional arguments *xstep* and *zstep* define the length of one movement
+    in the specific direction. Defaults are calculated from cam_img.shape and
+    *pixelsize*.
+    Optional argument *thres* will be past to beam_visible().
+
+    *abort* (will only be read, evaluated for loop-control) aborts action
+    if True.
+    """
+
+    def grab():
+        """Convenience-Function for getting a frame from *cam*."""
+        cam.start_recording()
+        cam.trigger()
+        img = cam.grab()
+        img_shape[0] = img.shape
+        cam.stop_recording()
+        return img
+
+    def check(rel_move):
+        """Move to new position and check if the beam is visible."""
+        zmotor.move(rel_move[0]*q.um)
+        xmotor.move(rel_move[1]*q.um)
+        img = grab()
+        bv = beam_visible(img, thres)
+        return bv
+
+    def spiral_scan():
+        """
+        Generator for returning rel. movement to the next position of the
+        scanpath.
+        """
+
+        def trydir(dr):
+            """
+            Check if position in direction *dr* is unchecked or outside the
+            search-area.
+            Result:   2 - ok; 1 - outside; 0 - inside but already used
+            """
+            tmp = sp_pos + dir2rpos[dr]
+            inside = (tmp >= 0).all() and (tmp < sp_shape).all()
+            unused = (not scanned_points[tmp[0], tmp[1]]) if inside else False
+            return 1 if not inside else 2 if unused else 0
+
+        def next_move(pos, dr, rel_move=True):
+            """
+            Moves relativ in the direction *dr* (or to position *dr* if
+            rel_move==False) and marks new position as scanned.
+            Clips movement at border of the scanarea if needed.
+            """
+            old = np.array(pos).copy()
+            if rel_move:
+                pos += dir2rpos[dr]
+            else:
+                pos[0], pos[1] = dr[0], dr[1]
+            scanned_points[pos[0], pos[1]] = True
+            if (old == 0).any() or (old == sp_shape-1).any() or \
+                    (pos == 0).any() or (pos == sp_shape-1).any():
+                new_pos = np.array([zpos, xpos]) + step * (pos-[nz0, nx0])
+                clip = np.append((new_pos < [zborder[0], xborder[0]]),
+                                 (new_pos > [zborder[1], xborder[1]]))
+                new_pos[0] = zborder[1] if clip[2] else \
+                    zborder[0] if clip[0] else new_pos[0]
+                new_pos[1] = xborder[1] if clip[3] else \
+                    xborder[0] if clip[1] else new_pos[1]
+                old_pos = np.array([zmotor.position.to(q.um.units).magnitude,
+                                    xmotor.position.to(q.um.units).magnitude])
+                return new_pos - old_pos
+            else:
+                if rel_move:
+                    return step * dir2rpos[dr]
+                else:
+                    return step * (pos - old)
+
+        def decide_dir():
+            """
+            Picks a direction to go and updates direction of search-rotation.
+            """
+            dr = np.array(map(trydir, range(4))) == 2
+            r = np.arange(4)[dr][0]
+            w0 = sp_pos-[nz0, nx0]
+            w1 = w0 + dir2rpos[r]
+            w = np.arctan2(w1[0], w1[1]) - np.arctan2(w0[0], w0[1])
+            search_rot[0] = int((w % (2*np.pi)) < np.pi)
+            return r
+
+        xpos = xmotor.position.to(q.um.units).magnitude
+        zpos = zmotor.position.to(q.um.units).magnitude
+        search_rot = [0]
+        rdir2try = [[1, 0, 3], [3, 0, 1]]
+        dir2rpos = [[1, 0], [0, 1], [-1, 0], [0, -1]]
+        step = img_shape[0] * \
+            np.array([x.to(q.um.units).magnitude for x in ps])
+        step[0] = step[0] if zstep is None else zstep.to(q.um.units).magnitude
+        step[1] = step[1] if xstep is None else xstep.to(q.um.units).magnitude
+        nz0 = int((zpos-zborder[0])/step[0]) + \
+            ((zpos-zborder[0]) % step[0] > step[0]/2.)
+        nz1 = int((zborder[1]-zpos)/step[0]) + \
+            ((zborder[1]-zpos) % step[0] > step[0]/2.)
+        nx0 = int((xpos-xborder[0])/step[1]) + \
+            ((xpos-xborder[0]) % step[1] > step[1]/2.)
+        nx1 = int((xborder[1]-xpos)/step[1]) + \
+            ((xborder[1]-xpos) % step[1] > step[1]/2.)
+        sp_shape = np.array([nz0+nz1+1, nx0+nx1+1])
+        scanned_points = np.zeros(sp_shape, np.bool_)
+        sp_pos = np.array([nz0, nx0])
+        scanned_points[sp_pos[0], sp_pos[1]] = True
+
+        while not scanned_points.all():
+            skip = False
+            try:
+                sdir = decide_dir()
+                yield next_move(sp_pos, sdir)
+            except IndexError:
+                skip = True
+
+            while (not scanned_points.all()) and (not skip):
+                sr = search_rot[0]
+                for rd in rdir2try[sr]:
+                    rd = (sdir + rd) % 4
+                    c = trydir(rd)
+                    if c == 2:
+                        break
+                    elif c == 1:
+                        search_rot[0] = (search_rot[0]+1) % 2
+                if c == 2:
+                    sdir = rd
+                    yield next_move(sp_pos, sdir)
+                    continue
+                break
+
+            if not scanned_points.all():
+                ind = np.indices(sp_shape)
+                mask = np.logical_not(scanned_points)
+                ind = np.array([ind[0][mask], ind[1][mask]])
+                dist = ((ind-np.array([nz0, nx0]).reshape(2, 1))**2).sum(0)
+                sort_pos = ind[:, np.argsort(dist)]
+                n_pos = sort_pos[:, 0]
+                r = next_move(sp_pos, n_pos, False)
+                yield r
+
+    ps = np.tile(pixelsize, 2)[:2]
+    xborder = np.array([xborder[0].to(q.um.units).magnitude,
+                        xborder[1].to(q.um.units).magnitude])
+    zborder = np.array([zborder[0].to(q.um.units).magnitude,
+                        zborder[1].to(q.um.units).magnitude])
+
+    # startpoint
+    img_shape = [0]
+    xpos = xmotor.position.to(q.um.units).magnitude
+    zpos = zmotor.position.to(q.um.units).magnitude
+    outside = (xpos < xborder[0]) or (xpos > xborder[1]) or \
+        (zpos < zborder[0]) or (zpos > zborder[1])
+    rmov = (zborder.mean() - zpos, xborder.mean() - xpos) if outside \
+        else (0*zpos, 0*xpos)
+    if check(rmov):
+        return True
+
+    # scan
+    for rmov in spiral_scan():
+        if check(rmov):
+            return True
+        if abort[0]:
+            return False
+
+    return False
+
+
+def center_of_mass(frame):
+    """Calculates the center of mass"""
+
+    frm_shape = np.array(frame.shape)
+    total = frame.sum()
+    if total == 0:
+        return np.array([-1, -1])
+    else:
+        y = (frame.sum(1)*np.arange(frm_shape[0])).sum() / total
+        x = (frame.sum(0)*np.arange(frm_shape[1])).sum() / total
+        return np.array([y, x])
+
+
+def center2beam(cam, xmotor, zmotor, pixelsize, tolerance=5,
+                max_iterations=100, abort=[False]):
+    """
+    Moves the camera *cam* with motors *xmotor* and *zmotor* until the
+    center of mass is nearer than *tolerance*-pixels to the center of the
+    frame or *max_iterations* is reached.
+
+    To convert pixelcoordinates to realworld-coordinates of the motors the
+    *pixelsize* (scalar or 2-element array-like, e.g. [4*q.um, 5*q.um]) is
+    needed.
+    *abort* (will only be read, evaluated for loop-control) aborts action
+    if True.
+    """
+
+    def grab():
+        """Convenience-Function for getting a frame from *cam*."""
+        cam.start_recording()
+        cam.trigger()
+        img = cam.grab()
+        cam.stop_recording()
+        return img
+
+    ps = np.tile(np.array(pixelsize, np.object), 2)[:2]
+    img = grab()
+    frm_center = (np.array(img.shape)-1)/2
+    d = center_of_mass(img-img.min()) - frm_center
+    iter_ = 0
+    while ((d**2).sum() > tolerance**2) and (iter_ < max_iterations) and \
+            not abort[0]:
+        dz = d[0]*ps[0]
+        zmotor.move(dz)
+        dx = d[1]*ps[1]
+        xmotor.move(dx)
+        img = grab()
+        if img.sum() == 0:
+            raise ProcessException("There is nothing to see! "
+                                   "Can't follow the center of mass.")
+        d = center_of_mass(img-img.min()) - frm_center
+        iter_ += 1
+
+    if iter_ < max_iterations:
+        return True
+    else:
+        return False
+
+
+def beam_centering(cam, xmotor, zmotor, pixelsize, xborder, zborder,
+                   xstep=None, zstep=None, thres=1000, tolerance=5,
+                   max_iterations=100, abort=[False]):
+    """
+    Tries to center the camera *cam* to the beam by moving with the motors
+    *xmotor* and *zmotor*. It starts by searching the beam inside the
+    search-area defined by *xborder* and *zborder*. Argument *pixelsize* is
+    needed to convert pixelcoordinates into realworld-coordinates of the
+    motors.
+    Exceptions are raised on fail.
+
+    Optional arguments *xstep*, *zstep*, *thres*, *tolerance* and
+    *max_iterations* are passed to the functions 'find_beam(...)' and
+    'center2beam(...)'.
+    """
+
+    if not find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
+                     xstep, zstep, thres, abort):
+        if abort[0]:
+            raise ProcessException("Beam_centering aborted")
+        raise ProcessException("Unable to find the beam")
+    elif not center2beam(cam, xmotor, zmotor, pixelsize,
+                         tolerance, max_iterations, abort):
+        if abort[0]:
+            raise ProcessException("Beam_centering aborted")
+        raise ProcessException("Maximum iterations reached")
+
+
 class ProcessException(Exception):
 
     """
