@@ -1,6 +1,6 @@
 import numpy as np
 from concert.async import async, wait
-from concert.helpers import coroutine
+from concert.coroutines import coroutine
 from concert.quantities import q
 from concert.measures import get_rotation_axis
 from concert.optimization import halver, optimize_parameter

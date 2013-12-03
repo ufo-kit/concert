@@ -1,5 +1,5 @@
 import numpy as np
-from concert.helpers import coroutine, broadcast, inject
+from concert.coroutines import coroutine, broadcast, inject
 from concert.coroutines.filters import (flat_correct,
                                         average_images,
                                         make_sinograms)

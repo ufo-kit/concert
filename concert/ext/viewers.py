@@ -13,7 +13,7 @@ import numpy as np
 from subprocess import Popen
 from multiprocessing import Queue as MultiprocessingQueue, Process
 from concert.async import threaded
-from concert.helpers import coroutine
+from concert.coroutines import coroutine
 from concert.storage import write_tiff
 
 

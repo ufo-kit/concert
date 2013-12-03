@@ -1,5 +1,5 @@
 import os
-from concert.helpers import coroutine
+from concert.coroutines import coroutine
 from concert.storage import create_directory, write_tiff
 
 

@@ -8,7 +8,7 @@ from concert.imageprocessing import (backproject,
                                      get_backprojection_norm,
                                      get_ramp_filter)
 from concert.async import threaded
-from concert.helpers import coroutine
+from concert.coroutines import coroutine
 from concert.imageprocessing import flat_correct as make_flat_correct
 
 
