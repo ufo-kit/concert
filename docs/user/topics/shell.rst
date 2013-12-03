@@ -132,6 +132,16 @@ Rename a session::
     concert mv old-session new-session
 
 
+cp
+--
+
+.. program:: concert cp
+
+Copy a session::
+
+    concert cp session session-copy
+
+
 rm
 --
 

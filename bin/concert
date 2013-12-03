@@ -189,6 +189,28 @@ class MoveCommand(Command):
         print("Renamed {} -> {}".format(source, target))
 
 
+class CopyCommand(Command):
+
+    """Copy session *source* to *target*."""
+
+    def __init__(self):
+        opts = {'source': {'type': str,
+                           'help': "Name of the source session"},
+                'target': {'type': str,
+                           'help': "Name of the target session"}}
+        super(CopyCommand, self).__init__('cp', opts)
+
+    def run(self, source, target):
+        if not concert.session.exists(source):
+            sys.exit("`{}' does not exist".format(source))
+
+        if concert.session.exists(target):
+            sys.exit("`{}' already exists".format(target))
+
+        concert.session.copy(source, target)
+        print("Copied {} -> {}".format(source, target))
+
+
 class RemoveCommand(Command):
 
     """Remove one or more sessions."""
@@ -372,6 +394,7 @@ def main():
                 LogCommand(),
                 ShowCommand(),
                 MoveCommand(),
+                CopyCommand(),
                 RemoveCommand(),
                 FetchCommand(),
                 StartCommand()]

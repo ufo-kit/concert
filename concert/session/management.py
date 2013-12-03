@@ -5,6 +5,7 @@ directory."""
 import os
 import sys
 import imp
+import shutil
 
 from concert import __version__
 
@@ -91,6 +92,11 @@ def remove(session):
 def move(source, target):
     """Move *source* to *target*."""
     os.rename(path(source), path(target))
+
+
+def copy(source, target):
+    """Copy *source* to *target*."""
+    shutil.copy(path(source), path(target))
 
 
 def load(session):
