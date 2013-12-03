@@ -8,15 +8,13 @@ except ImportError:
 
 import threading
 import functools
+import concert.config
 from threading import Thread
 from concurrent.futures import ThreadPoolExecutor, Future
 
 
 # Module-wide executor
 EXECUTOR = ThreadPoolExecutor(max_workers=128)
-
-# Module-wide disable
-DISABLE = False
 
 
 # Patch futures so that they provide a join() and kill() method
@@ -56,6 +54,9 @@ def no_async(func):
 
 
 try:
+    if concert.config.DISABLE_GEVENT:
+        raise ImportError
+
     import gevent
     import gevent.monkey
 
@@ -124,7 +125,7 @@ except ImportError:
         """A decorator for functions which are supposed to be executed
         asynchronously."""
 
-        if DISABLE:
+        if concert.config.DISABLE_ASYNC:
             return no_async(func)
         else:
             @functools.wraps(func)
