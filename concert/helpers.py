@@ -19,13 +19,18 @@ EXECUTOR = ThreadPoolExecutor(max_workers=128)
 DISABLE = False
 
 
-# Patch futures so that they provide a join() method
+# Patch futures so that they provide a join() and kill() method
 def _join(self, _timeout=None):
     self.result()
     return self
 
 
+def _kill(self, exception=None, block=True, timeout=None):
+    pass
+
+
 Future.join = _join
+Future.kill = _kill
 
 
 class NoFuture(Future):
@@ -52,8 +57,11 @@ def no_async(func):
 
 try:
     import gevent
-    HAVE_GEVENT = True
+    import gevent.monkey
 
+    gevent.monkey.patch_all()
+
+    HAVE_GEVENT = True
     KillException = gevent.GreenletExit
 
     class GreenletFuture(gevent.Greenlet):
@@ -76,8 +84,8 @@ try:
             except Exception as exception:
                 self.saved_exception = exception
 
-        def join(self):
-            super(GreenletFuture, self).join()
+        def join(self, timeout=None):
+            super(GreenletFuture, self).join(timeout)
 
             if self.saved_exception:
                 raise self.saved_exception

@@ -2,7 +2,7 @@ import time
 import random
 from concurrent.futures import Future
 from concert.devices.dummy import DummyDevice
-from concert.helpers import async, wait
+from concert.helpers import async, wait, KillException, HAVE_GEVENT
 from concert.tests import slow, TestCase
 
 
@@ -43,3 +43,20 @@ class TestAsync(TestCase):
 
         with self.assertRaises(RuntimeError):
             bad_func().join()
+
+    def test_kill(self):
+        d = {'killed': False}
+
+        @async
+        def long_op(d):
+            try:
+                time.sleep(10)
+            except KillException:
+                d['killed'] = True
+
+        future = long_op(d)
+        time.sleep(0)
+        future.kill()
+
+        if HAVE_GEVENT:
+            self.assertTrue(d['killed'])
