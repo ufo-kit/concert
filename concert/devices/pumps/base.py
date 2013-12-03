@@ -2,7 +2,7 @@
 
 from concert.base import Quantity
 from concert.quantities import q
-from concert.helpers import async
+from concert.async import async
 from concert.fsm import State, transition
 from concert.devices.base import Device
 

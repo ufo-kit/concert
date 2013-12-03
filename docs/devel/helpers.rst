@@ -10,7 +10,7 @@ Concurrency
 Every user defined function or method **must** be synchronous (blocking).
 To define a function as asynchronous, use the :func:`.async` decorator::
 
-    from concert.helpers import async
+    from concert.async import async
 
     @async
     def synchronous_function():

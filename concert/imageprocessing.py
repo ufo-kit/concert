@@ -8,7 +8,7 @@ import numpy as np
 import logging
 from multiprocessing import Pool
 from scipy import ndimage
-from concert.helpers import threaded
+from concert.async import threaded
 
 
 LOG = logging.getLogger(__name__)

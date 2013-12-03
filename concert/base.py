@@ -2,7 +2,8 @@
 """Core module Parameters"""
 import logging
 import six
-from concert.helpers import async, wait, memoize
+from concert.helpers import memoize
+from concert.async import dispatcher, async, wait
 from concert.fsm import transition
 
 

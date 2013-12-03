@@ -2,7 +2,7 @@ import time
 from concert.tests import TestCase
 from concert.quantities import q
 from concert.fsm import transition, State
-from concert.helpers import async
+from concert.async import async
 from concert.devices.base import Device
 
 

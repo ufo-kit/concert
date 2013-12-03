@@ -9,7 +9,7 @@ sets. It uses NeXpy_ to interface with NeXus.
 import numpy as np
 from concert.base import Quantity
 from concert.devices import cameras, monochromators
-from concert.helpers import async
+from concert.async import async
 
 try:
     from nexpy.api import nexus as nx
