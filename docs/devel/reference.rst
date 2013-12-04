@@ -37,18 +37,6 @@ Exceptions
 .. autoclass:: concert.base.WriteAccessError
 
 
-Calibration
------------
-
-.. autoclass:: concert.devices.base.Calibration
-    :show-inheritance:
-    :members:
-
-.. autoclass:: concert.devices.base.LinearCalibration
-    :show-inheritance:
-    :members:
-
-
 Base devices
 ============
 
@@ -63,10 +51,6 @@ Cameras
 
 I/O
 ---
-
-.. autoclass:: concert.devices.io.base.Port
-    :show-inheritance:
-    :members:
 
 .. autoclass:: concert.devices.io.base.IO
     :show-inheritance:
@@ -84,7 +68,38 @@ Monochromators
 Motors
 ------
 
-.. autoclass:: concert.devices.motors.base.Motor
+.. autoclass:: concert.devices.motors.base.PositionMixin
+    :show-inheritance:
+    :members:
+
+.. autoclass:: concert.devices.motors.base.ContinuousMixin
+    :show-inheritance:
+    :members:
+
+Linear
+~~~~~~
+
+Linear motors are characterized by moving along a straight line.
+
+.. autoclass:: concert.devices.motors.base.LinearMotor
+    :show-inheritance:
+    :members:
+
+.. autoclass:: concert.devices.motors.base.ContinuousLinearMotor
+    :show-inheritance:
+    :members:
+
+
+Rotational
+~~~~~~~~~~
+
+Rotational motors are characterized by rotating around an axis.
+
+.. autoclass:: concert.devices.motors.base.RotationMotor
+    :show-inheritance:
+    :members:
+
+.. autoclass:: concert.devices.motors.base.ContinuousRotationMotor
     :show-inheritance:
     :members:
 

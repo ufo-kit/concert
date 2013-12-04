@@ -26,6 +26,8 @@ LOG = logging.getLogger(__name__)
 
 class PositionMixin(Device):
 
+    """Provide positional, discrete behaviour interface."""
+
     state = State(default='standby')
 
     def __init__(self):
@@ -70,6 +72,8 @@ class PositionMixin(Device):
 
 class ContinuousMixin(Device):
 
+    """Provide continuous, non-discrete behaviour interface."""
+
     def __init__(self):
         super(ContinuousMixin, self).__init__()
 
@@ -82,6 +86,14 @@ class ContinuousMixin(Device):
 
 class LinearMotor(PositionMixin):
 
+    """
+    One-dimensional linear motor.
+
+    .. attribute:: position
+
+        Position of the motor in length units.
+    """
+
     position = Parameter(unit=q.m,
                          source='standby', target='standby', immediate='moving',
                          in_hard_limit=PositionMixin.in_hard_limit)
@@ -92,6 +104,14 @@ class LinearMotor(PositionMixin):
 
 class ContinuousLinearMotor(LinearMotor, ContinuousMixin):
 
+    """
+    One-dimensional linear motor with adjustable velocity.
+
+    .. attribute:: velocity
+
+        Current velocity in length per time unit.
+    """
+
     velocity = Parameter(unit=q.m / q.s,
                          in_hard_limit=ContinuousMixin.in_velocity_hard_limit)
 
@@ -100,6 +120,14 @@ class ContinuousLinearMotor(LinearMotor, ContinuousMixin):
 
 
 class RotationMotor(PositionMixin):
+
+    """
+    One-dimensional rotational motor.
+
+    .. attribute:: position
+
+        Position of the motor in angular units.
+    """
 
     position = Parameter(unit=q.deg,
                          source='standby', target='standby', immediate='moving',
@@ -110,6 +138,14 @@ class RotationMotor(PositionMixin):
 
 
 class ContinuousRotationMotor(RotationMotor, ContinuousMixin):
+
+    """
+    One-dimensional rotational motor with adjustable velocity.
+
+    .. attribute:: velocity
+
+        Current velocity in angle per time unit.
+    """
 
     def __init__(self):
         super(ContinuousRotationMotor, self).__init__()

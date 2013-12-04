@@ -307,7 +307,8 @@ class MetaParameterizable(type):
 @six.add_metaclass(MetaParameterizable)
 class Parameterizable(object):
 
-    """Collection of parameters.
+    """
+    Collection of parameters.
 
     For each class of type :class:`Parameterizable`, :class:`Parameter`s can be
     set as class attributes ::
