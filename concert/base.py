@@ -2,7 +2,7 @@
 """Core module Parameters"""
 import logging
 import six
-from concert.helpers import async, wait
+from concert.helpers import async, wait, memoize
 from concert.fsm import transition
 from concert.quantities import numerator_units, denominator_units
 
@@ -131,38 +131,36 @@ class Parameter(object):
         except ValueError:
             return False
 
+    @memoize
     def setter_name(self):
         if self.fset:
             return self.fset.__name__
 
         return '_set_' + self.name
 
+    @memoize
     def getter_name(self):
         if self.fget:
             return self.fget.__name__
 
         return '_get_' + self.name
 
+    @memoize
+    def from_scale(self, instance):
+        conversion = self.get_conversion(instance)
+        num_units = numerator_units(conversion(1))
+        denom_units = denominator_units(conversion(1))
+        return denom_units / num_units
+
     def get_conversion(self, instance):
         return instance[self.name].conversion
 
     def convert_to(self, instance, value):
         conversion = self.get_conversion(instance)
-
-        if conversion == identity:
-            return value
-
         return conversion(value)
 
     def convert_from(self, instance, value):
-        conversion = self.get_conversion(instance)
-        num_units = numerator_units(conversion(1))
-        denom_units = denominator_units(conversion(1))
-
-        if conversion == identity:
-            return value
-
-        return value * denom_units / num_units
+        return value * self.from_scale(instance)
 
     def __get__(self, instance, owner):
         # If we would just call self.fset(value) we would call the method

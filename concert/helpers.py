@@ -206,3 +206,24 @@ class Bunch(object):
     """
     def __init__(self, some_dict):
         self.__dict__.update(some_dict)
+
+
+def memoize(func):
+    """
+    Memoize the result of *func*.
+
+    Remember the result of *func* depending on its arguments. Note, that this
+    requires that the function is free from any side effects, e.g. returns the
+    same value given the same arguments.
+    """
+    memo = {}
+
+    def wrapper(*args):
+        if args in memo:
+            return memo[args]
+
+        result = func(*args)
+        memo[args] = result
+        return result
+
+    return wrapper
