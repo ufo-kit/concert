@@ -40,9 +40,21 @@ user wants to employ real parallelism they should make use of the
 multiprocessing module which provides functionality not limited by Python's
 global interpreter lock.
 
-.. autofunction:: async
-.. autofunction:: is_async
-.. autofunction:: wait
+
+Synchronization
+---------------
+
+When using the asynchronous getters and setters of :class:`Device` and
+:class:`Parameter`, processes can not be sure if other processes or the user
+manipulate the device during the execution. To lock devices or specific
+parameters, processes can use them as context managers::
+
+    with motor, pump['foo']:
+        motor.position = 2 * q.mm
+        pump.foo = 1 * q.s
+
+Inside the ``with`` environment, the process has exclusive access to the devices
+and parameters.
 
 
 Testing
@@ -85,10 +97,6 @@ when other objects :meth:`Dispatcher.send` a message to the dispatcher::
 If not stated otherwise, users should use the global :data:`.dispatcher` for
 sending and receiving messages.
 
-.. autoclass:: Dispatcher
-    :members:
-
 .. py:data:: concert.helpers.dispatcher
 
     A global :py:class:`Dispatcher` instance used by all devices.
-
