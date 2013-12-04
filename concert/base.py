@@ -179,8 +179,8 @@ class Parameter(object):
 
     def __set__(self, instance, value):
         if self.unit and not self.is_compatible(value):
-            msg = "Can only receive values of unit {} but got {}"
-            raise UnitError(msg.format(self.unit, value))
+            msg = "{} of {} can only receive values of unit {} but got {}"
+            raise UnitError(msg.format(self.name, type(instance), self.unit, value))
 
         if not instance[self.name].lower <= value <= instance[self.name].upper:
             msg = "{} is out of range [{}, {}]"
