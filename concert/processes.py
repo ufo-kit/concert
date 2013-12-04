@@ -467,8 +467,8 @@ def center_of_mass(frame):
         return np.array([y, x])
 
 
-def center_to_beam(cam, xmotor, zmotor, pixelsize, tolerance=5,
-                max_iterations=100, abort=[False]):
+def drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance=5,
+                  max_iterations=100, abort=[False]):
     """
     Moves the camera *cam* with motors *xmotor* and *zmotor* until the
     center of mass is nearer than *tolerance*-pixels to the center of the
@@ -534,7 +534,7 @@ def beam_centering(cam, xmotor, zmotor, pixelsize, xborder, zborder,
         if abort[0]:
             raise ProcessException("Beam_centering aborted")
         raise ProcessException("Unable to find the beam")
-    elif not center2beam(cam, xmotor, zmotor, pixelsize,
+    elif not drift_to_beam(cam, xmotor, zmotor, pixelsize,
                          tolerance, max_iterations, abort):
         if abort[0]:
             raise ProcessException("Beam_centering aborted")
