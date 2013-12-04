@@ -128,11 +128,6 @@ try:
 
         return _inner
 
-    def wait(futures):
-        """Wait for the list of *futures* to finish and raise exceptions if
-        happened."""
-        for future in futures:
-            future.join()
 
 except ImportError:
     import threading
@@ -154,9 +149,6 @@ except ImportError:
                 return EXECUTOR.submit(func, *args, **kwargs)
 
             return _inner
-
-    def wait(objects):
-        gevent.wait(objects)
 
 
 def threaded(func):
@@ -231,5 +223,3 @@ class Dispatcher(object):
 
 
 dispatcher = Dispatcher()
-
-
