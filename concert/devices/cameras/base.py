@@ -44,20 +44,10 @@ class Camera(Device):
     """
 
     state = State(default='standby')
+    frame_rate = Parameter(unit=1.0 / q.second)
 
-    def __init__(self, params=None):
-        frame_rate_param = Parameter(name='frame-rate',
-                                     fget=self._get_frame_rate,
-                                     fset=self._set_frame_rate,
-                                     unit=1.0 / q.second,
-                                     doc="Frame rate of image acquisition")
-
-        if params is not None:
-            params.append(frame_rate_param)
-        else:
-            params = [frame_rate_param]
-
-        super(Camera, self).__init__(params)
+    def __init__(self):
+        super(Camera, self).__init__()
 
     @transition(source='standby', target='recording')
     def start_recording(self):
@@ -84,12 +74,6 @@ class Camera(Device):
                 self.trigger()
 
             yield self.grab()
-
-    def _get_frame_rate(self):
-        raise NotImplementedError
-
-    def _set_frame_rate(self, frame_rate):
-        raise NotImplementedError
 
     def _record_real(self):
         raise NotImplementedError

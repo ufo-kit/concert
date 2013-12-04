@@ -42,13 +42,12 @@ class Device(Parameterizable):
         # device is unlocked again
     """
 
-    def __init__(self, parameters=None):
+    def __init__(self):
         # We have to create the lock early on because it will be accessed in
         # any add_parameter calls, especially those in the Parameterizable base
         # class
         self._lock = threading.Lock()
-
-        super(Device, self).__init__(parameters)
+        super(Device, self).__init__()
 
     def __enter__(self):
         self._lock.acquire()
@@ -57,50 +56,4 @@ class Device(Parameterizable):
     def __exit__(self, exc_type, exc_value, traceback):
         self._lock.release()
 
-    def add_parameter(self, parameter):
-        parameter.lock = self._lock
-        super(Device, self).add_parameter(parameter)
 
-
-class Calibration(object):
-
-    """Interface to convert between user and device units."""
-
-    def __init__(self, user_unit, device_unit):
-        self.user_unit = user_unit
-        self.device_unit = device_unit
-
-    def to_user(self, value):
-        """Return *value* in user units."""
-        raise NotImplementedError
-
-    def to_device(self, value):
-        """Return *value* in device units."""
-        raise NotImplementedError
-
-
-class LinearCalibration(Calibration):
-
-    """A linear calibration maps a number of steps to a real-world unit.
-
-    *steps_per_unit* tells how many steps correspond to some unit,
-    *offset_in_steps* by how many steps the device is away from some zero
-    point.
-    """
-
-    def __init__(self, device_units_per_user_units, offset_in_user_units):
-        user_unit = denominator_units(device_units_per_user_units)
-        device_unit = numerator_units(device_units_per_user_units)
-        super(LinearCalibration, self).__init__(user_unit, device_unit)
-
-        self.device_units_per_user_units = device_units_per_user_units
-        self.offset = offset_in_user_units
-
-    def to_user(self, value):
-        return value / self.device_units_per_user_units - self.offset
-
-    def to_device(self, value):
-        result = (value + self.offset) * self.device_units_per_user_units
-
-        # This can be done because to device go *always* counts
-        return result.to_base_units()

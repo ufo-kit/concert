@@ -1,8 +1,7 @@
 import numpy as np
 from nose.plugins.attrib import attr
 from concert.quantities import q
-from concert.devices.base import LinearCalibration
-from concert.devices.motors.dummy import Motor
+from concert.devices.motors.dummy import ContinuousRotationMotor
 from concert.tests import slow, TestCase
 from concert.tests.util.rotationaxis import SimulationCamera
 from concert.processes import scan
@@ -14,15 +13,9 @@ class TestRotationAxisMeasure(TestCase):
 
     def setUp(self):
         super(TestRotationAxisMeasure, self).setUp()
-        self.x_motor = Motor(LinearCalibration(q.count / q.deg, 0 * q.deg),
-                             hard_limits=(-1e5 * q.count, 1e5 * q.count))
-        self.x_motor["position"].unit = q.deg
-        self.y_motor = Motor(LinearCalibration(q.count / q.deg, 0 * q.deg),
-                             hard_limits=(-1e5 * q.count, 1e5 * q.count))
-        self.y_motor["position"].unit = q.deg
-        self.z_motor = Motor(LinearCalibration(q.count / q.deg, 0 * q.deg),
-                             hard_limits=(-1e5 * q.count, 1e5 * q.count))
-        self.z_motor["position"].unit = q.deg
+        self.x_motor = ContinuousRotationMotor()
+        self.y_motor = ContinuousRotationMotor()
+        self.z_motor = ContinuousRotationMotor()
 
         # The bigger the image size, the more images we need to determine
         # the center correctly.

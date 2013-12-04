@@ -130,7 +130,7 @@ class SimulationCamera(Camera):
         # How many times was the image source asked for images.
         self.iteration = 0
 
-        super(Camera, self).__init__(None)
+        super(Camera, self).__init__()
 
     @property
     def ellipse_center(self):

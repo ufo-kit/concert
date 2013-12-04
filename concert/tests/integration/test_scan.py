@@ -1,6 +1,6 @@
 from concert.quantities import q
 from concert.tests import assert_almost_equal, TestCase
-from concert.devices.motors.dummy import Motor as DummyMotor
+from concert.devices.motors.dummy import LinearMotor
 from concert.processes import scan, ascan, dscan, scan_param_feedback
 
 
@@ -13,7 +13,7 @@ class TestScan(TestCase):
 
     def setUp(self):
         super(TestScan, self).setUp()
-        self.motor = DummyMotor()
+        self.motor = LinearMotor()
 
     def handle_scan(self, parameters):
         self.positions.append(parameters[0].get().result())

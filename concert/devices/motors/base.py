@@ -18,45 +18,18 @@ from concert.quantities import q
 from concert.helpers import async
 from concert.fsm import State, transition
 from concert.base import Parameter
-from concert.devices.base import Device, LinearCalibration
+from concert.devices.base import Device
 
 
 LOG = logging.getLogger(__name__)
 
 
-class Motor(Device):
-
-    """Base class for everything that moves.
-
-    A motor is used with a *calibration* that conforms to the
-    :class:`~.Calibration` interface to convert between user and device units.
-    If *calibration* is not given, a default :class:`~.LinearCalibration`
-    mapping one step to one millimeter with zero offset is assumed.
-
-    .. py:attribute:: position
-
-        Motor position
-    """
+class PositionMixin(Device):
 
     state = State(default='standby')
 
-    def __init__(self, calibration=None, in_hard_limit=None):
-        params = [Parameter(name='position',
-                            fget=self._get_calibrated_position,
-                            fset=self._set_calibrated_position,
-                            unit=q.m, in_hard_limit=in_hard_limit,
-                            doc="Position of the motor")]
-
-        super(Motor, self).__init__(params)
-
-        if not calibration:
-            self._calibration = LinearCalibration(1 * q.count / q.mm, 0 * q.mm)
-        else:
-            self._calibration = calibration
-            calibration_unit = calibration.user_unit
-
-            if calibration_unit != self['position'].unit:
-                self['position'].update_unit(calibration_unit)
+    def __init__(self):
+        super(PositionMixin, self).__init__()
 
     @async
     def move(self, delta):
@@ -85,75 +58,61 @@ class Motor(Device):
         """
         self._home()
 
-    @transition(source='*', target='standby', immediate='moving')
-    def _set_calibrated_position(self, position):
-        self._set_position(self._calibration.to_device(position))
-
-    def _get_calibrated_position(self):
-        return self._calibration.to_user(self._get_position())
-
-    def _get_position(self):
-        raise NotImplementedError
-
-    def _set_position(self, position):
+    def _home(self):
         raise NotImplementedError
 
     def _stop(self):
         raise NotImplementedError
 
-    def _home(self):
+    def in_hard_limit(self):
         raise NotImplementedError
 
 
-class ContinuousMotor(Motor):
+class ContinuousMixin(Device):
 
-    """A movable on which one can set velocity.
+    def __init__(self):
+        super(ContinuousMixin, self).__init__()
 
-    This class is inherently capable of discrete movement.
+    def in_velocity_hard_limit(self):
+        return self._in_velocity_hard_limit()
 
-    """
-
-    def __init__(self, position_calibration=None, velocity_calibration=None,
-                 in_position_hard_limit=None,
-                 in_velocity_hard_limit=None):
-        super(ContinuousMotor, self).__init__(calibration=
-                                              position_calibration,
-                                              in_hard_limit=
-                                              in_position_hard_limit)
-
-        if not velocity_calibration:
-            self._velocity_calibration = LinearCalibration(q.count * q.s /
-                                                           q.deg,
-                                                           0 * q.deg / q.s)
-        else:
-            self._velocity_calibration = velocity_calibration
-
-        unit = q.count / self._velocity_calibration.device_units_per_user_units
-
-        param = Parameter(name='velocity',
-                          fget=self._get_calibrated_velocity,
-                          fset=self._set_calibrated_velocity,
-                          unit=unit,
-                          in_hard_limit=in_velocity_hard_limit,
-                          doc="Velocity of the motor")
-
-        self.add_parameter(param)
-
-    def _get_calibrated_velocity(self):
-        return self._velocity_calibration.to_user(self._get_velocity())
-
-    def _set_calibrated_velocity(self, velocity):
-        self._set_velocity(self._velocity_calibration.to_device(velocity))
-
-    def _get_velocity(self):
-        raise NotImplementedError
-
-    def _set_velocity(self, velocity):
+    def _in_velocity_hard_limit(self):
         raise NotImplementedError
 
 
-class MotorMessage(object):
+class LinearMotor(PositionMixin):
 
-    """Motor message."""
-    POSITION_LIMIT = "position_limit"
-    VELOCITY_LIMIT = "velocity_limit"
+    position = Parameter(unit=q.m,
+                         source='standby', target='standby', immediate='moving',
+                         in_hard_limit=PositionMixin.in_hard_limit)
+
+    def __init__(self):
+        super(LinearMotor, self).__init__()
+
+
+class ContinuousLinearMotor(LinearMotor, ContinuousMixin):
+
+    velocity = Parameter(unit=q.m / q.s,
+                         in_hard_limit=ContinuousMixin.in_velocity_hard_limit)
+
+    def __init__(self):
+        super(ContinuousLinearMotor, self).__init__()
+
+
+class RotationMotor(PositionMixin):
+
+    position = Parameter(unit=q.deg,
+                         source='standby', target='standby', immediate='moving',
+                         in_hard_limit=PositionMixin.in_hard_limit)
+
+    def __init__(self):
+        super(RotationMotor, self).__init__()
+
+
+class ContinuousRotationMotor(RotationMotor, ContinuousMixin):
+
+    def __init__(self):
+        super(ContinuousRotationMotor, self).__init__()
+
+    velocity = Parameter(unit=q.deg / q.s,
+                         in_hard_limit=ContinuousMixin.in_velocity_hard_limit)

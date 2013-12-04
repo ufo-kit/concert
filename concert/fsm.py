@@ -57,7 +57,7 @@ class Meta(object):
         return getattr(instance, self.state_name)
 
     def add_transition(self, source, target, immediate):
-        if source in self.transitions:
+        if source in self.transitions and self.transitions[source] != target:
             raise AssertionError("Duplicate transition for {}".format(source))
 
         if immediate:
@@ -93,29 +93,27 @@ def transition(source='*', target=None, immediate=None):
         if not hasattr(func, '_concert_fsm'):
             setattr(func, '_concert_fsm', Meta())
 
-            @wraps(func)
-            def _change_state(instance, *args, **kwargs):
-                meta = func._concert_fsm
-
-                if immediate:
-                    meta.do_transition(instance, immediate)
-
-                try:
-                    result = func(instance, *args, **kwargs)
-                    meta.do_transition(instance, target)
-                except Exception as e:
-                    meta.signal_error(instance, str(e))
-                    raise e
-
-                return result
-        else:
-            _change_state = func
-
         if isinstance(source, (list, tuple)):
             for state in source:
                 func._concert_fsm.add_transition(state, target, immediate)
         else:
             func._concert_fsm.add_transition(source, target, immediate)
+
+        @wraps(func)
+        def _change_state(instance, *args, **kwargs):
+            meta = func._concert_fsm
+
+            if immediate:
+                meta.do_transition(instance, immediate)
+
+            try:
+                result = func(instance, *args, **kwargs)
+                meta.do_transition(instance, target)
+            except Exception as e:
+                meta.signal_error(instance, str(e))
+                raise e
+
+            return result
 
         return _change_state
 

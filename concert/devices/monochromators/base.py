@@ -40,45 +40,41 @@ class Monochromator(Device):
         Monochromatic wavelength in meters.
     """
 
-    def __init__(self, calibration):
-        params = [Parameter("energy", self._get_energy, self._set_energy,
-                            q.eV, doc="Monochromatic energy"),
-                  Parameter("wavelength", self._get_wavelength,
-                            self._set_wavelength,
-                            q.nanometer, doc="Monochromatic wavelength")]
-        super(Monochromator, self).__init__(params)
-        self._calibration = calibration
+    energy = Parameter(unit=q.eV)
+    wavelength = Parameter(unit=q.nanometer)
 
     def _get_energy(self):
-        # Check which method the subclass implements, use it and handle
-        # conversions if necessary.
-        if self.__class__._get_energy != Monochromator._get_energy:
-            return self._get_energy()
-        elif self.__class__._get_wavelength != Monochromator._get_wavelength:
-            return wavelength_to_energy(self._get_wavelength())
-        else:
-            raise NotImplementedError
+        try:
+            return self._get_energy_real()
+        except NotImplementedError:
+            return wavelength_to_energy(self._get_wavelength_real())
 
     def _set_energy(self, energy):
-        if self.__class__._set_energy != Monochromator._set_energy:
-            self._set_energy(energy)
-        elif self.__class__._set_wavelength != Monochromator._set_wavelength:
-            self._set_wavelength(energy_to_wavelength(energy))
-        else:
-            raise NotImplementedError
+        try:
+            return self._set_energy_real(energy)
+        except NotImplementedError:
+            self._set_wavelength_real(energy_to_wavelength(energy))
 
     def _get_wavelength(self):
-        if self.__class__._get_energy != Monochromator._get_energy:
-            return energy_to_wavelength(self._get_energy())
-        elif self.__class__._get_wavelength != Monochromator._get_wavelength:
-            return self._get_wavelength()
-        else:
-            raise NotImplementedError
+        try:
+            return self._get_wavelength_real()
+        except NotImplementedError:
+            return energy_to_wavelength(self._get_energy_real())
 
     def _set_wavelength(self, wavelength):
-        if self.__class__._set_energy != Monochromator._set_energy:
-            self._set_energy(wavelength_to_energy(wavelength))
-        elif self.__class__._set_wavelength != Monochromator._set_wavelength:
-            self._set_wavelength(wavelength)
-        else:
-            raise NotImplementedError
+        try:
+            self._set_wavelength_real(wavelength)
+        except NotImplementedError:
+            self._set_energy_real(wavelength_to_energy(wavelength))
+
+    def _get_energy_real(self):
+        raise NotImplementedError
+
+    def _set_energy_real(self, energy):
+        raise NotImplementedError
+
+    def _get_wavelength_real(self):
+        raise NotImplementedError
+
+    def _set_wavelength_real(self, wavelength):
+        raise NotImplementedError

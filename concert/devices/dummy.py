@@ -8,9 +8,10 @@ class DummyDevice(Device):
 
     """A dummy device."""
 
+    value = Parameter()
+
     def __init__(self):
-        parameter = Parameter('value', self._get_value, self._set_value)
-        super(DummyDevice, self).__init__([parameter])
+        super(DummyDevice, self).__init__()
         self._value = None
 
     def _get_value(self):
