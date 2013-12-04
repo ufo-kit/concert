@@ -264,13 +264,6 @@ def align_rotation_axis(camera, rotation_motor, flat_motor=None,
     return x_angle, z_angle, center
 
 
-def beam_visible(img, thres):
-    """
-    Simple grayvalue-threshold that defines the beam to be visible in *img*.
-    """
-    return (img >= thres).any()
-
-
 def find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
               xstep=None, zstep=None, thres=1000, abort=[False]):
     """
@@ -295,6 +288,12 @@ def find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
     *abort* (will only be read, evaluated for loop-control) aborts action
     if True.
     """
+
+    def beam_visible(img, thres):
+        """
+        Simple grayvalue-threshold that defines the beam to be visible in *img*.
+        """
+        return (img >= thres).any()
 
     def grab():
         """Convenience-Function for getting a frame from *cam*."""
