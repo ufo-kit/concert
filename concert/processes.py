@@ -265,7 +265,7 @@ def align_rotation_axis(camera, rotation_motor, flat_motor=None,
 
 
 def find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
-              xstep=None, zstep=None, thres=1000, abort=[False]):
+              xstep=None, zstep=None, thres=1000):
     """
     Scans the area defined by xborder and zborder for the beam until
     beam_visible returns True.
@@ -284,9 +284,6 @@ def find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
     in the specific direction. Defaults are calculated from cam_img.shape and
     *pixelsize*.
     Optional argument *thres* will be past to beam_visible().
-
-    *abort* (will only be read, evaluated for loop-control) aborts action
-    if True.
     """
 
     def beam_visible(img, thres):
@@ -447,8 +444,6 @@ def find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
     for rmov in spiral_scan():
         if check(rmov):
             return True
-        if abort[0]:
-            return False
 
     return False
 
@@ -467,7 +462,7 @@ def center_of_mass(frame):
 
 
 def drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance=5,
-                  max_iterations=100, abort=[False]):
+                  max_iterations=100):
     """
     Moves the camera *cam* with motors *xmotor* and *zmotor* until the
     center of mass is nearer than *tolerance*-pixels to the center of the
@@ -476,8 +471,6 @@ def drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance=5,
     To convert pixelcoordinates to realworld-coordinates of the motors the
     *pixelsize* (scalar or 2-element array-like, e.g. [4*q.um, 5*q.um]) is
     needed.
-    *abort* (will only be read, evaluated for loop-control) aborts action
-    if True.
     """
 
     def grab():
@@ -493,8 +486,7 @@ def drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance=5,
     frm_center = (np.array(img.shape)-1)/2
     d = center_of_mass(img-img.min()) - frm_center
     iter_ = 0
-    while ((d**2).sum() > tolerance**2) and (iter_ < max_iterations) and \
-            not abort[0]:
+    while ((d**2).sum() > tolerance**2) and (iter_ < max_iterations):
         dz = d[0]*ps[0]
         zmotor.move(dz)
         dx = d[1]*ps[1]
@@ -514,7 +506,7 @@ def drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance=5,
 
 def center_to_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
                    xstep=None, zstep=None, thres=1000, tolerance=5,
-                   max_iterations=100, abort=[False]):
+                   max_iterations=100):
     """
     Tries to center the camera *cam* to the beam by moving with the motors
     *xmotor* and *zmotor*. It starts by searching the beam inside the
@@ -529,14 +521,10 @@ def center_to_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
     """
 
     if not find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
-                     xstep, zstep, thres, abort):
-        if abort[0]:
-            raise ProcessException("Beam_centering aborted")
+                     xstep, zstep, thres):
         raise ProcessException("Unable to find the beam")
-    elif not drift_to_beam(cam, xmotor, zmotor, pixelsize,
-                         tolerance, max_iterations, abort):
-        if abort[0]:
-            raise ProcessException("Beam_centering aborted")
+    elif not drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance,
+                           max_iterations):
         raise ProcessException("Maximum iterations reached")
 
 
