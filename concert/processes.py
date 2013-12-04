@@ -513,7 +513,7 @@ def drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance=5,
         return False
 
 
-def beam_centering(cam, xmotor, zmotor, pixelsize, xborder, zborder,
+def center_to_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
                    xstep=None, zstep=None, thres=1000, tolerance=5,
                    max_iterations=100, abort=[False]):
     """
