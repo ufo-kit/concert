@@ -346,27 +346,10 @@ class Parameterizable(object):
             self._params = {}
 
         for (cls, name), parameter in self._parameter_names.items():
-
             if not isinstance(self, cls):
                 continue
 
-            value = ParameterValue(self, parameter)
-            self._params[name] = value
-
-            def setter_not_implemented(value, *args):
-                raise NotImplementedError
-
-            def getter_not_implemented(*args):
-                raise NotImplementedError
-
-            setattr(self, 'set_' + name, value.set)
-            setattr(self, 'get_' + name, value.get)
-
-            if not hasattr(self, '_set_' + name):
-                setattr(self, '_set_' + name, setter_not_implemented)
-
-            if not hasattr(self, '_get_' + name):
-                setattr(self, '_get_' + name, getter_not_implemented)
+            self._install_parameter(name, parameter)
 
     def __str__(self):
         from concert.session.utils import get_default_table
@@ -392,6 +375,39 @@ class Parameterizable(object):
             raise ParameterError(param)
 
         return self._params[param]
+
+    def install_parameters(self, params):
+        """Install parameters at run-time.
+
+        *params* is a dictionary mapping parameter names to :class:`.Parameter`
+        objects.
+        """
+        for name, param in params.items():
+            param.name = name
+            self._install_parameter(name, param)
+
+            # Install param as a property, so that it can be accessed via
+            # object-dot notation.
+            setattr(self.__class__, name, param)
+
+    def _install_parameter(self, name, param):
+        value = ParameterValue(self, param)
+        self._params[name] = value
+
+        def setter_not_implemented(value, *args):
+            raise NotImplementedError
+
+        def getter_not_implemented(*args):
+            raise NotImplementedError
+
+        setattr(self, 'set_' + name, value.set)
+        setattr(self, 'get_' + name, value.get)
+
+        if not hasattr(self, '_set_' + name):
+            setattr(self, '_set_' + name, setter_not_implemented)
+
+        if not hasattr(self, '_get_' + name):
+            setattr(self, '_get_' + name, getter_not_implemented)
 
     @async
     def stash(self):

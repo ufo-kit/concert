@@ -15,8 +15,8 @@ from concert.devices.cameras import base
 LOG = logging.getLogger(__name__)
 
 
-def _new_setter_wrapper(camera, name, unit=None):
-    def _wrapper(value):
+def _new_setter_wrapper(name, unit=None):
+    def _wrapper(instance, value):
         if unit:
             value = value.to(unit)
 
@@ -25,14 +25,14 @@ def _new_setter_wrapper(camera, name, unit=None):
         except AttributeError:
             dic = {name: value}
 
-        camera.set_properties(**dic)
+        instance.uca.set_properties(**dic)
 
     return _wrapper
 
 
-def _new_getter_wrapper(camera, name, unit=None):
-    def _wrapper():
-        value = camera.get_property(name)
+def _new_getter_wrapper(name, unit=None):
+    def _wrapper(instance):
+        value = instance.uca.get_property(name)
 
         if unit:
             return value * unit
@@ -61,6 +61,8 @@ class Camera(base.Camera):
     """
 
     def __init__(self, name):
+        super(Camera, self).__init__()
+
         from gi.repository import GObject, Uca
 
         self._manager = Uca.PluginManager()
@@ -78,7 +80,7 @@ class Camera(base.Camera):
             Uca.Unit.PIXEL: q.dimensionless,
         }
 
-        parameters = []
+        parameters = {}
 
         for prop in self.uca.props:
             getter, setter, unit = None, None, None
@@ -89,15 +91,15 @@ class Camera(base.Camera):
                 unit = units[uca_unit]
 
             if prop.flags & GObject.ParamFlags.READABLE:
-                getter = _new_getter_wrapper(self.uca, prop.name, unit)
+                getter = _new_getter_wrapper(prop.name, unit)
 
             if prop.flags & GObject.ParamFlags.WRITABLE:
-                setter = _new_setter_wrapper(self.uca, prop.name, unit)
+                setter = _new_setter_wrapper(prop.name, unit)
 
-            parameter = Parameter(prop.name, getter, setter, unit)
-            parameters.append(parameter)
+            parameters[prop.name.replace('-', '_')] = Parameter(fget=getter, fset=setter, unit=unit)
 
-        super(Camera, self).__init__(parameters)
+        if parameters:
+            self.install_parameters(parameters)
 
     def readout(self, condition=lambda: True):
         """
