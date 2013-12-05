@@ -97,24 +97,15 @@ class MultiContext(object):
 
 
 class Parameter(object):
-    def __init__(self, fget=None, fset=None, unit=None, lower=None, upper=None,
-                 conversion=identity, data=None, in_hard_limit=None,
-                 source=None, target=None, immediate=None):
+
+    """A parameter with getter and setter."""
+
+    def __init__(self, fget=None, fset=None, data=None, source=None,
+                 target=None, immediate=None):
         self.name = None
         self.fget = fget
         self.fset = fset
-        self.unit = unit
         self.data_args = (data,) if data is not None else ()
-        self.default_conversion = conversion
-        self.in_hard_limit = in_hard_limit
-        self.upper = upper if upper is not None else float('Inf')
-        self.lower = lower if lower is not None else -float('Inf')
-
-        if unit and upper is None:
-            self.upper = self.upper * unit
-
-        if unit and lower is None:
-            self.lower = self.lower * unit
 
         if source or target or immediate:
             self.transition = transition(source, target, immediate)
@@ -122,13 +113,6 @@ class Parameter(object):
             self.transition = None
 
         self.decorated = None
-
-    def is_compatible(self, value):
-        try:
-            _ = self.unit + value
-            return True
-        except ValueError:
-            return False
 
     @memoize
     def setter_name(self):
@@ -143,6 +127,80 @@ class Parameter(object):
             return self.fget.__name__
 
         return '_get_' + self.name
+
+    def __get__(self, instance, owner):
+        # If we would just call self.fset(value) we would call the method
+        # defined in the base class. This is a hack (?) to call the function on
+        # the instance where we actually want the function to be called.
+
+        try:
+            if self.fget:
+                value = self.fget(instance, *self.data_args)
+            else:
+                value = getattr(instance, self.getter_name())(*self.data_args)
+
+            return value
+        except NotImplementedError:
+            raise ReadAccessError(self.name)
+
+    def __set__(self, instance, value):
+        def log_access(what):
+            """Log access."""
+            msg = "{}: {}='{}'"
+            name = instance.__class__.__name__
+            LOG.info(msg.format(name, what, value))
+
+        log_access('try')
+
+        # The same idea as sketched in __get__
+        if self.fset:
+            self.fset(instance, value, *self.data_args)
+        else:
+            try:
+                setter = getattr(instance, self.setter_name())
+
+                if self.transition and not self.decorated and not hasattr(setter, '_concert_fsm'):
+                    self.decorated = self.transition(setter.__func__)
+
+                if self.decorated:
+                    self.decorated(instance, value, *self.data_args)
+                else:
+                    setter(value, *self.data_args)
+
+            except NotImplementedError:
+                raise WriteAccessError(self.name)
+
+        log_access('set')
+
+
+class Quantity(Parameter):
+
+    """A parameter which models a physical quantity."""
+
+    def __init__(self, fget=None, fset=None, unit=None, lower=None, upper=None,
+                 conversion=identity, data=None, in_hard_limit=None,
+                 source=None, target=None, immediate=None):
+        super(Quantity, self).__init__(fget=fget, fset=fset, data=data,
+                                       source=source, target=target, immediate=immediate)
+        self.unit = unit
+        self.default_conversion = conversion
+        self.in_hard_limit = in_hard_limit
+
+        self.upper = upper if upper is not None else float('Inf')
+        self.lower = lower if lower is not None else -float('Inf')
+
+        if unit and upper is None:
+            self.upper = self.upper * unit
+
+        if unit and lower is None:
+            self.lower = self.lower * unit
+
+    def is_compatible(self, value):
+        try:
+            _ = self.unit + value
+            return True
+        except ValueError:
+            return False
 
     @memoize
     def from_scale(self, instance):
@@ -168,21 +226,15 @@ class Parameter(object):
         # If we would just call self.fset(value) we would call the method
         # defined in the base class. This is a hack (?) to call the function on
         # the instance where we actually want the function to be called.
+        value = super(Quantity, self).__get__(instance, owner)
 
-        try:
-            if self.fget:
-                value = self.fget(instance, *self.data_args)
-            else:
-                value = getattr(instance, self.getter_name())(*self.data_args)
-
-            return self.convert_from(instance, value)
-        except NotImplementedError:
-            raise ReadAccessError(self.name)
+        return self.convert_from(instance, value)
 
     def __set__(self, instance, value):
         if self.unit and not self.is_compatible(value):
             msg = "{} of {} can only receive values of unit {} but got {}"
-            raise UnitError(msg.format(self.name, type(instance), self.unit, value))
+            raise UnitError(
+                msg.format(self.name, type(instance), self.unit, value))
 
         lower = instance[self.name].lower
         upper = instance[self.name].upper
@@ -191,32 +243,8 @@ class Parameter(object):
             msg = "{} is out of range [{}, {}]"
             raise SoftLimitError(msg.format(value, lower, upper))
 
-        def log_access(what):
-            """Log access."""
-            msg = "{}: {}='{}'"
-            name = instance.__class__.__name__
-            LOG.info(msg.format(name, what, value))
-
-        log_access('try')
         converted = self.convert_to(instance, value)
-
-        # The same idea as sketched in __get__
-        if self.fset:
-            self.fset(instance, converted, *self.data_args)
-        else:
-            try:
-                setter = getattr(instance, self.setter_name())
-
-                if self.transition and not self.decorated and not hasattr(setter, '_concert_fsm'):
-                    self.decorated = self.transition(setter.__func__)
-
-                if self.decorated:
-                    self.decorated(instance, converted, *self.data_args)
-                else:
-                    setter(converted, *self.data_args)
-
-            except NotImplementedError:
-                raise WriteAccessError(self.name)
+        super(Quantity, self).__set__(instance, converted)
 
         if self.in_hard_limit:
             limit_checker = getattr(instance, self.in_hard_limit.__name__)
@@ -225,18 +253,14 @@ class Parameter(object):
                 msg = "`{}' reached hard limit for {}"
                 raise HardLimitError(msg.format(self.name, value))
 
-        log_access('set')
-
 
 class ParameterValue(object):
+
     def __init__(self, instance, parameter):
         self.lock = None
         self._instance = instance
         self._parameter = parameter
         self._saved = []
-        self.lower = parameter.lower
-        self.upper = parameter.upper
-        self.conversion = parameter.default_conversion
 
     def __enter__(self):
         if self.lock is not None:
@@ -253,10 +277,6 @@ class ParameterValue(object):
     @property
     def name(self):
         return self._parameter.name
-
-    @property
-    def unit(self):
-        return self._parameter.unit
 
     @property
     def data(self):
@@ -290,7 +310,21 @@ class ParameterValue(object):
             return self.set(val)
 
 
+class QuantityValue(ParameterValue):
+
+    def __init__(self, instance, quantity):
+        super(QuantityValue, self).__init__(instance, quantity)
+        self.lower = quantity.lower
+        self.upper = quantity.upper
+        self.conversion = quantity.default_conversion
+
+    @property
+    def unit(self):
+        return self._parameter.unit
+
+
 class MetaParameterizable(type):
+
     def __init__(cls, name, bases, dic):
         super(MetaParameterizable, cls).__init__(name, bases, dic)
 
@@ -324,8 +358,11 @@ class Parameterizable(six.with_metaclass(MetaParameterizable, object)):
 
             something = Parameter(get_something)
 
+    There is a simple :class:`Parameter` and a parameter which models a
+    physical quantity :class:`Quantity`.
+
     A :class:`Parameterizable` is iterable and returns its parameters of type
-    :class:`ParameterValue` ::
+    :class:`ParameterValue` or its subclasses ::
 
         for param in device:
             print("name={}".format(param.name))
@@ -394,7 +431,11 @@ class Parameterizable(six.with_metaclass(MetaParameterizable, object)):
             setattr(self.__class__, name, param)
 
     def _install_parameter(self, name, param):
-        value = ParameterValue(self, param)
+        if param.__class__ == Quantity:
+            value = QuantityValue(self, param)
+        elif param.__class__ == Parameter:
+            value = ParameterValue(self, param)
+
         self._params[name] = value
 
         def setter_not_implemented(value, *args):

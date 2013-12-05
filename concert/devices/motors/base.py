@@ -17,7 +17,7 @@ import logging
 from concert.quantities import q
 from concert.helpers import async
 from concert.fsm import State, transition
-from concert.base import Parameter
+from concert.base import Quantity
 from concert.devices.base import Device
 
 
@@ -94,9 +94,9 @@ class LinearMotor(PositionMixin):
         Position of the motor in length units.
     """
 
-    position = Parameter(unit=q.m,
-                         source='standby', target='standby', immediate='moving',
-                         in_hard_limit=PositionMixin.in_hard_limit)
+    position = Quantity(unit=q.m,
+                        source='standby', target='standby', immediate='moving',
+                        in_hard_limit=PositionMixin.in_hard_limit)
 
     def __init__(self):
         super(LinearMotor, self).__init__()
@@ -112,8 +112,8 @@ class ContinuousLinearMotor(LinearMotor, ContinuousMixin):
         Current velocity in length per time unit.
     """
 
-    velocity = Parameter(unit=q.m / q.s,
-                         in_hard_limit=ContinuousMixin.in_velocity_hard_limit)
+    velocity = Quantity(unit=q.m / q.s,
+                        in_hard_limit=ContinuousMixin.in_velocity_hard_limit)
 
     def __init__(self):
         super(ContinuousLinearMotor, self).__init__()
@@ -129,9 +129,9 @@ class RotationMotor(PositionMixin):
         Position of the motor in angular units.
     """
 
-    position = Parameter(unit=q.deg,
-                         source='standby', target='standby', immediate='moving',
-                         in_hard_limit=PositionMixin.in_hard_limit)
+    position = Quantity(unit=q.deg,
+                        source='standby', target='standby', immediate='moving',
+                        in_hard_limit=PositionMixin.in_hard_limit)
 
     def __init__(self):
         super(RotationMotor, self).__init__()
@@ -150,5 +150,5 @@ class ContinuousRotationMotor(RotationMotor, ContinuousMixin):
     def __init__(self):
         super(ContinuousRotationMotor, self).__init__()
 
-    velocity = Parameter(unit=q.deg / q.s,
-                         in_hard_limit=ContinuousMixin.in_velocity_hard_limit)
+    velocity = Quantity(unit=q.deg / q.s,
+                        in_hard_limit=ContinuousMixin.in_velocity_hard_limit)

@@ -24,7 +24,7 @@ To setup and use a camera in a typical environment, you would do::
 """
 from concert.quantities import q
 from concert.fsm import State, transition
-from concert.base import Parameter
+from concert.base import Quantity
 from concert.devices.base import Device
 
 
@@ -44,7 +44,7 @@ class Camera(Device):
     """
 
     state = State(default='standby')
-    frame_rate = Parameter(unit=1.0 / q.second)
+    frame_rate = Quantity(unit=1.0 / q.second)
 
     def __init__(self):
         super(Camera, self).__init__()

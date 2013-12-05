@@ -1,6 +1,6 @@
 """Pumps."""
 
-from concert.base import Parameter
+from concert.base import Quantity
 from concert.quantities import q
 from concert.helpers import async
 from concert.fsm import State, transition
@@ -17,10 +17,10 @@ class Pump(Device):
     state = State(default='standby')
 
     def __init__(self, calibration):
-        params = [Parameter('flow_rate',
-                            fget=self._get_calibrated_flow_rate,
-                            fset=self._set_calibrated_flow_rate,
-                            unit=q.l / q.s, doc="Pump flow rate.")]
+        params = [Quantity('flow_rate',
+                           fget=self._get_calibrated_flow_rate,
+                           fset=self._set_calibrated_flow_rate,
+                           unit=q.l / q.s, doc="Pump flow rate.")]
         super(Pump, self).__init__(params)
         self._calibration = calibration
 

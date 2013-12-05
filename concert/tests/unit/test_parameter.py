@@ -1,7 +1,7 @@
 from concert.quantities import q
 from concert.tests import TestCase
 from concert.fsm import State
-from concert.base import (Parameterizable, Parameter,
+from concert.base import (Parameterizable, Quantity,
                           WriteAccessError, ReadAccessError, UnitError,
                           SoftLimitError, HardLimitError)
 
@@ -16,7 +16,7 @@ class BaseDevice(Parameterizable):
 
 class FooDevice(BaseDevice):
 
-    foo = Parameter(unit=q.m, source='*', target='moved')
+    foo = Quantity(unit=q.m, source='*', target='moved')
 
     def __init__(self, default):
         super(FooDevice, self).__init__()

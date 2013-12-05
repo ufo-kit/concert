@@ -1,7 +1,7 @@
 """Base scales module for implementing scales."""
 
 from concert.devices.base import Device
-from concert.base import Parameter
+from concert.base import Quantity
 from concert.quantities import q
 from concert.helpers import async
 
@@ -18,8 +18,8 @@ class Scales(Device):
     """Base scales class."""
 
     def __init__(self, calibration):
-        params = [Parameter("weight", fget=self._get_calibrated_weight,
-                            unit=q.g, doc="Weight")]
+        params = [Quantity("weight", fget=self._get_calibrated_weight,
+                           unit=q.g, doc="Weight")]
         super(Scales, self).__init__(parameters=params)
         self._calibration = calibration
 

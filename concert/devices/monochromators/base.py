@@ -4,7 +4,7 @@ setters for wither wavelength or energy, it does not matter which one. The
 conversion is handled in the base class.
 '''
 from concert.quantities import q
-from concert.base import Parameter
+from concert.base import Quantity
 from concert.devices.base import Device
 
 # pint supports constants and defines hbar like this, but I haven't found a way
@@ -40,8 +40,8 @@ class Monochromator(Device):
         Monochromatic wavelength in meters.
     """
 
-    energy = Parameter(unit=q.eV)
-    wavelength = Parameter(unit=q.nanometer)
+    energy = Quantity(unit=q.eV)
+    wavelength = Quantity(unit=q.nanometer)
 
     def _get_energy(self):
         try:

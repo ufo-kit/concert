@@ -1,7 +1,7 @@
 """This module provides a simple dummy camera."""
 import numpy as np
 from concert.quantities import q
-from concert.base import Parameter
+from concert.base import Quantity
 from concert.devices.cameras import base
 import os
 import time
@@ -84,9 +84,9 @@ class Camera(base.Camera):
     .. py:attribute:: sensor_pixel_height
     """
 
-    exposure_time = Parameter(unit=q.s)
-    sensor_pixel_width = Parameter(unit=q.micrometer)
-    sensor_pixel_height = Parameter(unit=q.micrometer)
+    exposure_time = Quantity(unit=q.s)
+    sensor_pixel_width = Quantity(unit=q.micrometer)
+    sensor_pixel_height = Quantity(unit=q.micrometer)
 
     def __init__(self, background=None):
         super(Camera, self).__init__()
