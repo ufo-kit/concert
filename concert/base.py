@@ -184,9 +184,12 @@ class Parameter(object):
             msg = "{} of {} can only receive values of unit {} but got {}"
             raise UnitError(msg.format(self.name, type(instance), self.unit, value))
 
-        if not instance[self.name].lower <= value <= instance[self.name].upper:
+        lower = instance[self.name].lower
+        upper = instance[self.name].upper
+
+        if not lower <= value <= upper:
             msg = "{} is out of range [{}, {}]"
-            raise SoftLimitError(msg.format(value, self.lower, self.upper))
+            raise SoftLimitError(msg.format(value, lower, upper))
 
         def log_access(what):
             """Log access."""
@@ -219,8 +222,8 @@ class Parameter(object):
             limit_checker = getattr(instance, self.in_hard_limit.__name__)
 
             if limit_checker():
-                msg = "{0} for `{1}' is out of range"
-                raise HardLimitError(msg.format(value, self.name))
+                msg = "`{}' reached hard limit for {}"
+                raise HardLimitError(msg.format(self.name, value))
 
         log_access('set')
 
