@@ -4,7 +4,6 @@ import logging
 import six
 from concert.helpers import async, wait, memoize
 from concert.fsm import transition
-from concert.quantities import numerator_units, denominator_units
 
 
 LOG = logging.getLogger(__name__)
@@ -148,9 +147,12 @@ class Parameter(object):
     @memoize
     def from_scale(self, instance):
         conversion = self.get_conversion(instance)
-        num_units = numerator_units(conversion(1))
-        denom_units = denominator_units(conversion(1))
-        return denom_units / num_units
+        scale = conversion(1)
+
+        if hasattr(scale, 'magnitude'):
+            return 1 / (scale / scale.magnitude)
+
+        return 1 / scale
 
     def get_conversion(self, instance):
         return instance[self.name].conversion
