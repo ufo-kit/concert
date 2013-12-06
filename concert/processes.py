@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.ndimage.filters import gaussian_filter
 from concert.async import async, wait
 from concert.coroutines import coroutine
 from concert.quantities import q
@@ -292,20 +293,13 @@ def find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
         """
         return (img >= thres).any()
 
-    def grab():
-        """Convenience-Function for getting a frame from *cam*."""
-        cam.start_recording()
-        cam.trigger()
-        img = cam.grab()
-        img_shape[0] = img.shape
-        cam.stop_recording()
-        return img
-
     def check(rel_move):
         """Move to new position and check if the beam is visible."""
-        zmotor.move(rel_move[0]*q.um)
-        xmotor.move(rel_move[1]*q.um)
-        img = grab()
+        fut_0 = zmotor.move(rel_move[0]*q.um)
+        fut_1 = xmotor.move(rel_move[1]*q.um)
+        wait([fut_0, fut_1])
+        img = gaussian_filter(cam.grab().astype(np.float32), 40.0)
+        img_shape[0] = img.shape
         bv = beam_visible(img, thres)
         return bv
 
@@ -423,7 +417,9 @@ def find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
                 r = next_move(sp_pos, n_pos, False)
                 yield r
 
-    ps = np.tile(pixelsize, 2)[:2]
+    units = (u for u in pixelsize.units if pixelsize.units[u] > 0.0)
+    units = q.parse_expression(' * '.join(units))
+    ps = np.tile(pixelsize.magnitude, 2)[:2] * units
     xborder = np.array([xborder[0].to(q.um.units).magnitude,
                         xborder[1].to(q.um.units).magnitude])
     zborder = np.array([zborder[0].to(q.um.units).magnitude,
@@ -473,25 +469,20 @@ def drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance=5,
     needed.
     """
 
-    def grab():
-        """Convenience-Function for getting a frame from *cam*."""
-        cam.start_recording()
-        cam.trigger()
-        img = cam.grab()
-        cam.stop_recording()
-        return img
+    units = (u for u in pixelsize.units if pixelsize.units[u] > 0.0)
+    units = q.parse_expression(' * '.join(units))
+    ps = np.tile(pixelsize.magnitude, 2)[:2] * units
 
-    ps = np.tile(np.array(pixelsize, np.object), 2)[:2]
-    img = grab()
+    img = gaussian_filter(cam.grab().astype(np.float32), 40.0)
     frm_center = (np.array(img.shape)-1)/2
     d = center_of_mass(img-img.min()) - frm_center
+
     iter_ = 0
     while ((d**2).sum() > tolerance**2) and (iter_ < max_iterations):
-        dz = d[0]*ps[0]
-        zmotor.move(dz)
-        dx = d[1]*ps[1]
-        xmotor.move(dx)
-        img = grab()
+        fut_0 = zmotor.move(d[0]*ps[0])
+        fut_1 = xmotor.move(d[1]*ps[1])
+        wait([fut_0, fut_1])
+        img = gaussian_filter(cam.grab().astype(np.float32), 40.0)
         if img.sum() == 0:
             raise ProcessException("There is nothing to see! "
                                    "Can't follow the center of mass.")
