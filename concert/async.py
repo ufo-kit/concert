@@ -82,6 +82,9 @@ try:
                 self._running = True
                 value = self.func(*self.args, **self.kwargs)
                 self._running = False
+
+                # Force starting at least a bit of the greenlet
+                gevent.sleep(0)
                 return value
             except Exception as exception:
                 self.saved_exception = exception
