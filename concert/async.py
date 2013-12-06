@@ -8,10 +8,6 @@ except ImportError:
     import queue
 
 
-# Module-wide executor
-EXECUTOR = ThreadPoolExecutor(max_workers=128)
-
-
 # Patch futures so that they provide a join() and kill() method
 def _join(self, _timeout=None):
     self.result()
@@ -54,6 +50,7 @@ try:
 
     import gevent
     import gevent.monkey
+    import gevent.threadpool
 
     gevent.monkey.patch_all()
 
@@ -62,6 +59,7 @@ try:
 
     HAVE_GEVENT = True
     KillException = gevent.GreenletExit
+    threadpool = gevent.threadpool.ThreadPool(4)
 
     class GreenletFuture(gevent.Greenlet):
         """A common Greenlet/Future interface.
@@ -128,10 +126,20 @@ try:
 
         return _inner
 
+    def threaded(func):
+        @functools.wraps(func)
+        def _inner(*args, **kwargs):
+            result = threadpool.spawn(func, *args, **kwargs)
+            return result
+
+        return _inner
 
 except ImportError:
     import threading
     HAVE_GEVENT = False
+
+    # Module-wide executor
+    EXECUTOR = ThreadPoolExecutor(max_workers=128)
 
     # This is a stub exception that will never be raised.
     class KillException(Exception):
@@ -151,16 +159,16 @@ except ImportError:
             return _inner
 
 
-def threaded(func):
-    """Threaded execution of a function *func*."""
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        """Execute in a separate thread."""
-        thread = threading.Thread(target=func, args=args, kwargs=kwargs)
-        thread.start()
-        return thread
+    def threaded(func):
+        """Threaded execution of a function *func*."""
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            """Execute in a separate thread."""
+            thread = threading.Thread(target=func, args=args, kwargs=kwargs)
+            thread.start()
+            return thread
 
-    return wrapper
+        return wrapper
 
 
 def wait(futures):
