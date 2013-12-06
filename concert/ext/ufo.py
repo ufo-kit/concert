@@ -95,13 +95,40 @@ class InjectProcess(object):
 
         self.input_task.release_input_buffer(self.ufo_buffer)
 
+    def result(self):
+        if self.output_task:
+            buf = self.output_task.get_output_buffer()
+            result = np.copy(ufo.numpy.asarray(buf))
+            self.output_task.release_output_buffer(buf)
+            return result
+
     def consume(self):
         """Co-routine compatible consumer."""
         while True:
             item = yield
-            self.push(item)
+            self.insert(item)
 
     def wait(self):
         """Wait until processing has finished."""
         self.input_task.stop()
         self.thread.join()
+
+
+class SinogramReconstruction(InjectProcess):
+
+    def __init__(self, axis_pos=None):
+        self.pm = PluginManager()
+        self.fft = self.pm.get_task('fft', dimensions=1)
+        self.ifft = self.pm.get_task('ifft', dimensions=1)
+        self.fltr = self.pm.get_task('filter')
+        self.backproject = self.pm.get_task('backproject')
+
+        if axis_pos:
+            self.backproject.props.axis_pos = axis_pos
+
+        graph = Ufo.TaskGraph()
+        graph.connect_nodes(self.fft, self.fltr)
+        graph.connect_nodes(self.fltr, self.ifft)
+        graph.connect_nodes(self.ifft, self.backproject)
+
+        super(SinogramReconstruction, self).__init__(graph, get_output=True)
