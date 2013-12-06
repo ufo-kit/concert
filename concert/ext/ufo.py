@@ -38,8 +38,9 @@ class InjectProcess(object):
     graph will be created with the input task connecting to *graph*.
     """
 
-    def __init__(self, graph):
+    def __init__(self, graph, get_output=False):
         self.input_task = Ufo.InputTask()
+        self.output_task = None
 
         if isinstance(graph, Ufo.TaskGraph):
             self.graph = graph
@@ -52,6 +53,11 @@ class InjectProcess(object):
             msg = 'graph is neither Ufo.TaskGraph nor Ufo.TaskNode'
             raise ValueError(msg)
 
+        if get_output:
+            self.output_task = Ufo.OutputTask()
+            leaves = self.graph.get_leaves()
+            self.graph.connect_nodes(leaves[0], self.output_task)
+
         self.ufo_buffer = None
 
     def __enter__(self):
@@ -62,7 +68,7 @@ class InjectProcess(object):
         self.wait()
         return True
 
-    def run(self):
+    def start(self):
         """
         Run the processing in a new thread.
 
@@ -75,7 +81,7 @@ class InjectProcess(object):
         self.thread = threading.Thread(target=run_scheduler)
         self.thread.start()
 
-    def push(self, array):
+    def insert(self, array):
         """
         Insert *array* into the processing chain.
 
