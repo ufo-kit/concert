@@ -7,7 +7,7 @@ sets. It uses NeXpy_ to interface with NeXus.
 .. _NeXpy: http://wiki.nexusformat.org/NeXpy
 """
 import numpy as np
-from concert.base import Parameter
+from concert.base import Quantity
 from concert.devices import cameras, monochromators
 from concert.helpers import async
 
@@ -78,7 +78,7 @@ def get_scan_result(scanner):
                   name=scanner.param.name,
                   units=quantity_unit(scanner.minimum))
 
-    if isinstance(scanner.feedback, Parameter):
+    if isinstance(scanner.feedback, Quantity):
         y_nx = nx.SDS(y_raw,
                       name=scanner.feedback.name,
                       units=quantity_unit(scanner.feedback.unit))

@@ -1,6 +1,6 @@
 """Storage Ring Device"""
 from concert.quantities import q
-from concert.base import Parameter
+from concert.base import Quantity
 from concert.devices.base import Device
 
 
@@ -22,18 +22,18 @@ class StorageRing(Device):
     """
 
     def __init__(self):
-        params = [Parameter('current',
-                            fget=self._get_current,
-                            unit=q.mA,
-                            doc="Current of the ring"),
-                  Parameter('energy',
-                            fget=self._get_energy,
-                            unit=q.MeV,
-                            doc="Energy of the ring"),
-                  Parameter('lifetime',
-                            fget=self._get_lifetime,
-                            unit=q.h,
-                            doc="Lifetime of the ring")]
+        params = [Quantity('current',
+                           fget=self._get_current,
+                           unit=q.mA,
+                           doc="Current of the ring"),
+                  Quantity('energy',
+                           fget=self._get_energy,
+                           unit=q.MeV,
+                           doc="Energy of the ring"),
+                  Quantity('lifetime',
+                           fget=self._get_lifetime,
+                           unit=q.h,
+                           doc="Lifetime of the ring")]
 
         super(StorageRing, self).__init__(params)
 
