@@ -130,7 +130,8 @@ class SimulationCamera(Camera):
         # How many times was the image source asked for images.
         self.iteration = 0
 
-        super(Camera, self).__init__()
+        super(SimulationCamera, self).__init__()
+        self._trigger_mode = self.trigger_modes.AUTO
 
     @property
     def ellipse_center(self):
@@ -161,3 +162,9 @@ class SimulationCamera(Camera):
 
     def _grab_real(self):
         return get_projection(self.create_needle())
+
+    def _get_trigger_mode(self):
+        return self._trigger_mode
+
+    def _set_trigger_mode(self, mode):
+        self._trigger_mode = mode

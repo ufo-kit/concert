@@ -18,6 +18,7 @@ class FileCamera(base.Camera):
         super(FileCamera, self).__init__()
 
         self._frame_rate = 1000 * q.count / q.s
+        self._trigger_mode = self.trigger_modes.AUTO
         self._index = 0
         self.roi_x = 0
         self.roi_y = 0
@@ -31,6 +32,12 @@ class FileCamera(base.Camera):
 
     def _set_frame_rate(self, frame_rate):
         self._frame_rate = frame_rate
+
+    def _get_trigger_mode(self):
+        return self._trigger_mode
+
+    def _set_trigger_mode(self, mode):
+        self._trigger_mode = mode
 
     def _record_real(self):
         pass
@@ -92,6 +99,7 @@ class Camera(base.Camera):
         super(Camera, self).__init__()
 
         self._frame_rate = 10.0 / q.s
+        self._trigger_mode = self.trigger_modes.AUTO
         self._exposure_time = 1 * q.ms
 
         if background is not None:
@@ -120,6 +128,12 @@ class Camera(base.Camera):
 
     def _set_frame_rate(self, frame_rate):
         self._frame_rate = frame_rate
+
+    def _get_trigger_mode(self):
+        return self._trigger_mode
+
+    def _set_trigger_mode(self, mode):
+        self._trigger_mode = mode
 
     def _record_real(self):
         pass

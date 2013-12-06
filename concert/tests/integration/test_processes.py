@@ -18,6 +18,7 @@ class BlurringCamera(Camera):
         super(BlurringCamera, self).__init__()
         self._original = scipy.misc.lena()
         self.motor = motor
+        self._trigger_mode = self.trigger_modes.AUTO
 
     def _grab_real(self):
         sigma = abs((self.motor.position - FOCUS_POSITION).magnitude)
@@ -34,6 +35,12 @@ class BlurringCamera(Camera):
 
     def _get_frame_rate(self):
         return 100 / q.s
+
+    def _get_trigger_mode(self):
+        return self._trigger_mode
+
+    def _set_trigger_mode(self, mode):
+        pass
 
 
 @suppressed_logging
