@@ -336,8 +336,9 @@ class StartCommand(Command):
         formatter = logging.Formatter(logformat.format(session))
         handler.setFormatter(formatter)
 
-        logger = logging.getLogger(__name__)
-        logger.addHandler(handler)
+        self.logger = logging.getLogger()
+        self.logger.addHandler(handler)
+        self.logger.setLevel(numeric_level)
 
         # Add session path, so that sessions can import other sessions
         sys.path.append(concert.session.path())
