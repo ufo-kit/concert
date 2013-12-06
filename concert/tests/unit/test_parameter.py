@@ -1,7 +1,7 @@
 from concert.quantities import q
 from concert.tests import TestCase
 from concert.fsm import State
-from concert.base import (Parameterizable, Quantity,
+from concert.base import (Parameterizable, Parameter, Quantity,
                           WriteAccessError, ReadAccessError, UnitError,
                           SoftLimitError, HardLimitError)
 
@@ -28,6 +28,8 @@ class FooDevice(BaseDevice):
     def _set_foo(self, value):
         self._value = value
 
+    param = Parameter(fget=_get_foo, fset=_set_foo)
+
 
 class RestrictedFooDevice(FooDevice):
     def __init__(self, lower, upper):
@@ -48,6 +50,10 @@ class TestParameterizable(TestCase):
         super(TestParameterizable, self).setUp()
         self.foo1 = FooDevice(42 * q.m)
         self.foo2 = FooDevice(23 * q.m)
+
+    def test_param(self):
+        self.foo1.param = 15
+        self.assertEqual(self.foo1.param, 15)
 
     def test_property_identity(self):
         self.foo1.foo = 15 * q.m
