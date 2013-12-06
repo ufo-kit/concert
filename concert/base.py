@@ -309,8 +309,7 @@ class MetaParameterizable(type):
                 cls._parameter_names[(cls, attr_name)] = attr_type
 
 
-@six.add_metaclass(MetaParameterizable)
-class Parameterizable(object):
+class Parameterizable(six.with_metaclass(MetaParameterizable, object)):
 
     """
     Collection of parameters.
