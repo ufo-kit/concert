@@ -195,7 +195,7 @@ class Command(object):
 
 
 class Bunch(object):
-    """Encapsulate a dictionary to provide attribute-like access.
+    """Encapsulate a list or dictionary to provide attribute-like access.
 
     Common use cases look like this::
 
@@ -203,9 +203,16 @@ class Bunch(object):
         b = Bunch(d)
         print(b.foo)
         >>> 123
+
+        l = ['foo', 'bar']
+        b = Bunch(l)
+        print(b.foo)
+        >>> 'foo'
     """
-    def __init__(self, some_dict):
-        self.__dict__.update(some_dict)
+    def __init__(self, values):
+        if isinstance(values, list):
+            values = dict(zip(values, values))
+        self.__dict__.update(values)
 
 
 def memoize(func):
