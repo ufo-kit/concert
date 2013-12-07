@@ -4,7 +4,7 @@ the data is.
 """
 import numpy as np
 from concert.quantities import q
-from concert.imageprocessing import center_of_mass, get_needle_tips
+from concert.imageprocessing import center_of_points, get_needle_tips
 
 
 class DummyGradientMeasure(object):
@@ -185,7 +185,7 @@ def _get_ellipse_center(params, tips):
             (4 * params[0] * params[2] - params[1] ** 2)
     else:
         # We are not dealing with an ellipse, use center of mass.
-        y_pos, x_pos = center_of_mass(tips)
+        y_pos, x_pos = center_of_points(tips)
 
     # +1 for image edge-clipping compensation.
     return y_pos + 1, x_pos + 1

@@ -317,7 +317,7 @@ def _get_sample_tip(image):
     indices = np.where(distances == distances.max())[0]
 
     tips = [(y_ind[i], x_ind[i]) for i in indices]
-    tip_center = center_of_mass(tips)
+    tip_center = center_of_points(tips)
 
     # Now find the intersection of the object and line going through it
     # in the direction to the tip.
@@ -403,8 +403,11 @@ def _get_regions(image):
     return labels
 
 
-def center_of_mass(points):
-    """Find the center of mass from a set of *points*."""
+def center_of_points(points):
+    """
+    Find a simplified center of mass withouth point-weighing
+    from a set of *points*.
+    """
     y_ind, x_ind = zip(*points)
 
     c_y = float(np.sum(y_ind)) / len(points)
