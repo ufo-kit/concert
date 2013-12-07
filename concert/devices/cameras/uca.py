@@ -144,26 +144,6 @@ class Camera(base.Camera):
         self._uca_get_trigger = _new_getter_wrapper('trigger-mode')
         self._uca_set_trigger = _new_setter_wrapper('trigger-mode')
 
-    def acquire(self, num_frames):
-        """
-        Acquire *num_frames* frames. The camera is triggered explicitly from
-        Concert so the number of recorded frames is exact. The frames are
-        yielded as they are being acquired.
-        """
-        try:
-            self.trigger_mode = self.uca.enum_values.trigger_mode.SOFTWARE
-        except:
-            LOG.warn("Trigger mode cannot be set by '{}'".
-                     format(self.name))
-
-        try:
-            self.start_recording()
-            for i in xrange(num_frames):
-                self.trigger()
-                yield self.grab()
-        finally:
-            self.stop_recording()
-
     def _get_frame_rate(self):
         return self._uca_get_frame_rate(self) / q.s
 

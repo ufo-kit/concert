@@ -95,14 +95,6 @@ class Camera(Device):
         """Return a NumPy array with data of the current frame."""
         return self._grab_real()
 
-    def acquire(self, num_frames, trigger=False):
-        """Acquire *num_frames* frames and *trigger* if necessary."""
-        for i in range(num_frames):
-            if trigger:
-                self.trigger()
-
-            yield self.grab()
-
     def _get_trigger_mode(self):
         raise NotImplementedError
 
