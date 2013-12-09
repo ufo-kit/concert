@@ -161,6 +161,20 @@ Filters
     :members:
 
 
+Asynchronous execution
+----------------------
+
+.. automodule:: concert.async
+    :members:
+
+
+Configuration
+-------------
+
+.. automodule:: concert.config
+    :members:
+
+
 Sessions
 ========
 

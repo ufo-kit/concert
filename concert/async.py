@@ -1,3 +1,18 @@
+"""
+.. exception:: KillException
+
+    Exception that may be thrown during the execution of an :func:`.async`
+    decorated function. The function may run cleanup code.
+
+.. function:: async
+
+    A decorator for functions which are executed asynchronously.
+
+.. function:: threaded
+
+    Threaded execution of a function *func*.
+
+"""
 import functools
 import concert.config
 from concurrent.futures import ThreadPoolExecutor, Future
@@ -62,7 +77,7 @@ try:
     threadpool = gevent.threadpool.ThreadPool(4)
 
     class GreenletFuture(gevent.Greenlet):
-        """A common Greenlet/Future interface.
+        """A Future interface based on top of a Greenlet.
 
         This class provides the :class:`concurrent.futures.Future` interface on
         top of a Greenlet.
@@ -149,9 +164,6 @@ except ImportError:
         pass
 
     def async(func):
-        """A decorator for functions which are supposed to be executed
-        asynchronously."""
-
         if concert.config.DISABLE_ASYNC:
             return no_async(func)
         else:
@@ -163,7 +175,6 @@ except ImportError:
 
 
     def threaded(func):
-        """Threaded execution of a function *func*."""
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             """Execute in a separate thread."""
