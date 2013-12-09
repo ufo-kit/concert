@@ -349,7 +349,7 @@ class Parameterizable(six.with_metaclass(MetaParameterizable, object)):
     """
     Collection of parameters.
 
-    For each class of type :class:`Parameterizable`, :class:`Parameter`s can be
+    For each class of type :class:`Parameterizable`, :class:`Parameter` can be
     set as class attributes ::
 
         class Device(Parameterizable):
