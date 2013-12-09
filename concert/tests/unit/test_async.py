@@ -2,7 +2,7 @@ import time
 import random
 from concurrent.futures import Future
 from concert.devices.dummy import DummyDevice
-from concert.helpers import async, wait, is_async
+from concert.async import async, wait, KillException, HAVE_GEVENT
 from concert.tests import slow, TestCase
 
 
@@ -38,55 +38,25 @@ class TestAsync(TestCase):
             self.assertTrue(future.done(), "Not all futures finished.")
 
     def test_exceptions(self):
-        self.assertRaises(TypeError, wait, [func(0)])
-        self.assertRaises(RuntimeError, wait, [bad_func()])
+        with self.assertRaises(TypeError):
+            func(0).join()
 
-    def test_is_async(self):
-        self.assertTrue(is_async(func))
+        with self.assertRaises(RuntimeError):
+            bad_func().join()
 
-        def sync_func():
-            pass
+    def test_kill(self):
+        d = {'killed': False}
 
-        self.assertFalse(is_async(sync_func))
+        @async
+        def long_op(d):
+            try:
+                time.sleep(10)
+            except KillException:
+                d['killed'] = True
 
-    def test_futures(self):
-        future1 = func()
-        future2 = func().wait()
-        self.assertEqual(future1.__class__, future2.__class__,
-                         "Wait method does not return a future.")
+        future = long_op(d)
+        time.sleep(0)
+        future.kill()
 
-        self.assertRaises(TypeError, func(0).wait)
-        self.assertRaises(RuntimeError, bad_func().wait)
-
-    def test_async_function(self):
-        future = func()
-        self.assertTrue(isinstance(future, Future),
-                        "Function was not run asynchronously.")
-
-    def test_async_accessors(self):
-        future1 = self.device.set_value(15)
-        future2 = self.device.get_value()
-
-        self.assertTrue(isinstance(future1, Future),
-                        "Setter accessor does not return a future.")
-        self.assertTrue(isinstance(future2, Future),
-                        "Getter accessor does not return a future.")
-
-        wait([future1, future2])
-
-    def test_async_parameter(self):
-        future1 = self.device["value"].set(15)
-        future2 = self.device["value"].get()
-
-        self.assertTrue(isinstance(future1, Future),
-                        "Setter does not return a future.")
-        self.assertTrue(isinstance(future2, Future),
-                        "Getter does not return a future.")
-
-        wait([future1, future2])
-
-    def test_async_method(self):
-        future = self.device.do_nothing()
-
-        self.assertTrue(isinstance(future, Future),
-                        "Asynchronous method does not return a future.")
+        if HAVE_GEVENT:
+            self.assertTrue(d['killed'])

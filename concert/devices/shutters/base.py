@@ -1,7 +1,7 @@
 """Shutter Device."""
-from concert.helpers import async
-from concert.devices.base import Device
+from concert.async import async
 from concert.fsm import State, transition
+from concert.devices.base import Device
 
 
 class Shutter(Device):

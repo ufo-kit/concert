@@ -9,7 +9,7 @@ This module provides execution routines and algorithms for optimization.
 """
 import logging
 from functools import wraps
-from concert.helpers import async
+from concert.async import async
 from concert.base import LimitError
 from concert.quantities import q
 
@@ -68,7 +68,7 @@ def optimize_parameter(parameter, feedback, x_0, algorithm, alg_args=(),
                 x_val = parameter.lower
             if x_val > parameter.upper:
                 x_val = parameter.upper
-            parameter.set(x_val).wait()
+            parameter.set(x_val).join()
         except LimitError:
             LOG.debug("Limit reached")
 

@@ -12,5 +12,5 @@ class TestDummyShutter(TestCase):
         self.assertTrue(self.shutter.state.is_currently('open'))
 
     def test_close(self):
-        self.shutter.close().wait()
+        self.shutter.close().join()
         self.assertTrue(self.shutter.state.is_currently('closed'))

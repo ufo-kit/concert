@@ -1,5 +1,6 @@
 import numpy as np
-from concert.helpers import async, wait, coroutine
+from concert.async import async, wait
+from concert.coroutines import coroutine
 from concert.quantities import q
 from concert.measures import get_rotation_axis
 from concert.optimization import halver, optimize_parameter
@@ -32,7 +33,7 @@ def scan(param, feedback, minimum=None, maximum=None, intervals=64,
     yss = []
 
     for xval in xss:
-        param.set(convert(xval)).wait()
+        param.set(convert(xval)).join()
         yss.append(feedback())
 
     return (xss, yss)
@@ -190,15 +191,15 @@ def align_rotation_axis(camera, rotation_motor, flat_motor=None,
         if flat_position is None:
             raise ValueError("If flat motor is given then also " +
                              "flat position must be given")
-        flat_motor["position"].stash().wait()
+        flat_motor["position"].stash().join()
         flat_motor.position = flat_position
         flat = camera.grab().astype(np.float32)
-        flat_motor["position"].restore().wait()
+        flat_motor["position"].restore().join()
 
     def get_frames():
         frames = []
         for i in range(num_frames):
-            rotation_motor.move(i * step).wait()
+            rotation_motor.move(i * step).join()
             frame = camera.grab()
             if flat:
                 frame /= flat
@@ -246,8 +247,7 @@ def align_rotation_axis(camera, rotation_motor, flat_motor=None,
             # stop iteration.
             break
 
-        wait([future for future in [x_future, z_future]
-              if future is not None])
+        wait([future for future in [x_future, z_future] if future is not None])
 
         x_last = np.abs(x_angle)
         z_last = np.abs(z_angle)

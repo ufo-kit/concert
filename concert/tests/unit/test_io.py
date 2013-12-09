@@ -18,8 +18,8 @@ class TestDummyIO(TestCase):
 
     def test_read_not_readable_port(self):
         with self.assertRaises(ReadAccessError):
-            self.io_device["acq_enable"].get().wait()
+            self.io_device["acq_enable"].get().join()
 
     def test_write_not_writable_port(self):
         with self.assertRaises(WriteAccessError):
-            self.io_device["busy"].set(1).wait()
+            self.io_device["busy"].set(1).join()

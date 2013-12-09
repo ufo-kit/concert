@@ -2,7 +2,7 @@ import time
 from concert.tests import TestCase
 from concert.quantities import q
 from concert.fsm import transition, State
-from concert.helpers import async
+from concert.async import async
 from concert.devices.base import Device
 
 
@@ -69,7 +69,7 @@ class TestStateMachine(TestCase):
 
     def test_async_transition(self):
         future = self.device.move_some_time(MOVE_VELOCITY, 0.01)
-        future.wait()
+        future.join()
         self.assertTrue(self.device.state.is_currently('standby'))
 
     def test_multiple_source_states(self):

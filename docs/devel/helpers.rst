@@ -10,7 +10,7 @@ Concurrency
 Every user defined function or method **must** be synchronous (blocking).
 To define a function as asynchronous, use the :func:`.async` decorator::
 
-    from concert.helpers import async
+    from concert.async import async
 
     @async
     def synchronous_function():
@@ -24,13 +24,13 @@ synchronization::
     print(future.done())
     result = future.result()
 
-Every future that is returned by Concert, has an additional method ``wait``
+Every future that is returned by Concert, has an additional method ``join``
 that will block until execution finished and raise the exception that might
 have been raised in the wrapped function. It will also return the future to
 gather the result::
 
     try:
-        future = synchronous_function().wait()
+        future = synchronous_function().join()
         result = future.result()
     except:
         print("synchronous_function raised an exception")

@@ -27,7 +27,7 @@ class TestDevice(TestCase):
 
     def test_accessor_functions(self):
         self.assertEqual(self.device.get_readonly().result(), 1)
-        self.device.set_writeonly(0).wait()
+        self.device.set_writeonly(0).join()
 
     def test_iterable(self):
         for param in self.device:

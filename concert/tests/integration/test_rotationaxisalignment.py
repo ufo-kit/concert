@@ -36,8 +36,7 @@ class TestDummyAlignment(TestCase):
         x_motor = self.x_motor if has_x_motor else None
         z_motor = self.z_motor if has_z_motor else None
 
-        align_rotation_axis(self.camera, self.y_motor, x_motor=x_motor,
-                            z_motor=z_motor).wait()
+        align_rotation_axis(self.camera, self.y_motor, x_motor=x_motor, z_motor=z_motor).join()
 
         # In our case the best perfectly aligned position is when both
         # motors are in 0.
@@ -47,10 +46,8 @@ class TestDummyAlignment(TestCase):
             assert np.abs(self.z_motor.position) < self.eps
 
     def test_no_motor(self):
-        self.assertRaises(ValueError, align_rotation_axis(self.camera,
-                                                          self.y_motor,
-                                                          x_motor=None,
-                                                          z_motor=None).wait)
+        with self.assertRaises(ValueError):
+            align_rotation_axis(self.camera, self.y_motor, x_motor=None, z_motor=None).join()
 
     @slow
     def test_out_of_fov(self):
@@ -63,7 +60,7 @@ class TestDummyAlignment(TestCase):
         with self.assertRaises(ValueError) as ctx:
             align_rotation_axis(self.camera, self.y_motor,
                                 x_motor=self.x_motor,
-                                z_motor=self.z_motor).wait()
+                                z_motor=self.z_motor).join()
 
         self.assertEqual("No sample tip points found.", str(ctx.exception))
 
@@ -73,7 +70,7 @@ class TestDummyAlignment(TestCase):
         with self.assertRaises(ValueError) as ctx:
             align_rotation_axis(self.camera, self.y_motor,
                                 x_motor=self.x_motor,
-                                z_motor=self.z_motor).wait()
+                                z_motor=self.z_motor).join()
 
         self.assertEqual("Sample off-centering too " +
                          "small, enlarge rotation radius.",

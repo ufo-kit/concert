@@ -24,8 +24,9 @@ class TestMotor(TestCase):
         position = 1 * q.mm
         delta = 0.5 * q.mm
         self.motor.position = position
-        self.motor.move(delta).wait()
+        self.motor.move(delta).join()
         self.assertEqual(position + delta, self.motor.position)
+
 
 class TestContinuousLinearMotor(TestCase):
 
@@ -59,7 +60,7 @@ class TestRotationMotor(TestCase):
         position = 1 * q.deg
         delta = 0.5 * q.deg
         self.motor.position = position
-        self.motor.move(delta).wait()
+        self.motor.move(delta).join()
         self.assertEqual(position + delta, self.motor.position)
 
 

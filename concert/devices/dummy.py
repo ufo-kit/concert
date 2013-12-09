@@ -1,7 +1,7 @@
 """Dummy"""
 from concert.base import Parameter
 from concert.devices.base import Device
-from concert.helpers import async
+from concert.async import async
 
 
 class DummyDevice(Device):
