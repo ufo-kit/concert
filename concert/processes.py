@@ -6,6 +6,7 @@ from concert.coroutines import coroutine
 from concert.quantities import q
 from concert.measures import get_rotation_axis
 from concert.optimization import halver, optimize_parameter
+from concert.imageprocessing import center_of_mass
 
 
 LOG = logging.getLogger(__name__)
@@ -448,19 +449,6 @@ def find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
     return False
 
 
-def center_of_mass(frame):
-    """Calculates the center of mass"""
-
-    frm_shape = np.array(frame.shape)
-    total = frame.sum()
-    if total == 0:
-        return np.array([-1, -1])
-    else:
-        y = (frame.sum(1)*np.arange(frm_shape[0])).sum() / total
-        x = (frame.sum(0)*np.arange(frm_shape[1])).sum() / total
-        return np.array([y, x])
-
-
 def drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance=5,
                   max_iterations=100):
     """
@@ -488,7 +476,7 @@ def drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance=5,
         wait([fut_0, fut_1])
         img = gaussian_filter(cam.grab().astype(np.float32), 40.0)
         if img.sum() == 0:
-            LOG.debug("drift_to_beam: Frame is empty (sum == 0). "+
+            LOG.debug("drift_to_beam: Frame is empty (sum == 0). " +
                       "Can't follow center of mass.")
             raise ProcessException("There is nothing to see! "
                                    "Can't follow the center of mass.")
@@ -522,7 +510,7 @@ def center_to_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
         message = "Unable to find the beam"
         LOG.debug('center_to_beam: '+message)
         raise ProcessException(message)
-    else
+    else:
         LOG.debug('center_to_beam: switch to drift_to_beam')
         if not drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance,
                              max_iterations):
