@@ -1,10 +1,14 @@
 import numpy as np
+import logging
 from scipy.ndimage.filters import gaussian_filter
 from concert.async import async, wait
 from concert.coroutines import coroutine
 from concert.quantities import q
 from concert.measures import get_rotation_axis
 from concert.optimization import halver, optimize_parameter
+
+
+LOG = logging.getLogger(__name__)
 
 
 def _pull_first(tuple_list):
@@ -484,6 +488,8 @@ def drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance=5,
         wait([fut_0, fut_1])
         img = gaussian_filter(cam.grab().astype(np.float32), 40.0)
         if img.sum() == 0:
+            LOG.debug("drift_to_beam: Frame is empty (sum == 0). "+
+                      "Can't follow center of mass.")
             raise ProcessException("There is nothing to see! "
                                    "Can't follow the center of mass.")
         d = center_of_mass(img-img.min()) - frm_center
@@ -513,10 +519,16 @@ def center_to_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
 
     if not find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
                      xstep, zstep, thres):
-        raise ProcessException("Unable to find the beam")
-    elif not drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance,
-                           max_iterations):
-        raise ProcessException("Maximum iterations reached")
+        message = "Unable to find the beam"
+        LOG.debug('center_to_beam: '+message)
+        raise ProcessException(message)
+    else
+        LOG.debug('center_to_beam: switch to drift_to_beam')
+        if not drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance,
+                             max_iterations):
+            message = "Maximum iterations reached"
+            LOG.debug('center_to_beam: '+message)
+            raise ProcessException(message)
 
 
 class ProcessException(Exception):
