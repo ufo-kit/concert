@@ -135,9 +135,9 @@ class FileCamera(Base):
         self.directory = directory
         super(FileCamera, self).__init__()
 
+        self.roi_width = 0 * q.dimensionless
+        self.roi_height = 0 * q.dimensionless
         self._index = 0
-        self.roi_width = None
-        self.roi_height = None
         self._files = [os.path.join(directory, file_name) for file_name in
                        sorted(os.listdir(directory))]
 
@@ -145,17 +145,17 @@ class FileCamera(Base):
         if self._index < len(self._files):
             image = read_image(self._files[self._index])
 
-            if self.roi_height is None:
+            if not self.roi_height:
                 y_region = image.shape[0]
             else:
-                y_region = self.roi_y + self.roi_height
+                y_region = self.roi_y0 + self.roi_height
 
-            if self.roi_width is None:
+            if not self.roi_width:
                 x_region = image.shape[1]
             else:
-                x_region = self.roi_x + self.roi_width
+                x_region = self.roi_x0 + self.roi_width
 
-            result = image[self.roi_y:y_region, self.roi_x:x_region]
+            result = image[self.roi_y0:y_region, self.roi_x0:x_region]
             self._index += 1
         else:
             result = None
