@@ -8,12 +8,37 @@ camera provides means to
 * :meth:`~Camera.trigger` a frame capture and
 * :meth:`~Camera.grab` to get the last frame.
 
+Camera triggering is specified by the :attr:`~Camera.trigger_mode` parameter, which
+can be one of
+
+* :attr:`camera.trigger_modes.AUTO` means the camera triggers itself
+  automatically, the frames start being recorded right after the
+  :meth:`~camera.start_recording` call and stop being recorded by
+  :meth:`~camera.stop_recording`
+
+* :attr:`Camera.trigger_modes.SOFTWARE` means the camera needs to be triggered
+  by the user by :meth:`~Camera.trigger()`. This way you have complete programatic
+  control over when is the camera triggered, example usage::
+
+    camera.trigger_mode = camera.trigger_modes.SOFTWARE
+    camera.start_recording()
+    camera.trigger()
+    long_operation()
+    # Here we get the frame from before the long operation
+    camera.grab()
+
+* :attr:`Camera.trigger_modes.EXTERNAL` is a mode when the camera is triggered
+  by an external low-level signal (such as TTL). This mode provides very precise
+  triggering in terms of time synchronization with other devices
+
+
 To setup and use a camera in a typical environment, you would do::
 
     import numpy as np
     from concert.devices.cameras.uca import UcaCamera
 
     camera = UcaCamera('pco')
+    camera.trigger_mode = camera.trigger_modes.SOFTWARE
     camera.exposure_time = 0.2 * q.s
     camera.start_recording()
     camera.trigger()
@@ -22,9 +47,10 @@ To setup and use a camera in a typical environment, you would do::
 
     print("mean=%f, stddev=%f" % (np.mean(data), np.std(data))
 """
+from concert.helpers import Bunch
 from concert.quantities import q
 from concert.fsm import State, transition
-from concert.base import Quantity
+from concert.base import Parameter, Quantity
 from concert.devices.base import Device
 
 
@@ -43,8 +69,10 @@ class Camera(Device):
         Frame rate of acquisition in q.count per time unit.
     """
 
+    trigger_modes = Bunch(['AUTO', 'SOFTWARE', 'EXTERNAL'])
     state = State(default='standby')
     frame_rate = Quantity(unit=1.0 / q.second)
+    trigger_mode = Parameter()
 
     def __init__(self):
         super(Camera, self).__init__()
@@ -67,13 +95,11 @@ class Camera(Device):
         """Return a NumPy array with data of the current frame."""
         return self._grab_real()
 
-    def acquire(self, num_frames, trigger=False):
-        """Acquire *num_frames* frames and *trigger* if necessary."""
-        for i in range(num_frames):
-            if trigger:
-                self.trigger()
+    def _get_trigger_mode(self):
+        raise NotImplementedError
 
-            yield self.grab()
+    def _set_trigger_mode(self, mode):
+        raise NotImplementedError
 
     def _record_real(self):
         raise NotImplementedError
@@ -85,4 +111,16 @@ class Camera(Device):
         raise NotImplementedError
 
     def _grab_real(self):
+        raise NotImplementedError
+
+
+class BufferedMixin(Device):
+
+    """A camera that stores the frames in an internal buffer"""
+
+    @transition(source='standby', target='standby', immediate='readout')
+    def readout_buffer(self, *args, **kwargs):
+        return self._readout_real(*args, **kwargs)
+
+    def _readout_real(self, *args, **kwargs):
         raise NotImplementedError
