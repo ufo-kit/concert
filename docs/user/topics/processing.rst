@@ -77,8 +77,8 @@ until the old one has been consumed.
 
 
 
-High-performance computing with UFO
-===================================
+High-performance computing
+==========================
 
 The :mod:`.ufo` module provides classes to process data from an experiment with
 the UFO data processing framework. The simplest example could look like this::
@@ -106,3 +106,24 @@ raw ``UfoPluginManager``::
 
     pm = PluginManager()
     writer = pm.get_task('writer', filename='foo-%05i.tif')
+
+
+
+Viewing processed data
+======================
+
+Concert has a Matplotlib integration to simplify viewing 1D time series with the
+:class:`.PyplotViewer` and 2D image data with the :class:`.PyplotImageViewer`::
+
+    from concert.devices.cameras.dummy import Camera
+    from concert.ext.viewers import PyplotImageViewer
+
+    # Create a camera and start recording
+    camera = Camera()
+    camera.start_recording()
+
+    # Create a viewer and show one frame
+    viewer = PyplotImageViewer()
+    viewer.show(camera.grab())
+
+    camera.stop_recording()
