@@ -16,6 +16,39 @@ LOG = logging.getLogger(__name__)
 
 
 @coroutine
+def downsize(consumer, x_slice=None, y_slice=None, z_slice=None):
+    """
+    downsize(consumer, x_slice=None, y_slice=None, z_slice=None)
+
+    Downsize images in 3D and send them to *consumer*. Every argument
+    is either a tuple (start, stop, step). *x_slice* operates on
+    image width, *y_slice* on its height and *z_slice* on the incoming
+    images, i.e. it creates the third time dimension.
+
+    Note: the *start* index is included in the data and the *stop* index
+    is excluded.
+    """
+    def check_and_create(sl):
+        if not sl:
+            sl = (0, None, 1)
+        return sl
+
+    x_start, x_stop, x_step = check_and_create(x_slice)
+    y_start, y_stop, y_step = check_and_create(y_slice)
+    z_start, z_stop, z_step = check_and_create(z_slice)
+
+    i = 0
+    k = 0
+    while True:
+        image = yield
+        if z_start <= i and (not z_stop or i < z_stop):
+            if k % z_step == 0:
+                consumer.send(image[y_start:y_stop:y_step, x_start:x_stop:x_step])
+            k += 1
+        i += 1
+
+
+@coroutine
 def average_images(num_images, consumer):
     """
     average_images(num_images, consumer)
