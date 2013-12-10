@@ -1,8 +1,6 @@
 import numpy as np
 from concert.coroutines import coroutine, broadcast, inject
-from concert.coroutines.filters import (flat_correct,
-                                        average_images,
-                                        make_sinograms)
+from concert.coroutines.filters import flat_correct, average_images, make_sinograms, downsize
 from concert.coroutines.sinks import null, Result
 from concert.tests import TestCase
 
@@ -12,9 +10,9 @@ def generator():
         yield i
 
 
-def frame_producer(consumer, num_frames=3):
+def frame_producer(consumer, num_frames=3, shape=(2, 2)):
     for i in range(num_frames):
-        consumer.send(np.ones((2, 2)) * (i + 1))
+        consumer.send(np.ones(shape=shape) * (i + 1))
 
 
 class TestCoroutines(TestCase):
@@ -95,3 +93,21 @@ class TestCoroutines(TestCase):
         result = Result()
         self.producer(result())
         self.assertEqual(result.result, 4)
+
+    def test_downsize(self):
+        @coroutine
+        def stack():
+            while True:
+                image = yield
+                stack.result.append(image)
+
+        stack.result = []
+
+        frame_producer(downsize(stack(), x_slice=(2, 6, 2), y_slice=(3, 10, 3),
+                                z_slice=(2, 8, 3)), num_frames=10, shape=(10, 10))
+        result = np.array(stack.result)
+        ones = np.ones(shape=(3, 2))
+
+        self.assertEqual(result.shape, (2, 3, 2))
+        np.testing.assert_almost_equal(result[0], ones * 3)
+        np.testing.assert_almost_equal(result[1], ones * 6)
