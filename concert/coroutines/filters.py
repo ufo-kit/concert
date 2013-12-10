@@ -1,3 +1,4 @@
+from copy import deepcopy
 try:
     import Queue as queue
 except ImportError:
@@ -46,6 +47,30 @@ def downsize(consumer, x_slice=None, y_slice=None, z_slice=None):
                 consumer.send(image[y_start:y_stop:y_step, x_start:x_stop:x_step])
             k += 1
         i += 1
+
+
+@coroutine
+def cache(consumer):
+    """
+    cache(consumer)
+
+    Cache the incoming data into a queue and dispatch in a separate
+    thread which prevents the stalling on the "main" data stream.
+    """
+    item_queue = queue.Queue()
+
+    @threaded
+    def serve():
+        while True:
+            item = item_queue.get()
+            consumer.send(item)
+            item_queue.task_done()
+
+    serve()
+
+    while True:
+        item = yield
+        item_queue.put(deepcopy(item))
 
 
 @coroutine
