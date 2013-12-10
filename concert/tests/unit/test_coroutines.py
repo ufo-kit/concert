@@ -1,6 +1,6 @@
 import numpy as np
 from concert.coroutines import coroutine, broadcast, inject
-from concert.coroutines.filters import flat_correct, average_images, sinograms, downsize
+from concert.coroutines.filters import flat_correct, average_images, sinograms, downsize, stall
 from concert.coroutines.sinks import null, Result
 from concert.tests import TestCase
 
@@ -105,3 +105,13 @@ class TestCoroutines(TestCase):
         self.assertEqual(result.shape, (2, 3, 2))
         np.testing.assert_almost_equal(result[0], ones * 3)
         np.testing.assert_almost_equal(result[1], ones * 6)
+
+    def test_stall(self):
+        # Simple case, no modulo
+        self.producer(stall(self.stack_consume(), per_shot=5), num_items=10)
+        self.assertEqual(self.stack, [4, 9])
+
+        # More iterations than total items
+        self.stack = []
+        self.producer(stall(self.stack_consume(), per_shot=8, flush_at=13), num_items=26)
+        self.assertEqual(self.stack, [7, 12, 20, 25])
