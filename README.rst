@@ -1,5 +1,5 @@
-About
-=====
+Concert
+=======
 
 .. image:: https://travis-ci.org/ufo-kit/concert.png?branch=master
     :target: https://travis-ci.org/ufo-kit/concert
@@ -15,7 +15,7 @@ About
     :target: https://crate.io/packages/concert/
     :alt: Number of PyPI downloads
 
-Concert is a light-weight control system interface to control Tango and native
+*Concert* is a light-weight control system interface to control Tango and native
 devices. It can be used as a library::
 
     from concert.quantities import q

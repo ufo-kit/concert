@@ -1,5 +1,5 @@
-Concert changelog
-=================
+Changelog
+=========
 
 Here you can see the full list of changes between each Concert release.
 
@@ -7,18 +7,52 @@ Here you can see the full list of changes between each Concert release.
 Version 0.6
 -----------
 
-Improvements:
+Released on December 10th 2013.
 
-- 1D data plotting support by PyplotCurveViewer
-- ``concert.experiments.imaging.Radiography`` experiment type added
+Improvements
+~~~~~~~~~~~~
 
-API breaks:
+- Concert now comes with an experimental gevent backend that will eventually
+  replace the thread pool executor based asynchronous infrastructure.
+- Each device can now have an explicit ``State`` object and ``@transition``s
+  applied to function which will change the state depending on the successful
+  outcome of the decorated function.
+- 1D data plotting is implemented as ``PyplotCurveViewer``.
+- The ``concert`` binary now knows the ``cp`` command to make a copy of a
+  session. The ``start`` command can receive a log level and with the
+  ``--non-interactive`` option run a session as a script.
+- Devices and parameters can store their current parameter values with ``stash``
+  and restore them later with ``restore``.
+- Changed the IPython prompt.
+- Added the NewPort 74000 Monochromator.
+- Provide a ``require`` function that will scream when the required Concert
+  version is not installed.
 
+
+API breaks
+~~~~~~~~~~
+
+- ``Motor`` is renamed to ``LinearMotor`` for all devices.
+- ``Parameter`` objects are now declared at class-level instead of at run-time
+  within the class constructor.
 - ``concert.storage.create_folder`` renamed to
   ``concert.storage.create_directory``
 - ``concert.ext.viewers.PyplotViewer`` substituted by 1D and 2D viewers
   ``concert.ext.viewers.PyplotCurveViewer`` and
   ``concert.ext.viewers.PyplotImageViewer``
+- To wait on a Future you have to call ``.join`` instead of ``.wait``.
+- Coroutine functions and decorators moved to ``concert.coroutines[.base]``,
+  asynchronous functions and decorators moved to ``concert.async``.
+- Removed ``is_async``
+- Configuration moved to ``concert.config``
+- Method names of ``concert.ext.ufo.InjectProcess`` changed.
+
+
+Fixes
+~~~~~
+
+- #168, #166, #152, #147, #158, #150, #157, #95, #138
+- Many more concerning the camera implementation.
 
 
 Version 0.5
@@ -26,7 +60,8 @@ Version 0.5
 
 Released on October 31st 2013.
 
-Improvements:
+Improvements
+~~~~~~~~~~~~
 
 - Python 3 is supported and can be tested with tox.
 - Most imports are delayed in the concert binary to reduce startup time.
@@ -37,7 +72,8 @@ Improvements:
   installed you can control Concert from an IDE instead of from IPython.
 - Tests were restructured for easier access.
 
-API breaks:
+API breaks
+~~~~~~~~~~
 
 - ``concert.connections`` package moved to ``concert.networking`` module
 - Renamed ``concert.helpers.multicast`` to ``broadcast`` to reflect its true
@@ -57,7 +93,8 @@ Version 0.4
 
 Released on October 7th 2013.
 
-Improvements:
+Improvements
+~~~~~~~~~~~~
 
 - Tests and rotation axis alignment is faster now.
 - Soft limits were added to the parameter (accessible with ``.lower`` and
@@ -76,7 +113,8 @@ Improvements:
 - Add ``code_of`` function to show the source of a function.
 - Introduced coroutine based data processing facility.
 
-API breaks:
+API breaks
+~~~~~~~~~~
 
 - Renamed ``to_steps`` to ``to_device`` and do not drop units
 - ``camera.grab`` returns `None` if no data is available
