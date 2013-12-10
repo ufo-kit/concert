@@ -94,11 +94,14 @@ def average_images(num_images, consumer):
 
 
 @coroutine
-def make_sinograms(num_radiographs, consumer):
+def sinograms(num_radiographs, consumer):
     """
-    make_sinograms(num_radiographs, consumer)
+    sinograms(num_radiographs, consumer)
 
     Convert *num_radiographs* into sinograms and send them to *consumer*.
+    The sinograms are sent every time a new radiograph arrives. If there
+    is more than *num_radiographs* radiographs, the sinograms are rewritten
+    in a ring-buffer fashion.
     """
     i = 0
     sinograms = None
@@ -110,17 +113,15 @@ def make_sinograms(num_radiographs, consumer):
     while True:
         radiograph = yield
 
-        if sinograms is None:
-            sinograms = np.empty((radiograph.shape[0],
+        if sinograms is None or i % num_radiographs == 0:
+            sinograms = np.zeros((radiograph.shape[0],
                                   num_radiographs,
                                   radiograph.shape[1]))
-        if i < num_radiographs:
-            if not is_compatible(radiograph.shape, sinograms.shape):
-                raise ValueError("Incompatible radiograph shape")
+        if not is_compatible(radiograph.shape, sinograms.shape):
+            raise ValueError("Incompatible radiograph shape")
 
-            sinograms[:, i, :] = np.copy(radiograph)
-            if i == num_radiographs - 1:
-                consumer.send(sinograms)
+        sinograms[:, i % num_radiographs, :] = radiograph
+        consumer.send(sinograms)
 
         i += 1
 
