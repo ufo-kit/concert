@@ -156,13 +156,37 @@ def absorptivity(consumer):
 
 
 @coroutine
-def backprojector(row_number, center, consumer, num_projs=None,
-                  angle_step=None, nth_column=1, nth_projection=1,
-                  callback=None, fast=True):
+def stall(consumer, per_shot=10, flush_at=None):
     """
-    backprojector(row_number, center, consumer, num_projs=None,\
-                      angle_step=None, nth_column=1, nth_projection=1,\
-                                        callback=None, fast=True)
+    stall(consumer, per_shot=10, flush_at=None)
+
+    Send items once enough is collected. Collect *per_shot* items and
+    send them to *consumer*. The incoming data might represent a collection
+    of some kind. If the last item is supposed to be sent regardless the current
+    number of collected items, use *flush_at* by which you specify the collection
+    size and every time the current item *counter* % *flush_at* == 0 the item
+    is sent.
+    """
+    i = 1
+
+    while True:
+        item = yield
+        if i % per_shot == 0:
+            consumer.send(item)
+        elif flush_at and i % flush_at == 0:
+            consumer.send(item)
+            i = 0
+
+        i += 1
+
+
+@coroutine
+def backprojector(row_number, center, num_projs, consumer, nth_column=1,
+                  nth_projection=1, nth_refresh=10, callback=None, fast=True):
+    """
+    backprojector(row_number, center, num_projs, consumer,\
+                  nth_column=1, nth_projection=1, nth_refresh=10,\
+                  callback=None, fast=True)
 
     Online filtered backprojection. Get a radiograph, extract row
     *row_number*, backproject it and add to the so far computed slice.
