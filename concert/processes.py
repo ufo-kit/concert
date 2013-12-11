@@ -489,6 +489,7 @@ def drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance=5,
         return False
 
 
+@async
 def center_to_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
                    xstep=None, zstep=None, thres=1000, tolerance=5,
                    max_iterations=100):
@@ -505,18 +506,19 @@ def center_to_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
     'center2beam(...)'.
     """
 
-    if not find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
-                     xstep, zstep, thres):
-        message = "Unable to find the beam"
-        LOG.debug('center_to_beam: '+message)
-        raise ProcessException(message)
-    else:
-        LOG.debug('center_to_beam: switch to drift_to_beam')
-        if not drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance,
-                             max_iterations):
-            message = "Maximum iterations reached"
+    with cam, xmotor, zmotor:
+        if not find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
+                         xstep, zstep, thres):
+            message = "Unable to find the beam"
             LOG.debug('center_to_beam: '+message)
             raise ProcessException(message)
+        else:
+            LOG.debug('center_to_beam: switch to drift_to_beam')
+            if not drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance,
+                                 max_iterations):
+                message = "Maximum iterations reached"
+                LOG.debug('center_to_beam: '+message)
+                raise ProcessException(message)
 
 
 class ProcessException(Exception):
