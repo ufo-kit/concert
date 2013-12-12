@@ -1,6 +1,7 @@
 import numpy as np
 from concert.coroutines import coroutine, broadcast, inject
-from concert.coroutines.filters import flat_correct, average_images, sinograms, downsize, stall
+from concert.coroutines.filters import (flat_correct, average_images,
+                                        sinograms, downsize, stall, PickSlice)
 from concert.coroutines.sinks import null, Result
 from concert.tests import TestCase
 
@@ -115,3 +116,18 @@ class TestCoroutines(TestCase):
         self.stack = []
         self.producer(stall(self.stack_consume(), per_shot=8, flush_at=13), num_items=26)
         self.assertEqual(self.stack, [7, 12, 20, 25])
+
+    def test_slicepick(self):
+        def produce_volume(consumer):
+            vol = np.ones((2, 2, 2))
+            vol[1] *= 2
+            consumer.send(vol)
+
+        pick = PickSlice(0)
+
+        produce_volume(pick(self.consume()))
+        np.testing.assert_almost_equal(self.data, np.ones((1, 2, 2)))
+
+        pick.index = 1
+        produce_volume(pick(self.consume()))
+        np.testing.assert_almost_equal(self.data, np.ones((1, 2, 2)) * 2)
