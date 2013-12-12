@@ -8,6 +8,8 @@ try:
 except ImportError as e:
     print(str(e))
 
+from concert.coroutines import coroutine
+
 
 class PluginManager(object):
 
@@ -114,21 +116,46 @@ class InjectProcess(object):
         self.thread.join()
 
 
-class SinogramReconstruction(InjectProcess):
+class Backproject(InjectProcess):
+
+    """Filtered backprojection using UFO Framework."""
 
     def __init__(self, axis_pos=None):
         self.pm = PluginManager()
         self.fft = self.pm.get_task('fft', dimensions=1)
         self.ifft = self.pm.get_task('ifft', dimensions=1)
         self.fltr = self.pm.get_task('filter')
-        self.backproject = self.pm.get_task('backproject')
+        self.backprojector = self.pm.get_task('backproject')
 
         if axis_pos:
-            self.backproject.props.axis_pos = axis_pos
+            self.backprojector.props.axis_pos = axis_pos
 
         graph = Ufo.TaskGraph()
         graph.connect_nodes(self.fft, self.fltr)
         graph.connect_nodes(self.fltr, self.ifft)
-        graph.connect_nodes(self.ifft, self.backproject)
+        graph.connect_nodes(self.ifft, self.backprojector)
 
-        super(SinogramReconstruction, self).__init__(graph, get_output=True)
+        super(Backproject, self).__init__(graph, get_output=True)
+
+    @coroutine
+    def __call__(self, consumer):
+        """
+        __call__(self, consumer)
+
+        Backproject incoming sinograms and send the slices to *consumer*
+        """
+        slices = None
+        self.start()
+
+        while True:
+            sinograms = yield
+
+            if slices is None:
+                width = sinograms.shape[2]
+                slices = np.empty((sinograms.shape[0], width, width), dtype=np.float32)
+
+            for i, sinogram in enumerate(sinograms):
+                self.insert(sinogram)
+                slices[i] = self.result()[:width, :width]
+
+            consumer.send(slices)

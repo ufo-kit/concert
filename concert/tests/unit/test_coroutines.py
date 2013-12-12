@@ -1,8 +1,7 @@
 import numpy as np
 from concert.coroutines import coroutine, broadcast, inject
-from concert.coroutines.filters import (flat_correct,
-                                        average_images,
-                                        make_sinograms)
+from concert.coroutines.filters import (flat_correct, average_images,
+                                        sinograms, downsize, stall, PickSlice)
 from concert.coroutines.sinks import null, Result
 from concert.tests import TestCase
 
@@ -12,9 +11,9 @@ def generator():
         yield i
 
 
-def frame_producer(consumer, num_frames=3):
+def frame_producer(consumer, num_frames=3, shape=(2, 2)):
     for i in range(num_frames):
-        consumer.send(np.ones((2, 2)) * (i + 1))
+        consumer.send(np.ones(shape=shape) * (i + 1))
 
 
 class TestCoroutines(TestCase):
@@ -23,10 +22,11 @@ class TestCoroutines(TestCase):
         super(TestCoroutines, self).setUp()
         self.data = None
         self.data_2 = None
+        self.stack = []
         self.iteration = 0
 
-    def producer(self, consumer):
-        for i in range(5):
+    def producer(self, consumer, num_items=5):
+        for i in range(num_items):
             consumer.send(i)
             self.iteration += 1
 
@@ -40,6 +40,12 @@ class TestCoroutines(TestCase):
         while True:
             self.data_2 = yield
 
+    @coroutine
+    def stack_consume(self):
+        while True:
+            item = yield
+            self.stack.append(item)
+
     def test_broadcast(self):
         self.producer(broadcast(self.consume(), self.consume_2()))
         self.assertEqual(self.data, 4)
@@ -47,19 +53,14 @@ class TestCoroutines(TestCase):
 
     def test_sinogenerator(self):
         n = 4
-        ground_truth = np.zeros((n, n, n))
-
-        def image_producer(consumer):
-            for i in range(n):
-                ground_truth[i] = np.arange(n ** 2).reshape(n, n) * (i + 1)
-                consumer.send(ground_truth[i])
 
         result = Result()
-        image_producer(make_sinograms(n, result()))
+        frame_producer(sinograms(n, result()), num_frames=8, shape=(4, 4))
 
-        sinograms = result.result
-        np.testing.assert_almost_equal(sinograms,
-                                       ground_truth.transpose(1, 0, 2))
+        sinos = result.result
+        # One sinogram
+        one = np.tile(np.array([5, 6, 7, 8])[:, np.newaxis], [1, n])
+        np.testing.assert_almost_equal(sinos, np.tile(one, [n, 1, 1]))
 
     def test_injection(self):
         inject(generator(), self.consume())
@@ -95,3 +96,38 @@ class TestCoroutines(TestCase):
         result = Result()
         self.producer(result())
         self.assertEqual(result.result, 4)
+
+    def test_downsize(self):
+        frame_producer(downsize(self.stack_consume(), x_slice=(2, 6, 2), y_slice=(3, 10, 3),
+                                z_slice=(2, 8, 3)), num_frames=10, shape=(10, 10))
+        result = np.array(self.stack)
+        ones = np.ones(shape=(3, 2))
+
+        self.assertEqual(result.shape, (2, 3, 2))
+        np.testing.assert_almost_equal(result[0], ones * 3)
+        np.testing.assert_almost_equal(result[1], ones * 6)
+
+    def test_stall(self):
+        # Simple case, no modulo
+        self.producer(stall(self.stack_consume(), per_shot=5), num_items=10)
+        self.assertEqual(self.stack, [4, 9])
+
+        # More iterations than total items
+        self.stack = []
+        self.producer(stall(self.stack_consume(), per_shot=8, flush_at=13), num_items=26)
+        self.assertEqual(self.stack, [7, 12, 20, 25])
+
+    def test_slicepick(self):
+        def produce_volume(consumer):
+            vol = np.ones((2, 2, 2))
+            vol[1] *= 2
+            consumer.send(vol)
+
+        pick = PickSlice(0)
+
+        produce_volume(pick(self.consume()))
+        np.testing.assert_almost_equal(self.data, np.ones((1, 2, 2)))
+
+        pick.index = 1
+        produce_volume(pick(self.consume()))
+        np.testing.assert_almost_equal(self.data, np.ones((1, 2, 2)) * 2)
