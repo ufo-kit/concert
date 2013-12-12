@@ -402,3 +402,15 @@ def center_of_points(points):
     c_x = float(np.sum(x_ind)) / len(points)
 
     return c_y, c_x
+
+def center_of_mass(frame):
+    """Calculates the center of mass of the whole frame wheighted by value."""
+
+    frm_shape = np.array(frame.shape)
+    total = frame.sum()
+    if total == 0:
+        return np.array([-1, -1])
+    else:
+        y = (frame.sum(1)*np.arange(frm_shape[0])).sum() / total
+        x = (frame.sum(0)*np.arange(frm_shape[1])).sum() / total
+        return np.array([y, x])
