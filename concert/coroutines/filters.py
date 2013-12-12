@@ -225,3 +225,18 @@ def backproject(center, consumer, fast=True):
                 y_points=y_points, fast=fast)
 
         consumer.send(slices)
+
+
+class PickSlice(object):
+
+    """Pick a slice from a 3D volume."""
+
+    def __init__(self, index):
+        self.index = index
+
+    @coroutine
+    def __call__(self, consumer):
+        """Pick a slice and send it to *consumer*."""
+        while True:
+            volume = yield
+            consumer.send(volume[self.index:self.index+1])
