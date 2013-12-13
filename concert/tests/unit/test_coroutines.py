@@ -71,7 +71,7 @@ class TestCoroutines(TestCase):
         self.assertEquals(5, self.iteration)
 
     def test_averager(self):
-        frame_producer(average_images(3, self.consume()))
+        frame_producer(average_images(self.consume()))
         truth = np.ones((2, 2)) * 2
         np.testing.assert_almost_equal(self.data, truth)
 
