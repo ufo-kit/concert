@@ -18,14 +18,15 @@ def _pull_first(tuple_list):
 
 
 @async
-def scan(param, feedback, minimum=None, maximum=None, intervals=64,
-         convert=lambda x: x):
-    """Scan a parameter and provide a feedback.
+def scan(param, feedback, minimum=None, maximum=None, intervals=64, convert=lambda x: x):
+    """
+    scan(param, feedback, minimum=None, maximum=None, intervals=64, convert=lambda x: x)
 
     Scan the parameter object in *intervals* steps between *minimum* and
     *maximum* and call *feedback* at each step. *feedback* must return a value
     that is evaluated at the parameter position. If *minimum* or *maximum* is
-    ``None``, :attr:`Parameter.lower` or :attr:`Parameter.upper` is used.
+    ``None``, :attr:`.ParameterValue.lower` or :attr:`.ParameterValue.upper` is
+    used.
 
     Set *convert* to a callable that transforms the parameter value prior to
     setting it.
@@ -45,10 +46,10 @@ def scan(param, feedback, minimum=None, maximum=None, intervals=64,
     return (xss, yss)
 
 
-def scan_param_feedback(scan_param, feedback_param,
-                        minimum=None, maximum=None, intervals=64,
+def scan_param_feedback(scan_param, feedback_param, minimum=None, maximum=None, intervals=64,
                         convert=lambda x: x):
-    """Convenience function to scan one parameter and measure another.
+    """
+    Convenience function to scan one parameter and measure another.
 
     Scan the *scan_param* object and measure *feedback_param* at each of the
     *intervals* steps between *minimum* and *maximum*.
@@ -164,9 +165,7 @@ def align_rotation_axis(camera, rotation_motor, flat_motor=None,
                         measure=get_rotation_axis, num_frames=10,
                         absolute_eps=0.1 * q.deg, max_iterations=5):
     """
-    run(camera, rotation_motor, flat_motor, flat_position, x_motor=None,
-    z_motor=None, measure=get_rotation_axis, num_frames=10, absolute_eps=0.1 *
-    q.deg, max_iterations=5)
+    align_rotation_axis(camera, rotation_motor, flat_motor=None, flat_position=None, x_motor=None, z_motor=None, measure=get_rotation_axis, num_frames=10, absolute_eps=0.1 * q.deg, max_iterations=5)
 
     Align rotation axis. *camera* is used to obtain frames, *rotation_motor*
     rotates the sample around the tomographic axis of rotation, *flat_motor* is
