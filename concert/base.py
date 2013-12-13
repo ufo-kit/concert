@@ -99,7 +99,31 @@ class MultiContext(object):
 
 class Parameter(object):
 
-    """A parameter with getter and setter."""
+    """A parameter with getter and setter.
+
+    Parameters are similar to normal Python properties and can additionally
+    trigger state transitions. If *fget* or *fset* is not given, you must
+    implement the accessor functions named `_set_name` and `_get_name`::
+
+        from concert.fsm import State
+
+        class SomeClass(object):
+
+            state = State(default='standby')
+            param = Parameter(source='standby', target='doing')
+
+            def _set_param(self, value):
+                pass
+
+            def _get_param(self):
+                pass
+
+    The *source*, *target* and *immediate* parameters correspond to the
+    arguments of a :class:`.transition`.
+
+    When a :class:`.Parameter` is attached to a class, you can modify it via
+    accessing its associated :class:`.ParameterValue`.
+    """
 
     def __init__(self, fget=None, fset=None, data=None, source=None,
                  target=None, immediate=None):
@@ -257,6 +281,8 @@ class Quantity(Parameter):
 
 class ParameterValue(object):
 
+    """Value object of a :class:`.Parameter`."""
+
     def __init__(self, instance, parameter):
         self.lock = None
         self._instance = instance
@@ -296,12 +322,12 @@ class ParameterValue(object):
         """Save the current value internally on a growing stack.
 
         If the parameter is writable the current value is saved on a stack and
-        to be later retrieved with :meth:`Parameter.restore`.
+        to be later retrieved with :meth:`.ParameterValue.restore`.
         """
         self._saved.append(self.get().result())
 
     def restore(self):
-        """Restore the last value saved with :meth:`Parameter.stash`.
+        """Restore the last value saved with :meth:`.ParameterValue.stash`.
 
         If the parameter can only be read or no value has been saved, this
         operation does nothing.
@@ -349,8 +375,8 @@ class Parameterizable(six.with_metaclass(MetaParameterizable, object)):
     """
     Collection of parameters.
 
-    For each class of type :class:`Parameterizable`, :class:`Parameter` can be
-    set as class attributes ::
+    For each class of type :class:`.Parameterizable`, :class:`.Parameter` can
+    be set as class attributes ::
 
         class Device(Parameterizable):
 
@@ -359,11 +385,11 @@ class Parameterizable(six.with_metaclass(MetaParameterizable, object)):
 
             something = Parameter(get_something)
 
-    There is a simple :class:`Parameter` and a parameter which models a
-    physical quantity :class:`Quantity`.
+    There is a simple :class:`.Parameter` and a parameter which models a
+    physical quantity :class:`.Quantity`.
 
-    A :class:`Parameterizable` is iterable and returns its parameters of type
-    :class:`ParameterValue` or its subclasses ::
+    A :class:`.Parameterizable` is iterable and returns its parameters of type
+    :class:`.ParameterValue` or its subclasses ::
 
         for param in device:
             print("name={}".format(param.name))
@@ -458,7 +484,7 @@ class Parameterizable(six.with_metaclass(MetaParameterizable, object)):
     def stash(self):
         """
         Save all writable parameters that can be restored with
-        :meth:`Parameterizable.restore`.
+        :meth:`.Parameterizable.restore`.
 
         The values are stored on a stacked, hence subsequent saved states can
         be restored one by one.
@@ -467,7 +493,7 @@ class Parameterizable(six.with_metaclass(MetaParameterizable, object)):
 
     @async
     def restore(self):
-        """Restore all parameters saved with :meth:`Parameterizable.stash`."""
+        """Restore all parameters saved with :meth:`.Parameterizable.stash`."""
         wait((param.restore() for param in self))
 
 

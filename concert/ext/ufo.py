@@ -29,7 +29,7 @@ class PluginManager(object):
 
 class InjectProcess(object):
 
-    """Process to inject NumPy data into a Ufo processing graph.
+    """Process to inject NumPy data into a UFO processing graph.
 
     :class:`InjectProcess` can also be used as a context manager, in which
     case it will call :meth:`.run` on entering the manager and :meth:`.wait` on
@@ -118,7 +118,14 @@ class InjectProcess(object):
 
 class Backproject(InjectProcess):
 
-    """Filtered backprojection using UFO Framework."""
+    """
+    Coroutine to reconstruct slices from sinograms using filtered
+    backprojection.
+
+    *axis_pos* specifies the center of rotation in pixels within the sinogram.
+    If not specified, the center of the image is assumed to be the center of
+    rotation.
+    """
 
     def __init__(self, axis_pos=None):
         self.pm = PluginManager()
@@ -139,11 +146,6 @@ class Backproject(InjectProcess):
 
     @coroutine
     def __call__(self, consumer):
-        """
-        __call__(self, consumer)
-
-        Backproject incoming sinograms and send the slices to *consumer*
-        """
         slices = None
         self.start()
 

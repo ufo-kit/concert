@@ -11,6 +11,17 @@ Parameters
 .. autoclass:: concert.base.Parameter
     :members:
 
+.. autoclass:: concert.base.ParameterValue
+    :members:
+
+.. autoclass:: concert.base.Quantity
+    :show-inheritance:
+    :members:
+
+.. autoclass:: concert.base.QuantityValue
+    :show-inheritance:
+    :members:
+
 
 Collection of parameters
 ------------------------
@@ -24,6 +35,13 @@ Devices
 
 .. autoclass:: concert.devices.base.Device
     :show-inheritance:
+    :members:
+
+
+State machine
+-------------
+
+.. automodule:: concert.fsm
     :members:
 
 
@@ -241,7 +259,21 @@ to make sure, that the appropriate libraries and modules are installed.
 UFO Processing
 --------------
 
-.. automodule:: concert.ext.ufo
+Base objects
+~~~~~~~~~~~~
+
+.. autoclass:: concert.ext.ufo.PluginManager
+    :members:
+
+.. autoclass:: concert.ext.ufo.InjectProcess
+    :members:
+
+
+Coroutines
+~~~~~~~~~~
+
+.. autoclass:: concert.ext.ufo.Backproject
+    :show-inheritance:
     :members:
 
 

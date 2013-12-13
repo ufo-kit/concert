@@ -33,6 +33,27 @@ class StateValue(object):
 
 
 class State(object):
+
+    """
+    Keeps the current state of an object.
+
+    This class holds the current :class:`.StateValue`. Transitions can only be
+    trigger by calling methods that are decorated with :func:`.transition`::
+
+        class Stateful(object):
+
+            state = State(default='start')
+
+            @transition(source='start', target='finished'):
+            def finish(self):
+                pass
+
+    .. note::
+
+        Only the first declared :class:`.State` object will be used for the
+        transitions.
+    """
+
     def __init__(self, default):
         self.default = default
 
@@ -89,6 +110,16 @@ class Meta(object):
 
 
 def transition(source='*', target=None, immediate=None):
+
+    """
+    Decorates a method that triggers state transitions.
+
+    *source* denotes the source state that must be present at the time of
+    invoking the decorated method. *target* is the state that the state object
+    will be after *successful* completion of the method. *immediate* is an
+    optional state that will be set during execution of the method.
+    """
+
     def inner_transition(func):
         if not hasattr(func, '_concert_fsm'):
             setattr(func, '_concert_fsm', Meta())
