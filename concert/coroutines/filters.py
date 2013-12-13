@@ -72,11 +72,11 @@ def cache(consumer):
 
 
 @coroutine
-def average_images(num_images, consumer):
+def average_images(consumer):
     """
-    average_images(num_images, consumer)
+    average_images(consumer)
 
-    Average *num_images* images as they come and send them to *consumer*.
+    Average images as they come and send them to *consumer*.
     """
     average = None
     i = 0
@@ -86,8 +86,7 @@ def average_images(num_images, consumer):
         if average is None:
             average = np.zeros_like(data, dtype=np.float32)
         average = (average * i + data) / (i + 1)
-        if i == num_images - 1:
-            consumer.send(average)
+        consumer.send(average)
         i += 1
 
 
