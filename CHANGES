@@ -14,7 +14,7 @@ Improvements
 
 - Concert now comes with an experimental gevent backend that will eventually
   replace the thread pool executor based asynchronous infrastructure.
-- Each device can now have an explicit ``State`` object and ``@transition``s
+- Each device can now have an explicit ``State`` object and ``@transition``
   applied to function which will change the state depending on the successful
   outcome of the decorated function.
 - 1D data plotting is implemented as ``PyplotCurveViewer``.
