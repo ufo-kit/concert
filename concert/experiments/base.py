@@ -8,9 +8,44 @@ import re
 import logging
 from logging import FileHandler, Formatter
 from concert.storage import create_directory
+from concert.coroutines import broadcast, inject
 
 
 LOG = logging.getLogger(__name__)
+
+
+class Acquisition(object):
+
+    """
+    An acquisition object connects data producer to a consumer
+
+    .. py:attribute:: generator_caller
+
+        a callable which returns a generator once called
+
+    .. py:attribute:: consumer_callers
+
+        a list of callables which return a coroutine once started
+
+    """
+
+    def __init__(self, name, generator_caller, consumer_callers=None):
+        self.name = name
+        self.generator = generator_caller
+        self.consumers = [] if consumer_callers is None else consumer_callers
+
+    def __call__(self):
+        """Run the acquisition, i.e. connect the producer and consumer."""
+        LOG.debug("Running acquisition '{}'".format(self))
+
+        started = []
+        for not_started in self.consumers:
+            started.append(not_started())
+
+        inject(self.generator(), broadcast(*started))
+
+    def __repr__(self):
+        return "Acquisition({})".format(self.name)
 
 
 class Experiment(object):
