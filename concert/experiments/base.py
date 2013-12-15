@@ -1,5 +1,5 @@
 """
-An experiment can be run multiple times. The base :py:class:`Experiment`
+An experiment can be run multiple times. The base :py:class:`.Experiment`
 takes care of proper logging structure.
 """
 
@@ -18,7 +18,7 @@ LOG = logging.getLogger(__name__)
 class Acquisition(object):
 
     """
-    An acquisition object connects data producer to a consumer
+    An acquisition object connects data generator to consumers.
 
     .. py:attribute:: generator_caller
 
@@ -51,10 +51,10 @@ class Acquisition(object):
 
 class Experiment(object):
 
-    """
+    r"""
     Experiment base class. An experiment can be run multiple times
     with logging output saved on disk. The log from every
-    :py:meth:`Experiment.run` is saved in the current experiment directory
+    :py:meth:`.base.Experiment.run` is saved in the current experiment directory
     given by *directory_prefix*.
 
     .. py:attribute:: acquisitions
@@ -67,7 +67,7 @@ class Experiment(object):
        at each experiment run a new directory given by the prefix and
        the current iteration is created. If the *directory_prefix* is a
        simple string then the individual experiment runs are stored in
-       its subdirectories starting with scan_ and suffixed by the run
+       its subdirectories starting with scan\_ and suffixed by the run
        iteration.
 
     .. py:attribute:: log
@@ -137,8 +137,10 @@ class Experiment(object):
     @async
     def run(self):
         """
+        run()
+
         Create current directory, attach logging output to file and run the
-        :meth:`.Experiment.acquire`. After the run is complete the logging
+        :meth:`.base.Experiment.acquire`. After the run is complete the logging
         is cleaned up automatically. This method should *not* be overriden.
         """
         # Create directory for next scan
