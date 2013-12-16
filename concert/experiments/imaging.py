@@ -1,12 +1,12 @@
 """Imaging experiments usually conducted at synchrotrons."""
+"""Imaging experiments usually conducted at synchrotrons."""
 import os
 import logging
+import numpy as np
+from concert.quantities import q
 from concert.storage import write_tiff, create_directory
-from concert.coroutines import write_images, ImageAverager, flat_correct as \
-    do_flat_correct
-from concert.helpers import inject, broadcast
-from concert.coroutines import null
-from concert.experiments.base import Experiment
+from concert.coroutines.sinks import write_images
+from concert.experiments.base import Experiment as BaseExperiment
 
 
 LOG = logging.getLogger(__name__)
@@ -17,135 +17,89 @@ FLATS = "flats"
 RADIOS = "radios"
 
 
-class Radiography(Experiment):
+class Experiment(BaseExperiment):
 
     """
-    An abstract radiography experiment. The user needs to provide the
-    functionality by providing the acquisition methods::
-
-        acquire_darks()
-        acquire_flats()
-        acquire_radios()
-
-    and overriding the respective process methods. If *flat_correct* is
-    True, the radiographs are first flat corrected
-    and then send to *process_radios*.  *writer* specifies image writer
-    which will handle the image storage.
-    Every image is stored in a subdirectory based on its type, moreover it is
-    stored in a particular scan number subdirectory if the experiment should
-    store scans in separate subdirectories, i.e.::
-
-        root_directory/[scan_directory/]darks
-        root_directory/[scan_directory/]flats
-        root_directory/[scan_directory/]radios
-
-    directories exist after the run and are filled with images of a particular
-    type. Note that radiographs are stored as they are taken without
-    flat correction even if *flat_correct* is True.
+    Imaging experiment stores images acquired in acquisitions on disk
+    automatically.
     """
 
-    def __init__(self, root_directory, iteration=1,
-                 log_file_name="experiment.log", flat_correct=False,
+    def __init__(self, acquisitions, directory_prefix, log=None, log_file_name="experiment.log",
                  writer=write_tiff):
-        super(Radiography, self).__init__(self.execute, root_directory,
-                                          iteration=iteration,
-                                          log_file_name=log_file_name)
-        self.flat_correct = flat_correct
+        super(Experiment, self).__init__(acquisitions, directory_prefix, log=log,
+                                         log_file_name=log_file_name)
         self.writer = writer
-        if self.flat_correct and self.__class__.process_radios == \
-                Radiography.process_radios:
-            LOG.warn("Flat correction requested but radiographs" +
-                     " processing functionality not provided, hence" +
-                     " this setting has no effect.")
+        self._writers = {}
 
-    def process_darks(self):
+    def acquire(self):
+        """Run the experiment. Add writers to acquisitions dynamically."""
+        try:
+            for acq in self.acquisitions:
+                self._attach_writer(acq)
+                acq()
+        finally:
+            self._remove_writers()
+
+    def _attach_writer(self, acquisition):
         """
-        Process dark fields. By default this method does nothing. It has to
-        be a coroutine.
+        Attach a writer to an *acquisition* in order to store the images on
+        disk automatically.
         """
-        return null()
-
-    def process_flats(self):
-        """
-        Process flat fields. By default this method does nothing. It has to
-        be a coroutine.
-        """
-        return null()
-
-    def process_radios(self):
-        """
-        Process radiographs. By default this method does nothing. It has to
-        be a coroutine.
-        """
-        return null()
-
-    def execute(self):
-        """
-        Execute the experiment by acquiring and processing the respective image
-        types. Every image type is processed in such a way, that the
-        acquisition generator is connected to a broadcast which consists of the
-        process coroutine and an additional image writer which will write the
-        images to the disk.
-        """
-        # We do flat correction only if it is requested and radiographs
-        # processing was specified.
-        flat_correct = self.flat_correct and self.__class__.\
-            process_radios != Radiography.process_radios
-
-        if hasattr(self, "acquire_darks"):
-            if flat_correct:
-                dark_averager, _process_darks = \
-                    self.add_averager(self.process_darks())
-            else:
-                _process_darks = self.process_darks()
-            consumers = self.add_writer(_process_darks, DARKS)
-            inject(self.acquire_darks(), consumers)
-
-        if hasattr(self, "acquire_flats"):
-            if flat_correct:
-                flat_averager, _process_flats = \
-                    self.add_averager(self.process_flats())
-            else:
-                _process_flats = self.process_flats()
-            consumers = self.add_writer(_process_flats, FLATS)
-            inject(self.acquire_flats(), consumers)
-
-        if hasattr(self, "acquire_radios"):
-            if flat_correct:
-                _process_radios = do_flat_correct(self.process_radios(),
-                                                  dark_averager.average,
-                                                  flat_averager.average)
-            else:
-                _process_radios = self.process_radios()
-            consumers = self.add_writer(_process_radios, RADIOS)
-            inject(self.acquire_radios(), consumers)
-
-    def add_averager(self, consumer):
-        """Add an averager to the original *consumer*."""
-        averager = None
-        coroutines = []
-
-        if self.flat_correct:
-            averager = ImageAverager()
-            coroutines.append(averager.average_images())
-        if consumer is not None:
-            coroutines.append(consumer)
-
-        return averager, broadcast(*coroutines)
-
-    def add_writer(self, process_images, image_type):
-        """
-        Add image writer to consumers. The resulting directory of the data
-        is obtained by joining the *directory* and a subdirectory determined
-        by *image_type*. *process_images* is an originally assigned
-        image processing coroutine. *writer* specifies which image
-        writer will be used, and thus also the file type.
-        """
-        directory = os.path.join(self.directory, image_type)
+        directory = os.path.join(self.directory, acquisition.name)
         create_directory(directory)
-        prefix = os.path.join(directory, image_type[:-1] + "_{:>05}")
-        coroutines = [write_images(writer=self.writer, prefix=prefix)]
-        if process_images is not None:
-            coroutines.append(process_images)
+        prefix = os.path.join(directory, "frame_{:>05}")
 
-        return broadcast(*coroutines)
+        if acquisition not in self._writers:
+            writer = write_images(writer=self.writer, prefix=prefix)
+            # The launcher returns the original writer even if the acquisition
+            # is invoked multiple times. In that case the images from every run
+            # are appended to the original ones.
+            launcher = lambda: writer
+            acquisition.consumers.append(launcher)
+            self._writers[acquisition] = launcher
+
+    def _remove_writers(self):
+        """
+        Cleanup the image writing in order to be able to write images into
+        the current directory during the next scan.
+        """
+        for acq, launcher in self._writers.items():
+            acq.consumers.remove(launcher)
+        self._writers = {}
+
+
+def get_angular_step(frame_width):
+    """
+    Get the angular step required for tomography so that every pixel of the frame
+    rotates no more than one pixel per rotation step. *frame_width* is frame size in
+    the direction perpendicular to the axis of rotation.
+    """
+    return np.arctan(2.0 / frame_width)
+
+
+def get_tomo_projections_number(frame_width):
+    """
+    Get the minimum number of projections required by a tomographic scan in
+    order to provide enough data points for every distance from the axis of
+    rotation. The minimum angular step is
+    considered to be needed smaller than one pixel in the direction
+    perpendicular to the axis of rotation. The number of pixels in this
+    direction is given by *frame_width*.
+    """
+    return int(np.ceil(np.pi / get_angular_step(frame_width).magnitude))
+
+
+def get_tomo_max_speed(frame_width, frame_rate):
+    """
+    Get the maximum rotation speed which introduces motion blur less than one
+    pixel. *frame_width* is the width of the frame in the direction
+    perpendicular to the rotation and *frame_rate* defines the time required
+    for recording one frame.
+
+    _Note:_ frame rate is required instead of exposure time because the
+    exposure time is usually shorter due to the camera chip readout time.
+    We need to make sure that by the next exposure the sample hasn't moved
+    more than one pixel from the previous frame, thus we need to take into
+    account the whole frame taking procedure (exposure + readout).
+    """
+    return get_angular_step(frame_width) * frame_rate
