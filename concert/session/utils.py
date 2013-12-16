@@ -3,34 +3,28 @@ import prettytable
 from concert.devices.base import Device
 
 
-def _get_param_description_table(motor):
-    field_names = ["Name", "Access", "Unit", "Description"]
+def _get_param_description_table(device):
+    field_names = ["Name", "Unit", "Description"]
     table = get_default_table(field_names)
     table.border = False
     table.header = True
 
-    def _access(parameter):
-        result = 'r' if parameter.is_readable() else ''
-        result += 'w' if parameter.is_writable() else ''
-        return result
-
-    for param in motor:
-        dims = param.unit.units if param.unit else None
-        row = [param.name, _access(param), str(dims), inspect.getdoc(param)]
+    for param in device:
+        units = param.unit if hasattr(param, 'unit') else None
+        row = [param.name, str(units), inspect.getdoc(param)]
         table.add_row(row)
 
     return table.get_string()
 
 
-def _get_param_value_table(motor):
+def _get_param_value_table(device):
     field_names = ["Name", "Value"]
     table = get_default_table(field_names)
     table.border = False
     table.header = False
 
-    for param in motor:
-        if param.is_readable():
-            table.add_row([param.name, str(param.get().result())])
+    for param in device:
+        table.add_row([param.name, str(param.get().result())])
 
     return table.get_string()
 
