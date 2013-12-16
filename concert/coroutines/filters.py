@@ -257,4 +257,4 @@ class PickSlice(object):
         """Pick a slice and send it to *consumer*."""
         while True:
             volume = yield
-            consumer.send(volume[self.index:self.index+1])
+            consumer.send(volume[self.index])
