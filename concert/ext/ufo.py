@@ -146,18 +146,18 @@ class Backproject(InjectProcess):
 
     @coroutine
     def __call__(self, consumer):
-        slices = None
+        """Get a sinogram, do filtered backprojection and send it to *consumer*."""
+        slice = None
         self.start()
 
         while True:
-            sinograms = yield
+            sinogram = yield
 
-            if slices is None:
-                width = sinograms.shape[2]
-                slices = np.empty((sinograms.shape[0], width, width), dtype=np.float32)
+            if slice is None:
+                width = sinogram.shape[1]
+                slice = np.empty((width, width), dtype=np.float32)
 
-            for i, sinogram in enumerate(sinograms):
-                self.insert(sinogram)
-                slices[i] = self.result()[:width, :width]
+            self.insert(sinogram)
+            slice = self.result()[:width, :width]
 
-            consumer.send(slices)
+            consumer.send(slice)
