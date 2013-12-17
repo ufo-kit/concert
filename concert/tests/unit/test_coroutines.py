@@ -126,8 +126,8 @@ class TestCoroutines(TestCase):
         pick = PickSlice(0)
 
         produce_volume(pick(self.consume()))
-        np.testing.assert_almost_equal(self.data, np.ones((1, 2, 2)))
+        np.testing.assert_almost_equal(self.data, np.ones((2, 2)))
 
         pick.index = 1
         produce_volume(pick(self.consume()))
-        np.testing.assert_almost_equal(self.data, np.ones((1, 2, 2)) * 2)
+        np.testing.assert_almost_equal(self.data, np.ones((2, 2)) * 2)

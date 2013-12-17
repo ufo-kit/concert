@@ -5,7 +5,7 @@ except ImportError:
     import queue
 import logging
 import numpy as np
-from concert.imageprocessing import get_ramp_filter, backproject as backproject_algorithm
+from concert.imageprocessing import get_ramp_filter
 from concert.async import threaded
 from concert.coroutines import coroutine
 from concert.imageprocessing import flat_correct as make_flat_correct
@@ -178,52 +178,71 @@ def stall(consumer, per_shot=10, flush_at=None):
 
 
 @coroutine
-def backproject(center, consumer, fast=True):
+def backproject(center, consumer):
     """
-    backproject(center, consumer, fast=True)
+    backproject(center, consumer)
 
-    Filtered backprojection filter. The input is (sinograms, stop), where
-    *sinograms* is a 3D volume of sinograms and *stop* is the number of
-    projections already present in sinograms. Reconstructed 3D slices
-    are sent co *consumer*. If *fast* is True, try to use numpy for
-    faster recontruction, however this approach demands much more memory.
+    Filtered backprojection filter. The filter receives a sinogram,
+    filters it and based on *center* of rotation it backprojects it.
+    The slice is then sent to *consumer*.
     """
-    slices = None
-    batch = 100
+    reco = None
     angle_step = None
 
+    def reconstruct(sinogram, center, angle_step, x_indices, y_indices):
+        """Reconstruct the slice by backprojecting all the sinogram rows."""
+        width = x_indices.shape[0]
+        reco = np.zeros((width, width))
+
+        for i, phi in enumerate(np.arange(sinogram.shape[0]) * angle_step):
+            pos = np.sin(phi) * x_indices + np.cos(phi) * y_indices + center
+            reco += sinogram[i, pos.astype(np.int)]
+
+        return reco
+
+    def filter_sinogram(sinogram, start, filter_ft, width):
+        """High-pass 1D filtering of the sinogram rows."""
+        sinogram_ft = np.fft.fft(sinogram[:, start:start + width])
+        filtered = sinogram_ft * filter_ft
+        return np.fft.ifft(filtered).real.astype(np.float32)
+
+    def get_indices(sinogram, center):
+        """
+        Get x and y indices which will be the base for rotation. The indices
+        are created around the *center* in a symmetrical way, so if there is
+        more space on one side it is cut away. This way we can mask out the
+        region beyond the inscribed circle of the index arrays. Then we can
+        be sure the rotated indices will always fall somewhere in the slice,
+        thus we don't need to cut indices which saves time.
+        """
+        half = min(center, sinogram.shape[1] - center)
+        y_indices, x_indices = np.mgrid[-half:half, -half:half]
+        mask = np.where(np.sqrt(x_indices ** 2 + y_indices ** 2) >= half)
+        x_indices[mask] = 0
+        y_indices[mask] = 0
+
+        return y_indices, x_indices
+
     while True:
-        sinograms = yield
+        sinogram = yield
 
-        if slices is None:
-            # Initialize reconstruction based on the sinograms shape
-            width = sinograms.shape[2]
-            num_slices = sinograms.shape[0]
-            num_projections = sinograms.shape[1]
-            y_points, x_points = np.mgrid[
-                -center:width - center, -center:width - center]
-            x_points = x_points.astype(np.float32)
-            y_points = y_points.astype(np.float32)
+        if reco is None:
+            if center >= sinogram.shape[1]:
+                template = 'Center {} must be less than sinogram width {}'
+                raise ValueError(template.format(center, sinogram.shape[1]))
+            y_indices, x_indices = get_indices(sinogram, center)
+            width = x_indices.shape[0]
             ramp_filter = get_ramp_filter(width)
-            angle_step = np.pi / num_projections
+            angle_step = np.pi / sinogram.shape[0]
+            # We need to store the position where we crop the sinogram, that is
+            # based on the old center
+            start = center - width / 2
+            # Since we crop the indices the new center is always in the middle
+            center = width / 2
 
-        slices = np.zeros((num_slices, width, width), dtype=np.float32)
-
-        # 1D sinogram filter
-        sinograms_ft = np.fft.fft(sinograms)
-        filtered = sinograms_ft * ramp_filter
-        filtered = np.fft.ifft(filtered).real.astype(np.float32)
-
-        for start in range(0, num_projections, batch):
-            stop = start + batch
-            if stop > num_projections:
-                stop = num_projections
-            backproject_algorithm(
-                filtered, center, slices, angle_step=angle_step,
-                start_projection=start, end_projection=stop, x_points=x_points,
-                y_points=y_points, fast=fast)
-
-        consumer.send(slices)
+        filtered = filter_sinogram(sinogram, start, ramp_filter, width)
+        reco = reconstruct(filtered, center, angle_step, x_indices, y_indices)
+        consumer.send(reco)
 
 
 class PickSlice(object):
@@ -238,4 +257,4 @@ class PickSlice(object):
         """Pick a slice and send it to *consumer*."""
         while True:
             volume = yield
-            consumer.send(volume[self.index:self.index+1])
+            consumer.send(volume[self.index])
