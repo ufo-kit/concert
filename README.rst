@@ -7,14 +7,6 @@ Concert
 .. image:: https://coveralls.io/repos/ufo-kit/concert/badge.png?branch=master
     :target: https://coveralls.io/r/ufo-kit/concert?branch=master
 
-.. image:: https://pypip.in/v/concert/badge.png
-    :target: https://crate.io/packages/concert/
-    :alt: Latest PyPI version
-
-.. image:: https://pypip.in/d/concert/badge.png
-    :target: https://crate.io/packages/concert/
-    :alt: Number of PyPI downloads
-
 *Concert* is a light-weight control system interface to control Tango and native
 devices. It can be used as a library::
 
