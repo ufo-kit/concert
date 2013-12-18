@@ -1,20 +1,9 @@
 """Imaging experiments usually conducted at synchrotrons."""
-"""Imaging experiments usually conducted at synchrotrons."""
 import os
-import logging
 import numpy as np
-from concert.quantities import q
 from concert.storage import write_tiff, create_directory
 from concert.coroutines.sinks import write_images
 from concert.experiments.base import Experiment as BaseExperiment
-
-
-LOG = logging.getLogger(__name__)
-
-
-DARKS = "darks"
-FLATS = "flats"
-RADIOS = "radios"
 
 
 class Experiment(BaseExperiment):
