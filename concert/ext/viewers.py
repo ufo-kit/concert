@@ -88,9 +88,13 @@ class PyplotViewerBase(object):
         it is False, the redrawing takes place if the data queue contains only
         the current data item. This prevents the actual drawer from being
         overwhelmed by the amount of incoming data.
+
+    .. py:attribute:: blit
+
+        True if faster redrawing based on canvas blitting should be used.
     """
 
-    def __init__(self, view_function):
+    def __init__(self, view_function, blit=False):
         self._queue = MultiprocessingQueue()
         self._paused = False
         self._terminated = False
@@ -100,6 +104,7 @@ class PyplotViewerBase(object):
         # the subclass by calling self._set_updater
         self._updater = None
         self.view_function = view_function
+        self._blit = blit
 
     def __call__(self, size=None):
         """
@@ -172,7 +177,7 @@ class PyplotViewerBase(object):
         try:
             figure = plt.figure()
             _ = FuncAnimation(figure, self._updater.process, interval=5,
-                              blit=True)
+                              blit=self._blit)
             plt.show()
 
         except KeyboardInterrupt:
@@ -201,7 +206,6 @@ class PyplotViewer(PyplotViewerBase):
 
     def __init__(self, style="o", plot_kwargs=None, autoscale=True, title=""):
         super(PyplotViewer, self).__init__(self.plot)
-        self._first = True
         self._iteration = 0
         self._set_updater(_PyplotUpdater(self._queue, style,
                                          plot_kwargs, autoscale,
@@ -218,11 +222,6 @@ class PyplotViewer(PyplotViewerBase):
         Note: if x is not given, the iteration starts at 0.
         """
         if not self._paused and (self._queue.empty() or force):
-            if self._first:
-                # Make sure there is some backgroung set for canvas blitting by
-                # matplotlib
-                self._queue.put((_PyplotUpdater.CLEAR, None))
-                self._first = False
             if y is None:
                 if isinstance(x, tuple):
                     x_data = x[0]
@@ -255,7 +254,7 @@ class PyplotImageViewer(PyplotViewerBase):
     """Dynamic image viewer using matplotlib."""
 
     def __init__(self, imshow_kwargs=None, colorbar=True, title=""):
-        super(PyplotImageViewer, self).__init__(self.show)
+        super(PyplotImageViewer, self).__init__(self.show, blit=True)
         self._has_colorbar = colorbar
         self._imshow_kwargs = {} if imshow_kwargs is None else imshow_kwargs
         self._make_imshow_defaults()
