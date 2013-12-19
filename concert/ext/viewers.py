@@ -1,4 +1,5 @@
 """Opening images in external programs."""
+import collections
 import atexit
 import os
 import signal
@@ -214,18 +215,19 @@ class PyplotViewer(PyplotViewerBase):
     def plot(self, x, y=None, force=False):
         """
         Plot *x* and *y*, if *y* is None and *x* is a scalar the real y is
-        given by *x* and x is the current iteration of plotting command, if *x*
-        is a tuple then it is interpreted as (x, y). If *force* is True the
-        plotting is guaranteed, otherwise it might be skipped for the sake of
-        plotting speed.
+        given by *x* and x is the current iteration of the plotting command,
+        if *x* is an iterable then it is interpreted as y data array and x is
+        a span [0, len(x)]. If both *x* and *y* are given, they are plotted as
+        they are. If *force* is True the plotting is guaranteed, otherwise it
+        might be skipped for the sake of plotting speed.
 
         Note: if x is not given, the iteration starts at 0.
         """
         if not self._paused and (self._queue.empty() or force):
             if y is None:
-                if isinstance(x, tuple):
-                    x_data = x[0]
-                    y_data = x[1]
+                if isinstance(x, collections.Iterable):
+                    x_data = np.arange(len(x))
+                    y_data = x
                 else:
                     x_data = self._iteration
                     y_data = x
@@ -406,28 +408,32 @@ class _PyplotUpdater(_PyplotUpdaterBase):
         x_item, x_units = get_magnitude_and_unit(data[0])
         y_item, y_units = get_magnitude_and_unit(data[1])
 
-        self.data[0].append(x_item)
-        self.data[1].append(y_item)
-        first = len(self.data[0]) == 1
+        first = len(self.data[0]) == 0
+        is_iterable = isinstance(x_item, collections.Iterable)
+        if is_iterable:
+            self.data = [list(x_item), list(y_item)]
+        else:
+            self.data[0].append(x_item)
+            self.data[1].append(y_item)
 
         if first:
-            # Make sure the limits are set properly for the first time
-            self.line.axes.set_xlim(self.data[0][0] - 1e-7,
-                                    self.data[0][0] + 1e-7)
-            self.line.axes.set_ylim(self.data[1][0] - 1e-7,
-                                    self.data[1][0] + 1e-7)
+            self.make_line()
+            if not is_iterable:
+                # Make sure the limits are set properly for the first time
+                self.line.axes.set_xlim(self.data[0][0] - 1e-7, self.data[0][0] + 1e-7)
+                self.line.axes.set_ylim(self.data[1][0] - 1e-7, self.data[1][0] + 1e-7)
             if x_units is not None:
                 self.line.axes.get_xaxis().set_label_text(str(x_units))
             if y_units is not None:
                 self.line.axes.get_yaxis().set_label_text(str(y_units))
-        else:
-            self.line.set_data(*self.data)
+
+        self.line.set_data(*self.data)
 
         if self.autoscale or first:
             # Draw for the first time or on limit change to update ticks and
             # labels
             self.autoscale_view()
-            plt.draw()
+        plt.draw()
 
     def change_style(self, style):
         """Change line style to *style*."""
