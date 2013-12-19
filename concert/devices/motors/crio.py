@@ -7,7 +7,7 @@ from concert.networking import SocketConnection
 from concert.devices.motors import base
 
 
-DEFAULT_CRIO_HOST = 'cRIO9074-Motion.ka.fzk.de'
+DEFAULT_CRIO_HOST = 'cRIO9074-Motion.ipe.kit.edu'
 DEFAULT_CRIO_PORT_LINEAR = 6342
 DEFAULT_CRIO_PORT_ROTATIONAL = 6340
 
