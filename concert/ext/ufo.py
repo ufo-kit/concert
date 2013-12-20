@@ -148,7 +148,6 @@ class Backproject(InjectProcess):
     def __call__(self, consumer):
         """Get a sinogram, do filtered backprojection and send it to *consumer*."""
         slice = None
-        self.start()
 
         while True:
             sinogram = yield
