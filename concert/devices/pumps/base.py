@@ -15,14 +15,10 @@ class Pump(Device):
     """
 
     state = State(default='standby')
+    flow_rate = Quantity(unit=q.l / q.s, conversion=lambda x: x * q.s / q.l)
 
-    def __init__(self, calibration):
-        params = [Quantity('flow_rate',
-                           fget=self._get_calibrated_flow_rate,
-                           fset=self._set_calibrated_flow_rate,
-                           unit=q.l / q.s, doc="Pump flow rate.")]
-        super(Pump, self).__init__(params)
-        self._calibration = calibration
+    def __init__(self):
+        super(Pump, self).__init__()
 
     @async
     @transition(source='standby', target='pumping')
@@ -43,12 +39,6 @@ class Pump(Device):
         Stop pumping.
         """
         self._stop()
-
-    def _get_calibrated_flow_rate(self):
-        return self._calibration.to_user(self._get_flow_rate())
-
-    def _set_calibrated_flow_rate(self, flow_rate):
-        self._set_flow_rate(self._calibration.to_device(flow_rate))
 
     def _get_flow_rate(self):
         raise NotImplementedError
