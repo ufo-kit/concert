@@ -20,22 +20,12 @@ class StorageRing(Device):
 
         Ring lifetime in hours
     """
+    current = Quantity(unit=q.mA)
+    energy = Quantity(unit=q.MeV)
+    lifetime = Quantity(unit=q.h)
 
     def __init__(self):
-        params = [Quantity('current',
-                           fget=self._get_current,
-                           unit=q.mA,
-                           doc="Current of the ring"),
-                  Quantity('energy',
-                           fget=self._get_energy,
-                           unit=q.MeV,
-                           doc="Energy of the ring"),
-                  Quantity('lifetime',
-                           fget=self._get_lifetime,
-                           unit=q.h,
-                           doc="Lifetime of the ring")]
-
-        super(StorageRing, self).__init__(params)
+        super(StorageRing, self).__init__()
 
     def _get_current(self):
         raise NotImplementedError
