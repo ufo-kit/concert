@@ -14,8 +14,7 @@ class ARRW60(base.TarableScales):
     OK = "ok"
 
     def __init__(self, host, port):
-        super(ARRW60, self).__init__(LinearCalibration(q.counts / q.g,
-                                                       0 * q.g))
+        super(ARRW60, self).__init__()
         self._connection = SocketConnection(host, port, "\r\n")
         self._states = self._states.union(set([ARRW60.OK, ARRW60.ERROR]))
 

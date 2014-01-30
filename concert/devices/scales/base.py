@@ -16,15 +16,10 @@ class WeightError(Exception):
 class Scales(Device):
 
     """Base scales class."""
+    weight = Quantity(unit=q.g, conversion=lambda x: x / q.g)
 
-    def __init__(self, calibration):
-        params = [Quantity("weight", fget=self._get_calibrated_weight,
-                           unit=q.g, doc="Weight")]
-        super(Scales, self).__init__(parameters=params)
-        self._calibration = calibration
-
-    def _get_calibrated_weight(self):
-        return self._calibration.to_user(self._get_weight())
+    def __init__(self):
+        super(Scales, self).__init__()
 
     def _get_weight(self):
         raise NotImplementedError
@@ -34,8 +29,8 @@ class TarableScales(Scales):
 
     """Scales which can be tared."""
 
-    def __init__(self, calibration):
-        super(TarableScales, self).__init__(calibration)
+    def __init__(self):
+        super(TarableScales, self).__init__()
 
     @async
     def tare(self):
