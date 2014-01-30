@@ -1,7 +1,24 @@
 from concert.base import Parameter, ParameterError
 from concert.devices.base import Device
 from concert.session.utils import get_default_table
-from concert.tests import TestCase
+from concert.tests import TestCase, suppressed_logging
+from concert.devices.scales.dummy import Scales, TarableScales
+from concert.devices.pumps.dummy import Pump
+from concert.devices.io.dummy import IO
+from concert.devices.monochromators.dummy import Monochromator
+from concert.devices.shutters.dummy import Shutter
+from concert.devices.storagerings.dummy import StorageRing
+
+
+@suppressed_logging
+def test_dummies():
+    Scales()
+    TarableScales()
+    Pump()
+    IO()
+    Monochromator()
+    Shutter()
+    StorageRing()
 
 
 class MockDevice(Device):
