@@ -135,6 +135,7 @@ def focus(camera, motor, measure=np.std, opt_kwargs=None,
                       'epsilon': 1e-2 * q.mm}
 
     def get_measure():
+        camera.trigger()
         frame = camera.grab()
         if frame_consumer:
             frame_consumer.send(frame)
@@ -151,6 +152,7 @@ def focus(camera, motor, measure=np.std, opt_kwargs=None,
             if plot_consumer:
                 plot_consumer.send(tup[1])
 
+    camera.trigger_mode = camera.trigger_modes.SOFTWARE
     camera.start_recording()
     f = optimize_parameter(motor['position'], get_measure, motor.position,
                            halver, alg_kwargs=opt_kwargs,
@@ -188,23 +190,11 @@ def align_rotation_axis(camera, rotation_motor, flat_motor=None,
     if not x_motor and not z_motor:
         raise ValueError("At least one of the x, z motors must be given")
 
-    step = 2 * np.pi / num_frames * q.rad
-
-    flat = None
-    if flat_motor:
-        # First take a flat
-        if flat_position is None:
-            raise ValueError("If flat motor is given then also " +
-                             "flat position must be given")
-        flat_motor["position"].stash().join()
-        flat_motor.position = flat_position
-        flat = camera.grab().astype(np.float32)
-        flat_motor["position"].restore().join()
-
     def get_frames():
         frames = []
         for i in range(num_frames):
             rotation_motor.move(i * step).join()
+            camera.trigger()
             frame = camera.grab()
             if flat:
                 frame /= flat
@@ -212,58 +202,79 @@ def align_rotation_axis(camera, rotation_motor, flat_motor=None,
 
         return frames
 
-    # Sometimes both z-directions need to be tried out because of the
-    # projection ambiguity.
-    z_direction = -1
-    i = 0
+    step = 2 * np.pi / num_frames * q.rad
+    x_angle, z_angle, center = None, None, None
 
-    x_last = None
-    z_last = None
-    z_turn_counter = 0
+    camera.trigger_mode = camera.trigger_modes.SOFTWARE
+    camera.start_recording()
 
-    while True:
-        x_angle, z_angle, center = measure(get_frames())
+    try:
+        flat = None
+        if flat_motor:
+            # First take a flat
+            if flat_position is None:
+                raise ValueError("If flat motor is given then also " +
+                                 "flat position must be given")
+            flat_motor["position"].stash().join()
+            flat_motor.position = flat_position
+            camera.trigger()
+            flat = camera.grab().astype(np.float32)
+            flat_motor["position"].restore().join()
 
-        x_better = True if z_motor is not None and\
-            (x_last is None or np.abs(x_angle) < x_last) else False
-        z_better = True if x_motor is not None and\
-            (z_last is None or np.abs(z_angle) < z_last) else False
+        # Sometimes both z-directions need to be tried out because of the
+        # projection ambiguity.
+        z_direction = -1
+        i = 0
 
-        if x_motor:
-            if z_better:
-                z_turn_counter = 0
-            elif z_turn_counter < 1:
-                # We might have rotated in the opposite direction because
-                # of the projection ambiguity. However, that must be picked up
-                # in the next iteration, so if the two consequent angles
-                # are worse than the minimum, we have the result.
-                z_better = True
-                z_direction = -z_direction
-                z_turn_counter += 1
+        x_last = None
+        z_last = None
+        z_turn_counter = 0
 
-        x_future, z_future = None, None
-        if z_better and np.abs(z_angle) >= absolute_eps:
-            x_future = x_motor.move(z_direction * z_angle)
-        if x_better and np.abs(x_angle) >= absolute_eps:
-            z_future = z_motor.move(x_angle)
-        elif (np.abs(z_angle) < absolute_eps or not z_better):
-            # The newly calculated angles are worse than the previous
-            # ones or the absolute threshold has been reached,
-            # stop iteration.
-            break
+        while True:
+            x_angle, z_angle, center = measure(get_frames())
 
-        wait([future for future in [x_future, z_future] if future is not None])
+            x_better = True if z_motor is not None and\
+                (x_last is None or np.abs(x_angle) < x_last) else False
+            z_better = True if x_motor is not None and\
+                (z_last is None or np.abs(z_angle) < z_last) else False
 
-        x_last = np.abs(x_angle)
-        z_last = np.abs(z_angle)
+            if x_motor:
+                if z_better:
+                    z_turn_counter = 0
+                elif z_turn_counter < 1:
+                    # We might have rotated in the opposite direction because
+                    # of the projection ambiguity. However, that must be picked up
+                    # in the next iteration, so if the two consequent angles
+                    # are worse than the minimum, we have the result.
+                    z_better = True
+                    z_direction = -z_direction
+                    z_turn_counter += 1
 
-        i += 1
+            x_future, z_future = None, None
+            if z_better and np.abs(z_angle) >= absolute_eps:
+                x_future = x_motor.move(z_direction * z_angle)
+            if x_better and np.abs(x_angle) >= absolute_eps:
+                z_future = z_motor.move(x_angle)
+            elif (np.abs(z_angle) < absolute_eps or not z_better):
+                # The newly calculated angles are worse than the previous
+                # ones or the absolute threshold has been reached,
+                # stop iteration.
+                break
 
-        if i == max_iterations:
-            # If we reached maximum iterations we consider it a failure
-            # because the algorithm was not able to get to the desired
-            # solution within the max_iterations limit.
-            raise ProcessException("Maximum iterations reached")
+            wait([future for future in [x_future, z_future] if future is not None])
+
+            x_last = np.abs(x_angle)
+            z_last = np.abs(z_angle)
+
+            i += 1
+
+            if i == max_iterations:
+                # If we reached maximum iterations we consider it a failure
+                # because the algorithm was not able to get to the desired
+                # solution within the max_iterations limit.
+                raise ProcessException("Maximum iterations reached")
+    finally:
+        camera.stop_recording()
 
     # Return the last known ellipse fit
     return x_angle, z_angle, center
@@ -302,6 +313,7 @@ def find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
         fut_0 = zmotor.move(rel_move[0]*q.um)
         fut_1 = xmotor.move(rel_move[1]*q.um)
         wait([fut_0, fut_1])
+        cam.trigger()
         img = gaussian_filter(cam.grab().astype(np.float32), 40.0)
         img_shape[0] = img.shape
         bv = beam_visible(img, thres)
@@ -459,12 +471,15 @@ def drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance=5,
     *pixelsize* (scalar or 2-element array-like, e.g. [4*q.um, 5*q.um]) is
     needed.
     """
+    def take_frame():
+        cam.trigger()
+        return gaussian_filter(cam.grab().astype(np.float32), 40.0)
 
     units = (u for u in pixelsize.units if pixelsize.units[u] > 0.0)
     units = q.parse_expression(' * '.join(units))
     ps = np.tile(pixelsize.magnitude, 2)[:2] * units
 
-    img = gaussian_filter(cam.grab().astype(np.float32), 40.0)
+    img = take_frame()
     frm_center = (np.array(img.shape)-1)/2
     d = center_of_mass(img-img.min()) - frm_center
 
@@ -473,7 +488,7 @@ def drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance=5,
         fut_0 = zmotor.move(d[0]*ps[0])
         fut_1 = xmotor.move(d[1]*ps[1])
         wait([fut_0, fut_1])
-        img = gaussian_filter(cam.grab().astype(np.float32), 40.0)
+        img = take_frame()
         if img.sum() == 0:
             LOG.debug("drift_to_beam: Frame is empty (sum == 0). " +
                       "Can't follow center of mass.")
@@ -504,20 +519,25 @@ def center_to_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
     *max_iterations* are passed to the functions 'find_beam(...)' and
     'center2beam(...)'.
     """
+    cam.trigger_mode = cam.trigger_modes.SOFTWARE
+    cam.start_recording()
 
-    with cam, xmotor, zmotor:
-        if not find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
-                         xstep, zstep, thres):
-            message = "Unable to find the beam"
-            LOG.debug('center_to_beam: '+message)
-            raise ProcessException(message)
-        else:
-            LOG.debug('center_to_beam: switch to drift_to_beam')
-            if not drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance,
-                                 max_iterations):
-                message = "Maximum iterations reached"
+    try:
+        with cam, xmotor, zmotor:
+            if not find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
+                             xstep, zstep, thres):
+                message = "Unable to find the beam"
                 LOG.debug('center_to_beam: '+message)
                 raise ProcessException(message)
+            else:
+                LOG.debug('center_to_beam: switch to drift_to_beam')
+                if not drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance,
+                                     max_iterations):
+                    message = "Maximum iterations reached"
+                    LOG.debug('center_to_beam: '+message)
+                    raise ProcessException(message)
+    finally:
+        cam.stop_recording()
 
 
 class ProcessException(Exception):
