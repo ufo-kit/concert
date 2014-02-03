@@ -23,10 +23,10 @@ class Base(base.Camera):
         self._frame_rate = 1000 / q.s
         self._trigger_mode = self.trigger_modes.AUTO
         self._exposure_time = 1 * q.ms
-        self._roi_x0 = 0
-        self._roi_y0 = 0
-        self._roi_width = 640
-        self._roi_height = 480
+        self._roi_x0 = 0 * q.dimensionless
+        self._roi_y0 = 0 * q.dimensionless
+        self._roi_width = 640 * q.dimensionless
+        self._roi_height = 480 * q.dimensionless
 
     def _get_sensor_pixel_width(self):
         return 5 * q.micrometer
@@ -105,7 +105,7 @@ class Camera(Base):
             self._background = background
         else:
             shape = (640, 480)
-            self.roi_width, self.roi_height = shape
+            self.roi_width, self.roi_height = shape * q.dimensionless
             self._background = np.ones(shape)
 
     def _grab_real(self):
