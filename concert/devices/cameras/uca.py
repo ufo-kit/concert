@@ -89,7 +89,7 @@ class Camera(base.Camera):
             Uca.Unit.SECOND: q.s,
             Uca.Unit.DEGREE_CELSIUS: q.celsius,
             Uca.Unit.COUNT: q.dimensionless,
-            Uca.Unit.PIXEL: q.dimensionless,
+            Uca.Unit.PIXEL: q.pixel,
         }
 
         parameters = {}
