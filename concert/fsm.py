@@ -8,6 +8,15 @@ class TransitionNotAllowed(Exception):
     pass
 
 
+class Error(Exception):
+    """
+    Exception class for signalling errors.
+
+    Device authors must raise this exception type in methods decorated with
+    :func:`transition`, in order to set the device into an error state.
+    """
+
+
 class StateValue(object):
 
     def __init__(self, default):
@@ -140,7 +149,7 @@ def transition(source='*', target=None, immediate=None):
             try:
                 result = func(instance, *args, **kwargs)
                 meta.do_transition(instance, target)
-            except Exception as e:
+            except Error as e:
                 meta.signal_error(instance, str(e))
                 raise e
 
