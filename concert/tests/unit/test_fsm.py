@@ -41,6 +41,9 @@ class SomeDevice(Device):
     def cause_erroneous_behaviour(self, msg):
         raise Error(msg)
 
+    def reset(self):
+        self.state.reset()
+
 
 class TestStateMachine(TestCase):
 
@@ -87,3 +90,6 @@ class TestStateMachine(TestCase):
 
         self.assertTrue(self.device.state.is_currently('error'))
         self.assertEqual(self.device.state.error, "Oops")
+
+        self.device.reset()
+        self.assertTrue(self.device.state.is_currently('standby'))

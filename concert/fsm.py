@@ -20,6 +20,7 @@ class Error(Exception):
 class StateValue(object):
 
     def __init__(self, default):
+        self._default = default
         self._current = default
         self._error = None
 
@@ -30,6 +31,17 @@ class StateValue(object):
     @property
     def error(self):
         return self._error
+
+    def reset(self):
+        """
+        Resets the current state value to the default value.
+
+        It is strongly recommended, that this function is called only by the
+        device author in a device-specific reset function. By calling this
+        manually, you risk of having states out-of-sync with the real device
+        state.
+        """
+        self._current = self._default
 
     def is_currently(self, state):
         return self._current == state
