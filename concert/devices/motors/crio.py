@@ -2,7 +2,6 @@
 Motors based on the CompactRIO controller.
 """
 from concert.quantities import q
-from concert.base import HardLimitError
 from concert.networking import SocketConnection
 from concert.devices.motors import base
 

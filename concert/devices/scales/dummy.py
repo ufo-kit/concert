@@ -1,5 +1,4 @@
 """Dummy scales."""
-from concert.quantities import q
 from concert.devices.scales import base
 
 

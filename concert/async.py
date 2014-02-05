@@ -77,6 +77,7 @@ try:
     threadpool = gevent.threadpool.ThreadPool(4)
 
     class GreenletFuture(gevent.Greenlet):
+
         """A Future interface based on top of a Greenlet.
 
         This class provides the :class:`concurrent.futures.Future` interface on
@@ -172,7 +173,6 @@ except ImportError:
                 return EXECUTOR.submit(func, *args, **kwargs)
 
             return _inner
-
 
     def threaded(func):
         @functools.wraps(func)

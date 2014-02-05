@@ -167,7 +167,9 @@ def align_rotation_axis(camera, rotation_motor, flat_motor=None,
                         measure=get_rotation_axis, num_frames=10,
                         absolute_eps=0.1 * q.deg, max_iterations=5):
     """
-    align_rotation_axis(camera, rotation_motor, flat_motor=None, flat_position=None, x_motor=None, z_motor=None, measure=get_rotation_axis, num_frames=10, absolute_eps=0.1 * q.deg, max_iterations=5)
+    align_rotation_axis(camera, rotation_motor, flat_motor=None,
+    flat_position=None, x_motor=None, z_motor=None, measure=get_rotation_axis,
+    num_frames=10, absolute_eps=0.1 * q.deg, max_iterations=5)
 
     Align rotation axis. *camera* is used to obtain frames, *rotation_motor*
     rotates the sample around the tomographic axis of rotation, *flat_motor* is

@@ -1,5 +1,4 @@
 import sys
-import spyderlib
 import concert.session
 from concert.helpers import Command, Bunch
 

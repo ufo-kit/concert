@@ -2,7 +2,7 @@ from concert.quantities import q
 from concert.base import HardLimitError
 from concert.devices.motors.dummy import LinearMotor, ContinuousLinearMotor
 from concert.devices.motors.dummy import RotationMotor, ContinuousRotationMotor
-from concert.tests import TestCase, suppressed_logging
+from concert.tests import TestCase
 
 
 class TestMotor(TestCase):

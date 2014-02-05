@@ -34,5 +34,3 @@ class Device(Parameterizable):
 
     def __exit__(self, exc_type, exc_value, traceback):
         self._lock.release()
-
-

@@ -177,6 +177,7 @@ class PyplotViewerBase(object):
 
         try:
             figure = plt.figure()
+            # The underscore must stay, otherwise it doesn't work, magic?
             _ = FuncAnimation(figure, self._updater.process, interval=5,
                               blit=self._blit)
             plt.show()

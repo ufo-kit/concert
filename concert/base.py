@@ -3,7 +3,7 @@
 import logging
 import six
 from concert.helpers import memoize
-from concert.async import dispatcher, async, wait
+from concert.async import async, wait
 from concert.fsm import transition
 
 
@@ -222,7 +222,7 @@ class Quantity(Parameter):
 
     def is_compatible(self, value):
         try:
-            _ = self.unit + value
+            self.unit + value
             return True
         except ValueError:
             return False

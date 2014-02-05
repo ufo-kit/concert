@@ -1,6 +1,5 @@
 from concert.base import Parameter, ParameterError
 from concert.devices.base import Device
-from concert.session.utils import get_default_table
 from concert.tests import TestCase, suppressed_logging
 from concert.devices.scales.dummy import Scales, TarableScales
 from concert.devices.pumps.dummy import Pump
@@ -67,7 +66,7 @@ class TestDevice(TestCase):
         # This is just a functional test, we don't cover synchronization issues
         # here.
         with self.device as d:
-            v = d.readonly
+            d.readonly
             d.writeonly = 2
 
     def test_parameter_lock_acquisition(self):

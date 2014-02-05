@@ -1,6 +1,5 @@
 import time
 import random
-from concurrent.futures import Future
 from concert.devices.dummy import DummyDevice
 from concert.async import async, wait, KillException, HAVE_GEVENT
 from concert.tests import slow, TestCase

@@ -1,7 +1,7 @@
 """Adventurer scales."""
 
 from concert.devices.scales import base
-from concert.devices.base import LinearCalibration, Device
+from concert.devices.base import Device
 from concert.networking import SocketConnection
 from concert.quantities import q
 from concert.devices.scales.base import WeightError
