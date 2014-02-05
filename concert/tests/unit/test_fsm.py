@@ -1,7 +1,7 @@
 import time
 from concert.tests import TestCase
 from concert.quantities import q
-from concert.fsm import transition, State
+from concert.fsm import transition, State, Error
 from concert.async import async
 from concert.devices.base import Device
 
@@ -39,7 +39,10 @@ class SomeDevice(Device):
 
     @transition(source='*')
     def cause_erroneous_behaviour(self, msg):
-        raise Exception(msg)
+        raise Error(msg)
+
+    def reset(self):
+        self.state.reset()
 
 
 class TestStateMachine(TestCase):
@@ -82,8 +85,11 @@ class TestStateMachine(TestCase):
         self.assertTrue(self.device.state.is_currently('standby'))
 
     def test_error(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(Error):
             self.device.cause_erroneous_behaviour("Oops")
 
         self.assertTrue(self.device.state.is_currently('error'))
         self.assertEqual(self.device.state.error, "Oops")
+
+        self.device.reset()
+        self.assertTrue(self.device.state.is_currently('standby'))
