@@ -66,7 +66,7 @@ def get_prompt_config(session_name):
         prompt_config = cfg.PromptManager
         trig = ">"
         prompt =  '{} {} '.format(session_name, trig)
-        prompt_config.in_template = '{color.LightGreen}' + prompt
+        prompt_config.in_template = '{color.Normal}' + prompt
         prompt_config.in2_template = '   .\\D. {} '.format(trig)
         prompt_config.out_template = '\r'.format(trig)
         return cfg
@@ -370,7 +370,13 @@ class StartCommand(Command):
 
         try:
             cfg = get_prompt_config(module.__name__)
-            shell = get_ipython_shell(config=cfg)
+            try:
+                shell = get_ipython_shell(config=cfg)
+            except AttributeError:
+                cfg.PromptManager.in_template =\
+                    cfg.PromptManager.in_template.replace('Normal', 'normal')
+                shell = get_ipython_shell(config=cfg)
+
             exceptions = (UnitError, LimitError, ParameterError,
                           ReadAccessError, WriteAccessError)
             shell.set_custom_exc(exceptions, _handler)
