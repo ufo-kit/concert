@@ -13,20 +13,20 @@ class Base(base.Camera):
     exposure_time = Quantity(unit=q.s)
     sensor_pixel_width = Quantity(unit=q.micrometer)
     sensor_pixel_height = Quantity(unit=q.micrometer)
-    roi_x0 = Quantity(unit=q.dimensionless)
-    roi_y0 = Quantity(unit=q.dimensionless)
-    roi_width = Quantity(unit=q.dimensionless)
-    roi_height = Quantity(unit=q.dimensionless)
+    roi_x0 = Quantity(unit=q.pixel)
+    roi_y0 = Quantity(unit=q.pixel)
+    roi_width = Quantity(unit=q.pixel)
+    roi_height = Quantity(unit=q.pixel)
 
     def __init__(self):
         super(Base, self).__init__()
         self._frame_rate = 1000 / q.s
         self._trigger_mode = self.trigger_modes.AUTO
         self._exposure_time = 1 * q.ms
-        self._roi_x0 = 0 * q.dimensionless
-        self._roi_y0 = 0 * q.dimensionless
-        self._roi_width = 640 * q.dimensionless
-        self._roi_height = 480 * q.dimensionless
+        self._roi_x0 = 0 * q.pixel
+        self._roi_y0 = 0 * q.pixel
+        self._roi_width = 640 * q.pixel
+        self._roi_height = 480 * q.pixel
 
     def _get_sensor_pixel_width(self):
         return 5 * q.micrometer
@@ -100,12 +100,12 @@ class Camera(Base):
         super(Camera, self).__init__()
 
         if background is not None:
-            self.roi_width = background.shape[1]
-            self.roi_height = background.shape[0]
+            self.roi_width = background.shape[1] * q.pixel
+            self.roi_height = background.shape[0] * q.pixel
             self._background = background
         else:
             shape = (640, 480)
-            self.roi_width, self.roi_height = shape * q.dimensionless
+            self.roi_width, self.roi_height = shape * q.pixel
             self._background = np.ones(shape)
 
     def _grab_real(self):
@@ -135,8 +135,8 @@ class FileCamera(Base):
         self.directory = directory
         super(FileCamera, self).__init__()
 
-        self.roi_width = 0 * q.dimensionless
-        self.roi_height = 0 * q.dimensionless
+        self.roi_width = 0 * q.pixel
+        self.roi_height = 0 * q.pixel
         self._index = 0
         self._files = [os.path.join(directory, file_name) for file_name in
                        sorted(os.listdir(directory))]
