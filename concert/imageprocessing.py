@@ -3,12 +3,9 @@ Image processing module for manipulating image data, e.g. filtered
 backprojection, flat field correction and other operations on images.
 """
 
-import multiprocessing
 import numpy as np
 import logging
-from multiprocessing import Pool
 from scipy import ndimage
-from concert.async import async, wait
 
 
 LOG = logging.getLogger(__name__)
@@ -22,109 +19,6 @@ def flat_correct(radio, flat, dark=None):
     return radio / flat if dark is None else (radio - dark) / (flat - dark)
 
 
-def backproject(sinograms, center, result, angle_step=None, start_projection=0,
-                end_projection=None, x_points=None, y_points=None, fast=True):
-    """
-    CT backprojection algorithm. Take *sinograms* with *center* of
-    rotation, *angle_step* the rotation angular step between two
-    consecutive projections and reconstruct slices. *start_projection*
-    determines the index of the projection from the whole data set
-    which is mapped to the first row of the *sinogram*. *x_points*
-    and *y_points* are 2D arrays of the slice grid indices. *normalize*
-    is True if the slice should be normalized based on inverse Radon
-    transform and the number of projections. If *fast* is True, use
-    a faster backprojection algorithm, which takes much more memory.
-
-    *sinograms* does not have to be complete, they can be a continuous
-    subset of angles of rotation, even only one row. In either case it
-    must be a 3D array. If one wants to reconstruct a partial slice,
-    *angle_step* and *start_projection* must be provided in order to
-    correctly determine the angle of rotation. In case the whole slice
-    should be reconstructed, those parameters can be skipped.
-
-    If *angle_step* is None it is calculated from the number of
-    projections, i.e. sinograms height. If *x_points* and *y_points*
-    are None they are calculated from the slice width and center of
-    rotation.
-
-    """
-    width = sinograms.shape[2]
-    if end_projection is None:
-        end_projection = sinograms.shape[1]
-    num_projections = end_projection - start_projection
-
-    # Initialize for case we want to reconstruct from the whole sinogram
-    if angle_step is None:
-        # Figure out the angle step on our own
-        angle_step = np.pi / num_projections
-    if x_points is None and y_points is None:
-        y_points, x_points = np.mgrid[-center:width - center,
-                                      -center:width - center]
-        x_points = x_points.astype(np.float32)
-        y_points = y_points.astype(np.float32)
-
-    angles = angle_step * np.arange(start_projection, end_projection).\
-        astype(np.float32)
-
-    def prepare_fast():
-        """Prepare 3D index and trigonometric arrays for backprojection."""
-        sin_angles = np.sin(angles)
-        cos_angles = np.cos(angles)
-        sin_angles_ext = sin_angles.repeat(width ** 2).reshape(
-            end_projection - start_projection, width, width)
-        cos_angles_ext = cos_angles.repeat(width ** 2).reshape(
-            end_projection - start_projection, width, width)
-        indices = np.arange(start_projection, end_projection, dtype=np.int16).repeat(
-            width ** 2).reshape(num_projections, width, width)
-
-        return sin_angles_ext, cos_angles_ext, indices
-
-    @async
-    def backproject_slow(slice_index):
-        """
-        Classical backprojection by explicitly going
-        through every projection.
-        """
-        for i in range(start_projection, end_projection):
-            pos = x_points * np.sin(angles[i - start_projection]) + \
-                y_points * np.cos(angles[i - start_projection]) + center
-            pos[np.where((pos < 0) | (pos >= width))] = 0
-            result[slice_index] += sinograms[slice_index, i, pos.astype(np.int32)]
-
-    # When this is @async the results are sometimes wrong -> TODO: investigate!
-    @async
-    def backproject_fast(slice_index, positions, indices):
-        """Backproject part of slices using numpy arrays."""
-        result[slice_index] += np.sum(sinograms[slice_index, indices, positions], axis=0)
-
-    if fast:
-        sin_angles_ext, cos_angles_ext, indices = prepare_fast()
-        # Get sinogram position in the slice
-        x_pos = x_points * sin_angles_ext
-        y_pos = y_points * cos_angles_ext
-        pos = x_pos + y_pos + center
-        # Simple nearest-neighbor interpolation
-        pos[np.where((pos < 0) | (pos >= width))] = 0
-        pos = pos.astype(np.int32)
-
-    futures = []
-    for s in range(sinograms.shape[0]):
-        if fast:
-            f = backproject_fast(s, pos, indices)
-        else:
-            f = backproject_slow(s)
-        futures.append(f)
-
-    wait(futures)
-
-
-def get_backprojection_norm(num_projections):
-    """
-    Get the normalization of backprojected slice based on *num_projections*.
-    """
-    return 1 / (2 * np.pi * num_projections)
-
-
 def get_ramp_filter(width):
     """Get a 1D ramp filter for filtering sinogram rows."""
     base = np.arange(-width / 2, width / 2)
@@ -135,7 +29,6 @@ def get_ramp_filter(width):
 def get_needle_tips(images):
     """Get sample tips from images."""
     tips = []
-    results = []
 
     for image in images:
         tip = _get_ellipse_point(image)
@@ -376,6 +269,7 @@ def center_of_points(points):
     c_x = float(np.sum(x_ind)) / len(points)
 
     return c_y, c_x
+
 
 def center_of_mass(frame):
     """Calculates the center of mass of the whole frame wheighted by value."""
