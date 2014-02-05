@@ -26,10 +26,6 @@ class StorageRing(base.StorageRing):
                 self._lifetime += 1 * q.hour
                 time.sleep(5.0)
 
-                # We want to tell everyone, that the parameters are updated.
-                self['energy'].notify()
-                self['current'].notify()
-
         self.monitor = threading.Thread(target=update)
         self.monitor.daemon = True
         self.monitor.start()
