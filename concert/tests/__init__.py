@@ -1,5 +1,6 @@
 import logging
 import unittest
+import numpy as np
 
 
 def slow(func):
@@ -29,8 +30,11 @@ def suppress_logging():
 
 def assert_almost_equal(x, y, epsilon=1e-10):
     """Discard unit on x and y and assert that they are almost equal"""
-    assert abs((x - y).magnitude) < epsilon, \
-        "{} != {} (within {})".format(x, y, epsilon)
+    x = x.to_base_units().magnitude
+    y = y.to_base_units().magnitude
+
+    assert len(np.where(np.abs(x - y) > epsilon)[0]) == 0, "{} != {} (within {})".format(x, y,
+                                                                                         epsilon)
 
 
 class TestCase(unittest.TestCase):

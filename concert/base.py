@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Core module Parameters"""
+import numpy as np
 import logging
 import six
 from concert.helpers import memoize
@@ -264,7 +265,20 @@ class Quantity(Parameter):
         lower = instance[self.name].lower
         upper = instance[self.name].upper
 
-        if not lower <= value <= upper:
+        def leq(a, b):
+            """check a <= b"""
+            if len(a.shape) == 0:
+                return a <= b
+            else:
+                # Vector data type
+                valid_a = np.invert(np.isnan(a.magnitude))
+                valid_b = np.invert(np.isnan(b.magnitude))
+                valid = valid_a & valid_b
+                test_a = a[valid]
+                test_b = b[valid]
+                return np.all(test_a.to_base_units().magnitude <= test_b.to_base_units().magnitude)
+
+        if not leq(lower, value) or not leq(value, upper):
             msg = "{} is out of range [{}, {}]"
             raise SoftLimitError(msg.format(value, lower, upper))
 
