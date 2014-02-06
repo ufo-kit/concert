@@ -64,6 +64,41 @@ Rotational motors are characterized by rotating around an axis.
     :members:
 
 
+Axes
+----
+
+An axis is a coordinate system axis which can realize either translation
+or rotation, depending by which type of motor it is realized.
+
+.. autoclass:: concert.devices.positioners.base.Axis
+    :show-inheritance:
+    :members:
+
+
+Positioners
+-----------
+
+Positioner is a device consisting of more
+:py:class:`concert.devices.positioners.base.Axis`
+instances which make it possible to specify a 3D position and
+orientation of some object.
+
+.. autoclass:: concert.devices.positioners.base.Positioner
+    :show-inheritance:
+    :members:
+
+
+Imaging Positioners
+~~~~~~~~~~~~~~~~~~~
+
+Imaging positioner is a positioner capable of moving in *x* and *y*
+directions by the given amount of pixels.
+
+.. autoclass:: concert.devices.positioners.imaging.Positioner
+    :show-inheritance:
+    :members:
+
+
 Pumps
 -----
 
