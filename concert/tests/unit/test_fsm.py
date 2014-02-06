@@ -39,10 +39,10 @@ class SomeDevice(Device):
 
     @transition(source='*')
     def cause_erroneous_behaviour(self, msg):
-        raise Error(msg)
+        raise Error(msg, self._fix_problem)
 
-    def reset(self):
-        self.state.reset()
+    def _fix_problem(self):
+        return 'standby'
 
 
 class TestStateMachine(TestCase):
@@ -85,11 +85,11 @@ class TestStateMachine(TestCase):
         self.assertTrue(self.device.state.is_currently('standby'))
 
     def test_error(self):
-        with self.assertRaises(Error):
+        with self.assertRaises(RuntimeError):
             self.device.cause_erroneous_behaviour("Oops")
 
         self.assertTrue(self.device.state.is_currently('error'))
         self.assertEqual(self.device.state.error, "Oops")
 
-        self.device.reset()
+        self.device.state.reset()
         self.assertTrue(self.device.state.is_currently('standby'))
