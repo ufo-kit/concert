@@ -5,7 +5,11 @@ from functools import wraps
 
 
 class TransitionNotAllowed(Exception):
-    pass
+    def __init__(self, source, target):
+        self.value = "Invalid transition from {} to {}".format(source, target)
+
+    def __str__(self):
+        return repr(self.value)
 
 
 class Error(Exception):
@@ -96,6 +100,7 @@ class State(object):
 
 
 class Meta(object):
+
     def __init__(self):
         self.transitions = defaultdict()
         self.state_name = None
@@ -127,9 +132,18 @@ class Meta(object):
         except KeyError:
             next_state = self.transitions.get('*')
 
-        if current is None or next_state != target:
-            msg = "Invalid transition from {} to {}".format(current, target)
-            raise TransitionNotAllowed(msg)
+        if isinstance(next_state, list):
+            if not hasattr(instance, 'get_real_state'):
+                raise TypeError("{} must implement `get_real_state'".format(instance))
+
+            # Override target with actual, current device state
+            target = instance.get_real_state()
+
+            if target not in next_state:
+                raise TransitionNotAllowed(device_state, next_state)
+        else:
+            if current is None or next_state != target:
+                raise TransitionNotAllowed(current, target)
 
         attr = self.get_state_attribute(instance)
         attr._set_value(target)

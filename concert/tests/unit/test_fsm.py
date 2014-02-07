@@ -18,6 +18,9 @@ class SomeDevice(Device):
         super(SomeDevice, self).__init__()
         self.velocity = STOP_VELOCITY
 
+    def get_real_state(self):
+        return 'standby' if self.velocity == STOP_VELOCITY else 'moving'
+
     @transition(source='standby', target='moving')
     def start_moving(self, velocity):
         self.velocity = velocity
@@ -36,6 +39,10 @@ class SomeDevice(Device):
     @transition(source=['standby', 'moving'], target='standby')
     def stop_no_matter_what(self):
         self.velocity = STOP_VELOCITY
+
+    @transition(source='*', target=['standby', 'moving'])
+    def set_velocity(self, velocity):
+        self.velocity = velocity
 
     @transition(source='*')
     def cause_erroneous_behaviour(self, msg):
@@ -82,6 +89,13 @@ class TestStateMachine(TestCase):
         self.device.start_moving(MOVE_VELOCITY)
         self.device.stop_no_matter_what()
 
+        self.assertTrue(self.device.state.is_currently('standby'))
+
+    def test_multiple_target_states(self):
+        self.device.set_velocity(MOVE_VELOCITY)
+        self.assertTrue(self.device.state.is_currently('moving'))
+
+        self.device.set_velocity(STOP_VELOCITY)
         self.assertTrue(self.device.state.is_currently('standby'))
 
     def test_error(self):
