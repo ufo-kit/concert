@@ -5,7 +5,11 @@ from functools import wraps
 
 
 class TransitionNotAllowed(Exception):
-    pass
+    def __init__(self, source, target):
+        self.value = "Invalid transition from {} to {}".format(source, target)
+
+    def __str__(self):
+        return repr(self.value)
 
 
 class Error(Exception):
@@ -16,12 +20,21 @@ class Error(Exception):
     :func:`transition`, in order to set the device into an error state.
     """
 
+    def __init__(self, msg, reset_callback):
+        """
+        *reset_callback* must return the new state that the device will be
+        after calling this.
+        """
+        self.msg = msg
+        self.reset_callback = reset_callback
+
 
 class StateValue(object):
 
     def __init__(self, default):
         self._default = default
         self._current = default
+        self._reset_callback = None
         self._error = None
 
     @property
@@ -34,14 +47,14 @@ class StateValue(object):
 
     def reset(self):
         """
-        Resets the current state value to the default value.
-
-        It is strongly recommended, that this function is called only by the
-        device author in a device-specific reset function. By calling this
-        manually, you risk of having states out-of-sync with the real device
-        state.
+        Resets the current error state value by fixing the device's problem.
         """
-        self._current = self._default
+        if not self._reset_callback:
+            raise RuntimeError("Cannot reset, because state is not erroneous.")
+
+        self._current = self._reset_callback()
+        self._reset_callback = None
+        self._error = ''
 
     def is_currently(self, state):
         return self._current == state
@@ -50,7 +63,8 @@ class StateValue(object):
         self._current = value
 
     def _set_error(self, error):
-        self._error = error
+        self._error = error.msg
+        self._reset_callback = error.reset_callback
 
 
 class State(object):
@@ -86,6 +100,7 @@ class State(object):
 
 
 class Meta(object):
+
     def __init__(self):
         self.transitions = defaultdict()
         self.state_name = None
@@ -117,17 +132,26 @@ class Meta(object):
         except KeyError:
             next_state = self.transitions.get('*')
 
-        if current is None or next_state != target:
-            msg = "Invalid transition from {} to {}".format(current, target)
-            raise TransitionNotAllowed(msg)
+        if isinstance(next_state, list):
+            if not hasattr(instance, 'get_real_state'):
+                raise TypeError("{} must implement `get_real_state'".format(instance))
+
+            # Override target with actual, current device state
+            target = instance.get_real_state()
+
+            if target not in next_state:
+                raise TransitionNotAllowed(device_state, next_state)
+        else:
+            if current is None or next_state != target:
+                raise TransitionNotAllowed(current, target)
 
         attr = self.get_state_attribute(instance)
         attr._set_value(target)
 
-    def signal_error(self, instance, msg):
+    def signal_error(self, instance, e):
         attr = self.get_state_attribute(instance)
         attr._set_value('error')
-        attr._set_error(msg)
+        attr._set_error(e)
 
 
 def transition(source='*', target=None, immediate=None):
@@ -162,8 +186,11 @@ def transition(source='*', target=None, immediate=None):
                 result = func(instance, *args, **kwargs)
                 meta.do_transition(instance, target)
             except Error as e:
-                meta.signal_error(instance, str(e))
-                raise e
+                meta.signal_error(instance, e)
+
+                # We translate the original Error, so the user cannot mess with
+                # resets.
+                raise RuntimeError(e.msg)
 
             return result
 
