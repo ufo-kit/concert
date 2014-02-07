@@ -9,8 +9,8 @@ class TestDummyShutter(TestCase):
         self.shutter = DummyShutter()
 
     def test_open(self):
-        self.assertTrue(self.shutter.state.is_currently('open'))
+        self.assertEqual(self.shutter.state, 'open')
 
     def test_close(self):
         self.shutter.close().join()
-        self.assertTrue(self.shutter.state.is_currently('closed'))
+        self.assertEqual(self.shutter.state, 'closed')

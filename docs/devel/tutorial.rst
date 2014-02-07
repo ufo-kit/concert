@@ -186,7 +186,7 @@ changes the state of a device::
 
         ...
 
-        @transition(source='standby', target='moving')
+        @state.transition(source='standby', target='moving')
         def start_moving(self):
             ...
 
@@ -195,7 +195,7 @@ eventually change the state to ``moving``. In case of two-step functions, an
 ``immediate`` state can be set that is valid throughout the body of the
 function::
 
-        @transition(source='standby', target='standby', immediate='moving')
+        @state.transition(source='standby', target='standby', immediate='moving')
         def move(self):
             ...
 
@@ -205,7 +205,7 @@ Besides single state strings you can also add arrays of strings and a catch-all
 If an exceptional behaviour happens during the execution the device is put
 automatically into an error state::
 
-        @transition(source='*')
+        @state.transition(source='*')
         def move(self):
             ...
             if cannot_move:

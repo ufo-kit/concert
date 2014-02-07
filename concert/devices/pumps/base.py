@@ -1,9 +1,8 @@
 """Pumps."""
 
-from concert.base import Quantity
+from concert.base import Quantity, State
 from concert.quantities import q
 from concert.async import async
-from concert.fsm import State, transition
 from concert.devices.base import Device
 
 
@@ -21,7 +20,7 @@ class Pump(Device):
         super(Pump, self).__init__()
 
     @async
-    @transition(source='standby', target='pumping')
+    @state.transition(source='standby', target='pumping')
     def start(self):
         """
         start()
@@ -31,7 +30,7 @@ class Pump(Device):
         self._start()
 
     @async
-    @transition(source='pumping', target='standby')
+    @state.transition(source='pumping', target='standby')
     def stop(self):
         """
         stop()

@@ -3,9 +3,10 @@
 import numpy as np
 import logging
 import six
+import collections
+from functools import wraps
 from concert.helpers import memoize
 from concert.async import async, wait
-from concert.fsm import transition
 
 
 LOG = logging.getLogger(__name__)
@@ -13,6 +14,19 @@ LOG = logging.getLogger(__name__)
 
 def identity(x):
     return x
+
+
+class TransitionNotAllowed(Exception):
+    pass
+
+
+class StateError(Exception):
+    def __init__(self, error_state, msg=None):
+        self.state = error_state
+        self.msg = msg if msg else "Got into `{}'".format(error_state)
+
+    def __str__(self):
+        return self.msg
 
 
 class UnitError(ValueError):
@@ -98,6 +112,94 @@ class MultiContext(object):
                     for obj in self.objs])
 
 
+class State(object):
+
+    """
+    Finite state machine.
+
+    Use this on a class, to keep some sort of known state. In order to enforce
+    restrictions, you would decorate methods on the class with
+    :meth:`.transition`::
+
+        class SomeObject(object):
+
+            state = State(default='standby')
+
+            @state.transition(source='*', target='moving')
+            def move(self):
+                pass
+
+    Accessing the state variable will return the current state value, i.e.::
+
+        obj = SomeObject()
+        assert obj.state == 'standby'
+    """
+
+    def __init__(self, default=None):
+        self.default = default
+
+    def __get__(self, instance, owner):
+        return self._value(instance)
+
+    def _value(self, instance):
+        if not hasattr(instance, '_state_value'):
+            setattr(instance, '_state_value', self.default)
+
+        return getattr(instance, '_state_value')
+
+    def transition(self, source='*', target=None, immediate=None, check=None):
+        """
+        Decorates a method that triggers state transitions.
+
+        source denotes the source state that must be present at the time of
+        invoking the decorated method. target is the state that the state object
+        will be after successful completion of the method. immediate is an optional
+        state that will be set during execution of the method.
+        """
+        def wrapped(func):
+            transitions = collections.defaultdict(list)
+
+            sources = [source] if isinstance(source, str) else source
+            targets = [target] if isinstance(target, str) else target
+
+            if immediate:
+                sources.append(immediate)
+                targets.append(immediate)
+
+            for s in sources:
+                transitions[s] = targets
+
+            def try_transition(target, instance, *args, **kwargs):
+                current = self._value(instance)
+                succ = transitions.get(current, transitions.get('*', None))
+
+                if not succ:
+                    msg = "Cannot transition from `{}' to `{}'".format(current, target)
+                    raise TransitionNotAllowed(msg)
+
+                if isinstance(target, list):
+                    try:
+                        target = check(instance)
+                    except StateError as error:
+                        target = error.state
+                        setattr(instance, '_state_value', target)
+                        raise error
+
+                setattr(instance, '_state_value', target)
+
+            def call_func(instance, *args, **kwargs):
+                if immediate:
+                    try_transition(immediate, instance)
+
+                result = func(instance, *args, **kwargs)
+                try_transition(target, instance)
+                return result
+
+            return call_func
+
+        return wrapped
+
+
 class Parameter(object):
 
     """A parameter with getter and setter.
@@ -106,12 +208,13 @@ class Parameter(object):
     trigger state transitions. If *fget* or *fset* is not given, you must
     implement the accessor functions named `_set_name` and `_get_name`::
 
-        from concert.fsm import State
+        from concert.base import Parameter, State
 
         class SomeClass(object):
 
             state = State(default='standby')
-            param = Parameter(source='standby', target='doing')
+            param = Parameter(transition=state.transition(source='standby',
+                                                          target='doing'))
 
             def _set_param(self, value):
                 pass
@@ -120,24 +223,18 @@ class Parameter(object):
                 pass
 
     The *source*, *target* and *immediate* parameters correspond to the
-    arguments of a :class:`.transition`.
+    arguments of a :class:`.State`.
 
-    When a :class:`.Parameter` is attached to a class, you can modify it via
+    When a :class:`.Parameter` is attached to a class, you can modify it by
     accessing its associated :class:`.ParameterValue`.
     """
 
-    def __init__(self, fget=None, fset=None, data=None, source=None,
-                 target=None, immediate=None):
+    def __init__(self, fget=None, fset=None, data=None, transition=None):
         self.name = None
         self.fget = fget
         self.fset = fset
         self.data_args = (data,) if data is not None else ()
-
-        if source or target or immediate:
-            self.transition = transition(source, target, immediate)
-        else:
-            self.transition = None
-
+        self.transition = transition
         self.decorated = None
 
     @memoize
@@ -185,7 +282,7 @@ class Parameter(object):
             try:
                 setter = getattr(instance, self.setter_name())
 
-                if self.transition and not self.decorated and not hasattr(setter, '_concert_fsm'):
+                if self.transition and not self.decorated:
                     self.decorated = self.transition(setter.__func__)
 
                 if self.decorated:
@@ -205,9 +302,8 @@ class Quantity(Parameter):
 
     def __init__(self, fget=None, fset=None, unit=None, lower=None, upper=None,
                  conversion=identity, data=None, in_hard_limit=None,
-                 source=None, target=None, immediate=None):
-        super(Quantity, self).__init__(fget=fget, fset=fset, data=data,
-                                       source=source, target=target, immediate=immediate)
+                 transition=None):
+        super(Quantity, self).__init__(fget=fget, fset=fset, data=data, transition=transition)
         self.unit = unit
         self.default_conversion = conversion
         self.in_hard_limit = in_hard_limit

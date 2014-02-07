@@ -16,8 +16,7 @@ As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 import logging
 from concert.quantities import q
 from concert.async import async
-from concert.fsm import State, transition
-from concert.base import Quantity
+from concert.base import Quantity, State
 from concert.devices.base import Device
 
 
@@ -42,7 +41,7 @@ class PositionMixin(Device):
         self.position += delta
 
     @async
-    @transition(source='moving', target='standby')
+    @state.transition(source='moving', target='standby')
     def stop(self):
         """
         stop()
@@ -51,7 +50,7 @@ class PositionMixin(Device):
         self._stop()
 
     @async
-    @transition(source='*', target='standby', immediate='moving')
+    @state.transition(source='*', target='standby', immediate='moving')
     def home(self):
         """
         home()
@@ -94,8 +93,11 @@ class LinearMotor(PositionMixin):
         Position of the motor in length units.
     """
 
+    state = State(default='standby')
+
     position = Quantity(unit=q.m,
-                        source='standby', target='standby', immediate='moving',
+                        transition=state.transition(source='standby', target='standby',
+                                                    immediate='moving'),
                         in_hard_limit=PositionMixin.in_hard_limit)
 
     def __init__(self):
@@ -129,8 +131,11 @@ class RotationMotor(PositionMixin):
         Position of the motor in angular units.
     """
 
+    state = State(default='standby')
+
     position = Quantity(unit=q.deg,
-                        source='standby', target='standby', immediate='moving',
+                        transition=state.transition(source='standby', target='standby',
+                                                    immediate='moving'),
                         in_hard_limit=PositionMixin.in_hard_limit)
 
     def __init__(self):

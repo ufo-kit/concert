@@ -26,18 +26,18 @@ Collection of parameters
     :members:
 
 
+State machine
+-------------
+
+.. autoclass:: concert.base.State
+    :members:
+
+
 Devices
 -------
 
 .. autoclass:: concert.devices.base.Device
     :show-inheritance:
-    :members:
-
-
-State machine
--------------
-
-.. automodule:: concert.fsm
     :members:
 
 
