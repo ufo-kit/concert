@@ -4,7 +4,7 @@ the data is.
 """
 import numpy as np
 from concert.quantities import q
-from concert.imageprocessing import center_of_points, get_needle_tips
+from concert.imageprocessing import center_of_points, needle_tips
 
 
 class DummyGradientMeasure(object):
@@ -74,34 +74,35 @@ class SimpleArea(Area):
     """
 
     def __init__(self, flat_1, flat_2):
-        super(SimpleArea, self).__init__(self.get_object_pixels)
+        super(SimpleArea, self).__init__(self.object_pixels)
         self._flat_1 = flat_1
         self._flat_2 = flat_2
         self.flat_avg = None
         self.threshold = None
         self._setup()
 
-    def get_object_pixels(self, radio):
+    def object_pixels(self, radio):
         """Get object pixels from a radiograph *radio*."""
         radio = radio - self.flat_avg
 
         return len(np.where(radio < self.threshold)[0])
 
-    def set_flats(self, flat_1, flat_2):
-        """
-        Set new flat fields *flat_1*, *flat_2*. The threshold and
-        average flat are recomputed.
-        """
-        if flat_1.shape != flat_2.shape:
-            raise ValueError("Flats must have the same shape")
-        self._flat_1 = flat_1
-        self._flat_2 = flat_2
-        self._setup()
-
     @property
     def flats(self):
         """flat_1 used by measure"""
         return [self._flat_1, self._flat_2]
+
+    @flats.setter
+    def flats(self, flats):
+        """
+        Set new flat fields flat_1 and flat_2 from the tuple *flats*.
+        The threshold and average flat are recomputed.
+        """
+        if flats[0].shape != flats[1].shape:
+            raise ValueError("Flats must have the same shape")
+        self._flat_1 = flats[0]
+        self._flat_2 = flats[1]
+        self._setup()
 
     def _setup(self):
         """Setup the threshold and average flat field."""
@@ -111,7 +112,7 @@ class SimpleArea(Area):
         self.flat_avg = (self._flat_1 + self._flat_2) / 2.0
 
 
-def get_rotation_axis(images):
+def rotation_axis(images):
     """
     Determine a 3D circle normal inclination angles towards the
     :math:`y`-axis (0,1,0) and the center of the circle.
@@ -242,7 +243,7 @@ def _fit_ellipse(images):
     """Ellipse fitting based on *points* and singular value
     decomposition.
     """
-    tips = get_needle_tips(images)
+    tips = needle_tips(images)
 
     a_matrix = _construct_matrix(tips)
     v_mat = np.linalg.svd(a_matrix)[2]

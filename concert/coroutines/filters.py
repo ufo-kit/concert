@@ -5,7 +5,7 @@ except ImportError:
     import queue
 import logging
 import numpy as np
-from concert.imageprocessing import get_ramp_filter
+from concert.imageprocessing import ramp_filter
 from concert.async import threaded
 from concert.coroutines import coroutine
 from concert.imageprocessing import flat_correct as make_flat_correct
@@ -232,7 +232,7 @@ def backproject(center, consumer):
                 raise ValueError(template.format(center, sinogram.shape[1]))
             y_indices, x_indices = get_indices(sinogram, center)
             width = x_indices.shape[0]
-            ramp_filter = get_ramp_filter(width)
+            ramp = ramp_filter(width)
             angle_step = np.pi / sinogram.shape[0]
             # We need to store the position where we crop the sinogram, that is
             # based on the old center
@@ -240,7 +240,7 @@ def backproject(center, consumer):
             # Since we crop the indices the new center is always in the middle
             center = width / 2
 
-        filtered = filter_sinogram(sinogram, start, ramp_filter, width)
+        filtered = filter_sinogram(sinogram, start, ramp, width)
         reco = reconstruct(filtered, center, angle_step, x_indices, y_indices)
         consumer.send(reco)
 

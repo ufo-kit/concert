@@ -19,14 +19,14 @@ def flat_correct(radio, flat, dark=None):
     return radio / flat if dark is None else (radio - dark) / (flat - dark)
 
 
-def get_ramp_filter(width):
+def ramp_filter(width):
     """Get a 1D ramp filter for filtering sinogram rows."""
     base = np.arange(-width / 2, width / 2)
 
     return np.fft.fftshift(np.abs(base)) * 2.0 / width
 
 
-def get_needle_tips(images):
+def needle_tips(images):
     """Get sample tips from images."""
     tips = []
 

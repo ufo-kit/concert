@@ -57,7 +57,7 @@ class Experiment(BaseExperiment):
         self._writers = {}
 
 
-def get_angular_step(frame_width):
+def angular_step(frame_width):
     """
     Get the angular step required for tomography so that every pixel of the frame
     rotates no more than one pixel per rotation step. *frame_width* is frame size in
@@ -66,7 +66,7 @@ def get_angular_step(frame_width):
     return np.arctan(2.0 / frame_width)
 
 
-def get_tomo_projections_number(frame_width):
+def tomo_projections_number(frame_width):
     """
     Get the minimum number of projections required by a tomographic scan in
     order to provide enough data points for every distance from the axis of
@@ -75,10 +75,10 @@ def get_tomo_projections_number(frame_width):
     perpendicular to the axis of rotation. The number of pixels in this
     direction is given by *frame_width*.
     """
-    return int(np.ceil(np.pi / get_angular_step(frame_width).magnitude))
+    return int(np.ceil(np.pi / angular_step(frame_width).magnitude))
 
 
-def get_tomo_max_speed(frame_width, frame_rate):
+def tomo_max_speed(frame_width, frame_rate):
     """
     Get the maximum rotation speed which introduces motion blur less than one
     pixel. *frame_width* is the width of the frame in the direction
@@ -91,4 +91,4 @@ def get_tomo_max_speed(frame_width, frame_rate):
     more than one pixel from the previous frame, thus we need to take into
     account the whole frame taking procedure (exposure + readout).
     """
-    return get_angular_step(frame_width) * frame_rate
+    return angular_step(frame_width) * frame_rate

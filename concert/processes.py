@@ -4,7 +4,7 @@ from scipy.ndimage.filters import gaussian_filter
 from concert.async import async, wait
 from concert.coroutines import coroutine
 from concert.quantities import q
-from concert.measures import get_rotation_axis
+from concert.measures import rotation_axis
 from concert.optimization import halver, optimize_parameter
 from concert.imageprocessing import center_of_mass
 
@@ -164,11 +164,11 @@ def focus(camera, motor, measure=np.std, opt_kwargs=None,
 @async
 def align_rotation_axis(camera, rotation_motor, flat_motor=None,
                         flat_position=None, x_motor=None, z_motor=None,
-                        measure=get_rotation_axis, num_frames=10,
+                        measure=rotation_axis, num_frames=10,
                         absolute_eps=0.1 * q.deg, max_iterations=5):
     """
     align_rotation_axis(camera, rotation_motor, flat_motor=None,
-    flat_position=None, x_motor=None, z_motor=None, measure=get_rotation_axis,
+    flat_position=None, x_motor=None, z_motor=None, measure=rotation_axis,
     num_frames=10, absolute_eps=0.1 * q.deg, max_iterations=5)
 
     Align rotation axis. *camera* is used to obtain frames, *rotation_motor*
