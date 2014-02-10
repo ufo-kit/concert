@@ -10,4 +10,4 @@
 """
 
 DISABLE_ASYNC = False
-DISABLE_GEVENT = False
+DISABLE_GEVENT = True
