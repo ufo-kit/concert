@@ -105,7 +105,10 @@ class EditCommand(Command):
         super(EditCommand, self).__init__('edit', opts)
 
     def run(self, session=None):
-        concert.session.exit_if_not_exists(session)
+        if not concert.session.exists(session):
+            print("Session not found, creating {}.".format(session))
+            InitCommand().run(session)
+
         env = os.environ
         editor = env['EDITOR'] if 'EDITOR' in env else 'vi'
         subprocess.call([editor, concert.session.path(session)])
