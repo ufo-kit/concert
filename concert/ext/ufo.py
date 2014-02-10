@@ -133,6 +133,7 @@ class Backproject(InjectProcess):
         self.ifft = self.pm.get_task('ifft', dimensions=1)
         self.fltr = self.pm.get_task('filter')
         self.backprojector = self.pm.get_task('backproject')
+        self._started = False
 
         if axis_pos:
             self.backprojector.props.axis_pos = axis_pos
@@ -147,6 +148,10 @@ class Backproject(InjectProcess):
     @coroutine
     def __call__(self, consumer):
         """Get a sinogram, do filtered backprojection and send it to *consumer*."""
+        if not self._started:
+            self.start()
+            self._started = True
+
         slice = None
 
         while True:
