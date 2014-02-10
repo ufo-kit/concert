@@ -6,7 +6,7 @@ import logging
 import numpy as np
 from concert.async import async
 from concert.quantities import q
-from concert.base import Quantity
+from concert.base import Parameter, Quantity
 from concert.helpers import Bunch
 from concert.devices.cameras import base
 
@@ -111,7 +111,12 @@ class Camera(base.Camera):
             if prop.flags & GObject.ParamFlags.WRITABLE:
                 setter = _new_setter_wrapper(prop.name, unit)
 
-            parameters[prop.name.replace('-', '_')] = Quantity(fget=getter, fset=setter, unit=unit)
+            name = prop.name.replace('-', '_')
+
+            if uca_unit in units:
+                parameters[name] = Quantity(fget=getter, fset=setter, unit=unit)
+            else:
+                parameters[name] = Parameter(fget=getter, fset=setter)
 
         if parameters:
             self.install_parameters(parameters)
