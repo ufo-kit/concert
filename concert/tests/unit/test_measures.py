@@ -5,7 +5,7 @@ from concert.devices.motors.dummy import ContinuousRotationMotor
 from concert.tests import slow, TestCase
 from concert.tests.util.rotationaxis import SimulationCamera
 from concert.processes import scan
-from concert.measures import get_rotation_axis
+from concert.measures import rotation_axis
 
 
 @attr('skip-travis')
@@ -36,13 +36,13 @@ class TestRotationAxisMeasure(TestCase):
 
     def align_check(self, x_angle, z_angle):
         images = self.make_images(x_angle, z_angle)
-        phi, psi = get_rotation_axis(images)[:2]
+        phi, psi = rotation_axis(images)[:2]
 
         assert phi + x_angle < self.eps
         assert np.abs(psi) - np.abs(z_angle) < self.eps
 
     def center_check(self, images):
-        center = get_rotation_axis(images)[2]
+        center = rotation_axis(images)[2]
 
         assert np.abs(center[1] - self.image_source.ellipse_center[1]) < 2
         assert np.abs(center[0] - self.image_source.ellipse_center[0]) < 2
@@ -52,7 +52,7 @@ class TestRotationAxisMeasure(TestCase):
         images = np.ones((10, self.image_source.size,
                           self.image_source.size))
         with self.assertRaises(ValueError) as ctx:
-            get_rotation_axis(images)
+            rotation_axis(images)
 
         self.assertEqual("No sample tip points found.", str(ctx.exception))
 

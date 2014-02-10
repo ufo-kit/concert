@@ -208,6 +208,8 @@ class PyplotViewer(PyplotViewerBase):
 
     def __init__(self, style="o", plot_kwargs=None, autoscale=True, title=""):
         super(PyplotViewer, self).__init__(self.plot)
+        self._autoscale = autoscale
+        self._style = style
         self._iteration = 0
         self._set_updater(_PyplotUpdater(self._queue, style,
                                          plot_kwargs, autoscale,
@@ -238,8 +240,14 @@ class PyplotViewer(PyplotViewerBase):
                 y_data = y
             self._queue.put((_PyplotUpdater.PLOT, (x_data, y_data)))
 
-    def set_style(self, style):
+    @property
+    def style(self):
+        return self._style
+
+    @style.setter
+    def style(self, style):
         """Set line style to *style*."""
+        self._style = style
         self._queue.put((_PyplotUpdater.STYLE, style))
 
     def clear(self):
@@ -247,8 +255,14 @@ class PyplotViewer(PyplotViewerBase):
         self._iteration = 0
         self._queue.put((_PyplotUpdater.CLEAR, None))
 
-    def set_autoscale(self, autoscale):
+    @property
+    def autoscale(self):
+        return self._autoscale
+
+    @autoscale.setter
+    def autoscale(self, autoscale):
         """Set *autoscale* on the axes, can be True or False."""
+        self._autoscale = autoscale
         self._queue.put((_PyplotUpdater.AUTOSCALE, autoscale))
 
 
@@ -275,14 +289,24 @@ class PyplotImageViewer(PyplotViewerBase):
         if not self._paused and (self._queue.empty() or force):
             self._queue.put((_PyplotImageUpdater.IMAGE, item))
 
-    def set_limits(self, clim):
+    @property
+    def limits(self):
+        raise NotImplementedError
+
+    @limits.setter
+    def limits(self, clim):
         """
         Update the colormap limits by *clim*, which is a (lower, upper)
         tuple.
         """
         self._queue.put((_PyplotImageUpdater.CLIM, clim))
 
-    def set_colormap(self, colormap):
+    @property
+    def colormap(self):
+        return self._colormap
+
+    @colormap.setter
+    def colormap(self, colormap):
         """Set colormp of the shown image to *colormap*."""
         self._queue.put((_PyplotImageUpdater.COLORMAP, colormap))
 
@@ -292,6 +316,9 @@ class PyplotImageViewer(PyplotViewerBase):
 
         if "cmap" not in self._imshow_kwargs:
             self._imshow_kwargs["cmap"] = cm.gray
+            self._colormap = cm.gray
+        else:
+            self._colormap = self._imshow_kwargs["cmap"]
         if "interpolation" not in self._imshow_kwargs:
             self._imshow_kwargs["interpolation"] = "nearest"
 

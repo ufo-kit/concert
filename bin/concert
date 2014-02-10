@@ -21,7 +21,7 @@ from concert.base import (UnitError,
                           WriteAccessError)
 
 
-def get_docstring_summary(doc):
+def docstring_summary(doc):
     if doc and doc.find('.'):
         return doc[:doc.find('.')]
     return doc
@@ -412,7 +412,7 @@ def main():
     commands.extend(plugins)
 
     for command in commands:
-        summary = get_docstring_summary(command.__doc__)
+        summary = docstring_summary(command.__doc__)
         cmd_parser = subparsers.add_parser(command.name, help=summary)
         cmd_parser.set_defaults(func=command.run)
 
