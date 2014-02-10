@@ -65,9 +65,6 @@ class PositionMixin(Device):
     def _stop(self):
         raise NotImplementedError
 
-    def in_hard_limit(self):
-        raise NotImplementedError
-
 
 class ContinuousMixin(Device):
 
@@ -75,12 +72,6 @@ class ContinuousMixin(Device):
 
     def __init__(self):
         super(ContinuousMixin, self).__init__()
-
-    def in_velocity_hard_limit(self):
-        return self._in_velocity_hard_limit()
-
-    def _in_velocity_hard_limit(self):
-        raise NotImplementedError
 
 
 class LinearMotor(PositionMixin):
@@ -93,15 +84,19 @@ class LinearMotor(PositionMixin):
         Position of the motor in length units.
     """
 
+    def __init__(self):
+        super(LinearMotor, self).__init__()
+
+    def check_state(self):
+        raise NotImplementedError
+
     state = State(default='standby')
 
     position = Quantity(unit=q.m,
-                        transition=state.transition(source='standby', target='standby',
-                                                    immediate='moving'),
-                        in_hard_limit=PositionMixin.in_hard_limit)
-
-    def __init__(self):
-        super(LinearMotor, self).__init__()
+                        transition=state.transition(source='standby',
+                                                    target=['standby'],
+                                                    immediate='moving',
+                                                    check=check_state))
 
 
 class ContinuousLinearMotor(LinearMotor, ContinuousMixin):
@@ -114,11 +109,18 @@ class ContinuousLinearMotor(LinearMotor, ContinuousMixin):
         Current velocity in length per time unit.
     """
 
-    velocity = Quantity(unit=q.m / q.s,
-                        in_hard_limit=ContinuousMixin.in_velocity_hard_limit)
-
     def __init__(self):
         super(ContinuousLinearMotor, self).__init__()
+
+    def check_state(self):
+        raise NotImplementedError
+
+    state = State(default='standby')
+
+    velocity = Quantity(unit=q.m / q.s,
+                        transition=state.transition(source=['standby', 'moving'],
+                                                    target=['moving', 'standby'],
+                                                    check=check_state))
 
 
 class RotationMotor(PositionMixin):
@@ -134,9 +136,9 @@ class RotationMotor(PositionMixin):
     state = State(default='standby')
 
     position = Quantity(unit=q.deg,
-                        transition=state.transition(source='standby', target='standby',
-                                                    immediate='moving'),
-                        in_hard_limit=PositionMixin.in_hard_limit)
+                        transition=state.transition(source='standby',
+                                                    target='standby',
+                                                    immediate='moving'))
 
     def __init__(self):
         super(RotationMotor, self).__init__()
@@ -155,5 +157,12 @@ class ContinuousRotationMotor(RotationMotor, ContinuousMixin):
     def __init__(self):
         super(ContinuousRotationMotor, self).__init__()
 
+    def check_state(self):
+        raise NotImplementedError
+
+    state = State(default='standby')
+
     velocity = Quantity(unit=q.deg / q.s,
-                        in_hard_limit=ContinuousMixin.in_velocity_hard_limit)
+                        transition=state.transition(source=['standby', 'moving'],
+                                                    target=['moving', 'standby'],
+                                                    check=check_state))

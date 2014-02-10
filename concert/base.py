@@ -21,6 +21,9 @@ class TransitionNotAllowed(Exception):
 
 
 class StateError(Exception):
+
+    """Raised in check functions of state transitions of devices."""
+
     def __init__(self, error_state, msg=None):
         self.state = error_state
         self.msg = msg if msg else "Got into `{}'".format(error_state)
@@ -47,9 +50,10 @@ class SoftLimitError(LimitError):
     pass
 
 
-class HardLimitError(LimitError):
+class HardLimitError(StateError):
 
-    """Raised when a hard limit is hit on the device."""
+    """Raised when device goes into hardlimit error state."""
+
     pass
 
 
@@ -179,7 +183,9 @@ class State(object):
 
                 if isinstance(target, list):
                     try:
-                        target = check(instance)
+                        # We call the instance method based on the function
+                        # name of the class method.
+                        target = getattr(instance, check.__name__)()
                     except StateError as error:
                         target = error.state
                         setattr(instance, '_state_value', target)
@@ -301,12 +307,10 @@ class Quantity(Parameter):
     """A parameter which models a physical quantity."""
 
     def __init__(self, fget=None, fset=None, unit=None, lower=None, upper=None,
-                 conversion=identity, data=None, in_hard_limit=None,
-                 transition=None):
+                 conversion=identity, data=None, transition=None):
         super(Quantity, self).__init__(fget=fget, fset=fset, data=data, transition=transition)
         self.unit = unit
         self.default_conversion = conversion
-        self.in_hard_limit = in_hard_limit
 
         self.upper = upper if upper is not None else float('Inf')
         self.lower = lower if lower is not None else -float('Inf')
@@ -380,13 +384,6 @@ class Quantity(Parameter):
 
         converted = self.convert_to(instance, value)
         super(Quantity, self).__set__(instance, converted)
-
-        if self.in_hard_limit:
-            limit_checker = getattr(instance, self.in_hard_limit.__name__)
-
-            if limit_checker():
-                msg = "`{}' reached hard limit for {}"
-                raise HardLimitError(msg.format(self.name, value))
 
 
 class ParameterValue(object):
