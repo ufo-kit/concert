@@ -1,6 +1,6 @@
 import time
 from concert.tests import TestCase
-from concert.base import State
+from concert.base import State, TransitionNotAllowed
 from concert.quantities import q
 from concert.async import async
 from concert.devices.base import Device
@@ -48,6 +48,34 @@ class SomeDevice(Device):
         self.state.reset()
 
 
+class BaseDevice(Device):
+
+    state = State(default='standby')
+
+    def __init__(self):
+        super(BaseDevice, self).__init__()
+
+    @state.transition(source='standby', target='in-base')
+    def switch_base(self):
+        pass
+
+    @state.transition(source='*', target='standby')
+    def reset(self):
+        pass
+
+
+class DerivedDevice(BaseDevice):
+
+    state = State(default='standby')
+
+    def __init__(self):
+        super(DerivedDevice, self).__init__()
+
+    @state.transition(source='standby', target='in-derived')
+    def switch_derived(self):
+        pass
+
+
 class TestStateMachine(TestCase):
 
     def setUp(self):
@@ -91,3 +119,30 @@ class TestStateMachine(TestCase):
 
         self.device.set_velocity(STOP_VELOCITY)
         self.assertEqual(self.device.state, 'standby')
+
+    def test_inheritance(self):
+        device = DerivedDevice()
+
+        device.switch_base()
+        self.assertEqual(device.state, 'in-base')
+
+        with self.assertRaises(TransitionNotAllowed):
+            device.switch_base()
+
+        with self.assertRaises(TransitionNotAllowed):
+            device.switch_derived()
+
+        device.reset()
+        self.assertEqual(device.state, 'standby')
+
+        device.switch_derived()
+        self.assertEqual(device.state, 'in-derived')
+
+        with self.assertRaises(TransitionNotAllowed):
+            device.switch_derived()
+
+        with self.assertRaises(TransitionNotAllowed):
+            device.switch_base()
+
+        device.reset()
+        self.assertEqual(device.state, 'standby')
