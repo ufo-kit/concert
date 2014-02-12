@@ -4,6 +4,55 @@ Changelog
 Here you can see the full list of changes between each Concert release.
 
 
+Version 0.7
+-----------
+
+Released on February 17th 2014.
+
+Improvements
+~~~~~~~~~~~~
+
+- Added beam finding and centering
+- ``threaded`` decorator uses daemonic threads
+- Added ``downsize``, ``queue``, ``stall``, ``PickSlice`` to coroutine
+  filters
+- Added reconstruction of the whole volume using UFO Framework
+- Documentation was restructured significantly (split to usage/API)
+- Added tomography helper functions
+- Crio motor support continuous rotation
+- ``PyplotViewer`` can be configured for faster drawing capabilities
+  using ``blit``
+- Added dummy ``Scales``
+- Tests cover all devices (at least try to instantiate them)
+- Added pixel units, ``q.pixel`` (shorthand ``q.px``)
+- Changed prompt color to terminal default
+- Added ``Positioner`` device
+- Added ``Detector`` device
+
+
+API Breaks
+~~~~~~~~~~
+
+- Finite state machine was reworked significantly
+- Motors were cleaned from mixins and hard-limit was incorporated into them
+- recording() context was added to cameras
+- ``backprojector`` coroutine filter was significantly simplified
+- ``average_images`` arguments changed
+- Experiments were completely restructured based on usage of ``Acquisition``
+- ``PyplotViewer`` plotting signature changed
+- Remove leftover beam line specific shutters
+- Many getters/setters were replaced by properties, especially in the
+  ``concert.ext.viewers`` module
+- Appropriate ``get_`` ``set_`` functions were replaced by non-prefixed ones
+
+
+Fixes
+~~~~~
+
+- #118, #128, #132, #133, #139, #148, #149, #150, #157, #159, #165, #169,
+  #173, #174, #175, #176, #178, #179, #181, #184, #189, #192
+
+
 Version 0.6
 -----------
 
