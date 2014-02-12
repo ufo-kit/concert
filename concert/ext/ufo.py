@@ -63,7 +63,7 @@ class InjectProcess(object):
         self.ufo_buffer = None
 
     def __enter__(self):
-        self.run()
+        self.start()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
