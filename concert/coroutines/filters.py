@@ -48,11 +48,11 @@ def downsize(consumer, x_slice=None, y_slice=None, z_slice=None):
 
 
 @coroutine
-def cache(consumer):
+def queue(consumer):
     """
-    cache(consumer)
+    queue(consumer)
 
-    Cache the incoming data into a queue and dispatch in a separate
+    Store the incoming data in a queue and dispatch in a separate
     thread which prevents the stalling on the "main" data stream.
     """
     item_queue = queue.Queue()
