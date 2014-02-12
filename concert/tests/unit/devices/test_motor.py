@@ -1,5 +1,4 @@
 from concert.quantities import q
-from concert.base import HardLimitError
 from concert.devices.motors.dummy import LinearMotor, ContinuousLinearMotor
 from concert.devices.motors.dummy import RotationMotor, ContinuousRotationMotor
 from concert.tests import TestCase
@@ -15,10 +14,6 @@ class TestMotor(TestCase):
         position = 1 * q.mm
         self.motor.position = position
         self.assertEqual(position, self.motor.position)
-
-    def test_hard_limit(self):
-        with self.assertRaises(HardLimitError):
-            self.motor.set_position(1e6 * q.m).result()
 
     def test_move(self):
         position = 1 * q.mm
@@ -38,11 +33,13 @@ class TestContinuousLinearMotor(TestCase):
         position = 1 * q.mm
         self.motor.position = position
         self.assertEqual(position, self.motor.position)
+        self.assertEqual(self.motor.state, 'standby')
 
     def test_set_velocity(self):
         velocity = 1 * q.mm / q.s
         self.motor.velocity = velocity
         self.assertEqual(velocity, self.motor.velocity)
+        self.assertEqual(self.motor.state, 'moving')
 
 
 class TestRotationMotor(TestCase):
@@ -55,6 +52,7 @@ class TestRotationMotor(TestCase):
         position = 1 * q.deg
         self.motor.position = position
         self.assertEqual(position, self.motor.position)
+        self.assertEqual(self.motor.state, 'standby')
 
     def test_move(self):
         position = 1 * q.deg
@@ -62,6 +60,7 @@ class TestRotationMotor(TestCase):
         self.motor.position = position
         self.motor.move(delta).join()
         self.assertEqual(position + delta, self.motor.position)
+        self.assertEqual(self.motor.state, 'standby')
 
 
 class TestContinuousRotationMotor(TestCase):

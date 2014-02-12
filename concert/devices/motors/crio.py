@@ -23,9 +23,6 @@ class LinearMotor(base.LinearMotor):
         self['position'].lower = 0 * q.mm
         self['position'].upper = 2 * q.mm
 
-    def _in_hard_limit(self):
-        return self._steps < 0 or self._steps > 100000
-
     def _get_position(self):
         return self._steps / self._to_device_scale
 

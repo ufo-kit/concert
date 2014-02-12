@@ -1,8 +1,9 @@
+from concert import optimization
+from concert.base import HardLimitError
 from concert.quantities import q
 from concert.tests import slow, assert_almost_equal, TestCase
 from concert.measures import DummyGradientMeasure
 from concert.devices.motors.dummy import LinearMotor
-from concert import optimization
 from concert.optimization import optimize_parameter
 
 
@@ -63,23 +64,25 @@ class TestDummyFocusing(TestCase):
     @slow
     def test_huge_step_in_limits(self):
         self.halver_kwargs["initial_step"] = 1000 * q.mm
-        self.run_optimization()
-        self.check(self.feedback.max_position)
+
+        with self.assertRaises(HardLimitError):
+            self.run_optimization()
 
     @slow
     def test_maximum_out_of_limits_right(self):
         self.feedback.max_position = (self.motor.upper + 50 * q.count) \
             * self.motor["position"].unit / q.count
 
-        self.run_optimization()
-        self.check(self.motor.upper * q.mm / q.count)
+        with self.assertRaises(HardLimitError):
+            self.run_optimization()
 
     @slow
     def test_maximum_out_of_limits_left(self):
         self.feedback.max_position = (self.motor.lower - 50 * q.count) \
             * self.motor["position"].unit / q.count
-        self.run_optimization()
-        self.check(self.motor.lower * q.mm / q.count)
+
+        with self.assertRaises(HardLimitError):
+            self.run_optimization()
 
     @slow
     def test_identical_gradients(self):

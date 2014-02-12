@@ -1,6 +1,6 @@
 """Shutter Device."""
+from concert.base import State
 from concert.async import async
-from concert.fsm import State, transition
 from concert.devices.base import Device
 
 
@@ -14,7 +14,7 @@ class Shutter(Device):
         super(Shutter, self).__init__()
 
     @async
-    @transition(source='closed', target='open')
+    @state.transition(source='closed', target='open')
     def open(self):
         """open()
 
@@ -22,7 +22,7 @@ class Shutter(Device):
         self._open()
 
     @async
-    @transition(source='open', target='closed')
+    @state.transition(source='open', target='closed')
     def close(self):
         """close()
 

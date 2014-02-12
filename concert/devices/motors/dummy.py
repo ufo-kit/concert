@@ -1,5 +1,6 @@
 """Motor Dummy."""
 import random
+from concert.base import HardLimitError
 from concert.quantities import q
 from concert.devices.motors import base
 
@@ -10,9 +11,6 @@ class PositionMotorMixin(base.PositionMixin):
         self.lower = -100 * q.count
         self.upper = +100 * q.count
         self._position = random.uniform(self.lower, self.upper)
-
-    def in_hard_limit(self):
-        return self._position <= self.lower or self._position >= self.upper
 
     def _set_position(self, position):
         if position < self.lower:
@@ -36,10 +34,6 @@ class ContinuousMotorMixin(base.ContinuousMixin):
         self.velocity_upper = 100 * q.count
         self._velocity = 0 * q.count
 
-    def in_velocity_hard_limit(self):
-        return self._velocity <= self.velocity_lower or \
-            self._velocity >= self.velocity_upper
-
     def _set_velocity(self, velocity):
         if velocity < self.velocity_lower:
             self._velocity = self.velocity_lower
@@ -58,19 +52,30 @@ class LinearMotor(base.LinearMotor, PositionMotorMixin):
         super(LinearMotor, self).__init__()
         self['position'].conversion = lambda x: x / q.mm * q.count
 
-        if hard_limits:
-            self.lower, self.upper = hard_limits
-
         if position:
             self._position = position
 
+    def check_state(self):
+        if not self.lower and not self.upper:
+            return 'standby'
 
-class ContinuousLinearMotor(LinearMotor,
-                            base.ContinuousLinearMotor, ContinuousMotorMixin):
+        if self._position > self.lower and self._position < self.upper:
+            return 'standby'
+
+        raise HardLimitError('in-hard-limit')
+
+
+class ContinuousLinearMotor(LinearMotor, base.ContinuousLinearMotor, ContinuousMotorMixin):
 
     def __init__(self):
         super(ContinuousLinearMotor, self).__init__()
         self['velocity'].conversion = lambda x: x / q.mm * q.s * q.count
+
+    def check_state(self):
+        if self.velocity.magnitude != 0:
+            return 'moving'
+
+        return super(ContinuousLinearMotor, self).check_state()
 
     def _stop(self):
         self._velocity = 0 * q.count
@@ -92,6 +97,12 @@ class ContinuousRotationMotor(RotationMotor,
     def __init__(self):
         super(ContinuousRotationMotor, self).__init__()
         self['velocity'].conversion = lambda x: x / q.deg * q.s * q.count
+
+    def check_state(self):
+        if self.velocity.magnitude != 0:
+            return 'moving'
+
+        return super(ContinuousLinearMotor, self).check_state()
 
     def _stop(self):
         self._velocity = 0 * q.count

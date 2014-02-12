@@ -16,8 +16,7 @@ As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 import logging
 from concert.quantities import q
 from concert.async import async
-from concert.fsm import State, transition
-from concert.base import Quantity
+from concert.base import Quantity, State
 from concert.devices.base import Device
 
 
@@ -42,7 +41,7 @@ class PositionMixin(Device):
         self.position += delta
 
     @async
-    @transition(source='moving', target='standby')
+    @state.transition(source='moving', target='standby')
     def stop(self):
         """
         stop()
@@ -51,7 +50,7 @@ class PositionMixin(Device):
         self._stop()
 
     @async
-    @transition(source='*', target='standby', immediate='moving')
+    @state.transition(source='*', target='standby', immediate='moving')
     def home(self):
         """
         home()
@@ -66,9 +65,6 @@ class PositionMixin(Device):
     def _stop(self):
         raise NotImplementedError
 
-    def in_hard_limit(self):
-        raise NotImplementedError
-
 
 class ContinuousMixin(Device):
 
@@ -76,12 +72,6 @@ class ContinuousMixin(Device):
 
     def __init__(self):
         super(ContinuousMixin, self).__init__()
-
-    def in_velocity_hard_limit(self):
-        return self._in_velocity_hard_limit()
-
-    def _in_velocity_hard_limit(self):
-        raise NotImplementedError
 
 
 class LinearMotor(PositionMixin):
@@ -94,12 +84,19 @@ class LinearMotor(PositionMixin):
         Position of the motor in length units.
     """
 
-    position = Quantity(unit=q.m,
-                        source='standby', target='standby', immediate='moving',
-                        in_hard_limit=PositionMixin.in_hard_limit)
-
     def __init__(self):
         super(LinearMotor, self).__init__()
+
+    def check_state(self):
+        raise NotImplementedError
+
+    state = State(default='standby')
+
+    position = Quantity(unit=q.m,
+                        transition=state.transition(source='standby',
+                                                    target=['standby'],
+                                                    immediate='moving',
+                                                    check=check_state))
 
 
 class ContinuousLinearMotor(LinearMotor, ContinuousMixin):
@@ -112,11 +109,18 @@ class ContinuousLinearMotor(LinearMotor, ContinuousMixin):
         Current velocity in length per time unit.
     """
 
-    velocity = Quantity(unit=q.m / q.s,
-                        in_hard_limit=ContinuousMixin.in_velocity_hard_limit)
-
     def __init__(self):
         super(ContinuousLinearMotor, self).__init__()
+
+    def check_state(self):
+        raise NotImplementedError
+
+    state = State(default='standby')
+
+    velocity = Quantity(unit=q.m / q.s,
+                        transition=state.transition(source=['standby', 'moving'],
+                                                    target=['moving', 'standby'],
+                                                    check=check_state))
 
 
 class RotationMotor(PositionMixin):
@@ -129,9 +133,12 @@ class RotationMotor(PositionMixin):
         Position of the motor in angular units.
     """
 
+    state = State(default='standby')
+
     position = Quantity(unit=q.deg,
-                        source='standby', target='standby', immediate='moving',
-                        in_hard_limit=PositionMixin.in_hard_limit)
+                        transition=state.transition(source='standby',
+                                                    target='standby',
+                                                    immediate='moving'))
 
     def __init__(self):
         super(RotationMotor, self).__init__()
@@ -150,5 +157,12 @@ class ContinuousRotationMotor(RotationMotor, ContinuousMixin):
     def __init__(self):
         super(ContinuousRotationMotor, self).__init__()
 
+    def check_state(self):
+        raise NotImplementedError
+
+    state = State(default='standby')
+
     velocity = Quantity(unit=q.deg / q.s,
-                        in_hard_limit=ContinuousMixin.in_velocity_hard_limit)
+                        transition=state.transition(source=['standby', 'moving'],
+                                                    target=['moving', 'standby'],
+                                                    check=check_state))
