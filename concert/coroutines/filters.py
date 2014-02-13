@@ -1,8 +1,8 @@
 from copy import deepcopy
 try:
-    import Queue as queue
+    import Queue as queue_module
 except ImportError:
-    import queue
+    import queue as queue_module
 import logging
 import numpy as np
 from concert.imageprocessing import ramp_filter
@@ -55,7 +55,7 @@ def queue(consumer):
     Store the incoming data in a queue and dispatch in a separate
     thread which prevents the stalling on the "main" data stream.
     """
-    item_queue = queue.Queue()
+    item_queue = queue_module.Queue()
 
     @threaded
     def serve():
