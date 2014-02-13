@@ -158,3 +158,7 @@ class TestStateMachine(TestCase):
         self.assertEqual(self.device.state, 'error')
         self.device.reset()
         self.assertEqual(self.device.state, 'standby')
+
+    def test_state_setting(self):
+        with self.assertRaises(AttributeError):
+            self.device.state = 'foo'
