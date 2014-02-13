@@ -1,6 +1,6 @@
 import time
 from concert.tests import TestCase
-from concert.base import State, TransitionNotAllowed
+from concert.base import State, StateError, TransitionNotAllowed
 from concert.quantities import q
 from concert.async import async
 from concert.devices.base import Device
@@ -44,8 +44,13 @@ class SomeDevice(Device):
     def set_velocity(self, velocity):
         self.velocity = velocity
 
+    @state.transition(source='*', target=['ok', 'error'])
+    def make_error(self):
+        raise StateError('error')
+
+    @state.transition(source='error', target='standby')
     def reset(self):
-        self.state.reset()
+        pass
 
 
 class BaseDevice(Device):
@@ -65,7 +70,6 @@ class BaseDevice(Device):
 
 
 class DerivedDevice(BaseDevice):
-
     state = State(default='standby')
 
     def __init__(self):
@@ -146,3 +150,11 @@ class TestStateMachine(TestCase):
 
         device.reset()
         self.assertEqual(device.state, 'standby')
+
+    def test_errors(self):
+        with self.assertRaises(StateError):
+            self.device.make_error()
+
+        self.assertEqual(self.device.state, 'error')
+        self.device.reset()
+        self.assertEqual(self.device.state, 'standby')

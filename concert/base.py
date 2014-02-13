@@ -166,6 +166,8 @@ class State(object):
             sources = [source] if isinstance(source, str) else source
             targets = [target] if isinstance(target, str) else target
 
+            saved_target = target
+
             if immediate:
                 sources.append(immediate)
                 targets.append(immediate)
@@ -181,24 +183,26 @@ class State(object):
                     msg = "Cannot transition from `{}' to `{}'".format(current, target)
                     raise TransitionNotAllowed(msg)
 
-                if isinstance(target, list):
-                    try:
-                        # We call the instance method based on the function
-                        # name of the class method.
-                        target = getattr(instance, check.__name__)()
-                    except StateError as error:
-                        target = error.state
-                        setattr(instance, '_state_value', target)
-                        raise error
-
-                setattr(instance, '_state_value', target)
+                final = getattr(instance, check.__name__)() if isinstance(target, list) else target
+                setattr(instance, '_state_value', final)
 
             def call_func(instance, *args, **kwargs):
+                current = self._value(instance)
+
+                if current not in sources and '*' not in sources:
+                    raise TransitionNotAllowed()
+
                 if immediate:
                     try_transition(immediate, instance)
 
-                result = func(instance, *args, **kwargs)
-                try_transition(target, instance)
+                try:
+                    result = func(instance, *args, **kwargs)
+                    try_transition(saved_target, instance)
+                except StateError as error:
+                    target = error.state
+                    setattr(instance, '_state_value', target)
+                    raise error
+
                 return result
 
             return call_func
