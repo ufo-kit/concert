@@ -145,6 +145,9 @@ class State(object):
     def __get__(self, instance, owner):
         return self._value(instance)
 
+    def __set__(self, instance, value):
+        raise AttributeError('State cannot be set')
+
     def _value(self, instance):
         if not hasattr(instance, '_state_value'):
             setattr(instance, '_state_value', self.default)
