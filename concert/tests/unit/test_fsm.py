@@ -1,6 +1,6 @@
 import time
 from concert.tests import TestCase
-from concert.base import State, StateError, TransitionNotAllowed
+from concert.base import transition, StateError, TransitionNotAllowed, State
 from concert.quantities import q
 from concert.async import async
 from concert.devices.base import Device
@@ -18,37 +18,37 @@ class SomeDevice(Device):
         super(SomeDevice, self).__init__()
         self.velocity = STOP_VELOCITY
 
-    @state.transition(source='standby', target='moving')
+    @transition(source='standby', target='moving')
     def start_moving(self, velocity):
         self.velocity = velocity
 
-    @state.transition(source='*', target='standby')
+    @transition(source='*', target='standby')
     def stop_moving(self):
         self.velocity = STOP_VELOCITY
 
     @async
-    @state.transition(source='standby', target='standby', immediate='moving')
+    @transition(source='standby', target='standby', immediate='moving')
     def move_some_time(self, velocity, duration):
         self.velocity = velocity
         time.sleep(duration)
         self.velocity = STOP_VELOCITY
 
-    @state.transition(source=['standby', 'moving'], target='standby')
+    @transition(source=['standby', 'moving'], target='standby')
     def stop_no_matter_what(self):
         self.velocity = STOP_VELOCITY
 
     def actual_state(self):
         return 'standby' if not self.velocity else 'moving'
 
-    @state.transition(source='*', target=['standby', 'moving'], check=actual_state)
+    @transition(source='*', target=['standby', 'moving'], check=actual_state)
     def set_velocity(self, velocity):
         self.velocity = velocity
 
-    @state.transition(source='*', target=['ok', 'error'])
+    @transition(source='*', target=['ok', 'error'])
     def make_error(self):
         raise StateError('error')
 
-    @state.transition(source='error', target='standby')
+    @transition(source='error', target='standby')
     def reset(self):
         pass
 
@@ -60,11 +60,11 @@ class BaseDevice(Device):
     def __init__(self):
         super(BaseDevice, self).__init__()
 
-    @state.transition(source='standby', target='in-base')
+    @transition(source='standby', target='in-base')
     def switch_base(self):
         pass
 
-    @state.transition(source='*', target='standby')
+    @transition(source='*', target='standby')
     def reset(self):
         pass
 
@@ -75,7 +75,7 @@ class DerivedDevice(BaseDevice):
     def __init__(self):
         super(DerivedDevice, self).__init__()
 
-    @state.transition(source='standby', target='in-derived')
+    @transition(source='standby', target='in-derived')
     def switch_derived(self):
         pass
 

@@ -129,7 +129,7 @@ class State(object):
 
             state = State(default='standby')
 
-            @state.transition(source='*', target='moving')
+            @transition(source='*', target='moving')
             def move(self):
                 pass
 
@@ -151,63 +151,69 @@ class State(object):
 
         return getattr(instance, '_state_value')
 
-    def transition(self, source='*', target=None, immediate=None, check=None):
-        """
-        Decorates a method that triggers state transitions.
 
-        source denotes the source state that must be present at the time of
-        invoking the decorated method. target is the state that the state object
-        will be after successful completion of the method. immediate is an optional
-        state that will be set during execution of the method.
-        """
-        def wrapped(func):
-            transitions = collections.defaultdict(list)
+def transition(source='*', target=None, immediate=None, check=None):
+    """
+    Decorates a method that triggers state transitions.
 
-            sources = [source] if isinstance(source, str) else source
-            targets = [target] if isinstance(target, str) else target
+    source denotes the source state that must be present at the time of
+    invoking the decorated method. target is the state that the state object
+    will be after successful completion of the method. immediate is an optional
+    state that will be set during execution of the method.
+    """
+    def wrapped(func):
+        transitions = collections.defaultdict(list)
 
-            saved_target = target
+        sources = [source] if isinstance(source, str) else source
+        targets = [target] if isinstance(target, str) else target
+
+        saved_target = target
+
+        if immediate:
+            sources.append(immediate)
+            targets.append(immediate)
+
+        for s in sources:
+            transitions[s] = targets
+
+        def _value(instance):
+            if not hasattr(instance, '_state_value'):
+                setattr(instance, '_state_value', instance.state)
+            return instance.state
+
+        def try_transition(target, instance, *args, **kwargs):
+            current = _value(instance)
+            succ = transitions.get(current, transitions.get('*', None))
+
+            if not succ:
+                msg = "Cannot transition from `{}' to `{}'".format(current, target)
+                raise TransitionNotAllowed(msg)
+
+            final = getattr(instance, check.__name__)() if isinstance(target, list) else target
+            setattr(instance, '_state_value', final)
+
+        def call_func(instance, *args, **kwargs):
+            current = _value(instance)
+
+            if current not in sources and '*' not in sources:
+                raise TransitionNotAllowed()
 
             if immediate:
-                sources.append(immediate)
-                targets.append(immediate)
+                try_transition(immediate, instance)
 
-            for s in sources:
-                transitions[s] = targets
+            try:
+                result = func(instance, *args, **kwargs)
+                try_transition(saved_target, instance)
+            except StateError as error:
+                target = error.state
+                setattr(instance, '_state_value', target)
+                raise error
 
-            def try_transition(target, instance, *args, **kwargs):
-                current = self._value(instance)
-                succ = transitions.get(current, transitions.get('*', None))
+            return result
 
-                if not succ:
-                    msg = "Cannot transition from `{}' to `{}'".format(current, target)
-                    raise TransitionNotAllowed(msg)
+        return call_func
 
-                final = getattr(instance, check.__name__)() if isinstance(target, list) else target
-                setattr(instance, '_state_value', final)
-
-            def call_func(instance, *args, **kwargs):
-                current = self._value(instance)
-
-                if current not in sources and '*' not in sources:
-                    raise TransitionNotAllowed()
-
-                if immediate:
-                    try_transition(immediate, instance)
-
-                try:
-                    result = func(instance, *args, **kwargs)
-                    try_transition(saved_target, instance)
-                except StateError as error:
-                    target = error.state
-                    setattr(instance, '_state_value', target)
-                    raise error
-
-                return result
-
-            return call_func
-
-        return wrapped
+    return wrapped
 
 
 class Parameter(object):
@@ -223,7 +229,7 @@ class Parameter(object):
         class SomeClass(object):
 
             state = State(default='standby')
-            param = Parameter(transition=state.transition(source='standby',
+            param = Parameter(transition=transition(source='standby',
                                                           target='doing'))
 
             def _set_param(self, value):
