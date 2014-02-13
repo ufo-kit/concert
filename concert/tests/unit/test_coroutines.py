@@ -1,7 +1,7 @@
 import numpy as np
 from concert.coroutines import coroutine, broadcast, inject
-from concert.coroutines.filters import (flat_correct, average_images,
-                                        sinograms, downsize, stall, PickSlice)
+from concert.coroutines.filters import (absorptivity, backproject, flat_correct, average_images,
+                                        queue, sinograms, downsize, stall, PickSlice)
 from concert.coroutines.sinks import null, Result
 from concert.tests import TestCase
 
@@ -92,6 +92,18 @@ class TestCoroutines(TestCase):
 
         frame_producer(flat_correct(flat, check(), dark=dark))
 
+    def test_absorptivity(self):
+        truth_base = np.ones((2, 2))
+
+        @coroutine
+        def check():
+            i = 1
+            while True:
+                frame = yield
+                np.testing.assert_almost_equal(frame, -np.log(truth_base * i))
+                i += 1
+        frame_producer(absorptivity(check()))
+
     def test_result_object(self):
         result = Result()
         self.producer(result())
@@ -131,3 +143,9 @@ class TestCoroutines(TestCase):
         pick.index = 1
         produce_volume(pick(self.consume()))
         np.testing.assert_almost_equal(self.data, np.ones((2, 2)) * 2)
+
+    def test_queue(self):
+        frame_producer(queue(null()))
+
+    def test_backproject(self):
+        frame_producer(backproject(1, null()))
