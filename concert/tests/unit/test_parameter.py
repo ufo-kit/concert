@@ -1,6 +1,6 @@
 from concert.quantities import q
 from concert.tests import TestCase
-from concert.base import Parameterizable, Parameter, Quantity, State, SoftLimitError
+from concert.base import Parameterizable, Parameter, Quantity, State, SoftLimitError, transition
 
 
 class BaseDevice(Parameterizable):
@@ -13,7 +13,7 @@ class FooDevice(BaseDevice):
 
     state = State(default='standby')
 
-    foo = Quantity(unit=q.m, transition=state.transition(source='*', target='moved'))
+    foo = Quantity(unit=q.m, transition=transition(source='*', target='moved'))
 
     def __init__(self, default):
         super(FooDevice, self).__init__()

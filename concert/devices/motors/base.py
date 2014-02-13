@@ -16,7 +16,7 @@ As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 import logging
 from concert.quantities import q
 from concert.async import async
-from concert.base import Quantity, State
+from concert.base import Quantity, State, transition
 from concert.devices.base import Device
 
 
@@ -41,7 +41,7 @@ class PositionMixin(Device):
         self.position += delta
 
     @async
-    @state.transition(source='moving', target='standby')
+    @transition(source='moving', target='standby')
     def stop(self):
         """
         stop()
@@ -50,7 +50,7 @@ class PositionMixin(Device):
         self._stop()
 
     @async
-    @state.transition(source='*', target='standby', immediate='moving')
+    @transition(source='*', target='standby', immediate='moving')
     def home(self):
         """
         home()
@@ -93,10 +93,10 @@ class LinearMotor(PositionMixin):
     state = State(default='standby')
 
     position = Quantity(unit=q.m,
-                        transition=state.transition(source='standby',
-                                                    target=['standby'],
-                                                    immediate='moving',
-                                                    check=check_state))
+                        transition=transition(source='standby',
+                                              target=['standby'],
+                        immediate='moving',
+                                              check=check_state))
 
 
 class ContinuousLinearMotor(LinearMotor, ContinuousMixin):
@@ -118,9 +118,9 @@ class ContinuousLinearMotor(LinearMotor, ContinuousMixin):
     state = State(default='standby')
 
     velocity = Quantity(unit=q.m / q.s,
-                        transition=state.transition(source=['standby', 'moving'],
-                                                    target=['moving', 'standby'],
-                                                    check=check_state))
+                        transition=transition(source=['standby', 'moving'],
+                                              target=['moving', 'standby'],
+                        check=check_state))
 
 
 class RotationMotor(PositionMixin):
@@ -136,9 +136,9 @@ class RotationMotor(PositionMixin):
     state = State(default='standby')
 
     position = Quantity(unit=q.deg,
-                        transition=state.transition(source='standby',
-                                                    target='standby',
-                                                    immediate='moving'))
+                        transition=transition(source='standby',
+                                              target='standby',
+                                              immediate='moving'))
 
     def __init__(self):
         super(RotationMotor, self).__init__()
@@ -163,6 +163,6 @@ class ContinuousRotationMotor(RotationMotor, ContinuousMixin):
     state = State(default='standby')
 
     velocity = Quantity(unit=q.deg / q.s,
-                        transition=state.transition(source=['standby', 'moving'],
-                                                    target=['moving', 'standby'],
-                                                    check=check_state))
+                        transition=transition(source=['standby', 'moving'],
+                                              target=['moving', 'standby'],
+                        check=check_state))
