@@ -137,6 +137,13 @@ class State(object):
 
         obj = SomeObject()
         assert obj.state == 'standby'
+
+    The state cannot be set explicitly by::
+
+        obj.state = 'some_state'
+
+    but the object needs to provide methods which transition out of
+    states, the same holds for transitioning out of error states.
     """
 
     def __init__(self, default=None):
