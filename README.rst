@@ -30,3 +30,11 @@ or from a session and within an integrated `IPython`_ shell::
 You can read more about *Concert* in the official `documentation`_.
 
 .. _documentation: https://concert.readthedocs.org
+
+
+Citation
+--------
+
+If you want to use Concert, we kindly ask you to acknowledge the respective
+authorship not only by respecting the LGPL software license but also by linking
+to one of our project websites at http://ufo.kit.edu and http://anka.kit.edu.
