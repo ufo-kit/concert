@@ -177,8 +177,6 @@ def transition(source='*', target=None, immediate=None, check=None):
         sources = [source] if isinstance(source, str) else source
         targets = [target] if isinstance(target, str) else target
 
-        saved_target = target
-
         if immediate:
             sources.append(immediate)
             targets.append(immediate)
@@ -199,24 +197,30 @@ def transition(source='*', target=None, immediate=None, check=None):
                 msg = "Cannot transition from `{}' to `{}'".format(current, target)
                 raise TransitionNotAllowed(msg)
 
-            final = getattr(instance, check.__name__)() if isinstance(target, list) else target
-            setattr(instance, '_state_value', final)
-
         def call_func(instance, *args, **kwargs):
             current = _value(instance)
 
             if current not in sources and '*' not in sources:
-                raise TransitionNotAllowed()
+                msg = "`{}' not in `{}'".format(source, sources)
+                raise TransitionNotAllowed(msg)
 
             if immediate:
-                try_transition(immediate, instance)
+                # Since it was listed by the user, the transition must exist so no check required.
+                setattr(instance, '_state_value', immediate)
 
             try:
+                # If there is an edge to the desired transition from source or immediate
+                # we execute the actual function
+                try_transition(target, instance)
                 result = func(instance, *args, **kwargs)
-                try_transition(saved_target, instance)
+                # The final state can come from the device itself (more possible target states)
+                final = getattr(instance, check.__name__)() if isinstance(target, list) else target
+                # We check the actual state after the function execution before we do the final
+                # transition
+                try_transition(final, instance)
+                setattr(instance, '_state_value', final)
             except StateError as error:
-                target = error.state
-                setattr(instance, '_state_value', target)
+                setattr(instance, '_state_value', error.state)
                 raise error
 
             return result
