@@ -39,7 +39,7 @@ class _PositionMixin(Device):
         self.position += delta
 
     @async
-    @transition(source='moving', target='standby')
+    @transition(source=['hard-limit', 'moving'], target='standby')
     def stop(self):
         """
         stop()
@@ -83,10 +83,9 @@ class LinearMotor(_PositionMixin):
     state = State(default='standby')
 
     position = Quantity(unit=q.m,
-                        transition=transition(source='standby',
-                                              target=['standby'],
-                                              immediate='moving',
-                                              check=check_state))
+                        transition=transition(source=['hard-limit', 'standby'],
+                                              target=['hard-limit', 'standby'],
+                                              immediate='moving', check=check_state))
 
 
 class ContinuousLinearMotor(LinearMotor):
@@ -108,7 +107,7 @@ class ContinuousLinearMotor(LinearMotor):
     state = State(default='standby')
 
     velocity = Quantity(unit=q.m / q.s,
-                        transition=transition(source=['standby', 'moving'],
+                        transition=transition(source=['hard-limit', 'standby', 'moving'],
                                               target=['moving', 'standby'],
                         check=check_state))
 
@@ -125,10 +124,13 @@ class RotationMotor(_PositionMixin):
 
     state = State(default='standby')
 
+    def check_state(self):
+        raise NotImplementedError
+
     position = Quantity(unit=q.deg,
-                        transition=transition(source='standby',
-                                              target='standby',
-                                              immediate='moving'))
+                        transition=transition(source=['hard-limit', 'standby'],
+                                              target=['hard-limit', 'standby'],
+                                              immediate='moving', check=check_state))
 
     def __init__(self):
         super(RotationMotor, self).__init__()
@@ -153,6 +155,5 @@ class ContinuousRotationMotor(RotationMotor):
     state = State(default='standby')
 
     velocity = Quantity(unit=q.deg / q.s,
-                        transition=transition(source=['standby', 'moving'],
-                                              target=['moving', 'standby'],
-                        check=check_state))
+                        transition=transition(source=['hard-limit', 'standby', 'moving'],
+                                              target=['moving', 'standby'], check=check_state))
