@@ -5,9 +5,8 @@ from concert.quantities import q
 from concert.devices.motors import base
 
 
-class PositionMotorMixin(base.PositionMixin):
+class _PositionMixin(object):
     def __init__(self):
-        super(PositionMotorMixin, self).__init__()
         self.lower = -100 * q.count
         self.upper = +100 * q.count
         self._position = random.uniform(self.lower, self.upper)
@@ -27,9 +26,9 @@ class PositionMotorMixin(base.PositionMixin):
         pass
 
 
-class ContinuousMotorMixin(base.ContinuousMixin):
+class _ContinuousMixin(object):
     def __init__(self):
-        super(ContinuousMotorMixin, self).__init__()
+        super(_ContinuousMixin, self).__init__()
         self.velocity_lower = -100 * q.count
         self.velocity_upper = 100 * q.count
         self._velocity = 0 * q.count
@@ -46,10 +45,11 @@ class ContinuousMotorMixin(base.ContinuousMixin):
         return self._velocity
 
 
-class LinearMotor(base.LinearMotor, PositionMotorMixin):
+class LinearMotor(base.LinearMotor, _PositionMixin):
 
     def __init__(self, position=None, hard_limits=None):
         super(LinearMotor, self).__init__()
+        _PositionMixin.__init__(self)
         self['position'].conversion = lambda x: x / q.mm * q.count
 
         if position:
@@ -65,10 +65,11 @@ class LinearMotor(base.LinearMotor, PositionMotorMixin):
         raise HardLimitError('in-hard-limit')
 
 
-class ContinuousLinearMotor(LinearMotor, base.ContinuousLinearMotor, ContinuousMotorMixin):
+class ContinuousLinearMotor(LinearMotor, base.ContinuousLinearMotor, _ContinuousMixin):
 
     def __init__(self):
         super(ContinuousLinearMotor, self).__init__()
+        _ContinuousMixin.__init__(self)
         self['velocity'].conversion = lambda x: x / q.mm * q.s * q.count
 
     def check_state(self):
@@ -81,10 +82,11 @@ class ContinuousLinearMotor(LinearMotor, base.ContinuousLinearMotor, ContinuousM
         self._velocity = 0 * q.count
 
 
-class RotationMotor(base.RotationMotor, PositionMotorMixin):
+class RotationMotor(base.RotationMotor, _PositionMixin):
 
     def __init__(self):
         super(RotationMotor, self).__init__()
+        _PositionMixin.__init__(self)
         self['position'].conversion = lambda x: x / q.deg * q.count
         self.lower = -float("Inf") * q.count
         self.upper = float("Inf") * q.count
@@ -92,10 +94,11 @@ class RotationMotor(base.RotationMotor, PositionMotorMixin):
 
 class ContinuousRotationMotor(RotationMotor,
                               base.ContinuousRotationMotor,
-                              ContinuousMotorMixin):
+                              _ContinuousMixin):
 
     def __init__(self):
         super(ContinuousRotationMotor, self).__init__()
+        _ContinuousMixin.__init__(self)
         self['velocity'].conversion = lambda x: x / q.deg * q.s * q.count
 
     def check_state(self):
