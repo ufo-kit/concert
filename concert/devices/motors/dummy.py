@@ -47,7 +47,7 @@ class _ContinuousMixin(object):
 
 class LinearMotor(base.LinearMotor, _PositionMixin):
 
-    def __init__(self, position=None, hard_limits=None):
+    def __init__(self, position=None):
         super(LinearMotor, self).__init__()
         _PositionMixin.__init__(self)
         self['position'].conversion = lambda x: x / q.mm * q.count
@@ -56,13 +56,10 @@ class LinearMotor(base.LinearMotor, _PositionMixin):
             self._position = position
 
     def check_state(self):
-        if not self.lower and not self.upper:
-            return 'standby'
-
         if self._position > self.lower and self._position < self.upper:
             return 'standby'
 
-        raise HardLimitError('in-hard-limit')
+        raise HardLimitError('hard-limit')
 
 
 class ContinuousLinearMotor(LinearMotor, base.ContinuousLinearMotor, _ContinuousMixin):
@@ -76,7 +73,7 @@ class ContinuousLinearMotor(LinearMotor, base.ContinuousLinearMotor, _Continuous
         if self.velocity.magnitude != 0:
             return 'moving'
 
-        return super(ContinuousLinearMotor, self).check_state()
+        return LinearMotor.check_state(self)
 
     def _stop(self):
         self._velocity = 0 * q.count
@@ -90,6 +87,9 @@ class RotationMotor(base.RotationMotor, _PositionMixin):
         self['position'].conversion = lambda x: x / q.deg * q.count
         self.lower = -float("Inf") * q.count
         self.upper = float("Inf") * q.count
+
+    def check_state(self):
+        return 'standby'
 
 
 class ContinuousRotationMotor(RotationMotor,
@@ -105,7 +105,7 @@ class ContinuousRotationMotor(RotationMotor,
         if self.velocity.magnitude != 0:
             return 'moving'
 
-        return super(ContinuousLinearMotor, self).check_state()
+        return RotationMotor.check_state(self)
 
     def _stop(self):
         self._velocity = 0 * q.count
