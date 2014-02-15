@@ -23,14 +23,12 @@ from concert.devices.base import Device
 LOG = logging.getLogger(__name__)
 
 
-class PositionMixin(Device):
+class _PositionMixin(Device):
 
     """Provide positional, discrete behaviour interface."""
 
-    state = State(default='standby')
-
     def __init__(self):
-        super(PositionMixin, self).__init__()
+        super(_PositionMixin, self).__init__()
 
     @async
     def move(self, delta):
@@ -66,15 +64,7 @@ class PositionMixin(Device):
         raise NotImplementedError
 
 
-class ContinuousMixin(Device):
-
-    """Provide continuous, non-discrete behaviour interface."""
-
-    def __init__(self):
-        super(ContinuousMixin, self).__init__()
-
-
-class LinearMotor(PositionMixin):
+class LinearMotor(_PositionMixin):
 
     """
     One-dimensional linear motor.
@@ -99,7 +89,7 @@ class LinearMotor(PositionMixin):
                                               check=check_state))
 
 
-class ContinuousLinearMotor(LinearMotor, ContinuousMixin):
+class ContinuousLinearMotor(LinearMotor):
 
     """
     One-dimensional linear motor with adjustable velocity.
@@ -123,7 +113,7 @@ class ContinuousLinearMotor(LinearMotor, ContinuousMixin):
                         check=check_state))
 
 
-class RotationMotor(PositionMixin):
+class RotationMotor(_PositionMixin):
 
     """
     One-dimensional rotational motor.
@@ -144,7 +134,7 @@ class RotationMotor(PositionMixin):
         super(RotationMotor, self).__init__()
 
 
-class ContinuousRotationMotor(RotationMotor, ContinuousMixin):
+class ContinuousRotationMotor(RotationMotor):
 
     """
     One-dimensional rotational motor with adjustable velocity.
