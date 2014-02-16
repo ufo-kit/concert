@@ -7,8 +7,6 @@ import sys
 import imp
 import shutil
 
-from concert import __version__
-
 _CACHED_PATH = None
 
 _SESSION_TEMPLATE = """import logging
