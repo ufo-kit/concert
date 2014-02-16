@@ -4,7 +4,7 @@ import numpy as np
 import logging
 import six
 import collections
-from functools import wraps
+import functools
 from concert.helpers import memoize
 from concert.async import async, wait
 
@@ -197,6 +197,7 @@ def transition(source='*', target=None, immediate=None, check=None):
                 msg = "Cannot transition from `{}' to `{}'".format(current, target)
                 raise TransitionNotAllowed(msg)
 
+        @functools.wraps(func)
         def call_func(instance, *args, **kwargs):
             current = _value(instance)
 
