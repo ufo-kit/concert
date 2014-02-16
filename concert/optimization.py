@@ -10,7 +10,6 @@ This module provides execution routines and algorithms for optimization.
 import logging
 from functools import wraps
 from concert.async import async
-from concert.base import StateError
 from concert.quantities import q
 
 

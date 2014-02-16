@@ -95,7 +95,7 @@ class LinearMotor(PositionMixin):
     position = Quantity(unit=q.m,
                         transition=transition(source='standby',
                                               target=['standby'],
-                        immediate='moving',
+                                              immediate='moving',
                                               check=check_state))
 
 
