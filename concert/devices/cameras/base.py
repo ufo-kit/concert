@@ -47,6 +47,7 @@ To setup and use a camera in a typical environment, you would do::
 
     print("mean=%f, stddev=%f" % (np.mean(data), np.std(data))
 """
+import contextlib
 from concert.base import Parameter, Quantity, State, transition
 from concert.quantities import q
 from concert.helpers import Bunch
@@ -85,6 +86,20 @@ class Camera(Device):
     def stop_recording(self):
         """Stop recording frames."""
         self._stop_real()
+
+    @contextlib.contextmanager
+    def recording(self):
+        """
+        A context manager for starting and stopping the camera.
+
+        In general it is used with the ``with`` keyword like this::
+
+            with camera.recording():
+                frame = camera.grab()
+        """
+        self.start_recording()
+        yield
+        self.stop_recording()
 
     def trigger(self):
         """Trigger a frame if possible."""
