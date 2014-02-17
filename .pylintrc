@@ -16,3 +16,8 @@ disable=W0142, W1401
 [TYPECHECK]
 # Technically quantities is not a class, but oh well ...
 ignored-classes=quantities
+
+[FORMAT]
+
+# Maximum number of characters on a single line.
+max-line-length=100
