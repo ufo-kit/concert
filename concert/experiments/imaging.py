@@ -1,6 +1,7 @@
 """Imaging experiments usually conducted at synchrotrons."""
 import os
 import numpy as np
+from concert.quantities import q
 from concert.storage import write_tiff, create_directory
 from concert.coroutines.sinks import write_images
 from concert.experiments.base import Experiment as BaseExperiment
@@ -55,6 +56,7 @@ class Experiment(BaseExperiment):
         for acq, launcher in self._writers.items():
             acq.consumers.remove(launcher)
         self._writers = {}
+
 
 def tomo_angular_step(frame_width):
     """
