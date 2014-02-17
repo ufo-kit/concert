@@ -52,7 +52,7 @@ from concert.devices.base import Device
 from concert.devices.motors.base import LinearMotor
 
 
-inf_vector = np.array((np.inf, np.inf, np.inf))
+INF_VECTOR = np.array((np.inf, np.inf, np.inf))
 
 
 class Axis(object):
@@ -94,8 +94,8 @@ class Positioner(Device):
     be zero or numpy.nan.
     """
 
-    position = Quantity(unit=q.m, lower=-inf_vector * q.m, upper=inf_vector * q.m)
-    orientation = Quantity(unit=q.rad, lower=-inf_vector * q.rad, upper=inf_vector * q.rad)
+    position = Quantity(unit=q.m, lower=-INF_VECTOR * q.m, upper=INF_VECTOR * q.m)
+    orientation = Quantity(unit=q.rad, lower=-INF_VECTOR * q.rad, upper=INF_VECTOR * q.rad)
 
     def __init__(self, axes, position=None):
         super(Positioner, self).__init__()
@@ -132,7 +132,7 @@ class Positioner(Device):
         right(value)
 
         Move right by *value*."""
-        return self.move(self._vectorize(value, 'x'))
+        return self.move(_vectorize(value, 'x'))
 
     def left(self, value):
         """
@@ -147,7 +147,7 @@ class Positioner(Device):
 
         Move up by *value*.
         """
-        return self.move(self._vectorize(value, 'y'))
+        return self.move(_vectorize(value, 'y'))
 
     def down(self, value):
         """
@@ -163,7 +163,7 @@ class Positioner(Device):
 
         Move forward by *value*.
         """
-        return self.move(self._vectorize(value, 'z'))
+        return self.move(_vectorize(value, 'z'))
 
     def back(self, value):
         """
@@ -182,29 +182,19 @@ class Positioner(Device):
         self._set_vector(position, self.translators)
 
     def _get_orientation(self):
+        """Get the angular position of the positioner."""
         return self._get_vector(self.rotators)
 
     def _set_orientation(self, angles):
         """Rotation with magnitudes *angles*."""
         self._set_vector(angles, self.rotators)
 
-    def _vectorize(self, scalar, coordinate):
-        """
-        Return a vector with the *scalar* in the correct place given by the
-        *coordinate* as x, y or z.
-        """
-        vector = np.zeros(3, dtype=np.float)
-        translate = dict(x=0, y=1, z=2)
-        vector[translate[coordinate]] = scalar.magnitude
-
-        return q.Quantity(vector, scalar.units)
-
     def _get_vector(self, axes):
         """Get the current translation or orientation vector."""
         vector = []
         unit = q.m if axes == self.translators else q.rad
 
-        for i, coordinate in enumerate(['x', 'y', 'z']):
+        for coordinate in ['x', 'y', 'z']:
             if coordinate in axes:
                 vector.append(axes[coordinate].get_position().result().to(unit).magnitude)
             else:
@@ -223,11 +213,23 @@ class Positioner(Device):
                         # Last chance is to specify the coordinate to be zero.
                         raise PositionerError('Cannot move in {} coordinate'.format(coordinate))
                 else:
-                    f = axes[coordinate].set_position(vector[i])
-                    futures.append(f)
+                    future = axes[coordinate].set_position(vector[i])
+                    futures.append(future)
         wait(futures)
 
 
 class PositionerError(Exception):
     """Positioning exceptions"""
     pass
+
+
+def _vectorize(scalar, coordinate):
+    """
+    Return a vector with the *scalar* in the correct place given by the
+    *coordinate* as x, y or z.
+    """
+    vector = np.zeros(3, dtype=np.float)
+    translate = dict(x=0, y=1, z=2)
+    vector[translate[coordinate]] = scalar.magnitude
+
+    return q.Quantity(vector, scalar.units)
