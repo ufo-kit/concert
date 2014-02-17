@@ -33,3 +33,12 @@ class TestDummyCamera(TestCase):
         for i, item in enumerate(camera.readout_buffer()):
             pass
         self.assertEqual(i, 2)
+
+    def test_context_manager(self):
+        camera = Camera()
+
+        with camera.recording():
+            self.assertEqual(camera.state, 'recording')
+            f = camera.grab()
+
+        self.assertEqual(camera.state, 'standby')
