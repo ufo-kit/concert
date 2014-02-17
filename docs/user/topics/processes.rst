@@ -44,8 +44,8 @@ To adjust the focal plane of a camera, you use :func:`.focus` like this::
 
     from concert.processes import focus
     from concert.cameras.uca import Camera
-    from concert.motors.ankatango import Motor
+    from concert.motors.dummy import LinearMotor
 
-    motor = Motor(tango_device)
-    camera = Camera('pco')
+    motor = LinearMotor()
+    camera = Camera('mock')
     focus(camera, motor)

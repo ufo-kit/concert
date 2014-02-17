@@ -88,7 +88,8 @@ module file::
     concert edit session-name
 
 This file can contain any kind of Python code, but you will most likely just add
-device definitions and import processes that you want to use in a session.
+device definitions and import processes that you want to use in a session. If the
+``session-name`` doesn't exist it is created.
 
 
 log

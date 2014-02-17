@@ -62,7 +62,8 @@ class Axis(object):
     the Euclidean axis, i.e. 'x' or 'y' or 'z'. Movement is realized by a *motor*.
     An additional *position* argument is necessary for calculatin more complicated
     motion types, e.g. rotation around arbitrary point in space. It is the local
-    position with respect to a :class:`.Positioner` in which it is placed.
+    position with respect to a :class:`concert.devices.positioners.base.Positioner`
+    in which it is placed.
     """
     def __init__(self, coordinate, motor, direction=1, position=None):
         self.coordinate = coordinate

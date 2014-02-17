@@ -60,3 +60,12 @@ all the acquired frames are written to disk.
 
 .. autoclass:: concert.experiments.imaging.Experiment
     :members:
+
+There are tomography helper functions which make it easier to define the proper
+settings for conducting a tomographic experiment.
+
+.. autofunction:: concert.experiments.imaging.tomo_angular_step
+
+.. autofunction:: concert.experiments.imaging.tomo_projections_number
+
+.. autofunction:: concert.experiments.imaging.tomo_max_speed

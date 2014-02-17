@@ -83,25 +83,22 @@ Let's assume we want to add a new motor called ``FancyMotor``. We first create a
 new module called ``fancy.py`` in the ``concert/devices/motors`` directory
 package. In the ``fancy.py`` module, we first import the base class ::
 
-    from concert.devices.motors.base import Motor, LinearCalibration
+    from concert.devices.motors.base import LinearMotor
 
-Because a user can only set the motor position in units of meter, the device
-itself must convert between motor units and meters. For this purpose, the base
-class expects a :class:`.Calibration` object, such as the pre-defined
-:class:`.LinearCalibration`. Now, let's sub-class :class:`~.base.Motor`::
+Our motor will be a linear one, let's sub-class :class:`~.base.LinearMotor`::
 
-    class FancyMotor(Motor):
+    class FancyMotor(LinearMotor):
         """This is a docstring that can be looked up at run-time by the `ddoc`
         tool."""
 
 In order to install all required parameters, we have to call the base
-constructor which receives the calibration that we assume to be fixed here::
+constructor. Moreover, we need to set the conversion of every :class:`.Quantity`
+which belong to our new device, in our case the ``position``::
 
         def __init__(self):
+            super(FancyMotor, self).__init__()
             # 20 steps correspond to one millimeter
-            calibration = LinearCalibration(20 / q.mm, 0 * q.mm)
-            super(FancyMotor, self).__init__(calibration)
-            self.steps = 0
+            self['position'].conversion = lambda x: x * 20 * q.count / q.mm
 
 Now, all that's left to do, is implementing the abstract methods that would
 raise a :exc:`NotImplementedError`::

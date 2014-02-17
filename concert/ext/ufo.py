@@ -32,8 +32,8 @@ class InjectProcess(object):
     """Process to inject NumPy data into a UFO processing graph.
 
     :class:`InjectProcess` can also be used as a context manager, in which
-    case it will call :meth:`.run` on entering the manager and :meth:`.wait` on
-    exiting it.
+    case it will call :meth:`~.InjectProcess.start` on entering the manager
+    and :meth:`.wait` on exiting it.
 
     *graph* must either be a Ufo.TaskGraph or a Ufo.TaskNode object.  If it is
     a graph the input task will be connected to the first root, otherwise a new

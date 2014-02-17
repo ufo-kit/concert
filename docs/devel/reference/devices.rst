@@ -28,14 +28,6 @@ Monochromators
 Motors
 ------
 
-.. autoclass:: concert.devices.motors.base.PositionMixin
-    :show-inheritance:
-    :members:
-
-.. autoclass:: concert.devices.motors.base.ContinuousMixin
-    :show-inheritance:
-    :members:
-
 Linear
 ~~~~~~
 

@@ -54,8 +54,8 @@ class Experiment(object):
     r"""
     Experiment base class. An experiment can be run multiple times
     with logging output saved on disk. The log from every
-    :py:meth:`.base.Experiment.run` is saved in the current experiment directory
-    given by *directory_prefix*.
+    :meth:`~.Experiment.run` is saved in the current experiment
+    directory given by *directory_prefix*.
 
     .. py:attribute:: acquisitions
 
@@ -129,7 +129,7 @@ class Experiment(object):
         """
         Acquire data by running the acquisitions. This is the method which implements
         the data acquisition and should be overriden if more functionality is required,
-        unlike :meth:`.Experiment.run`.
+        unlike :meth:`~.Experiment.run`.
         """
         for acq in self.acquisitions:
             acq()
@@ -140,7 +140,7 @@ class Experiment(object):
         run()
 
         Create current directory, attach logging output to file and run the
-        :meth:`.base.Experiment.acquire`. After the run is complete the logging
+        :meth:`~.base.Experiment.acquire`. After the run is complete the logging
         is cleaned up automatically. This method should *not* be overriden.
         """
         # Create directory for next scan

@@ -11,9 +11,9 @@ Concert
 devices. It can be used as a library::
 
     from concert.quantities import q
-    from concert.devices.motors.dummy import Motor
+    from concert.devices.motors.dummy import LinearMotor
 
-    motor = Motor()
+    motor = LinearMotor()
     motor.position = 10 * q.mm
     motor.move(-5 * q.mm)
 

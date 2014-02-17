@@ -48,7 +48,7 @@ values::
 
     tutorial > motor
 
-    <concert.devices.motors.dummy.Motor object at 0x9419f0c>
+    <concert.devices.motors.dummy.LinearMotor object at 0x9419f0c>
      Parameter  Value                    
      position   12.729455653 millimeter
 
@@ -141,19 +141,15 @@ device implementations: ``concert.devices.[class].[implementation]``. Thus if
 you want to create a dummy ring from the storage ring class, you would add this
 line to your session::
 
-    from concert.devices.storagerings.dummy import DummyRing
+    from concert.devices.storagerings.dummy import StorageRing
 
 Once imported, you can create the device and give it a name that will be
 accessible from the command line shell::
 
-    from concert.devices.motors.base import LinearCalibration
-    from concert.devices.motors.dummy import DummyMotor
+    from concert.devices.motors.dummy import LinearMotor
 
-    ring = DummyRing()
-
-    # Create a motor that moves one step per millimeter without an offset
-    calibration = LinearCalibration(1 / q.mm, 0 * q.mm)
-    motor = DummyMotor(calibration)
+    ring = StorageRing()
+    motor = LinearMotor()
 
 
 Importing other sessions

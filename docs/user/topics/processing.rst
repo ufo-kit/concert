@@ -118,12 +118,9 @@ Concert has a Matplotlib integration to simplify viewing 1D time series with the
     from concert.devices.cameras.dummy import Camera
     from concert.ext.viewers import PyplotImageViewer
 
-    # Create a camera and start recording
+    # Create a camera and execute something with it in recording state
     camera = Camera()
-    camera.start_recording()
-
-    # Create a viewer and show one frame
-    viewer = PyplotImageViewer()
-    viewer.show(camera.grab())
-
-    camera.stop_recording()
+    with camera.recording():
+        # Create a viewer and show one frame
+        viewer = PyplotImageViewer()
+        viewer.show(camera.grab())
