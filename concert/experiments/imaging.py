@@ -56,14 +56,13 @@ class Experiment(BaseExperiment):
             acq.consumers.remove(launcher)
         self._writers = {}
 
-
-def angular_step(frame_width):
+def tomo_angular_step(frame_width):
     """
     Get the angular step required for tomography so that every pixel of the frame
     rotates no more than one pixel per rotation step. *frame_width* is frame size in
     the direction perpendicular to the axis of rotation.
     """
-    return np.arctan(2.0 / frame_width)
+    return np.arctan(2.0 / frame_width.magnitude) * q.rad
 
 
 def tomo_projections_number(frame_width):
@@ -75,7 +74,7 @@ def tomo_projections_number(frame_width):
     perpendicular to the axis of rotation. The number of pixels in this
     direction is given by *frame_width*.
     """
-    return int(np.ceil(np.pi / angular_step(frame_width).magnitude))
+    return int(np.ceil(np.pi / tomo_angular_step(frame_width)))
 
 
 def tomo_max_speed(frame_width, frame_rate):
@@ -91,4 +90,4 @@ def tomo_max_speed(frame_width, frame_rate):
     more than one pixel from the previous frame, thus we need to take into
     account the whole frame taking procedure (exposure + readout).
     """
-    return angular_step(frame_width) * frame_rate
+    return tomo_angular_step(frame_width) * frame_rate
