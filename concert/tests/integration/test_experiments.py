@@ -7,9 +7,33 @@ import os
 import tempfile
 import numpy as np
 from concert.coroutines import coroutine
+from concert.quantities import q
 from concert.experiments.base import Acquisition, Experiment
-from concert.experiments.imaging import Experiment as ImagingExperiment
-from concert.tests import TestCase
+from concert.experiments.imaging import (Experiment as ImagingExperiment,
+                                         tomo_angular_step, tomo_max_speed,
+                                         tomo_projections_number)
+from concert.tests import TestCase, suppressed_logging, assert_almost_equal
+
+
+@suppressed_logging
+def test_tomo_angular_step():
+    truth = np.arctan(2.0 / 100) * q.rad
+    assert_almost_equal(truth, tomo_angular_step(100 * q.px))
+
+
+@suppressed_logging
+def test_projections_number():
+    width = 100
+    truth = int(np.ceil(np.pi / np.arctan(2.0 / width) * q.rad))
+    assert truth == tomo_projections_number(width * q.px)
+
+
+@suppressed_logging
+def test_tomo_max_speed():
+    width = 100
+    frame_rate = 100 / q.s
+    truth = np.arctan(2.0 / width) * q.rad * frame_rate
+    assert_almost_equal(truth, tomo_max_speed(width * q.px, frame_rate))
 
 
 class TestExperimentBase(TestCase):
