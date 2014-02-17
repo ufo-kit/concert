@@ -23,14 +23,12 @@ from concert.devices.base import Device
 LOG = logging.getLogger(__name__)
 
 
-class PositionMixin(Device):
+class _PositionMixin(Device):
 
     """Provide positional, discrete behaviour interface."""
 
-    state = State(default='standby')
-
     def __init__(self):
-        super(PositionMixin, self).__init__()
+        super(_PositionMixin, self).__init__()
 
     @async
     def move(self, delta):
@@ -41,7 +39,7 @@ class PositionMixin(Device):
         self.position += delta
 
     @async
-    @transition(source='moving', target='standby')
+    @transition(source=['hard-limit', 'moving'], target='standby')
     def stop(self):
         """
         stop()
@@ -66,15 +64,7 @@ class PositionMixin(Device):
         raise NotImplementedError
 
 
-class ContinuousMixin(Device):
-
-    """Provide continuous, non-discrete behaviour interface."""
-
-    def __init__(self):
-        super(ContinuousMixin, self).__init__()
-
-
-class LinearMotor(PositionMixin):
+class LinearMotor(_PositionMixin):
 
     """
     One-dimensional linear motor.
@@ -93,13 +83,12 @@ class LinearMotor(PositionMixin):
     state = State(default='standby')
 
     position = Quantity(unit=q.m,
-                        transition=transition(source='standby',
-                                              target=['standby'],
-                                              immediate='moving',
-                                              check=check_state))
+                        transition=transition(source=['hard-limit', 'standby'],
+                                              target=['hard-limit', 'standby'],
+                                              immediate='moving', check=check_state))
 
 
-class ContinuousLinearMotor(LinearMotor, ContinuousMixin):
+class ContinuousLinearMotor(LinearMotor):
 
     """
     One-dimensional linear motor with adjustable velocity.
@@ -118,12 +107,12 @@ class ContinuousLinearMotor(LinearMotor, ContinuousMixin):
     state = State(default='standby')
 
     velocity = Quantity(unit=q.m / q.s,
-                        transition=transition(source=['standby', 'moving'],
+                        transition=transition(source=['hard-limit', 'standby', 'moving'],
                                               target=['moving', 'standby'],
                         check=check_state))
 
 
-class RotationMotor(PositionMixin):
+class RotationMotor(_PositionMixin):
 
     """
     One-dimensional rotational motor.
@@ -135,16 +124,19 @@ class RotationMotor(PositionMixin):
 
     state = State(default='standby')
 
+    def check_state(self):
+        raise NotImplementedError
+
     position = Quantity(unit=q.deg,
-                        transition=transition(source='standby',
-                                              target='standby',
-                                              immediate='moving'))
+                        transition=transition(source=['hard-limit', 'standby'],
+                                              target=['hard-limit', 'standby'],
+                                              immediate='moving', check=check_state))
 
     def __init__(self):
         super(RotationMotor, self).__init__()
 
 
-class ContinuousRotationMotor(RotationMotor, ContinuousMixin):
+class ContinuousRotationMotor(RotationMotor):
 
     """
     One-dimensional rotational motor with adjustable velocity.
@@ -163,6 +155,5 @@ class ContinuousRotationMotor(RotationMotor, ContinuousMixin):
     state = State(default='standby')
 
     velocity = Quantity(unit=q.deg / q.s,
-                        transition=transition(source=['standby', 'moving'],
-                                              target=['moving', 'standby'],
-                        check=check_state))
+                        transition=transition(source=['hard-limit', 'standby', 'moving'],
+                                              target=['moving', 'standby'], check=check_state))
