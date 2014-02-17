@@ -41,14 +41,6 @@ def _new_getter_wrapper(name, unit=None):
     return _wrapper
 
 
-def _create_data_array(camera):
-    bits = camera.props.sensor_bitdepth
-    dtype = np.uint16 if bits > 8 else np.uint8
-    dims = camera.props.roi_height, camera.props.roi_width
-    array = np.empty(dims, dtype=dtype)
-    return (array, array.__array_interface__['data'][0])
-
-
 def _translate_gerror(func):
     from gi._glib import GError
 
@@ -149,6 +141,9 @@ class Camera(base.Camera):
         self._uca_get_trigger = _new_getter_wrapper('trigger-mode')
         self._uca_set_trigger = _new_setter_wrapper('trigger-mode')
 
+        self._record_shape = None
+        self._record_dtype = None
+
     def _get_frame_rate(self):
         return self._uca_get_frame_rate(self) / q.s
 
@@ -165,6 +160,8 @@ class Camera(base.Camera):
 
     @_translate_gerror
     def _record_real(self):
+        self._record_shape = self.roi_height.magnitude, self.roi_width.magnitude
+        self._record_dtype = np.uint16 if self.sensor_bitdepth.magnitude > 8 else np.uint8
         self.uca.start_recording()
 
     @_translate_gerror
@@ -177,7 +174,8 @@ class Camera(base.Camera):
 
     @_translate_gerror
     def _grab_real(self):
-        array, data = _create_data_array(self.uca)
+        array = np.empty(self._record_shape, dtype=self._record_dtype)
+        data = array.__array_interface__['data'][0]
 
         if self.uca.grab(data):
             return array
