@@ -1,6 +1,9 @@
 Concert
 =======
 
+.. image:: https://badge.fury.io/py/concert.png
+    :target: http://badge.fury.io/py/concert
+
 .. image:: https://travis-ci.org/ufo-kit/concert.png?branch=master
     :target: https://travis-ci.org/ufo-kit/concert
 
