@@ -245,7 +245,7 @@ class Parameter(object):
 
             state = State(default='standby')
             param = Parameter(transition=transition(source='standby',
-                                                          target='doing'))
+                                                    target='doing'))
 
             def _set_param(self, value):
                 pass
@@ -260,13 +260,14 @@ class Parameter(object):
     accessing its associated :class:`.ParameterValue`.
     """
 
-    def __init__(self, fget=None, fset=None, data=None, transition=None):
+    def __init__(self, fget=None, fset=None, data=None, transition=None, help=None):
         self.name = None
         self.fget = fget
         self.fset = fset
         self.data_args = (data,) if data is not None else ()
         self.transition = transition
         self.decorated = None
+        self.help = help
 
     @memoize
     def setter_name(self):
@@ -281,6 +282,9 @@ class Parameter(object):
             return self.fget.__name__
 
         return '_get_' + self.name
+
+    def __repr__(self):
+        return str(self.help)
 
     def __get__(self, instance, owner):
         # If we would just call self.fset(value) we would call the method
@@ -332,8 +336,9 @@ class Quantity(Parameter):
     """A parameter which models a physical quantity."""
 
     def __init__(self, fget=None, fset=None, unit=None, lower=None, upper=None,
-                 conversion=identity, data=None, transition=None):
-        super(Quantity, self).__init__(fget=fget, fset=fset, data=data, transition=transition)
+                 conversion=identity, data=None, transition=None, help=None):
+        super(Quantity, self).__init__(fget=fget, fset=fset, data=data,
+                                       transition=transition, help=help)
         self.unit = unit
         self.default_conversion = conversion
 
@@ -432,6 +437,9 @@ class ParameterValue(object):
 
     def __lt__(self, other):
         return self._parameter.name < other._parameter.name
+
+    def __repr__(self):
+        return str(self._parameter)
 
     @property
     def name(self):

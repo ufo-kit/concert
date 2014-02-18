@@ -11,7 +11,7 @@ def _get_param_description_table(device):
 
     for param in device:
         units = param.unit if hasattr(param, 'unit') else None
-        row = [param.name, str(units), inspect.getdoc(param)]
+        row = [param.name, str(units), str(param)]
         table.add_row(row)
 
     return table.get_string()
