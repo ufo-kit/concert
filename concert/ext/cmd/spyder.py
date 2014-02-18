@@ -1,5 +1,5 @@
 import sys
-import concert.session
+import concert.session.management as cs
 from concert.helpers import Command, Bunch
 
 
@@ -13,13 +13,13 @@ class SpyderCommand(Command):
         from spyderlib import spyder
         from spyderlib.config import CONF
 
-        concert.session.exit_if_not_exists(session)
+        cs.exit_if_not_exists(session)
         app = spyder.initialize()
 
         # This should come from our command line parser, however, Spyder does
         # not provide a way to get the argument parser but only the parsed
         # arguments.
-        opts = {'working_directory': concert.session.path(),
+        opts = {'working_directory': cs.path(),
                 'debug': False,
                 'profile': False,
                 'multithreaded': False,
@@ -33,6 +33,6 @@ class SpyderCommand(Command):
         main = spyder.MainWindow(Bunch(opts))
         main.setup()
         main.show()
-        main.open_file(concert.session.path(session))
+        main.open_file(cs.path(session))
 
         app.exec_()
