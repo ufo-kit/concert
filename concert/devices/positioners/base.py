@@ -95,8 +95,13 @@ class Positioner(Device):
     be zero or numpy.nan.
     """
 
-    position = Quantity(unit=q.m, lower=-INF_VECTOR * q.m, upper=INF_VECTOR * q.m)
-    orientation = Quantity(unit=q.rad, lower=-INF_VECTOR * q.rad, upper=INF_VECTOR * q.rad)
+    position = Quantity(unit=q.m,
+                        help="Global position",
+                        lower=-INF_VECTOR * q.m, upper=INF_VECTOR * q.m)
+
+    orientation = Quantity(unit=q.rad,
+                           help="Orientation of the coordinate system",
+                           lower=-INF_VECTOR * q.rad, upper=INF_VECTOR * q.rad)
 
     def __init__(self, axes, position=None):
         super(Positioner, self).__init__()
