@@ -9,7 +9,7 @@ import logging
 from logging import FileHandler, Formatter
 from concert.async import async
 from concert.storage import create_directory
-from concert.coroutines import broadcast, inject
+from concert.coroutines.base import broadcast, inject
 
 
 LOG = logging.getLogger(__name__)
