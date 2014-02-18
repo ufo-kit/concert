@@ -4,7 +4,7 @@ from concert.devices.shutters import base
 
 class Shutter(base.Shutter):
 
-    """Shutter class implementation."""
+    """A dummy shutter that can be opened and closed."""
 
     def __init__(self):
         super(Shutter, self).__init__()
