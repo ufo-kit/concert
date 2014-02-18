@@ -123,7 +123,7 @@ class State(object):
 
     Use this on a class, to keep some sort of known state. In order to enforce
     restrictions, you would decorate methods on the class with
-    :meth:`.transition`::
+    :func:`.transition`::
 
         class SomeObject(object):
 
@@ -166,10 +166,15 @@ def transition(source='*', target=None, immediate=None, check=None):
     """
     Decorates a method that triggers state transitions.
 
-    source denotes the source state that must be present at the time of
-    invoking the decorated method. target is the state that the state object
-    will be after successful completion of the method. immediate is an optional
-    state that will be set during execution of the method.
+    *source* denotes the source state that must be present at the time of
+    invoking the decorated method. *target* is the state that the state object
+    will be after successful completion of the method or a list of possible
+    target states. *immediate* is an optional state that will be set during
+    execution of the method.
+
+    *check* is a callable that will be called to determine the actual state in
+    case *target* is a list of possible target states. Hence, when *check* is
+    called it must return one of those target states.
     """
     def wrapped(func):
         transitions = collections.defaultdict(list)
@@ -244,8 +249,13 @@ class Parameter(object):
         class SomeClass(object):
 
             state = State(default='standby')
+
+            def actual(self):
+                return 'moving'
+
             param = Parameter(transition=transition(source='standby',
-                                                    target='doing'))
+                                                    target=['standby', 'moving'],
+                                                    check=actual))
 
             def _set_param(self, value):
                 pass
@@ -253,14 +263,26 @@ class Parameter(object):
             def _get_param(self):
                 pass
 
-    The *source*, *target* and *immediate* parameters correspond to the
-    arguments of a :class:`.State`.
-
     When a :class:`.Parameter` is attached to a class, you can modify it by
-    accessing its associated :class:`.ParameterValue`.
+    accessing its associated :class:`.ParameterValue` with a dictionary
+    access::
+
+        obj = SomeClass()
+        print(obj['param'])
     """
 
     def __init__(self, fget=None, fset=None, data=None, transition=None, help=None):
+        """
+        *fget* is a callable that is called when reading the parameter. *fset*
+        is called when the parameter is written to.
+
+        *data* is passed to the state transition function.
+
+        *transition* is a :func:`.transition` that changes states when a value
+        is written to the parameter.
+
+        *help* is a string describing the parameter in more detail.
+        """
         self.name = None
         self.fget = fget
         self.fset = fset
@@ -333,10 +355,20 @@ class Parameter(object):
 
 class Quantity(Parameter):
 
-    """A parameter which models a physical quantity."""
+    """A :class:`.Parameter` associated with a unit."""
 
     def __init__(self, fget=None, fset=None, unit=None, lower=None, upper=None,
                  conversion=identity, data=None, transition=None, help=None):
+        """
+        *fget*, *fset*, *data*, *transition* and *help* are identical to the
+        :class:`.Parameter` constructor arguments.
+
+        *unit* is a Pint quantity. *lower* and *upper* denote soft limits
+        between the :class:`.Quantity` values can lie.
+
+        *conversion* is a callable that is run whenever the value is read and
+        written. By default, *conversion* is the identity f(x) = x.
+        """
         super(Quantity, self).__init__(fget=fget, fset=fset, data=data,
                                        transition=transition, help=help)
         self.unit = unit
