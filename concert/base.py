@@ -567,6 +567,10 @@ class Parameterizable(six.with_metaclass(MetaParameterizable, object)):
         for param in self:
             table.add_row([param.name, str(param.get().result())])
 
+        # If self would be Stateful, I'd feel better ...
+        if hasattr(self, 'state'):
+            table.add_row(['state', self.state])
+
         return table.get_string(sortby="Parameter")
 
     def __repr__(self):

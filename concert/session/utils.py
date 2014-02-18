@@ -29,6 +29,9 @@ def _get_param_value_table(device):
     for param in device:
         table.add_row([param.name, str(param.get().result())])
 
+    if hasattr(device, 'state'):
+        table.add_row(['state', device.state])
+
     return table.get_string()
 
 
