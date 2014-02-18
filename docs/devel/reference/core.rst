@@ -32,6 +32,8 @@ State machine
 .. autoclass:: concert.base.State
     :members:
 
+.. autofunction:: concert.base.transition
+
 
 Devices
 -------

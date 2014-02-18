@@ -120,8 +120,8 @@ Creating a device class
 
 Defining a new device class involves adding a new package to the
 ``concert/devices`` directory and adding a new ``base.py`` class that inherits
-from :class:`.Device` and defines all necessary :class:`.Parameter` objects and
-accessor stubs.
+from :class:`.Device` and defines necessary :class:`.Parameter` and
+:class:`.Quantity` objects.
 
 In this exercise, we will add a new pump device class. From an abstract point of
 view, a pump is characterized and manipulated in terms of the volumetric flow
@@ -131,7 +131,7 @@ First, we create a new ``base.py`` into the new ``concert/devices/pumps``
 directory and import everything that we need::
 
     import quantities as q
-    from concert.base import Parameter
+    from concert.base import Quantity
     from concert.devices.base import Device
 
 The :class:`.Device` handles the nitty-gritty details of messaging and parameter
@@ -141,15 +141,20 @@ values for the parameters (by tying them to getter and setter callables)::
 
     class Pump(Device):
 
-        flow_rate = Parameter(unit=q.m**3 / q.s)
+        flow_rate = Quantity(unit=q.m**3 / q.s,
+                             lower=0 * q.m**3 / q.s, upper=1 * q.m**3 / q.s,
+                             help="Flow rate of the pump")
 
         def __init__(self):
             super(Pump, self).__init__()
 
-This installs implicit setters and getters called `_set_flow_rate` and
-`_get_flow_rate` that need to be implemented by the real devices. You can
-however, also specify explicit setters and getters in order to hook into the get
-and set process::
+The `flow_rate` parameter can only receive values from zero to one cubic meter
+per second.
+
+We didn't specify explicit *fget* and *fset* functions, which is why  implicit
+setters and getters called `_set_flow_rate` and `_get_flow_rate` are installed.
+The real devices then need to implement these. You can however, also specify
+explicit setters and getters in order to hook into the get and set process::
 
     class Pump(Device):
 
@@ -183,7 +188,7 @@ changes the state of a device::
 
         ...
 
-        @state.transition(source='standby', target='moving')
+        @transition(source='standby', target='moving')
         def start_moving(self):
             ...
 
@@ -192,33 +197,35 @@ eventually change the state to ``moving``. In case of two-step functions, an
 ``immediate`` state can be set that is valid throughout the body of the
 function::
 
-        @state.transition(source='standby', target='standby', immediate='moving')
+        @transition(source='standby', target='standby', immediate='moving')
         def move(self):
             ...
 
 Besides single state strings you can also add arrays of strings and a catch-all
 ``*`` state that matches all states.
 
-If an exceptional behaviour happens during the execution the device is put
-automatically into an error state::
+In some cases it might be necessary to reach more than one target state. For
+this, you can pass a list of possible target state and must provide a check
+function that returns the current state. It is called after the decorated
+function was called::
 
-        @state.transition(source='*')
-        def move(self):
+        @transition(source='here', target=['this', 'that'], check=func)
+        def do_something(self):
             ...
-            if cannot_move:
-                raise Exception("Uh, something bad happened")
+
+There is no explicit error handling implemented but it can be easily modeled by
+adding error states and reset functions that transition out of them.
 
 
 Parameters
 ~~~~~~~~~~
 
-In case changing a parameter value causes a state transition, you can list
-the source and target states in the :class:`.Parameter` object::
+In case changing a parameter value causes a state transition, add a
+:func:`.transition` to the :class:`.Parameter` object::
 
     class Motor(Device):
 
         state = State(default='standby')
 
         velocity = Parameter(unit=q.m / q.s,
-                             source='*',
-                             target='moving')
+                             transition(source='*', target='moving'))
