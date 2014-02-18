@@ -109,7 +109,7 @@ class ContinuousLinearMotor(LinearMotor):
     velocity = Quantity(unit=q.m / q.s,
                         transition=transition(source=['hard-limit', 'standby', 'moving'],
                                               target=['moving', 'standby'],
-                        check=check_state))
+                                              check=check_state))
 
 
 class RotationMotor(_PositionMixin):

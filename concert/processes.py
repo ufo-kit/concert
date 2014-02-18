@@ -2,11 +2,11 @@ import numpy as np
 import logging
 from scipy.ndimage.filters import gaussian_filter
 from concert.async import async, wait
-from concert.coroutines import coroutine
 from concert.quantities import q
 from concert.measures import rotation_axis
 from concert.optimization import halver, optimize_parameter
 from concert.imageprocessing import center_of_mass
+from concert.coroutines.base import coroutine
 
 
 LOG = logging.getLogger(__name__)

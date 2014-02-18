@@ -14,8 +14,8 @@ import numpy as np
 from subprocess import Popen
 from multiprocessing import Queue as MultiprocessingQueue, Process
 from concert.async import threaded
-from concert.coroutines import coroutine
 from concert.storage import write_tiff
+from concert.coroutines.base import coroutine
 
 
 LOG = logging.getLogger(__name__)

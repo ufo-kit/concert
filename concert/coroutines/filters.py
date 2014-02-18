@@ -7,8 +7,8 @@ import logging
 import numpy as np
 from concert.imageprocessing import ramp_filter
 from concert.async import threaded
-from concert.coroutines import coroutine
 from concert.imageprocessing import flat_correct as make_flat_correct
+from .base import coroutine
 
 
 LOG = logging.getLogger(__name__)

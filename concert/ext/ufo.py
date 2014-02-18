@@ -8,7 +8,7 @@ try:
 except ImportError as e:
     print(str(e))
 
-from concert.coroutines import coroutine
+from concert.coroutines.base import coroutine
 
 
 class PluginManager(object):

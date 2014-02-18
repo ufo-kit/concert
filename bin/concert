@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 import traceback
 import concert
-import concert.session
+import concert.session.management as cs
 from concert.helpers import Command
 from concert.ext.cmd import plugins
 from concert.base import (UnitError,
@@ -88,12 +88,12 @@ class InitCommand(Command):
         super(InitCommand, self).__init__('init', opts)
 
     def run(self, session=None, imports="", force=False):
-        if concert.session.exists(session) and not force:
+        if cs.exists(session) and not force:
             message = "Session `{0}' already exists."
             message += " Use --force to create it anyway."
             print(message.format(session))
         else:
-            concert.session.create(session, imports.split())
+            cs.create(session, imports.split())
 
 
 class EditCommand(Command):
@@ -105,13 +105,13 @@ class EditCommand(Command):
         super(EditCommand, self).__init__('edit', opts)
 
     def run(self, session=None):
-        if not concert.session.exists(session):
+        if not cs.exists(session):
             print("Session not found, creating {}.".format(session))
             InitCommand().run(session)
 
         env = os.environ
         editor = env['EDITOR'] if 'EDITOR' in env else 'vi'
-        subprocess.call([editor, concert.session.path(session)])
+        subprocess.call([editor, cs.path(session)])
 
 
 class LogCommand(Command):
@@ -124,7 +124,7 @@ class LogCommand(Command):
         super(LogCommand, self).__init__('log', opts)
 
     def run(self, session=None):
-        logfile = concert.session.logfile_path()
+        logfile = cs.logfile_path()
 
         if not os.path.exists(logfile):
             return
@@ -134,7 +134,7 @@ class LogCommand(Command):
         # which we check first and the logfile itself.
 
         if session:
-            concert.session.exit_if_not_exists(session)
+            cs.exit_if_not_exists(session)
             cmd = 'grep "{0}:" {1} | less'.format(session, logfile)
         else:
             cmd = 'less {0}'.format(logfile)
@@ -156,14 +156,14 @@ class ShowCommand(Command):
     def run(self, session=None):
         if session:
             try:
-                module = concert.session.load(session)
+                module = cs.load(session)
                 print(module.__doc__)
             except IOError:
                 print("Cannot find {0}".format(session))
             except ImportError as exception:
                 print("Cannot import {0}: {1}".format(session, exception))
         else:
-            sessions = concert.session.get_existing()
+            sessions = cs.get_existing()
             print("Available sessions:")
 
             for session in sessions:
@@ -182,13 +182,13 @@ class MoveCommand(Command):
         super(MoveCommand, self).__init__('mv', opts)
 
     def run(self, source, target):
-        if not concert.session.exists(source):
+        if not cs.exists(source):
             sys.exit("`{}' does not exist".format(source))
 
-        if concert.session.exists(target):
+        if cs.exists(target):
             sys.exit("`{}' already exists".format(target))
 
-        concert.session.move(source, target)
+        cs.move(source, target)
         print("Renamed {} -> {}".format(source, target))
 
 
@@ -204,13 +204,13 @@ class CopyCommand(Command):
         super(CopyCommand, self).__init__('cp', opts)
 
     def run(self, source, target):
-        if not concert.session.exists(source):
+        if not cs.exists(source):
             sys.exit("`{}' does not exist".format(source))
 
-        if concert.session.exists(target):
+        if cs.exists(target):
             sys.exit("`{}' already exists".format(target))
 
-        concert.session.copy(source, target)
+        cs.copy(source, target)
         print("Copied {} -> {}".format(source, target))
 
 
@@ -227,7 +227,7 @@ class RemoveCommand(Command):
     def run(self, sessions=[]):
         for session in sessions:
             print("Removing {0}...".format(session))
-            concert.session.remove(session)
+            cs.remove(session)
 
 
 class FetchCommand(Command):
@@ -265,13 +265,13 @@ class FetchCommand(Command):
         for filename in (x for x in os.listdir(path) if x.endswith('.py')):
             session_name = os.path.basename(filename[:-3])
 
-            if concert.session.exists(session_name) and not force:
+            if cs.exists(session_name) and not force:
                 print("`{0}' already exists (use --force to install"
                       " anyway)".format(session_name))
             else:
                 print("Add session {0} ...".format(filename[:-3]))
                 shutil.copy(os.path.join(path, filename),
-                            concert.session.path())
+                            cs.path())
 
         shutil.rmtree(path)
 
@@ -283,13 +283,13 @@ class FetchCommand(Command):
 
         session_name = os.path.basename(url[:-3])
 
-        if concert.session.exists(session_name) and not force:
+        if cs.exists(session_name) and not force:
             sys.exit("`{0}' already exists".format(session_name))
 
         local_url = self._get_url(url)
 
         with contextlib.closing(urllib2.urlopen(local_url)) as data:
-            with open(concert.session.path(session_name), 'w') as output:
+            with open(cs.path(session_name), 'w') as output:
                 output.write(data.read())
 
     def _get_url(self, path_or_url):
@@ -324,10 +324,10 @@ class StartCommand(Command):
 
     def run(self, session=None, non_interactive=False,
             logto='file', logfile=None, loglevel=None):
-        concert.session.exit_if_not_exists(session)
+        cs.exit_if_not_exists(session)
 
         if logto == 'file':
-            filename = logfile if logfile else concert.session.logfile_path()
+            filename = logfile if logfile else cs.logfile_path()
             handler = logging.FileHandler(filename)
         else:
             handler = logging.StreamHandler(sys.stderr)
@@ -344,13 +344,13 @@ class StartCommand(Command):
         self.logger.setLevel(numeric_level)
 
         # Add session path, so that sessions can import other sessions
-        sys.path.append(concert.session.path())
+        sys.path.append(cs.path())
 
         if non_interactive:
-            execfile(concert.session.path(session), globals())
+            execfile(cs.path(session), globals())
         else:
             try:
-                module = concert.session.load(session)
+                module = cs.load(session)
             except:
                 traceback.print_exc()
                 sys.exit(1)
