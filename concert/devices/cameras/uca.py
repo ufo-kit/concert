@@ -111,9 +111,9 @@ class Camera(base.Camera):
             name = prop.name.replace('-', '_')
 
             if uca_unit in units:
-                parameters[name] = Quantity(fget=getter, fset=setter, unit=unit)
+                parameters[name] = Quantity(fget=getter, fset=setter, unit=unit, help=prop.blurb)
             else:
-                parameters[name] = Parameter(fget=getter, fset=setter)
+                parameters[name] = Parameter(fget=getter, fset=setter, help=prop.blurb)
 
         if parameters:
             self.install_parameters(parameters)
