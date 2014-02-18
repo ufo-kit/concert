@@ -392,7 +392,7 @@ class Quantity(Parameter):
 
         def leq(a, b):
             """check a <= b"""
-            if len(a.shape) == 0:
+            if not hasattr(a, 'shape') or len(a.shape) == 0:
                 return a <= b
             else:
                 # Vector data type
