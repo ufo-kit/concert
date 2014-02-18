@@ -29,7 +29,5 @@ class DisableGevent(nose.plugins.Plugin):
         super(DisableGevent, self).options(parser, env=env)
 
     def configure(self, options, conf):
-        if options.disable_gevent:
-            concert.config.DISABLE_GEVENT = True
-
+        concert.config.DISABLE_GEVENT = options.disable_gevent
         super(DisableGevent, self).configure(options, conf)
