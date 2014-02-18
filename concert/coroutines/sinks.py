@@ -1,6 +1,6 @@
 import os
-from concert.coroutines import coroutine
 from concert.storage import create_directory, write_tiff
+from .base import coroutine
 
 
 class Result(object):

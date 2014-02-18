@@ -58,13 +58,18 @@ class Camera(base.Camera):
 
     """libuca-based camera.
 
-    All properties that are exported by the underlying camera are also visible
-    in :class:`UcaCamera`.
-
-    :raises ValueError: In case camera *name* does not exist.
+    All properties that are exported by the underlying camera are also visible.
     """
 
     def __init__(self, name):
+        """
+        Create a new libuca camera.
+
+        The *name* is passed to the uca plugin manager.
+
+        :raises ValueError: In case camera *name* does not exist.
+        """
+
         super(Camera, self).__init__()
 
         from gi.repository import GObject, Uca
@@ -106,9 +111,9 @@ class Camera(base.Camera):
             name = prop.name.replace('-', '_')
 
             if uca_unit in units:
-                parameters[name] = Quantity(fget=getter, fset=setter, unit=unit)
+                parameters[name] = Quantity(fget=getter, fset=setter, unit=unit, help=prop.blurb)
             else:
-                parameters[name] = Parameter(fget=getter, fset=setter)
+                parameters[name] = Parameter(fget=getter, fset=setter, help=prop.blurb)
 
         if parameters:
             self.install_parameters(parameters)
@@ -185,6 +190,8 @@ class Camera(base.Camera):
 
 class Pco(Camera):
 
+    """A specific pco camera that can be used in freerun mode."""
+
     def __init__(self):
         super(Pco, self).__init__('pco')
 
@@ -212,7 +219,7 @@ class Pco(Camera):
 
 class Dimax(Pco, base.BufferedMixin):
 
-    """A PCO.dimax camera implementation based on libuca :py:class:`Camera`."""
+    """A pco.dimax camera implementation."""
 
     def __init__(self):
         super(Dimax, self).__init__()

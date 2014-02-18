@@ -11,6 +11,7 @@ _authors = [u'Matthias Vogelgesang',
 extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.intersphinx',
               'sphinx.ext.mathjax']
+
 source_suffix = '.rst'
 master_doc = 'index'
 
@@ -22,6 +23,8 @@ release = __version__
 
 exclude_patterns = ['_build']
 pygments_style = 'sphinx'
+
+autoclass_content = 'both'
 
 # html_static_path = ['_static']
 htmlhelp_basename = 'concertdoc'

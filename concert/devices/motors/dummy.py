@@ -47,6 +47,8 @@ class _ContinuousMixin(object):
 
 class LinearMotor(base.LinearMotor, _PositionMixin):
 
+    """A linear step motor dummy."""
+
     def __init__(self, position=None):
         super(LinearMotor, self).__init__()
         _PositionMixin.__init__(self)
@@ -63,6 +65,8 @@ class LinearMotor(base.LinearMotor, _PositionMixin):
 
 
 class ContinuousLinearMotor(LinearMotor, base.ContinuousLinearMotor, _ContinuousMixin):
+
+    """A continuous linear motor dummy."""
 
     def __init__(self):
         super(ContinuousLinearMotor, self).__init__()
@@ -81,6 +85,8 @@ class ContinuousLinearMotor(LinearMotor, base.ContinuousLinearMotor, _Continuous
 
 class RotationMotor(base.RotationMotor, _PositionMixin):
 
+    """A rotational step motor dummy."""
+
     def __init__(self):
         super(RotationMotor, self).__init__()
         _PositionMixin.__init__(self)
@@ -95,6 +101,8 @@ class RotationMotor(base.RotationMotor, _PositionMixin):
 class ContinuousRotationMotor(RotationMotor,
                               base.ContinuousRotationMotor,
                               _ContinuousMixin):
+
+    """A continuous rotational step motor dummy."""
 
     def __init__(self):
         super(ContinuousRotationMotor, self).__init__()

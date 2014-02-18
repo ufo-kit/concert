@@ -6,8 +6,8 @@ import shutil
 import os
 import tempfile
 import numpy as np
-from concert.coroutines import coroutine
 from concert.quantities import q
+from concert.coroutines.base import coroutine
 from concert.experiments.base import Acquisition, Experiment
 from concert.experiments.imaging import (Experiment as ImagingExperiment,
                                          tomo_angular_step, tomo_max_speed,

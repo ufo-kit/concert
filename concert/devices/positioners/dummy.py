@@ -26,7 +26,7 @@ def get_axes():
 
 class Positioner(base.Positioner):
 
-    """Dummy positioner."""
+    """A dummy positioner."""
 
     def __init__(self, position=None):
         super(Positioner, self).__init__(get_axes(), position=position)
@@ -34,7 +34,7 @@ class Positioner(base.Positioner):
 
 class ImagingPositioner(ImagingBasePositioner):
 
-    """Dummy imaging positioner."""
+    """A dummy imaging positioner."""
 
     def __init__(self, detector=None, position=None):
         if detector is None:

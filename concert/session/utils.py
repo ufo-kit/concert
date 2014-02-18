@@ -1,17 +1,20 @@
+import math
 import inspect
+import subprocess
 import prettytable
 from concert.devices.base import Device
 
 
-def _get_param_description_table(device):
+def _get_param_description_table(device, max_width):
     field_names = ["Name", "Unit", "Description"]
-    table = get_default_table(field_names)
+    widths = [int(math.floor(f * max_width)) for f in (0.3, 0.2, 0.5)]
+    table = get_default_table(field_names, widths)
     table.border = False
     table.header = True
 
     for param in device:
         units = param.unit if hasattr(param, 'unit') else None
-        row = [param.name, str(units), inspect.getdoc(param)]
+        row = [param.name, str(units), str(param)]
         table.add_row(row)
 
     return table.get_string()
@@ -26,6 +29,9 @@ def _get_param_value_table(device):
     for param in device:
         table.add_row([param.name, str(param.get().result())])
 
+    if hasattr(device, 'state'):
+        table.add_row(['state', device.state])
+
     return table.get_string()
 
 
@@ -39,7 +45,7 @@ def _current_instances(instance_type):
             if isinstance(obj, instance_type))
 
 
-def get_default_table(field_names):
+def get_default_table(field_names, widths=None):
     """Return a prettytable styled for use in the shell. *field_names* is a
     list of table header strings."""
     table = prettytable.PrettyTable(field_names)
@@ -47,8 +53,15 @@ def get_default_table(field_names):
     table.hrules = prettytable.ALL
     table.vertical_char = ' '
     table.junction_char = '-'
-    for name in field_names:
-        table.align[name] = 'l'
+
+    if widths:
+        for name, width in zip(field_names, widths):
+            table.align[name] = 'l'
+            table.max_width[name] = width
+    else:
+        for name in field_names:
+            table.align[name] = 'l'
+
     return table
 
 
@@ -69,11 +82,13 @@ def ddoc():
     """Render device documentation."""
     from concert.devices.base import Device
 
+    n_columns = int(subprocess.check_output(['stty', 'size']).split()[1]) - 8
     field_names = ["Name", "Description", "Parameters"]
-    table = get_default_table(field_names)
+    widths = [int(math.floor(f * n_columns)) for f in (0.1, 0.2, 0.7)]
+    table = get_default_table(field_names, widths)
 
     for name, device in _current_instances(Device):
-        doc = _get_param_description_table(device)
+        doc = _get_param_description_table(device, widths[2] - 4)
         table.add_row([name, inspect.getdoc(device), doc])
 
     print(table.get_string())

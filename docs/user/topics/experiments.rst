@@ -18,7 +18,7 @@ specify its generator and consumers as callables which return the actual generat
 consumer. We need to do this because generators cannot be "restarted". An example of
 an acquisition could look like this::
 
-    from concert.coroutines import coroutine
+    from concert.coroutines.base import coroutine
     from concert.experiments import Acquisition
 
     # This is a real generator, num_items is provided somewhere in our session

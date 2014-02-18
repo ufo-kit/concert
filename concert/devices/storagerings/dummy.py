@@ -9,7 +9,7 @@ from concert.devices.storagerings import base
 
 class StorageRing(base.StorageRing):
 
-    """Create a Dummy Ring."""
+    """A storage ring dummy."""
 
     def __init__(self):
         super(StorageRing, self).__init__()

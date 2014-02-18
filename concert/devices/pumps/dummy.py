@@ -6,7 +6,7 @@ from concert.quantities import q
 
 class Pump(base.Pump):
 
-    """Dummy pump class with some parameters."""
+    """A dummy pump."""
 
     def __init__(self):
         super(Pump, self).__init__()

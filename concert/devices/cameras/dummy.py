@@ -88,15 +88,14 @@ class Base(base.Camera):
 
 class Camera(Base):
 
-    """Simple camera.
-
-    *background* can be an array-like that will be used to generate the frame
-    when calling :meth:`.grab`. The final image will be the background +
-    poisson noise depending on the currently set exposure time.
-
-   """
+    """A simple dummy camera."""
 
     def __init__(self, background=None):
+        """
+        *background* can be an array-like that will be used to generate the frame
+        when calling :meth:`.grab`. The final image will be the background +
+        poisson noise depending on the currently set exposure time.
+        """
         super(Camera, self).__init__()
 
         if background is not None:

@@ -3,6 +3,9 @@ from concert.devices.scales import base
 
 
 class Scales(base.Scales):
+
+    """A dummy scale."""
+
     def __init__(self):
         super(Scales, self).__init__()
         self._weight = 147
@@ -12,5 +15,8 @@ class Scales(base.Scales):
 
 
 class TarableScales(Scales):
+
+    """A tarable dummy scale."""
+
     def _tare():
         pass

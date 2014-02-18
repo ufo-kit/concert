@@ -1,5 +1,5 @@
 import numpy as np
-from concert.coroutines import coroutine, broadcast, inject
+from concert.coroutines.base import coroutine, broadcast, inject
 from concert.coroutines.filters import (absorptivity, backproject, flat_correct, average_images,
                                         queue, sinograms, downsize, stall, PickSlice)
 from concert.coroutines.sinks import null, Result

@@ -16,7 +16,7 @@ right side or as an argument. Because they need to be started in a particular
 way, it is useful to decorate a coroutine with the :func:`.coroutine`
 decorator::
 
-    from concert.coroutines import coroutine
+    from concert.coroutines.base import coroutine
 
     @coroutine
     def printer():
@@ -47,7 +47,7 @@ In order to connect a *generator* that ``yields`` data to a *filter* or a *sink*
 it is necessary to bootstrap the pipeline by using the :func:`.inject` function,
 which forwards generated data to a coroutine::
 
-    from concert.coroutines import inject
+    from concert.coroutines.base import inject
 
     def generator(n):
         for i in range(n):
@@ -59,7 +59,7 @@ which forwards generated data to a coroutine::
 To fan out a single input stream to multiple consumers, you can use the
 :func:`.broadcast` like this::
 
-    from concert.coroutines import broadcast
+    from concert.coroutines.base import broadcast
 
     source(5, broadcast(printer(),
                         square(printer())))
