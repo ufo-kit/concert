@@ -42,13 +42,13 @@ def _new_getter_wrapper(name, unit=None):
 
 
 def _translate_gerror(func):
-    from gi._glib import GError
+    from gi import GLib
 
     @functools.wraps(func)
     def _wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except GError as ge:
+        except GLib.GError as ge:
             raise base.CameraError(str(ge))
 
     return _wrapper
