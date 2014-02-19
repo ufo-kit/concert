@@ -54,7 +54,10 @@ class HardLimitError(StateError):
 
     """Raised when device goes into hardlimit error state."""
 
-    pass
+    def __init__(self, error_state=None, msg=None):
+        if error_state is None:
+            error_state = 'hard-limit'
+        super(HardLimitError, self).__init__(error_state, msg)
 
 
 class ParameterError(Exception):
