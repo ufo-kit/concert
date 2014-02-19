@@ -108,6 +108,16 @@ class Experiment(object):
         self.acquisitions[first_index] = second
         self.acquisitions[second_index] = tmp
 
+    def get_acquisition(self, name):
+        """
+        Get acquisition by its *name*. In case there are more like it, the first
+        one is returned.
+        """
+        for acq in self.acquisitions:
+            if acq.name == name:
+                return acq
+        raise ExperimentError("Acquisition with name `{}' not found".format(name))
+
     @property
     def directory(self):
         """Current directory for running the experiment."""
