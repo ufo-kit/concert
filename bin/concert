@@ -120,10 +120,12 @@ class LogCommand(Command):
 
     def __init__(self):
         opts = {'session': {'type': str,
-                            'nargs': '?'}}
+                            'nargs': '?'},
+                '--follow': {'action': 'store_true',
+                             'help': 'Show current log'}}
         super(LogCommand, self).__init__('log', opts)
 
-    def run(self, session=None):
+    def run(self, session=None, follow=False):
         logfile = cs.logfile_path()
 
         if not os.path.exists(logfile):
@@ -135,11 +137,24 @@ class LogCommand(Command):
 
         if session:
             cs.exit_if_not_exists(session)
-            cmd = 'grep "{0}:" {1} | less'.format(session, logfile)
-        else:
-            cmd = 'less {0}'.format(logfile)
 
-        subprocess.call(cmd, shell=True)
+            if follow:
+                cmd = 'tail -f {} | grep --line-buffered "{}:"'.format(logfile, session)
+            else:
+                cmd = 'grep "{0}:" {1} | less'.format(session, logfile)
+        else:
+            if follow:
+                cmd = 'tail -f {}'.format(logfile)
+            else:
+                cmd = 'less {}'.format(logfile)
+
+        try:
+            subprocess.call(cmd, shell=True)
+        except KeyboardInterrupt:
+            # When following we can only leave tail by C-c, hence to avoid
+            # spamming the terminal with a stack trace we just ignore the
+            # Keyboardinterrupt exception.
+            pass
 
 
 class ShowCommand(Command):

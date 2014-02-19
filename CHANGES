@@ -4,6 +4,15 @@ Changelog
 Here you can see the full list of changes between each Concert release.
 
 
+Version 0.8
+-----------
+
+Improvements
+~~~~~~~~~~~~
+
+- ``concert log`` can now ``--follow`` the current operation.
+
+
 Version 0.7
 -----------
 

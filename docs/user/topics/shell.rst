@@ -101,17 +101,22 @@ Show log of session::
 
     concert log session-name
 
-If a session is not given, the log command shows entries from all sessions. By
-default, logs are gathered in ``$XDG_DATA_HOME/concert/concert.log``. To change
-this, you can pass the ``--logto`` and ``--logfile`` options to the ``start``
-command. For example, if you want to output log to ``stderr`` use ::
+If a session is not given, the log command shows entries from all sessions.
+
+    .. option:: --follow
+
+        Instead of showing the past log, update as changes come in. This is the
+        same operation as if the log file was viewed with ``tail -f``.
+
+By default, logs are gathered in ``$XDG_DATA_HOME/concert/concert.log``. To
+change this, you can pass the ``--logto`` and ``--logfile`` options to the
+``start`` command. For example, if you want to output log to ``stderr`` use ::
 
     concert --logto=stderr start experiment
 
 or if you want to get rid of any log data use ::
 
     concert --logto=file --logfile=/dev/null start experiment
-
 
 show
 ----
