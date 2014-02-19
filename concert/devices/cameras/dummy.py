@@ -155,7 +155,7 @@ class FileCamera(Base):
             else:
                 x_region = self.roi_x0 + self.roi_width
 
-            result = image[self.roi_y0:y_region, self.roi_x0:x_region]
+            result = image[self.roi_y0.magnitude:y_region, self.roi_x0.magnitude:x_region]
             self._index += 1
         else:
             result = None
