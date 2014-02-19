@@ -192,7 +192,7 @@ class Pco(Camera):
     def freerun(self, consumer):
         """Start recording and send live frames to *consumer*."""
         def readout(consumer):
-            while self.state.value == 'recording':
+            while self.state == 'recording':
                 frame = self.grab()
                 if frame is None:
                     break
