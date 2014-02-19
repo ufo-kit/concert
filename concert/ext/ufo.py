@@ -145,6 +145,14 @@ class Backproject(InjectProcess):
 
         super(Backproject, self).__init__(graph, get_output=True)
 
+    @property
+    def axis_position(self):
+        return self.backprojector.props.axis_pos
+
+    @axis_position.setter
+    def axis_position(self, position):
+        self.backprojector.props.axis_pos = position
+
     @coroutine
     def __call__(self, consumer):
         """Get a sinogram, do filtered backprojection and send it to *consumer*."""
