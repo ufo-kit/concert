@@ -8,7 +8,7 @@ import tempfile
 import numpy as np
 from concert.quantities import q
 from concert.coroutines.base import coroutine
-from concert.experiments.base import Acquisition, Experiment
+from concert.experiments.base import Acquisition, Experiment, ExperimentError
 from concert.experiments.imaging import (Experiment as ImagingExperiment,
                                          tomo_angular_step, tomo_max_speed,
                                          tomo_projections_number)
@@ -81,6 +81,10 @@ class TestExperiment(TestExperimentBase):
         self.experiment.swap(self.foo, self.bar)
         self.assertEqual(self.acquisitions[0], self.bar)
         self.assertEqual(self.acquisitions[1], self.foo)
+
+    def test_get_by_name(self):
+        self.assertEqual(self.foo, self.experiment.get_acquisition('foo'))
+        self.assertRaises(ExperimentError, self.experiment.get_acquisition, 'non-existing')
 
 
 class TestImagingExperiment(TestExperimentBase):
