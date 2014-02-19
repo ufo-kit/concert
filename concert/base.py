@@ -5,6 +5,7 @@ import logging
 import six
 import collections
 import functools
+import inspect
 from concert.helpers import memoize
 from concert.async import async, wait
 
@@ -450,6 +451,32 @@ class Quantity(Parameter):
         converted = self.convert_to(instance, value)
         super(Quantity, self).__set__(instance, converted)
 
+
+def quantity(unit=None, lower=None, upper=None, conversion=identity,
+             data=None, transition=None, help=None):
+    """
+    Decorator for read-only quantity functions.
+
+    Device authors can add additional read-only quantities to a specific device
+    by applying this decorator to a function::
+
+        class SomeDevice(Device):
+            @quantity(unit=1*q.mm, lower=0*q.mm, upper=2*q.mm)
+            def position(self):
+                pass
+
+    The arguments correspond to those of :class:`.Quantity`.
+    """
+
+    def wrapper(func):
+        # Get help info from doc string if no explicit help was passed.
+        doc = help if help else inspect.getdoc(func)
+
+        return Quantity(fget=func, unit=unit, lower=lower, upper=upper,
+                        conversion=conversion, data=data,
+                        transition=transition, help=doc)
+
+    return wrapper
 
 class ParameterValue(object):
 
