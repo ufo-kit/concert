@@ -42,7 +42,7 @@ def _new_getter_wrapper(name, unit=None):
 
 
 def _translate_gerror(func):
-    from gi import GLib
+    from gi.repository import GLib
 
     @functools.wraps(func)
     def _wrapper(*args, **kwargs):
