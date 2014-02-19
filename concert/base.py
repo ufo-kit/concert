@@ -361,7 +361,7 @@ class Quantity(Parameter):
 
     """A :class:`.Parameter` associated with a unit."""
 
-    def __init__(self, fget=None, fset=None, unit=None, lower=None, upper=None,
+    def __init__(self, unit, fget=None, fset=None, lower=None, upper=None,
                  conversion=identity, data=None, transition=None, help=None):
         """
         *fget*, *fset*, *data*, *transition* and *help* are identical to the
@@ -381,10 +381,10 @@ class Quantity(Parameter):
         self.upper = upper if upper is not None else float('Inf')
         self.lower = lower if lower is not None else -float('Inf')
 
-        if unit and upper is None:
+        if upper is None:
             self.upper = self.upper * unit
 
-        if unit and lower is None:
+        if lower is None:
             self.lower = self.lower * unit
 
     def is_compatible(self, value):
@@ -423,7 +423,7 @@ class Quantity(Parameter):
         return self.convert_from(instance, value)
 
     def __set__(self, instance, value):
-        if self.unit and not self.is_compatible(value):
+        if not self.is_compatible(value):
             msg = "{} of {} can only receive values of unit {} but got {}"
             raise UnitError(
                 msg.format(self.name, type(instance), self.unit, value))

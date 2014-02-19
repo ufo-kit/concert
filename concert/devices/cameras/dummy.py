@@ -10,13 +10,13 @@ from concert.storage import read_image
 
 class Base(base.Camera):
 
-    exposure_time = Quantity(unit=q.s)
-    sensor_pixel_width = Quantity(unit=q.micrometer)
-    sensor_pixel_height = Quantity(unit=q.micrometer)
-    roi_x0 = Quantity(unit=q.pixel)
-    roi_y0 = Quantity(unit=q.pixel)
-    roi_width = Quantity(unit=q.pixel)
-    roi_height = Quantity(unit=q.pixel)
+    exposure_time = Quantity(q.s)
+    sensor_pixel_width = Quantity(q.micrometer)
+    sensor_pixel_height = Quantity(q.micrometer)
+    roi_x0 = Quantity(q.pixel)
+    roi_y0 = Quantity(q.pixel)
+    roi_width = Quantity(q.pixel)
+    roi_height = Quantity(q.pixel)
 
     def __init__(self):
         super(Base, self).__init__()

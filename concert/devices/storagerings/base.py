@@ -20,9 +20,9 @@ class StorageRing(Device):
 
         Ring lifetime in hours
     """
-    current = Quantity(unit=q.mA, help="Current")
-    energy = Quantity(unit=q.MeV, help="Energy")
-    lifetime = Quantity(unit=q.h, help="Expected lifetime")
+    current = Quantity(q.mA, help="Current")
+    energy = Quantity(q.MeV, help="Energy")
+    lifetime = Quantity(q.h, help="Expected lifetime")
 
     def __init__(self):
         super(StorageRing, self).__init__()

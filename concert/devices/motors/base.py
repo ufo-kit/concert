@@ -82,8 +82,7 @@ class LinearMotor(_PositionMixin):
 
     state = State(default='standby')
 
-    position = Quantity(unit=q.m,
-                        help="Position",
+    position = Quantity(q.m, help="Position",
                         transition=transition(source=['hard-limit', 'standby'],
                                               target=['hard-limit', 'standby'],
                                               immediate='moving', check=check_state))
@@ -107,8 +106,7 @@ class ContinuousLinearMotor(LinearMotor):
 
     state = State(default='standby')
 
-    velocity = Quantity(unit=q.m / q.s,
-                        help="Linear velocity",
+    velocity = Quantity(q.m / q.s, help="Linear velocity",
                         transition=transition(source=['hard-limit', 'standby', 'moving'],
                                               target=['moving', 'standby'],
                                               check=check_state))
@@ -129,8 +127,7 @@ class RotationMotor(_PositionMixin):
     def check_state(self):
         raise NotImplementedError
 
-    position = Quantity(unit=q.deg,
-                        help="Angular position",
+    position = Quantity(q.deg, help="Angular position",
                         transition=transition(source=['hard-limit', 'standby'],
                                               target=['hard-limit', 'standby'],
                                               immediate='moving', check=check_state))
@@ -157,7 +154,6 @@ class ContinuousRotationMotor(RotationMotor):
 
     state = State(default='standby')
 
-    velocity = Quantity(unit=q.deg / q.s,
-                        help="Angular velocity",
+    velocity = Quantity(q.deg / q.s, help="Angular velocity",
                         transition=transition(source=['hard-limit', 'standby', 'moving'],
                                               target=['moving', 'standby'], check=check_state))

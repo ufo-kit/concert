@@ -13,7 +13,7 @@ class FooDevice(BaseDevice):
 
     state = State(default='standby')
 
-    foo = Quantity(unit=q.m, transition=transition(source='*', target='moved'))
+    foo = Quantity(q.m, transition=transition(source='*', target='moved'))
 
     def __init__(self, default):
         super(FooDevice, self).__init__()

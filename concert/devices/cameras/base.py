@@ -71,7 +71,7 @@ class Camera(Device):
 
     trigger_modes = Bunch(['AUTO', 'SOFTWARE', 'EXTERNAL'])
     state = State(default='standby')
-    frame_rate = Quantity(unit=1.0 / q.second, help="Frame frequency")
+    frame_rate = Quantity(1.0 / q.second, help="Frame frequency")
     trigger_mode = Parameter(help="Trigger mode")
 
     def __init__(self):

@@ -14,8 +14,7 @@ class Pump(Device):
     """
 
     state = State(default='standby')
-    flow_rate = Quantity(unit=q.l / q.s,
-                         help="Flow rate",
+    flow_rate = Quantity(q.l / q.s, help="Flow rate",
                          conversion=lambda x: x * q.s / q.l)
 
     def __init__(self):

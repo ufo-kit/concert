@@ -40,8 +40,8 @@ class Monochromator(Device):
         Monochromatic wavelength in meters.
     """
 
-    energy = Quantity(unit=q.eV, help="Energy")
-    wavelength = Quantity(unit=q.nanometer, help="Wavelength")
+    energy = Quantity(q.eV, help="Energy")
+    wavelength = Quantity(q.nanometer, help="Wavelength")
 
     def _get_energy(self):
         try:

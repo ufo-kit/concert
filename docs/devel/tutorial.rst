@@ -141,7 +141,7 @@ values for the parameters (by tying them to getter and setter callables)::
 
     class Pump(Device):
 
-        flow_rate = Quantity(unit=q.m**3 / q.s,
+        flow_rate = Quantity(q.m**3 / q.s,
                              lower=0 * q.m**3 / q.s, upper=1 * q.m**3 / q.s,
                              help="Flow rate of the pump")
 

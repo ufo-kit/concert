@@ -16,8 +16,7 @@ class WeightError(Exception):
 class Scales(Device):
 
     """Base scales class."""
-    weight = Quantity(unit=q.g,
-                      help="Weighted mass",
+    weight = Quantity(q.g, help="Weighted mass",
                       conversion=lambda x: x / q.g)
 
     def __init__(self):

@@ -13,8 +13,8 @@ class Detector(Device):
     and a magnification given by an objective lens.
     """
 
-    pixel_width = Quantity(unit=q.m, help="Effective pixel width")
-    pixel_height = Quantity(unit=q.m, help="Effective pixel height")
+    pixel_width = Quantity(q.m, help="Effective pixel width")
+    pixel_height = Quantity(q.m, help="Effective pixel height")
 
     def __init__(self, camera, magnification):
         super(Detector, self).__init__()
