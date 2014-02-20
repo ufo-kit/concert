@@ -4,6 +4,17 @@ Changelog
 Here you can see the full list of changes between each Concert release.
 
 
+Version 0.7.1
+-------------
+
+Bug fix release, released on February 20th 2014.
+
+- Fix FileCamera pixel units in grab
+- Fix GLib.GError imports with recent PyGI releases
+- Fix old-style state check from pco camera
+- Fix quantity problem with recent Pint versions
+
+
 Version 0.7
 -----------
 
