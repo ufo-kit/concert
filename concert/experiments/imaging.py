@@ -58,6 +58,30 @@ class Experiment(BaseExperiment):
         self._writers = {}
 
 
+def frames(num_frames, camera, callback=None):
+    """
+    A generator which takes *num_frames* by setting *camera* to software
+    trigger mode, so the frames are triggered from here. *callback* is called
+    before every taken frame. After the acquisition the trigger mode is
+    restored to what it was before.
+    """
+    if camera.state == 'recording':
+        camera.stop_recording()
+
+    camera['trigger_mode'].stash().join()
+    camera.trigger_mode = camera.trigger_modes.SOFTWARE
+
+    try:
+        with camera.recording():
+            for i in range(num_frames):
+                camera.trigger()
+                if callback:
+                    callback()
+                yield camera.grab()
+    finally:
+        camera['trigger_mode'].restore().join()
+
+
 def tomo_angular_step(frame_width):
     """
     Get the angular step required for tomography so that every pixel of the frame
