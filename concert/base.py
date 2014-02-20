@@ -330,9 +330,9 @@ class Parameter(object):
     def __set__(self, instance, value):
         def log_access(what):
             """Log access."""
-            msg = "{}: {}='{}'"
+            msg = "{}: {}: {}='{}'"
             name = instance.__class__.__name__
-            LOG.info(msg.format(name, what, value))
+            LOG.info(msg.format(name, what, self.name, value))
 
         log_access('try')
 
