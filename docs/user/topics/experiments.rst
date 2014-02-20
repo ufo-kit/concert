@@ -61,6 +61,11 @@ all the acquired frames are written to disk.
 .. autoclass:: concert.experiments.imaging.Experiment
     :members:
 
+A basic frame acquisition generator which triggers the camera itself is provided by
+:func:`.frames`
+
+.. autofunction:: concert.experiments.imaging.frames
+
 There are tomography helper functions which make it easier to define the proper
 settings for conducting a tomographic experiment.
 
