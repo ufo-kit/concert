@@ -7,11 +7,12 @@ import os
 import tempfile
 import numpy as np
 from concert.quantities import q
-from concert.coroutines.base import coroutine
+from concert.coroutines.base import coroutine, inject
 from concert.experiments.base import Acquisition, Experiment, ExperimentError
 from concert.experiments.imaging import (Experiment as ImagingExperiment,
                                          tomo_angular_step, tomo_max_speed,
-                                         tomo_projections_number)
+                                         tomo_projections_number, frames)
+from concert.devices.cameras.dummy import Camera
 from concert.tests import TestCase, suppressed_logging, assert_almost_equal
 
 
@@ -34,6 +35,18 @@ def test_tomo_max_speed():
     frame_rate = 100 / q.s
     truth = np.arctan(2.0 / width) * q.rad * frame_rate
     assert_almost_equal(truth, tomo_max_speed(width * q.px, frame_rate))
+
+
+@suppressed_logging
+def test_frames():
+    @coroutine
+    def count():
+        while True:
+            yield
+            count.i += 1
+    count.i = 0
+    inject(frames(5, Camera()), count())
+    assert count.i == 5
 
 
 class TestExperimentBase(TestCase):
