@@ -6,6 +6,7 @@ import six
 import collections
 import functools
 import inspect
+import types
 from concert.helpers import memoize
 from concert.async import async, wait
 
@@ -222,7 +223,12 @@ def transition(source='*', target=None, immediate=None, check=None):
                 # If there is an edge to the desired transition from source or immediate
                 # we execute the actual function
                 try_transition(target, instance)
-                result = func(instance, *args, **kwargs)
+
+                if isinstance(func, types.MethodType):
+                    result = func(*args, **kwargs)
+                else:
+                    result = func(instance, *args, **kwargs)
+
                 # The final state can come from the device itself (more possible target states)
                 final = getattr(instance, check.__name__)() if isinstance(target, list) else target
                 # We check the actual state after the function execution before we do the final
@@ -336,21 +342,21 @@ class Parameter(object):
 
         log_access('try')
 
-        # The same idea as sketched in __get__
         if self.fset:
             self.fset(instance, value, *self.data_args)
         else:
+            func = getattr(instance, '_set_' + self.name)
+
+            if self.transition and not hasattr(func, '_is_transitioned'):
+                func = self.transition(func)
+                func._is_transitioned = True
+                setattr(instance, '_set_' + self.name, func)
+
             try:
-                setter = getattr(instance, self.setter_name())
-
-                if self.transition and not self.decorated:
-                    self.decorated = self.transition(setter.__func__)
-
-                if self.decorated:
-                    self.decorated(instance, value, *self.data_args)
+                if isinstance(func, types.MethodType):
+                    func(value, *self.data_args)
                 else:
-                    setter(value, *self.data_args)
-
+                    func(instance, value, *self.data_args)
             except NotImplementedError:
                 raise WriteAccessError(self.name)
 
