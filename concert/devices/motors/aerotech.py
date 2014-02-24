@@ -2,13 +2,12 @@
 import time
 from concert.quantities import q
 from concert.networking import Aerotech
-from concert.devices.base import LinearCalibration
-from concert.devices.motors.base import ContinuousMotor, Motor
+from concert.devices.motors.base import ContinuousRotationMotor
 
 
-class Aerorot(ContinuousMotor):
+class Aerorot(ContinuousRotationMotor):
 
-    """Aerorot (Continuous Motor) class implementation."""
+    """Aerorot ContinuousRotationMotor class implementation."""
     AXIS = "X"
 
     # status constants (bits of the AXISSTATUS output (see HLe docs))
@@ -24,12 +23,9 @@ class Aerorot(ContinuousMotor):
     SLEEP_TIME = 0.01
 
     def __init__(self, host, port=8001, enable=True):
-        pos_calib = LinearCalibration(q.count / q.deg, 0 * q.deg)
-        velo_calib = LinearCalibration(q.count * q.s / q.deg,
-                                       0 * q.deg / q.sec)
-        super(Aerorot, self).__init__(pos_calib, velo_calib)
-
-        self["position"].unit = q.deg
+        super(Aerorot, self).__init__()
+        self['position'].conversion = lambda x: x / q.deg
+        self['velocity'].conversion = lambda x: x * q.s / q.deg
 
         self._connection = Aerotech(host, port)
         if enable:
@@ -47,47 +43,44 @@ class Aerorot(ContinuousMotor):
         return int(self._connection.execute("AXISSTATUS(%s)" % (Aerorot.AXIS)))
 
     def _get_position(self):
-        return float(self._connection.execute("PFBK(%s)" % (Aerorot.AXIS))) \
-            * q.count
+        return float(self._connection.execute("PFBK(%s)" % (Aerorot.AXIS)))
 
     def _set_position(self, steps):
-        self._connection.execute("MOVEABS %s %f" % (Aerorot.AXIS,
-                                                    steps.magnitude))
+        self._connection.execute("MOVEABS %s %f" % (Aerorot.AXIS, steps.magnitude))
 
         while not self._query_state() >> Aerorot.AXISSTATUS_IN_POSITION & 1:
             time.sleep(Aerorot.SLEEP_TIME)
 
     def _get_velocity(self):
-        return float(self._connection.execute("VFBK(%s)" % (Aerorot.AXIS))) \
-            * q.count
+        return float(self._connection.execute("VFBK(%s)" % (Aerorot.AXIS)))
 
     def _set_velocity(self, steps):
-        self._connection.execute("FREERUN %s %f" % (Aerorot.AXIS,
-                                                    steps.magnitude))
+        self._connection.execute("FREERUN %s %f" % (Aerorot.AXIS, steps.magnitude))
 
         while self._query_state() >> Aerorot.AXISSTATUS_ACCEL_PHASE & 1:
             time.sleep(Aerorot.SLEEP_TIME)
 
-    def _get_state(self):
+    def check_state(self):
         res = self._query_state()
+
+        # Simplified behavior because of unstable motor states, i.e.
+        # error after long-homing etx. TODO:investigate
+        state = 'standby'
+
         if res >> Aerorot.AXISSTATUS_MOVE_ACTIVE & 1:
-            state = Motor.MOVING
-        elif res >> Aerorot.AXISSTATUS_IN_POSITION & 1:
-            state = Motor.STANDBY
-        else:
-            state = Motor.NA
+            state = 'moving'
 
         return state
 
     def _stop(self):
-        if self.state == Motor.MOVING:
+        if self.check_state() == 'moving':
             self._connection.execute("ABORT %s" % (Aerorot.AXIS))
 
-        while self.state == Motor.MOVING:
+        while self.check_state() == 'moving':
             time.sleep(Aerorot.SLEEP_TIME)
 
     def _home(self):
         self._connection.execute("HOME %s" % (Aerorot.AXIS))
 
-        while self.state == Motor.MOVING:
+        while self.check_state() == 'moving':
             time.sleep(Aerorot.SLEEP_TIME)
