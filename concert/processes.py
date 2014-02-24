@@ -192,14 +192,14 @@ def align_rotation_axis(camera, rotation_motor, flat_motor=None,
     if not x_motor and not z_motor:
         raise ValueError("At least one of the x, z motors must be given")
 
-    def get_frames():
+    def get_frames(flat):
         frames = []
         for i in range(num_frames):
-            rotation_motor.move(i * step).join()
+            rotation_motor.move(step).join()
             camera.trigger()
-            frame = camera.grab()
-            if flat:
-                frame /= flat
+            frame = camera.grab().astype(np.float)
+            if flat is not None:
+                frame = frame / flat
             frames.append(frame)
 
         return frames
@@ -233,7 +233,7 @@ def align_rotation_axis(camera, rotation_motor, flat_motor=None,
         z_turn_counter = 0
 
         while True:
-            x_angle, z_angle, center = measure(get_frames())
+            x_angle, z_angle, center = measure(get_frames(flat))
 
             x_better = True if z_motor is not None and\
                 (x_last is None or np.abs(x_angle) < x_last) else False
