@@ -4,7 +4,6 @@ Cameras supported by the libuca library.
 import functools
 import logging
 import numpy as np
-from concert.async import async
 from concert.quantities import q
 from concert.base import Parameter, Quantity
 from concert.helpers import Bunch
@@ -190,31 +189,21 @@ class Camera(base.Camera):
 
 class Pco(Camera):
 
-    """A specific pco camera that can be used in freerun mode."""
+    """Pco camera implemented by libuca."""
 
     def __init__(self):
         super(Pco, self).__init__('pco')
 
-    @async
-    def freerun(self, consumer):
-        """Start recording and send live frames to *consumer*."""
-        def readout(consumer):
-            while self.state == 'recording':
-                frame = self.grab()
-                if frame is None:
-                    break
-                consumer.send(frame)
-
-        self.trigger_mode = self.trigger_modes.AUTO
+    def stream(self, consumer):
+        """stream frames to the *consumer*."""
         try:
             self.acquire_mode = self.uca.enum_values.acquire_mode.AUTO
             self.storage_mode = self.uca.enum_values.storage_mode.RECORDER
             self.record_mode = self.uca.enum_values.record_mode.RING_BUFFER
         except:
             pass
-        self.start_recording()
 
-        readout(consumer)
+        return super(Pco, self).stream(consumer)
 
 
 class Dimax(Pco, base.BufferedMixin):
