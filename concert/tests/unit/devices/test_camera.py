@@ -1,4 +1,5 @@
 from concert.tests import TestCase
+from concert.coroutines.base import coroutine
 from concert.quantities import q
 from concert.devices.cameras.dummy import Camera, BufferedCamera
 
@@ -42,3 +43,15 @@ class TestDummyCamera(TestCase):
             f = camera.grab()
 
         self.assertEqual(camera.state, 'standby')
+
+    def test_stream(self):
+        @coroutine
+        def check():
+            while True:
+                yield
+                check.ok = True
+                self.camera.stop_recording()
+        check.ok = False
+
+        self.camera.stream(check()).join()
+        self.assertTrue(check.ok)
