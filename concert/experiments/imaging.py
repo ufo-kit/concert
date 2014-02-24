@@ -60,10 +60,8 @@ class Experiment(BaseExperiment):
 
 def frames(num_frames, camera, callback=None):
     """
-    A generator which takes *num_frames* by setting *camera* to software
-    trigger mode, so the frames are triggered from here. *callback* is called
-    before every taken frame. After the acquisition the trigger mode is
-    restored to what it was before.
+    A generator which takes *num_frames* using *camera*. *callback* is called
+    after every taken frame.
     """
     if camera.state == 'recording':
         camera.stop_recording()
@@ -75,9 +73,9 @@ def frames(num_frames, camera, callback=None):
         with camera.recording():
             for i in range(num_frames):
                 camera.trigger()
+                yield camera.grab()
                 if callback:
                     callback()
-                yield camera.grab()
     finally:
         camera['trigger_mode'].restore().join()
 
