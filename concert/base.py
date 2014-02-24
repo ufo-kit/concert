@@ -413,7 +413,7 @@ class Quantity(Parameter):
 
     def convert_to(self, instance, value):
         conversion = self.get_conversion(instance)
-        return conversion(value)
+        return conversion(value.to(self.unit))
 
     def convert_from(self, instance, value):
         return value * self.from_scale(instance)
