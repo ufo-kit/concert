@@ -14,8 +14,10 @@ class TestOptimizers(TestCase):
                            optimization.nonlinear_conjugate,
                            optimization.bfgs,
                            optimization.least_squares]
-        self.center = 3.0 * q.mm
+        self.center = 1.0 * q.mm
         self.motor = LinearMotor(position=0 * q.count)
+        self.motor.lower = -float('Inf') * q.count
+        self.motor.upper = float('Inf') * q.count
 
     def feedback(self):
         return (self.motor.position.to(q.mm).magnitude -
