@@ -14,6 +14,7 @@
 
 """
 import functools
+import traceback
 import concert.config
 from concurrent.futures import ThreadPoolExecutor, Future
 
@@ -21,6 +22,14 @@ try:
     import Queue as queue
 except ImportError:
     import queue
+
+
+# Provide nicely formatted exceptions if possible
+_colored_exceptions = True
+try:
+    from IPython.core.ultratb import AutoFormattedTB
+except ImportError:
+    _colored_exceptions = False
 
 
 # Patch futures so that they provide a join() and kill() method
@@ -52,6 +61,10 @@ def no_async(func):
             result = func(*args, **kwargs)
             future.set_result(result)
         except Exception as e:
+            if _colored_exceptions:
+                AutoFormattedTB(mode='Verbose')()
+            else:
+                traceback.print_exc()
             future.set_exception(e)
 
         return future
