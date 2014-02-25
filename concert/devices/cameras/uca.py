@@ -288,7 +288,7 @@ class Ufo(Camera):
         if self.ufo_cmosis_bit_mode == 1:
             return 0.00000002083 * q.s
 
-        raise ValueError("Bit mode unknown")
+        raise base.CameraError("Cannot determine clock cycle, bit mode unknown")
 
     def prepare_fast_reject(self, max_frame_rate=1000, num_of_pixel_thr=30, num_of_lines_thr=1,
                             num_frames=40):
@@ -346,11 +346,7 @@ class Ufo(Camera):
             b = int(np.sqrt([4 * a * c])[0] + 1)
             min_lines = int((b + 2 + ratio_area_skip) / ratio_area_skip)
             msg = "maximum frame rate {0} > interleave + readout rows:{1}"
-            LOG.warning(msg.format(frame_rate(min_lines), min_lines))
-
-            lines = min_lines
-            b = ratio_area_skip - lines * ratio_area_skip + 2
-            c = total_num_lines - lines + 1
+            raise base.CameraError(msg.format(frame_rate(min_lines), min_lines))
 
         LOG.info("frame_rate={}".format(frame_rate(lines)))
 
