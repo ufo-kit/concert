@@ -49,6 +49,7 @@ To setup and use a camera in a typical environment, you would do::
 """
 import contextlib
 from concert.base import Parameter, Quantity, State, transition
+from concert.async import async
 from concert.quantities import q
 from concert.helpers import Bunch
 from concert.devices.base import Device
@@ -108,6 +109,17 @@ class Camera(Device):
     def grab(self):
         """Return a NumPy array with data of the current frame."""
         return self._grab_real()
+
+    @async
+    def stream(self, consumer):
+        """Grab frames continuously and send them to *consumer*, which
+        is a coroutine.
+        """
+        self.trigger_mode = self.trigger_modes.AUTO
+        self.start_recording()
+
+        while self.state == 'recording':
+            consumer.send(self.grab())
 
     def _get_trigger_mode(self):
         raise NotImplementedError
