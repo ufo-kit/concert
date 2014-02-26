@@ -290,8 +290,8 @@ class Ufo(Camera):
 
         raise base.CameraError("Cannot determine clock cycle, bit mode unknown")
 
-    def prepare_fast_reject(self, max_frame_rate=1000, num_of_pixel_thr=30, num_of_lines_thr=1,
-                            num_frames=40):
+    def prepare_fast_reject(self, max_frame_rate=1000 / q.s, num_of_pixel_thr=30,
+                            num_of_lines_thr=1, num_frames=40):
         """
         Prepare the camera for fast reject mode.
 
@@ -306,7 +306,6 @@ class Ufo(Camera):
         """
         self.trigger_mode = self.trigger_modes.AUTO
         frames = []
-        max_frame_rate = max_frame_rate * 1/q.s
 
         with self.recording():
             for i in range(num_frames):
