@@ -9,16 +9,14 @@ import shutil
 
 _CACHED_PATH = None
 
-_SESSION_TEMPLATE = """import logging
+_SESSION_TEMPLATE = """\"\"\"This is session {doc}\"\"\"
+
+import logging
 import concert
-concert.require("{}")
+concert.require("{version}")
 
 from concert.quantities import q
-
-from concert.session.utils import ddoc, dstate, pdoc
-from concert.session.utils import code_of
-
-__doc__ = "This is session {}"
+from concert.session.utils import ddoc, dstate, pdoc, code_of
 
 LOG = logging.getLogger(__name__)
 """
@@ -57,7 +55,7 @@ def create(session, imports=()):
     .. note:: This will *always* overwrite session.
     """
     from concert import get_canonical_version
-    template = _SESSION_TEMPLATE.format(get_canonical_version(), session)
+    template = _SESSION_TEMPLATE.format(version=get_canonical_version(), doc=session)
 
     def _module_exists(module_name):
         try:
