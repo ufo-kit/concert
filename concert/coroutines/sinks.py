@@ -48,9 +48,9 @@ def write_images(writer=write_tiff, prefix="image_{:>05}"):
     The file extension needs to be applied by a particular writer.
     """
     i = 0
-
     dir_name = os.path.dirname(prefix)
-    if dir_name != "" and not os.path.exists(dir_name):
+
+    if dir_name and not os.path.exists(dir_name):
         create_directory(dir_name)
 
     while True:
