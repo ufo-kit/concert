@@ -56,6 +56,7 @@ Exceptions
 .. autoclass:: concert.base.UnitError
 .. autoclass:: concert.base.LimitError
 .. autoclass:: concert.base.ParameterError
+.. autoclass:: concert.base.AccessorNotImplementedError
 .. autoclass:: concert.base.ReadAccessError
 .. autoclass:: concert.base.WriteAccessError
 

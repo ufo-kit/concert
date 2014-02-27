@@ -1,4 +1,5 @@
 """Port, IO Device."""
+from concert.base import AccessorNotImplementedError
 from concert.devices.base import Device
 
 
@@ -34,11 +35,11 @@ class IO(Device):
 
     def _read_port(self, port):
         """Implementation of reading a *port* from the device."""
-        raise NotImplementedError
+        raise AccessorNotImplementedError
 
     def _write_port(self, port, value):
         """Implementation of writing a *value* to a *port* on the device."""
-        raise NotImplementedError
+        raise AccessorNotImplementedError
 
 
 class IODeviceError(Exception):

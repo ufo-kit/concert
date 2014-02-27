@@ -1,7 +1,7 @@
 """Base scales module for implementing scales."""
 
 from concert.devices.base import Device
-from concert.base import Quantity
+from concert.base import Quantity, AccessorNotImplementedError
 from concert.quantities import q
 from concert.async import async
 
@@ -23,7 +23,7 @@ class Scales(Device):
         super(Scales, self).__init__()
 
     def _get_weight(self):
-        raise NotImplementedError
+        raise AccessorNotImplementedError
 
 
 class TarableScales(Scales):
@@ -39,4 +39,4 @@ class TarableScales(Scales):
         self._tare()
 
     def _tare(self):
-        raise NotImplementedError
+        raise AccessorNotImplementedError

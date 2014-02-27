@@ -1,5 +1,5 @@
 """Shutter Device."""
-from concert.base import transition, State
+from concert.base import transition, State, AccessorNotImplementedError
 from concert.async import async
 from concert.devices.base import Device
 
@@ -30,7 +30,7 @@ class Shutter(Device):
         self._close()
 
     def _open(self):
-        raise NotImplementedError
+        raise AccessorNotImplementedError
 
     def _close(self):
-        raise NotImplementedError
+        raise AccessorNotImplementedError

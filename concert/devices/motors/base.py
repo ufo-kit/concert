@@ -16,7 +16,7 @@ As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 import logging
 from concert.quantities import q
 from concert.async import async
-from concert.base import Quantity, State, transition
+from concert.base import Quantity, State, transition, AccessorNotImplementedError
 from concert.devices.base import Device
 
 
@@ -58,10 +58,10 @@ class _PositionMixin(Device):
         self._home()
 
     def _home(self):
-        raise NotImplementedError
+        raise AccessorNotImplementedError
 
     def _stop(self):
-        raise NotImplementedError
+        raise AccessorNotImplementedError
 
 
 class LinearMotor(_PositionMixin):
