@@ -1,6 +1,6 @@
 """Motor Controller"""
+from concert.base import Parameter, AccessorNotImplementedError
 from concert.devices.base import Device
-from concert.base import Parameter
 
 
 class MotorController(Device):
@@ -12,4 +12,4 @@ class MotorController(Device):
         super(MotorController, self).__init__(params)
 
     def _get_motors(self):
-        raise NotImplementedError
+        raise AccessorNotImplementedError

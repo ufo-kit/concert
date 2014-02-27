@@ -69,6 +69,11 @@ class ParameterError(Exception):
         super(ParameterError, self).__init__(msg)
 
 
+class AccessorNotImplementedError(NotImplementedError):
+
+    """Raised when a setter or getter is not implemented."""
+
+
 class ReadAccessError(Exception):
 
     """Raised when user tries to change a parameter that cannot be written."""
@@ -328,7 +333,7 @@ class Parameter(object):
                 value = getattr(instance, self.getter_name())(*self.data_args)
 
             return value
-        except NotImplementedError:
+        except AccessorNotImplementedError:
             raise ReadAccessError(self.name)
 
     def __set__(self, instance, value):
@@ -355,7 +360,7 @@ class Parameter(object):
                     func(value, *self.data_args)
                 else:
                     func(instance, value, *self.data_args)
-            except NotImplementedError:
+            except AccessorNotImplementedError:
                 raise WriteAccessError(self.name)
 
         log_access('set')
@@ -676,10 +681,10 @@ class Parameterizable(six.with_metaclass(MetaParameterizable, object)):
         self._params[name] = value
 
         def setter_not_implemented(value, *args):
-            raise NotImplementedError
+            raise AccessorNotImplementedError
 
         def getter_not_implemented(*args):
-            raise NotImplementedError
+            raise AccessorNotImplementedError
 
         setattr(self, 'set_' + name, value.set)
         setattr(self, 'get_' + name, value.get)

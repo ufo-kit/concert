@@ -1,6 +1,6 @@
 """Pumps."""
 
-from concert.base import Quantity, State, transition
+from concert.base import Quantity, State, transition, AccessorNotImplementedError
 from concert.quantities import q
 from concert.async import async
 from concert.devices.base import Device
@@ -41,10 +41,10 @@ class Pump(Device):
         self._stop()
 
     def _get_flow_rate(self):
-        raise NotImplementedError
+        raise AccessorNotImplementedError
 
     def _set_flow_rate(self, flow_rate):
-        raise NotImplementedError
+        raise AccessorNotImplementedError
 
     def _start(self):
         raise NotImplementedError

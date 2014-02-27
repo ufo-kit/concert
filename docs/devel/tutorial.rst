@@ -101,7 +101,7 @@ which belong to our new device, in our case the ``position``::
             self['position'].conversion = lambda x: x * 20 * q.count / q.mm
 
 Now, all that's left to do, is implementing the abstract methods that would
-raise a :exc:`NotImplementedError`::
+raise a :exc:`.AccessorNotImplementedError`::
 
         def _get_position(self):
             return self.steps
@@ -169,6 +169,17 @@ explicit setters and getters in order to hook into the get and set process::
 
 Be aware, that in this case you have to list the parameter *after* the functions
 that you want to refer to.
+
+In case you want to specify the name of the accessor function yourself and rely
+on implementation by subclasses, you have to raise an
+:exc:`.AccessorNotImplementedError`::
+
+    class Pump(Device):
+
+        ...
+
+        def _set_flow_rate(self):
+            raise AccessorNotImplementedError
 
 
 State machine
