@@ -92,27 +92,14 @@ Our motor will be a linear one, let's sub-class :class:`~.base.LinearMotor`::
         tool."""
 
 In order to install all required parameters, we have to call the base
-constructor. Moreover, we need to set the conversion of every :class:`.Quantity`
-which belong to our new device, in our case the ``position``::
-
-        def __init__(self):
-            super(FancyMotor, self).__init__()
-            # 20 steps correspond to one millimeter
-            self['position'].conversion = lambda x: x * 20 * q.count / q.mm
-
-Now, all that's left to do, is implementing the abstract methods that would
-raise a :exc:`.AccessorNotImplementedError`::
+constructor. Now, all that's left to do, is implementing the abstract methods that
+would raise a :exc:`.AccessorNotImplementedError`::
 
         def _get_position(self):
             return self.steps
 
         def _set_position(self, steps):
             self.steps = steps
-
-.. note::
-
-    In this motor case, the conversion from user units to steps is done before
-    calling :meth:`.get_position` and :meth:`.set_position`.
 
 
 Creating a device class
