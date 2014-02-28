@@ -371,21 +371,17 @@ class Quantity(Parameter):
     """A :class:`.Parameter` associated with a unit."""
 
     def __init__(self, unit, fget=None, fset=None, lower=None, upper=None,
-                 conversion=identity, data=None, transition=None, help=None):
+                 data=None, transition=None, help=None):
         """
         *fget*, *fset*, *data*, *transition* and *help* are identical to the
         :class:`.Parameter` constructor arguments.
 
         *unit* is a Pint quantity. *lower* and *upper* denote soft limits
         between the :class:`.Quantity` values can lie.
-
-        *conversion* is a callable that is run whenever the value is read and
-        written. By default, *conversion* is the identity f(x) = x.
         """
         super(Quantity, self).__init__(fget=fget, fset=fset, data=data,
                                        transition=transition, help=help)
         self.unit = unit
-        self.default_conversion = conversion
 
         self.upper = upper if upper is not None else float('Inf')
         self.lower = lower if lower is not None else -float('Inf')
@@ -403,25 +399,8 @@ class Quantity(Parameter):
         except ValueError:
             return False
 
-    @memoize
-    def from_scale(self, instance):
-        conversion = self.get_conversion(instance)
-        scale = conversion(1)
-
-        if hasattr(scale, 'magnitude'):
-            return 1 / (scale / scale.magnitude)
-
-        return 1 / scale
-
-    def get_conversion(self, instance):
-        return instance[self.name].conversion
-
-    def convert_to(self, instance, value):
-        conversion = self.get_conversion(instance)
-        return conversion(value.to(self.unit))
-
-    def convert_from(self, instance, value):
-        return value * self.from_scale(instance)
+    def convert(self, value):
+        return value.to(self.unit)
 
     def __get__(self, instance, owner):
         # If we would just call self.fset(value) we would call the method
@@ -429,7 +408,7 @@ class Quantity(Parameter):
         # the instance where we actually want the function to be called.
         value = super(Quantity, self).__get__(instance, owner)
 
-        return self.convert_from(instance, value)
+        return self.convert(value)
 
     def __set__(self, instance, value):
         if not self.is_compatible(value):
@@ -457,12 +436,11 @@ class Quantity(Parameter):
             msg = "{} is out of range [{}, {}]"
             raise SoftLimitError(msg.format(value, lower, upper))
 
-        converted = self.convert_to(instance, value)
+        converted = self.convert(value)
         super(Quantity, self).__set__(instance, converted)
 
 
-def quantity(unit=None, lower=None, upper=None, conversion=identity,
-             data=None, transition=None, help=None):
+def quantity(unit=None, lower=None, upper=None, data=None, transition=None, help=None):
     """
     Decorator for read-only quantity functions.
 
@@ -482,10 +460,10 @@ def quantity(unit=None, lower=None, upper=None, conversion=identity,
         doc = help if help else inspect.getdoc(func)
 
         return Quantity(fget=func, unit=unit, lower=lower, upper=upper,
-                        conversion=conversion, data=data,
-                        transition=transition, help=doc)
+                        data=data, transition=transition, help=doc)
 
     return wrapper
+
 
 class ParameterValue(object):
 
@@ -554,7 +532,6 @@ class QuantityValue(ParameterValue):
         super(QuantityValue, self).__init__(instance, quantity)
         self.lower = quantity.lower
         self.upper = quantity.upper
-        self.conversion = quantity.default_conversion
 
     @property
     def unit(self):

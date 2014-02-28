@@ -8,14 +8,10 @@ from concert.devices.base import Device
 
 class Pump(Device):
 
-    """
-    Every pump has a calibration for proper unit conversion and a flow
-    rate limit determined by *lower* and *upper*.
-    """
+    """A pumping device."""
 
     state = State(default='standby')
-    flow_rate = Quantity(q.l / q.s, help="Flow rate",
-                         conversion=lambda x: x * q.s / q.l)
+    flow_rate = Quantity(q.l / q.s, help="Flow rate")
 
     def __init__(self):
         super(Pump, self).__init__()

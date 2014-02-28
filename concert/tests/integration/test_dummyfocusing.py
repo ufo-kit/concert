@@ -11,7 +11,7 @@ class TestDummyFocusingWithSoftLimits(TestCase):
 
     def setUp(self):
         super(TestDummyFocusingWithSoftLimits, self).setUp()
-        self.motor = LinearMotor(position=50 * q.count)
+        self.motor = LinearMotor(position=50 * q.mm)
         self.motor['position'].lower = 25 * q.mm
         self.motor['position'].upper = 75 * q.mm
         self.halver_kwargs = {"initial_step": 10 * q.mm,
@@ -70,16 +70,14 @@ class TestDummyFocusing(TestCase):
 
     @slow
     def test_maximum_out_of_limits_right(self):
-        self.feedback.max_position = (self.motor.upper + 50 * q.count) \
-            * self.motor["position"].unit / q.count
+        self.feedback.max_position = (self.motor.upper + 50 * q.mm)
 
         with self.assertRaises(HardLimitError):
             self.run_optimization()
 
     @slow
     def test_maximum_out_of_limits_left(self):
-        self.feedback.max_position = (self.motor.lower - 50 * q.count) \
-            * self.motor["position"].unit / q.count
+        self.feedback.max_position = (self.motor.lower - 50 * q.mm)
 
         with self.assertRaises(HardLimitError):
             self.run_optimization()
