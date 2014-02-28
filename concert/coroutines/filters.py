@@ -91,17 +91,17 @@ def average_images(consumer):
 
 
 @coroutine
-def sinograms(num_radiographs, consumer):
+def sinograms(num_radiographs, consumer, sinograms_volume=None):
     """
-    sinograms(num_radiographs, consumer)
+    sinograms(num_radiographs, consumer, sinograms_volume=None)
 
     Convert *num_radiographs* into sinograms and send them to *consumer*.
     The sinograms are sent every time a new radiograph arrives. If there
     is more than *num_radiographs* radiographs, the sinograms are rewritten
-    in a ring-buffer fashion.
+    in a ring-buffer fashion. If *sinograms_volume* is given, it must be a 3D
+    array and it is used to store the sinograms.
     """
     i = 0
-    sinograms = None
 
     def is_compatible(radio_shape, sinos_shape):
         return radio_shape[0] == sinos_shape[0] and \
@@ -110,15 +110,14 @@ def sinograms(num_radiographs, consumer):
     while True:
         radiograph = yield
 
-        if sinograms is None or i % num_radiographs == 0:
-            sinograms = np.zeros((radiograph.shape[0],
-                                  num_radiographs,
-                                  radiograph.shape[1]))
-        if not is_compatible(radiograph.shape, sinograms.shape):
+        if sinograms_volume is None:
+            sinograms_volume = np.zeros((radiograph.shape[0], num_radiographs,
+                                        radiograph.shape[1]), dtype=radiograph.dtype)
+        if not is_compatible(radiograph.shape, sinograms_volume.shape):
             raise ValueError("Incompatible radiograph shape")
 
-        sinograms[:, i % num_radiographs, :] = radiograph
-        consumer.send(sinograms)
+        sinograms_volume[:, i % num_radiographs, :] = radiograph
+        consumer.send(sinograms_volume)
 
         i += 1
 
