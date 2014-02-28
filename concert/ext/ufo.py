@@ -43,6 +43,7 @@ class InjectProcess(object):
     def __init__(self, graph, get_output=False):
         self.input_task = Ufo.InputTask()
         self.output_task = None
+        self._started = False
 
         if isinstance(graph, Ufo.TaskGraph):
             self.graph = graph
@@ -70,6 +71,17 @@ class InjectProcess(object):
         self.wait()
         return True
 
+    @coroutine
+    def __call__(self, consumer):
+        """Co-routine compatible consumer."""
+        if not self._started:
+            self.start()
+
+        while True:
+            item = yield
+            self.insert(item)
+            consumer.send(self.result())
+
     def start(self):
         """
         Run the processing in a new thread.
@@ -82,6 +94,8 @@ class InjectProcess(object):
 
         self.thread = threading.Thread(target=run_scheduler)
         self.thread.start()
+        if not self._started:
+            self._started = True
 
     def insert(self, array):
         """
@@ -103,12 +117,6 @@ class InjectProcess(object):
             result = np.copy(ufo.numpy.asarray(buf))
             self.output_task.release_output_buffer(buf)
             return result
-
-    def consume(self):
-        """Co-routine compatible consumer."""
-        while True:
-            item = yield
-            self.insert(item)
 
     def wait(self):
         """Wait until processing has finished."""
@@ -133,7 +141,6 @@ class Backproject(InjectProcess):
         self.ifft = self.pm.get_task('ifft', dimensions=1)
         self.fltr = self.pm.get_task('filter')
         self.backprojector = self.pm.get_task('backproject')
-        self._started = False
 
         if axis_pos:
             self.backprojector.props.axis_pos = axis_pos
@@ -156,11 +163,9 @@ class Backproject(InjectProcess):
     @coroutine
     def __call__(self, consumer):
         """Get a sinogram, do filtered backprojection and send it to *consumer*."""
+        slice = None
         if not self._started:
             self.start()
-            self._started = True
-
-        slice = None
 
         while True:
             sinogram = yield
