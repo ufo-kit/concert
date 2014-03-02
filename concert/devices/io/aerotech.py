@@ -1,5 +1,5 @@
 """Aerotech controllers IO boards implementation."""
-from concert.networking import Aerotech
+from concert.networking.aerotech import Connection
 from concert.devices.io import base
 
 
@@ -13,7 +13,7 @@ class HLe(base.IO):
 
     def __init__(self, host, port=8001):
         super(HLe, self).__init__()
-        self._connection = Aerotech(host, port)
+        self._connection = Connection(host, port)
         # Three groups, first 0-5, the rest 0-7
         self._ports = _make_ids(0, 6) + _make_ids(1, 8) + _make_ids(2, 8)
 

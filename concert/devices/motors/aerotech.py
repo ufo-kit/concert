@@ -1,7 +1,7 @@
 """Aerotech"""
 import time
 from concert.quantities import q
-from concert.networking import Aerotech
+from concert.networking.aerotech import Connection
 from concert.devices.motors.base import ContinuousRotationMotor
 
 
@@ -27,7 +27,7 @@ class Aerorot(ContinuousRotationMotor):
         self['position'].conversion = lambda x: x / q.deg
         self['velocity'].conversion = lambda x: x * q.s / q.deg
 
-        self._connection = Aerotech(host, port)
+        self._connection = Connection(host, port)
         if enable:
             self.enable()
 

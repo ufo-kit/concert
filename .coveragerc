@@ -1,7 +1,8 @@
 [run]
 source = concert
 omit =
-    concert/connections/tango.py
+    concert/networking/aerotech.py
+    concert/networking/wago.py
     concert/devices/cameras/uca.py
     concert/devices/controllers/motion/aerotech.py
     concert/devices/monochromators/newport.py
