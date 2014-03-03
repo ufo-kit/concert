@@ -78,16 +78,16 @@ Sessions
 Networking
 ==========
 
-.. automodule:: concert.networking
+Networking package facilitates all network connections, e.g. sockets and Tango.
 
 
 Socket Connections
 ------------------
 
-.. autoclass:: SocketConnection
+.. autoclass:: concert.networking.base.SocketConnection
     :members:
 
-.. autoclass:: Aerotech
+.. autoclass:: concert.networking.aerotech.Connection
     :members:
 
 
@@ -101,7 +101,7 @@ TANGO
 Tango_ devices are interfaced by PyTango_, one can obtain the DeviceProxy_ by
 the :py:func:`get_tango_device` function.
 
-.. autofunction:: get_tango_device
+.. autofunction:: concert.networking.base.get_tango_device
 
 
 Helpers
