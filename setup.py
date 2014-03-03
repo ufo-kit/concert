@@ -4,9 +4,9 @@ from setuptools import setup, find_packages
 
 
 # Install Bash completion script only if installation is run as root
-if os.geteuid() != 0:
-    data_files = []
-else:
+data_files = []
+
+if hasattr(os, 'geteuid') and os.geteuid() == 0:
     data_files = [('/etc/bash_completion.d', ['extras/completion/concert.sh'])]
 
 
