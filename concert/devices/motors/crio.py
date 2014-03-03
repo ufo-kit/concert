@@ -18,17 +18,17 @@ class LinearMotor(base.LinearMotor):
     def __init__(self, host=DEFAULT_CRIO_HOST, port=DEFAULT_CRIO_PORT_LINEAR):
         super(LinearMotor, self).__init__()
         self._connection = SocketConnection(host, port, '\r\n')
-        self._steps = 0
-        self._to_device_scale = 50000 / q.mm
+        self._position = 0 * q.mm
+        self._to_device_scale = 50000
         self['position'].lower = 0 * q.mm
         self['position'].upper = 2 * q.mm
 
     def _get_position(self):
-        return self._steps / self._to_device_scale
+        return self._position / self._to_device_scale
 
     def _set_position(self, position):
-        steps = position * self._to_device_scale
-        self._connection.execute('lin {} 5000'.format(int(steps)))
+        self._position = position.to(q.mm) * self._to_device_scale
+        self._connection.execute('lin {} 5000'.format(int(self._position)))
 
     def _stop(self):
         self._connection.execute('mod stop')
@@ -41,9 +41,9 @@ class RotationMotor(base.ContinuousRotationMotor):
     def __init__(self, host=DEFAULT_CRIO_HOST, port=DEFAULT_CRIO_PORT_ROTATIONAL):
         super(RotationMotor, self).__init__()
         self._connection = SocketConnection(host, port, '\r\n')
-        self._steps = 0
-        self._velocity = 0
-        self._to_device_scale = 2 / q.deg
+        self._position = 0 * q.deg
+        self._velocity = 0 * q.deg / q.s
+        self._to_device_scale = 2
 
     def _in_hard_limit(self):
         return False
@@ -52,18 +52,18 @@ class RotationMotor(base.ContinuousRotationMotor):
         return False
 
     def _get_position(self):
-        return self._steps / self._to_device_scale
+        return self._position / self._to_device_scale
 
     def _set_position(self, position):
-        steps = position * self._to_device_scale
-        self._connection.execute('rot {} 500'.format(int(steps)))
+        self._position = position * self._to_device_scale
+        self._connection.execute('rot {} 500'.format(int(self._position)))
 
     def _get_velocity(self):
         return 0 * q.deg / q.s
 
     def _set_velocity(self, velocity):
-        step_velocity = velocity * self._to_device_scale * q.s
-        self._connection.execute('mod {}'.format(int(step_velocity)))
+        self._velocity = velocity * self._to_device_scale
+        self._connection.execute('mod {}'.format(int(self._velocity)))
 
     def _stop(self):
         self._connection.execute('mod stop')

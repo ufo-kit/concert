@@ -92,27 +92,28 @@ Our motor will be a linear one, let's sub-class :class:`~.base.LinearMotor`::
         tool."""
 
 In order to install all required parameters, we have to call the base
-constructor. Moreover, we need to set the conversion of every :class:`.Quantity`
-which belong to our new device, in our case the ``position``::
-
-        def __init__(self):
-            super(FancyMotor, self).__init__()
-            # 20 steps correspond to one millimeter
-            self['position'].conversion = lambda x: x * 20 * q.count / q.mm
-
-Now, all that's left to do, is implementing the abstract methods that would
-raise a :exc:`.AccessorNotImplementedError`::
+constructor. Now, all that's left to do, is implementing the abstract methods that
+would raise a :exc:`.AccessorNotImplementedError`::
 
         def _get_position(self):
-            return self.steps
+            # the returned value must have units compatible with units set in
+            # the Quantity this getter implements
+            return self.position
 
-        def _set_position(self, steps):
-            self.steps = steps
+        def _set_position(self, position):
+            # position is guaranteed to be in the units set by the respective
+            # Quantity
+            self.position = position
 
-.. note::
-
-    In this motor case, the conversion from user units to steps is done before
-    calling :meth:`.get_position` and :meth:`.set_position`.
+We guarantee that in setters which implement a :class:`.Quantity`, like the
+:meth:`._set_position` above, obtain the value in the exact same units as they
+were specified in the respective :class:`.Quantity` they implement. E.g. if the
+above :meth:`_set_position` implemented a quantity with units set in kilometers,
+the :attr:`.position` of the :meth:`._set_position` will also be in kilometers.
+On the other hand the getters do not need to return the exact same quantity
+but the value must be compatible, so the above :meth:`._get_position` could
+return millimeters and the user would get the value in kilometers, as defined
+in the respective :class:`.Quantity`.
 
 
 Creating a device class

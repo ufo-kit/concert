@@ -1,4 +1,4 @@
-from concert.tests import TestCase
+from concert.tests import TestCase, assert_almost_equal
 from concert.devices.detectors.dummy import Detector
 
 
@@ -11,5 +11,5 @@ class TestDetector(TestCase):
         pixel_width = self.detector.camera.sensor_pixel_width
         pixel_height = self.detector.camera.sensor_pixel_height
 
-        self.assertEqual(self.detector.pixel_width, pixel_width * self.detector.magnification)
-        self.assertEqual(self.detector.pixel_height, pixel_height * self.detector.magnification)
+        assert_almost_equal(self.detector.pixel_width, pixel_width * self.detector.magnification)
+        assert_almost_equal(self.detector.pixel_height, pixel_height * self.detector.magnification)

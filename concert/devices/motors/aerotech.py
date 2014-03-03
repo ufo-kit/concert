@@ -24,8 +24,6 @@ class Aerorot(ContinuousRotationMotor):
 
     def __init__(self, host, port=8001, enable=True):
         super(Aerorot, self).__init__()
-        self['position'].conversion = lambda x: x / q.deg
-        self['velocity'].conversion = lambda x: x * q.s / q.deg
 
         self._connection = Connection(host, port)
         if enable:
@@ -43,19 +41,19 @@ class Aerorot(ContinuousRotationMotor):
         return int(self._connection.execute("AXISSTATUS(%s)" % (Aerorot.AXIS)))
 
     def _get_position(self):
-        return float(self._connection.execute("PFBK(%s)" % (Aerorot.AXIS)))
+        return float(self._connection.execute("PFBK(%s)" % (Aerorot.AXIS))) * q.deg
 
-    def _set_position(self, steps):
-        self._connection.execute("MOVEABS %s %f" % (Aerorot.AXIS, steps.magnitude))
+    def _set_position(self, position):
+        self._connection.execute("MOVEABS %s %f" % (Aerorot.AXIS, position.magnitude))
 
         while not self._query_state() >> Aerorot.AXISSTATUS_IN_POSITION & 1:
             time.sleep(Aerorot.SLEEP_TIME)
 
     def _get_velocity(self):
-        return float(self._connection.execute("VFBK(%s)" % (Aerorot.AXIS)))
+        return float(self._connection.execute("VFBK(%s)" % (Aerorot.AXIS))) * q.deg / q.s
 
-    def _set_velocity(self, steps):
-        self._connection.execute("FREERUN %s %f" % (Aerorot.AXIS, steps.magnitude))
+    def _set_velocity(self, velocity):
+        self._connection.execute("FREERUN %s %f" % (Aerorot.AXIS, velocity.magnitude))
 
         while self._query_state() >> Aerorot.AXISSTATUS_ACCEL_PHASE & 1:
             time.sleep(Aerorot.SLEEP_TIME)
