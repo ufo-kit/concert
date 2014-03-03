@@ -211,9 +211,22 @@ class PCO4000(Pco):
 
     """PCO.4000 camera implementation."""
 
+    _ALLOWED_DURING_RECORDING = ['trigger', '_trigger_real', '_last_grab_time',
+                                 'grab', '_grab_real', '_record_shape', '_record_dtype',
+                                 'uca', 'stop_recording']
+
     def __init__(self):
+        self._lock_access = False
         self._last_grab_time = None
         super(PCO4000, self).__init__()
+
+    def start_recording(self):
+        super(PCO4000, self).start_recording()
+        self._lock_access = True
+
+    def stop_recording(self):
+        self._lock_access = False
+        super(PCO4000, self).stop_recording()
 
     def _grab_real(self):
         # For the PCO.4000 there must be a delay of at least one second
@@ -226,6 +239,12 @@ class PCO4000(Pco):
         self._last_grab_time = time.time()
 
         return result
+
+    def __getattribute__(self, name):
+        if object.__getattribute__(self, '_lock_access') and name \
+           not in PCO4000._ALLOWED_DURING_RECORDING:
+            raise AttributeError('PCO.4000 is inaccessible during recording')
+        return object.__getattribute__(self, name)
 
 
 class Dimax(Pco, base.BufferedMixin):
