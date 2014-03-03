@@ -1,6 +1,7 @@
 from concert.quantities import q
 from concert.tests import TestCase
-from concert.base import Parameterizable, Parameter, Quantity, State, SoftLimitError, transition
+from concert.base import (Parameterizable, Parameter, Quantity, State, SoftLimitError,
+                          transition, LockError)
 
 
 class BaseDevice(Parameterizable):
@@ -95,3 +96,43 @@ class TestParameterizable(TestCase):
         self.assertEqual(self.foo1.state, 'standby')
         self.foo1.foo = 2 * q.m
         self.assertEqual(self.foo1.state, 'moved')
+
+    def test_lock(self):
+        self.foo1['foo'].lock()
+        self.assertTrue(self.foo1['foo'].locked)
+        with self.assertRaises(LockError):
+            self.foo1.foo = 1 * q.m
+
+        # This must pass
+        self.foo1.param = 1 * q.m
+
+        # Unlock and test if writable
+        self.foo1['foo'].unlock()
+        self.assertFalse(self.foo1['foo'].locked)
+        self.foo1.foo = 1 * q.m
+
+        # Lock the whole device
+        self.foo1.lock()
+        with self.assertRaises(LockError):
+            self.foo1.param = 1 * q.m
+        with self.assertRaises(LockError):
+            self.foo1.foo = 1 * q.m
+
+        # Unlock the whole device and test if writable
+        self.foo1.unlock()
+        self.foo1.param = 1 * q.m
+        self.foo1.foo = 1 * q.m
+
+    def test_permanent_lock(self):
+        self.foo1['foo'].lock(permanent=True)
+        self.assertTrue(self.foo1['foo'].locked)
+        with self.assertRaises(LockError):
+            self.foo1.foo = 1 * q.m
+
+        with self.assertRaises(LockError):
+            self.foo1['foo'].unlock()
+
+        # While device
+        self.foo2.lock(permanent=True)
+        with self.assertRaises(LockError):
+            self.foo2.unlock()
