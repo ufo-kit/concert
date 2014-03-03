@@ -3,6 +3,7 @@ Cameras supported by the libuca library.
 """
 import functools
 import logging
+import time
 import numpy as np
 from concert.quantities import q
 from concert.base import Parameter, Quantity
@@ -204,6 +205,27 @@ class Pco(Camera):
             pass
 
         return super(Pco, self).stream(consumer)
+
+
+class PCO4000(Pco):
+
+    """PCO.4000 camera implementation."""
+
+    def __init__(self):
+        self._last_grab_time = None
+        super(PCO4000, self).__init__()
+
+    def _grab_real(self):
+        # For the PCO.4000 there must be a delay of at least one second
+        # between consecutive grabs, otherwise it crashes. We provide
+        # appropriate timeout here.
+        current = time.time()
+        if self._last_grab_time and current - self._last_grab_time < 1:
+            time.sleep(1 - current + self._last_grab_time)
+        result = super(PCO4000, self)._grab_real()
+        self._last_grab_time = time.time()
+
+        return result
 
 
 class Dimax(Pco, base.BufferedMixin):
