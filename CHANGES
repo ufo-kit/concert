@@ -4,6 +4,15 @@ Changelog
 Here you can see the full list of changes between each Concert release.
 
 
+Version 0.7.2
+-------------
+
+Bug fix release, released on March 4th 2014.
+
+- Fix prettytable on older distributions
+- Fix aerotech motor.
+
+
 Version 0.7.1
 -------------
 
