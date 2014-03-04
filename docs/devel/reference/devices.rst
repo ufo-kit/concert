@@ -67,6 +67,16 @@ or rotation, depending by which type of motor it is realized.
     :members:
 
 
+Photodiodes
+-----------
+
+Photodiodes measure light intensity.
+
+.. autoclass:: concert.devices.photodiodes.base.PhotoDiode
+    :show-inheritance:
+    :members:
+
+
 Positioners
 -----------
 
