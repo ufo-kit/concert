@@ -8,16 +8,18 @@ class Wago(Device):
 
     """Input/output wago system implementation"""
 
-    def __init__(self, host, port, address):
+    def __init__(self, host, port):
+        self._host = host
+        self._port = port
+        self._ports = {}
 
-        self._connection = WagoConnection(host, port, address)
-        self.address = address
-
-    def write_port(self, value):
+    def _write_port(self, port, value):
         """Set input value"""
-        self._connection.send(value)
+        connection = WagoConnection(self._host, self._port, self._ports[port])
+        connection.send(value)
 
-    def read_port(self):
+    def _read_port(self, port):
         """Read output value"""
-        response = self._connection.execute()
-        return response
+        connection = WagoConnection(self._host, self._port, self._ports[port])
+        response = connection.execute()
+        return int(response)
