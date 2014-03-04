@@ -54,13 +54,21 @@ def get_default_table(field_names, widths=None):
     table.vertical_char = ' '
     table.junction_char = '-'
 
+    def left_align(name):
+        # Try different ways of setting the alignment to support older versions
+        # of prettytable.
+        try:
+            table.align[name] = 'l'
+        except AttributeError:
+            table.set_field_align(name, 'l')
+
     if widths:
         for name, width in zip(field_names, widths):
-            table.align[name] = 'l'
+            left_align(name)
             table.max_width[name] = width
     else:
         for name in field_names:
-            table.align[name] = 'l'
+            left_align(name)
 
     return table
 
