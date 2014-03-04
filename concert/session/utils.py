@@ -47,8 +47,13 @@ def get_default_table(field_names):
     table.hrules = prettytable.ALL
     table.vertical_char = ' '
     table.junction_char = '-'
+
     for name in field_names:
-        table.align[name] = 'l'
+        try:
+            table.align[name] = 'l'
+        except AttributeError:
+            table.set_field_align(name, 'l')
+
     return table
 
 
