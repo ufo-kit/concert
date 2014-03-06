@@ -63,3 +63,33 @@ you can, for example, model local coordinate pretty easily::
 
    # Go back to the original state
    motor.restore()
+
+
+Locking parameters
+------------------
+
+In case you want to prevent a parameter from being written you can use
+:meth:`.ParameterValue.lock`. If you specify a *permanent* parameter to be True
+the parameter cannot be unlocked anymore. In case you want to unlock
+a parameter you can use :meth:`.ParameterValue.unlock`, to get the state
+you can check the attribute :attr:`.ParameterValue.locked`. All the
+parameters within a device can be locked and unlocked at once, for example
+one can do::
+
+    motor['position'].lock()
+    motor.position = 10 * q.mm
+    # Does not work, you will get a LockError
+    motor.position.locked
+    True
+
+    motor['position'].unlock()
+
+    # Works as expected
+    motor.position = 10 * q.mm
+
+    # Lock the whole device (all parameters)
+    motor.lock(permanent=True)
+
+    # This will not work anymore
+    motor.unlock()
+    # You will get a LockError

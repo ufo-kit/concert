@@ -94,6 +94,13 @@ class WriteAccessError(Exception):
         super(WriteAccessError, self).__init__(msg)
 
 
+class LockError(Exception):
+
+    """Raised when parameter is locked."""
+
+    pass
+
+
 class MultiContext(object):
 
     """Multi context manager to be used in a Python `with` management.
@@ -345,6 +352,9 @@ class Parameter(object):
 
         log_access('try')
 
+        if instance[self.name].locked:
+            raise LockError("Parameter `{}' is locked for writing".format(self))
+
         if self.fset:
             self.fset(instance, value, *self.data_args)
         else:
@@ -470,19 +480,20 @@ class ParameterValue(object):
     """Value object of a :class:`.Parameter`."""
 
     def __init__(self, instance, parameter):
-        self.lock = None
+        self._lock = None
+        self._locked = False
         self._instance = instance
         self._parameter = parameter
         self._saved = []
 
     def __enter__(self):
-        if self.lock is not None:
-            self.lock.acquire()
+        if self._lock is not None:
+            self._lock.acquire()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        if self.lock is not None:
-            self.lock.release()
+        if self._lock is not None:
+            self._lock.release()
 
     def __lt__(self, other):
         return self._parameter.name < other._parameter.name
@@ -524,6 +535,26 @@ class ParameterValue(object):
         if self._saved:
             val = self._saved.pop()
             return self.set(val)
+
+    @property
+    def locked(self):
+        """Return True if the parameter is locked for writing."""
+        return self._locked
+
+    def lock(self, permanent=False):
+        """Lock parameter for writing. If *permament* is True the parameter
+        cannot be unlocked anymore.
+        """
+        def unlock_not_allowed():
+            raise LockError("Parameter `{}' cannot be unlocked".format(self))
+
+        self._locked = True
+        if permanent:
+            self.unlock = unlock_not_allowed
+
+    def unlock(self):
+        """Unlock parameter for writing."""
+        self._locked = False
 
 
 class QuantityValue(ParameterValue):
@@ -687,6 +718,18 @@ class Parameterizable(six.with_metaclass(MetaParameterizable, object)):
     def restore(self):
         """Restore all parameters saved with :meth:`.Parameterizable.stash`."""
         wait((param.restore() for param in self))
+
+    def lock(self, permanent=False):
+        """Lock all the parameters for writing. If *permanent* is True, the
+        parameters cannot be unlocked anymore.
+        """
+        for param in self:
+            param.lock(permanent=permanent)
+
+    def unlock(self):
+        """Unlock all the parameters for writing."""
+        for param in self:
+            param.unlock()
 
 
 class Process(Parameterizable):
