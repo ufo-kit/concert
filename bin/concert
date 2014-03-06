@@ -18,7 +18,8 @@ from concert.base import (UnitError,
                           LimitError,
                           ParameterError,
                           ReadAccessError,
-                          WriteAccessError)
+                          WriteAccessError,
+                          LockError)
 
 
 def docstring_summary(doc):
@@ -396,7 +397,7 @@ class StartCommand(Command):
                 shell = get_ipython_shell(config=cfg)
 
             exceptions = (UnitError, LimitError, ParameterError,
-                          ReadAccessError, WriteAccessError)
+                          ReadAccessError, WriteAccessError, LockError)
             shell.set_custom_exc(exceptions, _handler)
             shell()
         except ImportError as exception:
