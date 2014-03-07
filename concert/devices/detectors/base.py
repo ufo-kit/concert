@@ -19,7 +19,7 @@ class Detector(Device):
     def __init__(self, camera, magnification):
         super(Detector, self).__init__()
         self._camera = camera
-        self.magnification = magnification
+        self._magnification = magnification
 
     def _get_pixel_width(self):
         return self.camera.sensor_pixel_width * self.magnification
@@ -30,3 +30,7 @@ class Detector(Device):
     @property
     def camera(self):
         return self._camera
+
+    @property
+    def magnification(self):
+        return self._magnification
