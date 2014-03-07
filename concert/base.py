@@ -385,6 +385,27 @@ class State(Parameter):
         return getattr(instance, '_state_value')
 
 
+class Selection(Parameter):
+
+    """A :class:`.Parameter` that can take a value out of pre-defined list."""
+
+    def __init__(self, iterable, fget=None, fset=None, help=None):
+        """
+        *fget*, *fset*, *data*, *transition* and *help* are identical to the
+        :class:`.Parameter` constructor arguments.
+
+        *iterable* is the list of things, that a selection can be.
+        """
+        super(Selection, self).__init__(fget=fget, fset=fset, help=help)
+        self.iterable = iterable
+
+    def __set__(self, instance, value):
+        if value not in self.iterable:
+            raise WriteAccessError('{} not in {}'.format(value, self.iterable))
+
+        super(Selection, self).__set__(instance, value)
+
+
 class Quantity(Parameter):
 
     """A :class:`.Parameter` associated with a unit."""
@@ -782,7 +803,7 @@ class Parameterizable(six.with_metaclass(MetaParameterizable, object)):
     def _install_parameter(self, name, param):
         if isinstance(param, Quantity):
             value = QuantityValue(self, param)
-        elif isinstance(param, Parameter):
+        else:
             value = ParameterValue(self, param)
 
         self._params[name] = value
