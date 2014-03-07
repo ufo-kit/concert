@@ -1,7 +1,8 @@
 from concert.quantities import q
 from concert.tests import TestCase
-from concert.base import (Parameterizable, Parameter, Quantity, State, SoftLimitError,
-                          transition, LockError)
+from concert.base import (Parameterizable, Parameter, Quantity, Selection,
+                          State, transition,
+                          SoftLimitError, LockError, WriteAccessError)
 
 
 class BaseDevice(Parameterizable):
@@ -34,6 +35,17 @@ class RestrictedFooDevice(FooDevice):
         super(RestrictedFooDevice, self).__init__(0 * q.mm)
         self['foo'].lower = lower
         self['foo'].upper = upper
+
+
+class SelectionDevice(Parameterizable):
+
+    something = Selection([1, 2, 3])
+
+    def _get_something(self):
+        return 1
+
+    def _set_something(self, value):
+        pass
 
 
 class TestDescriptor(TestCase):
@@ -161,3 +173,16 @@ class TestQuantity(TestCase):
         with self.assertRaises(LockError):
             device['foo'].unlock_limits()
 
+
+class TestSelection(TestCase):
+
+    def setUp(self):
+        self.device = SelectionDevice()
+
+    def test_correct_access(self):
+        for i in range(3):
+            self.device.something = i + 1
+
+    def test_wrong_access(self):
+        with self.assertRaises(WriteAccessError):
+            self.device.something = 4
