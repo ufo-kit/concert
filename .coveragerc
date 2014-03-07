@@ -11,6 +11,7 @@ omit =
     concert/devices/motors/crio.py
     concert/devices/io/aerotech.py
     concert/devices/io/topotomo.py
+    concert/devices/io/wago.py
     concert/devices/scales/adventurer.py
     concert/devices/shutters/topotomo.py
     concert/devices/storagerings/ankatango.py
