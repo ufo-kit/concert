@@ -7,6 +7,7 @@ from concert.devices.io.dummy import IO
 from concert.devices.monochromators.dummy import Monochromator
 from concert.devices.shutters.dummy import Shutter
 from concert.devices.storagerings.dummy import StorageRing
+from concert.devices.photodiodes.dummy import PhotoDiode
 
 
 @suppressed_logging
@@ -18,6 +19,7 @@ def test_dummies():
     Monochromator()
     Shutter()
     StorageRing()
+    PhotoDiode()
 
 
 class MockDevice(Device):
