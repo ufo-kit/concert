@@ -17,6 +17,14 @@ I/O
     :members:
 
 
+Lightsources
+--------------
+
+.. autoclass:: concert.devices.lightsources.base.LightSource
+    :show-inheritance:
+    :members:
+
+
 Monochromators
 --------------
 
