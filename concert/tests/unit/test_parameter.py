@@ -36,16 +36,12 @@ class RestrictedFooDevice(FooDevice):
         self['foo'].upper = upper
 
 
-class TestParameterizable(TestCase):
+class TestDescriptor(TestCase):
 
     def setUp(self):
-        super(TestParameterizable, self).setUp()
+        super(TestDescriptor, self).setUp()
         self.foo1 = FooDevice(42 * q.m)
         self.foo2 = FooDevice(23 * q.m)
-
-    def test_param(self):
-        self.foo1.param = 15
-        self.assertEqual(self.foo1.param, 15)
 
     def test_property_identity(self):
         self.foo1.foo = 15 * q.m
@@ -57,24 +53,83 @@ class TestParameterizable(TestCase):
         self.assertEqual(self.foo1.get_foo().result(), 15 * q.m)
         self.assertEqual(self.foo2.get_foo().result(), 23 * q.m)
 
-    def test_parameter_property(self):
-        self.assertEqual(self.foo1['foo'].unit, q.m)
+
+class TestParameterizable(TestCase):
+
+    def setUp(self):
+        super(TestParameterizable, self).setUp()
+        self.device = FooDevice(0 * q.mm)
+
+    def test_param(self):
+        self.device.param = 15
+        self.assertEqual(self.device.param, 15)
 
     def test_saving(self):
-        m = FooDevice(0 * q.mm)
+        self.device.foo = 1 * q.mm
+        self.device.stash().join()
+        self.device.foo = 2 * q.mm
+        self.device.stash().join()
+        self.device.foo = 0.123 * q.mm
+        self.device.foo = 1.234 * q.mm
 
-        m.foo = 1 * q.mm
-        m.stash().join()
-        m.foo = 2 * q.mm
-        m.stash().join()
-        m.foo = 0.123 * q.mm
-        m.foo = 1.234 * q.mm
+        self.device.restore().join()
+        self.assertEqual(self.device.foo, 2 * q.mm)
 
-        m.restore().join()
-        self.assertEqual(m.foo, 2 * q.mm)
+        self.device.restore().join()
+        self.assertEqual(self.device.foo, 1 * q.mm)
 
-        m.restore().join()
-        self.assertEqual(m.foo, 1 * q.mm)
+    def test_state(self):
+        self.assertEqual(self.device.state, 'standby')
+        self.device.foo = 2 * q.m
+        self.assertEqual(self.device.state, 'moved')
+
+    def test_lock(self):
+        self.device['foo'].lock()
+        self.assertTrue(self.device['foo'].locked)
+
+        with self.assertRaises(LockError):
+            self.device.foo = 1 * q.m
+
+        # This must pass
+        self.device.param = 1 * q.m
+
+        # Unlock and test if writable
+        self.device['foo'].unlock()
+        self.assertFalse(self.device['foo'].locked)
+        self.device.foo = 1 * q.m
+
+        # Lock the whole device
+        self.device.lock()
+
+        with self.assertRaises(LockError):
+            self.device.param = 1 * q.m
+
+        with self.assertRaises(LockError):
+            self.device.foo = 1 * q.m
+
+        # Unlock the whole device and test if writable
+        self.device.unlock()
+        self.device.param = 1 * q.m
+        self.device.foo = 1 * q.m
+
+    def test_permanent_lock(self):
+        self.device['foo'].lock(permanent=True)
+        self.assertTrue(self.device['foo'].locked)
+
+        with self.assertRaises(LockError):
+            self.device.foo = 1 * q.m
+
+        with self.assertRaises(LockError):
+            self.device['foo'].unlock()
+
+    def test_permanent_device_lock(self):
+        self.device.lock(permanent=True)
+
+        with self.assertRaises(LockError):
+            self.device.unlock()
+
+
+class TestQuantity(TestCase):
 
     def test_soft_limit_change(self):
         limited = FooDevice(0 * q.mm)
@@ -92,47 +147,6 @@ class TestParameterizable(TestCase):
         self.assertEqual(limited['foo'].lower, -2 * q.mm)
         self.assertEqual(limited['foo'].upper, +2 * q.mm)
 
-    def test_state(self):
-        self.assertEqual(self.foo1.state, 'standby')
-        self.foo1.foo = 2 * q.m
-        self.assertEqual(self.foo1.state, 'moved')
-
-    def test_lock(self):
-        self.foo1['foo'].lock()
-        self.assertTrue(self.foo1['foo'].locked)
-        with self.assertRaises(LockError):
-            self.foo1.foo = 1 * q.m
-
-        # This must pass
-        self.foo1.param = 1 * q.m
-
-        # Unlock and test if writable
-        self.foo1['foo'].unlock()
-        self.assertFalse(self.foo1['foo'].locked)
-        self.foo1.foo = 1 * q.m
-
-        # Lock the whole device
-        self.foo1.lock()
-        with self.assertRaises(LockError):
-            self.foo1.param = 1 * q.m
-        with self.assertRaises(LockError):
-            self.foo1.foo = 1 * q.m
-
-        # Unlock the whole device and test if writable
-        self.foo1.unlock()
-        self.foo1.param = 1 * q.m
-        self.foo1.foo = 1 * q.m
-
-    def test_permanent_lock(self):
-        self.foo1['foo'].lock(permanent=True)
-        self.assertTrue(self.foo1['foo'].locked)
-        with self.assertRaises(LockError):
-            self.foo1.foo = 1 * q.m
-
-        with self.assertRaises(LockError):
-            self.foo1['foo'].unlock()
-
-        # While device
-        self.foo2.lock(permanent=True)
-        with self.assertRaises(LockError):
-            self.foo2.unlock()
+    def test_parameter_property(self):
+        device = FooDevice(42 * q.m)
+        self.assertEqual(device['foo'].unit, q.m)
