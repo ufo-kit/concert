@@ -99,8 +99,10 @@ class Camera(Device):
                 frame = camera.grab()
         """
         self.start_recording()
-        yield
-        self.stop_recording()
+        try:
+            yield
+        finally:
+            self.stop_recording()
 
     def trigger(self):
         """Trigger a frame if possible."""
