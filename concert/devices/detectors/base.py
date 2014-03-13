@@ -9,17 +9,17 @@ from concert.devices.base import Device
 
 class Detector(Device):
     """
-    Detector consisting of a :class:`.concert.devices.cameras.base.Camera`
-    and a magnification given by an objective lens.
+    A base detector class for holding cameras and optics necessary to
+    do acquire image.
     """
 
     pixel_width = Quantity(q.m, help="Effective pixel width")
     pixel_height = Quantity(q.m, help="Effective pixel height")
 
-    def __init__(self, camera, magnification):
+    def __init__(self):
         super(Detector, self).__init__()
-        self._camera = camera
-        self._magnification = magnification
+        self._camera = None
+        self._magnification = None
 
     def _get_pixel_width(self):
         return self.camera.sensor_pixel_width * self.magnification
