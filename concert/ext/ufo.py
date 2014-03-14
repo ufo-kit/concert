@@ -8,7 +8,11 @@ try:
 except ImportError as e:
     print(str(e))
 
-from concert.coroutines.base import coroutine
+from concert.quantities import q
+from concert.coroutines.base import coroutine, inject
+from concert.coroutines.filters import sinograms, flat_correct
+from concert.coroutines.sinks import Result
+from concert.experiments.imaging import tomo_projections_number, frames
 
 
 class PluginManager(object):
@@ -141,6 +145,7 @@ class InjectProcess(object):
         """Wait until processing has finished."""
         self.stop()
         self.thread.join()
+        self._started = False
 
 
 class Backproject(InjectProcess):
@@ -179,7 +184,7 @@ class Backproject(InjectProcess):
 
     @axis_position.setter
     def axis_position(self, position):
-        self.backprojector.props.axis_pos = position
+        self.backprojector.set_properties(axis_pos=position)
 
     @coroutine
     def __call__(self, consumer):
@@ -283,3 +288,78 @@ class FlatCorrectedBackproject(InjectProcess):
             self.insert(self.dark_row, node=self.sino_correction, index=1)
             self.insert(self.flat_row, node=self.sino_correction, index=2)
             consumer.send(self.result())
+
+
+@coroutine
+def middle_row(consumer):
+    while True:
+        frame = yield
+        row = frame.shape[0] / 2
+        part = frame[row-1:row+1, :]
+        consumer.send(part)
+
+
+def center_rotation_axis(camera, motor, rotation_motor, initial_motor_step,
+                         num_iterations=2, num_projections=None, flat=None, dark=None):
+    """
+    Center the rotation axis controlled by *motor*.
+
+    Use an iterative approach to center the rotation axis. Around *motor*s
+    current position, we evaluate five points by running a reconstruction.
+    *rotation_motor* rotates the sample around the tomographic axis.
+    *num_iterations* controls the final resolution of the step size, halving
+    each iteration. *flat* is a flat field frame and *dark* is a dark field
+    frame which will be used for flat correcting the acuired projections.
+    """
+
+    width_2 = camera.roi_width.magnitude / 2.0
+    axis_pos = width_2
+
+    # Use only the middle region of the reconstructed slice for evaluation
+    region = slice(width_2 / 2, width_2 + width_2 / 2)
+
+    # Crop the dark and flat
+    if flat is not None:
+        middle = flat.shape[0] / 2
+        flat = flat[middle, :]
+        if dark is not None:
+            dark = dark[middle, :]
+
+    n = num_projections or tomo_projections_number(camera.roi_width)
+    angle_step = np.pi / n * q.rad
+
+    step = initial_motor_step
+    current = motor.position
+
+    for i in range(num_iterations):
+        frm = current - step
+        to = current + step
+        div = 2.0 * step / 5.0
+
+        positions = (frm, frm + div, current, current + div, to)
+        scores = []
+
+        for position in positions:
+            motor.position = position
+            backproject = Backproject(axis_pos)
+            sino_result = Result()
+            sino_coro = sino_result()
+            if flat is not None:
+                sino_coro = flat_correct(flat, sino_coro, dark=dark)
+
+            inject(frames(n, camera, callback=lambda: rotation_motor.move(angle_step).join()),
+                   middle_row(sinograms(n, sino_coro)))
+
+            sinogram = (sino_result.result[0,:,:], )
+            result = Result()
+            inject(sinogram, backproject(result()))
+            backproject.wait()
+
+            img = result.result[region, region]
+
+            # Other possibilities: sum(abs(img)) or sum(img * heaviside(-img))
+            score = np.sum(np.abs(np.gradient(img)))
+            scores.append(score)
+
+        current = positions[scores.index(max(scores))]
+        step /= 2.0
