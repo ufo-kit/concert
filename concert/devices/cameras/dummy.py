@@ -1,10 +1,10 @@
 """This module provides a simple dummy camera."""
+import os
+import time
 import numpy as np
 from concert.quantities import q
 from concert.base import Quantity
 from concert.devices.cameras import base
-import os
-import time
 from concert.storage import read_image
 
 
@@ -134,27 +134,29 @@ class FileCamera(Base):
         self.directory = directory
         super(FileCamera, self).__init__()
 
-        self.roi_width = 0 * q.pixel
-        self.roi_height = 0 * q.pixel
         self._index = 0
         self._files = [os.path.join(directory, file_name) for file_name in
                        sorted(os.listdir(directory))]
+
+        if not self._files:
+            raise base.CameraError("No files found")
+
+        image = read_image(self._files[0])
+        self._roi_width = image.shape[1] * q.pixel
+        self._roi_height = image.shape[0] * q.pixel
+
+    def _record_real(self):
+        self._index = 0
 
     def _grab_real(self):
         if self._index < len(self._files):
             image = read_image(self._files[self._index])
 
-            if not self.roi_height:
-                y_region = image.shape[0]
-            else:
-                y_region = self.roi_y0 + self.roi_height
+            y_region = self.roi_y0 + self.roi_height
+            x_region = self.roi_x0 + self.roi_width
 
-            if not self.roi_width:
-                x_region = image.shape[1]
-            else:
-                x_region = self.roi_x0 + self.roi_width
-
-            result = image[self.roi_y0.magnitude:y_region, self.roi_x0.magnitude:x_region]
+            result = image[self.roi_y0.magnitude:y_region.magnitude,
+                           self.roi_x0.magnitude:x_region.magnitude]
             self._index += 1
         else:
             result = None
