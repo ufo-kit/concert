@@ -83,7 +83,7 @@ class ContinuousLinearMotor(LinearMotor, base.ContinuousLinearMotor, _Continuous
 
 class RotationMotor(base.RotationMotor, _PositionMixin):
 
-    """A rotational step motor dummy."""
+    """A rotational step motor dummy"""
 
     def __init__(self):
         super(RotationMotor, self).__init__()
