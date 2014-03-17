@@ -18,6 +18,8 @@ class _PositionMixin(object):
             self._position = self.upper
         else:
             self._position = position
+        if position == 0.0 :
+            print ' motor in center '
 
     def _get_position(self):
         return self._position
