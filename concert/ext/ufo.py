@@ -299,7 +299,7 @@ def middle_row(consumer):
         consumer.send(part)
 
 
-def center_rotation_axis(camera, motor, rotation_motor, initial_motor_step,
+def center_rotation_axis(camera, motor, initial_motor_step,
                          num_iterations=2, num_projections=None, flat=None, dark=None):
     """
     Center the rotation axis controlled by *motor*.
@@ -350,16 +350,58 @@ def center_rotation_axis(camera, motor, rotation_motor, initial_motor_step,
             inject(frames(n, camera, callback=lambda: rotation_motor.move(angle_step).join()),
                    middle_row(sinograms(n, sino_coro)))
 
-            sinogram = (sino_result.result[0,:,:], )
+            sinogram = (sinogram.result[0,:,:], )
             result = Result()
+            m0 = np.mean(np.sum(sinogram[0], axis=1))
+
             inject(sinogram, backproject(result()))
             backproject.wait()
 
-            img = result.result[region, region]
+            img = result.result
+
+            # Other possibilities: sum(abs(img)) or sum(img * heaviside(-img))
+            score = np.sum(np.abs(np.gradient(img))) / m0
+            scores.append(score)
+
+        current = positions[scores.index(min(scores))]
+        step /= 2.0
+
+
+def compute_rotation_axis(sinogram, initial_step=None, max_iterations=14,
+                          slice_consumer=None, score_consumer=None):
+
+    width_2 = sinogram.shape[1] / 2.0
+    iteration = 0
+    step = initial_step or width_2 / 2
+    current = width_2
+
+    while step > 1 and iteration < max_iterations:
+        frm = current - step
+        to = current + step
+        div = 2.0 * step / 5.0
+
+        axes = (frm, frm + div, current, current + div, to)
+        scores = []
+
+        for axis in axes:
+            backproject = Backproject(axis)
+            result = Result()
+
+            inject((sinogram, ), backproject(result()))
+            backproject.wait()
+
+            img = result.result
 
             # Other possibilities: sum(abs(img)) or sum(img * heaviside(-img))
             score = np.sum(np.abs(np.gradient(img)))
             scores.append(score)
+            if slice_consumer:
+                slice_consumer.send(img)
+            if score_consumer:
+                score_consumer.send(axis * q.px)
 
-        current = positions[scores.index(max(scores))]
+        current = axes[scores.index(min(scores))]
         step /= 2.0
+        iteration += 1
+
+    return current
