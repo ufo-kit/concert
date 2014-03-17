@@ -21,5 +21,5 @@ class PhotoDiode(base.PhotoDiode):
         Read output intensity from the photodiode
         """
         connection = IO(self._host, self._port)
-        intensity = float(connection._read_port(port)) / 100
+        intensity = float(connection._read_port(port)) / 1000
         return intensity * q.V / q.W
