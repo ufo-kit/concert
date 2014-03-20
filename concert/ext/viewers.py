@@ -2,7 +2,6 @@
 import collections
 import atexit
 import os
-import signal
 import tempfile
 import time
 try:
@@ -20,7 +19,6 @@ from concert.coroutines.base import coroutine
 
 LOG = logging.getLogger(__name__)
 _PYPLOT_VIEWERS = []
-_ORIG_SIGINT_HANDLER = signal.getsignal(signal.SIGINT)
 
 
 def _terminate_pyplotviewers():
