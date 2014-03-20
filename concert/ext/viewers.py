@@ -30,21 +30,7 @@ def _terminate_pyplotviewers():
             viewer.terminate()
 
 
-def _sigint_handler(signum, frame):
-    """
-    Handle the interrupt signal in order to exit gracefully
-    by terminating all the :py:class:`PyplotViewerBase` processes.
-    """
-    _terminate_pyplotviewers()
-    # Call the original handler, but first check if it
-    # actually can be called (depends on OS)
-    if hasattr(_ORIG_SIGINT_HANDLER, "__call__"):
-        _ORIG_SIGINT_HANDLER(signum, frame)
-
-
-# Register sigint handler for closing all PyplotViewerBase instances
-signal.signal(signal.SIGINT, _sigint_handler)
-# Register termination of all the PyplotViewerBase isntances also on
+# Register termination of all the PyplotViewerBase instances also on
 # normal exit
 atexit.register(_terminate_pyplotviewers)
 
