@@ -67,7 +67,7 @@ class Camera(base.Camera):
 
         The *name* is passed to the uca plugin manager.
 
-        :raises ValueError: In case camera *name* does not exist.
+        :raises CameraError: In case camera *name* does not exist.
         """
 
         super(Camera, self).__init__()
@@ -79,7 +79,7 @@ class Camera(base.Camera):
         try:
             self.uca = self._manager.get_camerav(name, [])
         except:
-            raise ValueError("`{0}' is not a valid camera".format(name))
+            raise base.CameraError("`{0}' is not a valid camera".format(name))
 
         units = {
             Uca.Unit.METER: q.m,
@@ -260,9 +260,9 @@ class Dimax(Pco, base.BufferedMixin):
             num_frames = self.recorded_frames
 
         if not 0 < num_frames <= self.recorded_frames:
-            raise ValueError("Number of frames {} ".format(num_frames) +
-                             "must be more than zero and less than the recorded " +
-                             "number of frames {}".format(self.recorded_frames))
+            raise base.CameraError("Number of frames {} ".format(num_frames) +
+                                   "must be more than zero and less than the recorded " +
+                                   "number of frames {}".format(self.recorded_frames))
 
         try:
             self.uca.start_readout()
