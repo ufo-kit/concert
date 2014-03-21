@@ -4,6 +4,14 @@ from concert.async import async
 from concert.helpers import Bunch
 from concert.devices.base import Device
 from concert.devices.detectors import base
+from concert.networking.tango import get_tango_device
+
+
+TANGO_BASE = 'anka/motor_ufo/'
+
+
+def get_device(name):
+    return TANGO_BASE + name
 
 
 class HighSpeedLightpath(Device):
@@ -68,6 +76,9 @@ class Detector(base.Detector):
             raise ValueError("You must pass at least three cameras")
 
         super(Detector, self).__init__()
+
+        self._camera_motor = get_device('camexc')
+        self._camera_motor.InitializeReferencePosition() # -2000:+2000
 
         self._cameras = cameras
         self._highspeed_path = HighSpeedLightpath()
