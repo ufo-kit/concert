@@ -572,8 +572,44 @@ class QuantityValue(ParameterValue):
 
     def __init__(self, instance, quantity):
         super(QuantityValue, self).__init__(instance, quantity)
-        self.lower = quantity.lower
-        self.upper = quantity.upper
+        self._lower = quantity.lower
+        self._upper = quantity.upper
+        self._limits_locked = False
+
+    def lock_limits(self, permanent=False):
+        """Lock limits, if *permanent* is True the limits cannot be unlocker anymore."""
+        def unlock_not_allowed():
+            raise LockError('Limits are locked permanently')
+
+        self._limits_locked = True
+        if permanent:
+            self.unlock_limits = unlock_not_allowed
+
+    def unlock_limits(self):
+        """Unlock limits."""
+        self._limits_locked = False
+
+    @property
+    def lower(self):
+        return self._lower
+
+    @lower.setter
+    def lower(self, value):
+        if self._limits_locked:
+            raise LockError('lower limit locked')
+        else:
+            self._lower = value
+
+    @property
+    def upper(self):
+        return self._upper
+
+    @upper.setter
+    def upper(self, value):
+        if self._limits_locked:
+            raise LockError('upper limit locked')
+        else:
+            self._upper = value
 
     @property
     def info_table(self):

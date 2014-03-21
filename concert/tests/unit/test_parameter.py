@@ -150,3 +150,14 @@ class TestQuantity(TestCase):
     def test_parameter_property(self):
         device = FooDevice(42 * q.m)
         self.assertEqual(device['foo'].unit, q.m)
+
+    def test_limits_lock(self):
+        device = FooDevice(10 * q.mm)
+        device['foo'].lock_limits()
+        with self.assertRaises(LockError):
+            device['foo'].lower = -10 * q.mm
+
+        device['foo'].lock_limits(True)
+        with self.assertRaises(LockError):
+            device['foo'].unlock_limits()
+
