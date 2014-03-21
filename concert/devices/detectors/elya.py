@@ -4,14 +4,16 @@ from concert.async import async
 from concert.helpers import Bunch
 from concert.devices.base import Device
 from concert.devices.detectors import base
-from concert.networking.tango import get_tango_device
+from concert.networking.base import get_tango_device
+from ankaconcert.devices.motors.tango import RotationMotor
 
 
 TANGO_BASE = 'anka/motor_ufo/'
 
 
-def get_device(name):
-    return TANGO_BASE + name
+def get_device(peer, name):
+    """*peer* is the address of the database, *name* is the tango device uri."""
+    return get_tango_device(TANGO_BASE + name, peer)
 
 
 class HighSpeedLightpath(Device):
@@ -71,14 +73,13 @@ class Detector(base.Detector):
     mode = Selection([modes.FAST, modes.HIRES],
                      help="Selected light path mode")
 
-    def __init__(self, cameras):
+    def __init__(self, cameras, tango_address):
         if len(cameras) < 3:
             raise ValueError("You must pass at least three cameras")
 
         super(Detector, self).__init__()
 
-        self._camera_motor = get_device('camexc')
-        self._camera_motor.InitializeReferencePosition() # -2000:+2000
+        self._camera_slot_motor = RotationMotor(get_device(tango_address, 'camexc'))
 
         self._cameras = cameras
         self._highspeed_path = HighSpeedLightpath()
@@ -89,11 +90,13 @@ class Detector(base.Detector):
         self._current_lightpath = self._highspeed_path
 
     def _set_camera_slot(self, value):
-        self._current_camera = value
+        # Preliminary motor rotation implementation
+        self._camera_slot_motor.position = -value * 20 * q.deg
+        self._current_camera_slot = value
         self._camera = self._cameras[value - 1]
 
     def _get_camera_slot(self):
-        return self._current_camera
+        return self._current_camera_slot
 
     def _set_scintillator(self, value):
         self._current_scintillator = value
