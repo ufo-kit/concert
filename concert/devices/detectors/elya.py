@@ -50,8 +50,29 @@ class HighResolutionLightpath(Device):
     filter1 = Selection(list(range(1, 6)))
     filter2 = Selection(list(range(1, 6)))
 
-    def __init__(self):
+    def __init__(self, tango_address):
         super(HighResolutionLightpath, self).__init__()
+        self._filter1_motor = RotationMotor(get_device(tango_address, 'filt1'))
+        self._filter2_motor = RotationMotor(get_device(tango_address, 'filt2'))
+
+        self._filter1_slot = 1
+        self._filter2_slot = 1
+
+    def _set_filter1(self, value):
+        # TODO: use correct values
+        self._filter1_slot = value
+        self._filter1_motor.position = 360. / value * q.deg
+
+    def _get_filter1(self):
+        return self._filter1_slot
+
+    def _set_filter2(self, value):
+        # TODO: use correct values
+        self._filter2_slot = value
+        self._filter2_motor.position = 360. / value * q.deg
+
+    def _get_filter2(self):
+        return self._filter2_slot
 
     def _get_magnification(self):
         return 2.0 * q.dimensionless
@@ -83,7 +104,7 @@ class Detector(base.Detector):
 
         self._cameras = cameras
         self._highspeed_path = HighSpeedLightpath()
-        self._highres_path = HighResolutionLightpath()
+        self._highres_path = HighResolutionLightpath(tango_address)
 
         self._set_camera_slot(1)
         self._current_scintillator = 1
