@@ -499,7 +499,18 @@ class ParameterValue(object):
         return self._parameter.name < other._parameter.name
 
     def __repr__(self):
-        return str(self._parameter)
+        return self.info_table.get_string()
+
+    @property
+    def info_table(self):
+        from concert.session.utils import get_default_table
+        locked = "yes" if self.locked else "no"
+        table = get_default_table(["attribute", "value"])
+        table.header = False
+        table.border = False
+        table.add_row(["info", self._parameter.help])
+        table.add_row(["locked", locked])
+        return table
 
     @property
     def name(self):
@@ -563,6 +574,13 @@ class QuantityValue(ParameterValue):
         super(QuantityValue, self).__init__(instance, quantity)
         self.lower = quantity.lower
         self.upper = quantity.upper
+
+    @property
+    def info_table(self):
+        table = super(QuantityValue, self).info_table
+        table.add_row(["lower", self.lower])
+        table.add_row(["upper", self.upper])
+        return table
 
     @property
     def unit(self):
