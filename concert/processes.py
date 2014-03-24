@@ -164,11 +164,11 @@ def focus(camera, motor, measure=np.std, opt_kwargs=None,
 @async
 def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
                         measure=rotation_axis, num_frames=10, absolute_eps=0.1 * q.deg,
-                        max_iterations=5, flat=None, dark=None):
+                        max_iterations=5, flat=None, dark=None, frame_consumer=None):
     """
     align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
     measure=rotation_axis, num_frames=10, absolute_eps=0.1 * q.deg, max_iterations=5,
-    flat=None, dark=None)
+    flat=None, dark=None, frame_consumer=None)
 
     Align rotation axis. *camera* is used to obtain frames, *rotation_motor*
     rotates the sample around the tomographic axis of rotation, *x_motor*
@@ -177,7 +177,8 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
     *num_frames* defines how many frames are acquired and passed to the *measure*.
     *absolute_eps* is the threshold for stopping the procedure. If *max_iterations*
     is reached the procedure stops as well. *flat* and *dark* are the normalization
-    frames applied on the acquired frames.
+    frames applied on the acquired frames. *frame_consumer* is a coroutine which will
+    receive the frames acquired at different sample positions.
 
     The procedure finishes when it finds the minimum angle between an
     ellipse extracted from the sample movement and respective axes or the
@@ -196,6 +197,8 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
             frame = camera.grab().astype(np.float)
             if flat is not None:
                 frame = flat_correct(frame, flat, dark=dark)
+            if frame_consumer:
+                frame_consumer.send(frame)
             frames.append(frame)
 
         return frames
