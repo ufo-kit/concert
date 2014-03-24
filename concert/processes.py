@@ -203,6 +203,9 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
     step = 2 * np.pi / num_frames * q.rad
     x_angle, z_angle, center = None, None, None
 
+    if camera.state == 'recording':
+        camera.stop_recording()
+    camera['trigger_mode'].stash().join()
     camera.trigger_mode = camera.trigger_modes.SOFTWARE
     camera.start_recording()
 
@@ -261,6 +264,8 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
                 raise ProcessException("Maximum iterations reached")
     finally:
         camera.stop_recording()
+        # No side effects
+        camera['trigger_mode'].restore().join()
 
     # Return the last known ellipse fit
     return x_angle, z_angle, center
