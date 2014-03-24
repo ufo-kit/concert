@@ -5,7 +5,7 @@ from concert.async import async, wait
 from concert.quantities import q
 from concert.measures import rotation_axis
 from concert.optimization import halver, optimize_parameter
-from concert.imageprocessing import center_of_mass
+from concert.imageprocessing import center_of_mass, flat_correct
 from concert.coroutines.base import coroutine
 
 
@@ -162,26 +162,22 @@ def focus(camera, motor, measure=np.std, opt_kwargs=None,
 
 
 @async
-def align_rotation_axis(camera, rotation_motor, flat_motor=None,
-                        flat_position=None, x_motor=None, z_motor=None,
-                        measure=rotation_axis, num_frames=10,
-                        absolute_eps=0.1 * q.deg, max_iterations=5):
+def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
+                        measure=rotation_axis, num_frames=10, absolute_eps=0.1 * q.deg,
+                        max_iterations=5, flat=None, dark=None):
     """
-    align_rotation_axis(camera, rotation_motor, flat_motor=None,
-    flat_position=None, x_motor=None, z_motor=None, measure=rotation_axis,
-    num_frames=10, absolute_eps=0.1 * q.deg, max_iterations=5)
+    align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
+    measure=rotation_axis, num_frames=10, absolute_eps=0.1 * q.deg, max_iterations=5,
+    flat=None, dark=None)
 
     Align rotation axis. *camera* is used to obtain frames, *rotation_motor*
-    rotates the sample around the tomographic axis of rotation, *flat_motor* is
-    used to move the sample out of the field of view in order to produce a flat
-    field which will be used to correct the frame before segmentation.
-    *flat_position* is the flat motor position in which the sample is out of
-    the field of view. *x_motor* turns the sample around x-axis, *z_motor*
-    turns the sample around z-axis.  *measure* provides axis of rotation
-    angular misalignment data (a callable), *num_frames* defines how many
-    frames are acquired and passed to the *measure*.  *absolute_eps* is the
-    threshold for stopping the procedure. If *max_iterations* is reached the
-    procedure stops as well.
+    rotates the sample around the tomographic axis of rotation, *x_motor*
+    turns the sample around x-axis, *z_motor* turns the sample around z-axis.
+    *measure* provides axis of rotation angular misalignment data (a callable),
+    *num_frames* defines how many frames are acquired and passed to the *measure*.
+    *absolute_eps* is the threshold for stopping the procedure. If *max_iterations*
+    is reached the procedure stops as well. *flat* and *dark* are the normalization
+    frames applied on the acquired frames.
 
     The procedure finishes when it finds the minimum angle between an
     ellipse extracted from the sample movement and respective axes or the
@@ -192,14 +188,14 @@ def align_rotation_axis(camera, rotation_motor, flat_motor=None,
     if not x_motor and not z_motor:
         raise ValueError("At least one of the x, z motors must be given")
 
-    def get_frames(flat):
+    def get_frames():
         frames = []
         for i in range(num_frames):
             rotation_motor.move(step).join()
             camera.trigger()
             frame = camera.grab().astype(np.float)
             if flat is not None:
-                frame = frame / flat
+                frame = flat_correct(frame, flat, dark=dark)
             frames.append(frame)
 
         return frames
@@ -211,18 +207,6 @@ def align_rotation_axis(camera, rotation_motor, flat_motor=None,
     camera.start_recording()
 
     try:
-        flat = None
-        if flat_motor:
-            # First take a flat
-            if flat_position is None:
-                raise ValueError("If flat motor is given then also " +
-                                 "flat position must be given")
-            flat_motor["position"].stash().join()
-            flat_motor.position = flat_position
-            camera.trigger()
-            flat = camera.grab().astype(np.float32)
-            flat_motor["position"].restore().join()
-
         # Sometimes both z-directions need to be tried out because of the
         # projection ambiguity.
         z_direction = -1
@@ -233,7 +217,7 @@ def align_rotation_axis(camera, rotation_motor, flat_motor=None,
         z_turn_counter = 0
 
         while True:
-            x_angle, z_angle, center = measure(get_frames(flat))
+            x_angle, z_angle, center = measure(get_frames())
 
             x_better = True if z_motor is not None and\
                 (x_last is None or np.abs(x_angle) < x_last) else False
