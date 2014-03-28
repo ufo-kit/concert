@@ -193,3 +193,85 @@ class Backproject(InjectProcess):
             slice = self.result()[:width, :width]
 
             consumer.send(slice)
+
+
+class FlatCorrectedBackproject(InjectProcess):
+
+    """
+    Coroutine to reconstruct slices from sinograms using filtered
+    backprojection. The data are first flat-field corrected and then
+    backprojected. All the inputs must be of type unsigned int 16.
+
+    *flat_row* is a row of a flat field, *dark_row* is a row of the dark field.
+    The rows must correspond to the sinogram which is being backprojected.
+    *axis_pos* specifies the center of rotation in pixels within the sinogram.
+    If not specified, the center of the image is assumed to be the center of
+    rotation.
+    """
+
+    def __init__(self, flat_row, dark_row, axis_pos=None):
+        self.pm = PluginManager()
+        self.sino_correction = self.pm.get_task('sino-correction')
+        self.fft = self.pm.get_task('fft', dimensions=1)
+        self.ifft = self.pm.get_task('ifft', dimensions=1)
+        self.fltr = self.pm.get_task('filter')
+        self.backprojector = self.pm.get_task('backproject')
+
+        if axis_pos:
+            self.backprojector.props.axis_pos = axis_pos
+
+        graph = Ufo.TaskGraph()
+        graph.connect_nodes(self.sino_correction, self.fft)
+        graph.connect_nodes(self.fft, self.fltr)
+        graph.connect_nodes(self.fltr, self.ifft)
+        graph.connect_nodes(self.ifft, self.backprojector)
+
+        super(FlatCorrectedBackproject, self).__init__(graph, get_output=True)
+
+        self.flat_row = flat_row
+        self.dark_row = dark_row
+
+    @property
+    def axis_position(self):
+        return self.backprojector.props.axis_pos
+
+    @axis_position.setter
+    def axis_position(self, position):
+        self.backprojector.props.axis_pos = position
+
+    @property
+    def dark_row(self):
+        return self._dark_row
+
+    @dark_row.setter
+    def dark_row(self, row):
+        self._dark_row = row.astype(np.float32)
+
+    @property
+    def flat_row(self):
+        return self._flat_row
+
+    @flat_row.setter
+    def flat_row(self, row):
+        self._flat_row = row.astype(np.float32)
+
+    @coroutine
+    def __call__(self, consumer):
+        """Get a sinogram, do filtered backprojection and send it to *consumer*."""
+        slice = None
+        if not self._started:
+            self.start()
+
+        while True:
+            sinogram = yield
+
+            if slice is None:
+                width = sinogram.shape[1]
+                slice = np.empty((width, width), dtype=np.float32)
+
+            self.insert(sinogram.astype(np.float32), node=self.sino_correction, index=0)
+            self.insert(self.dark_row, node=self.sino_correction, index=1)
+            self.insert(self.flat_row, node=self.sino_correction, index=2)
+            slice = self.result()[:width, :width]
+
+            consumer.send(slice)
