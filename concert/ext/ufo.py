@@ -36,32 +36,40 @@ class InjectProcess(object):
     and :meth:`.wait` on exiting it.
 
     *graph* must either be a Ufo.TaskGraph or a Ufo.TaskNode object.  If it is
-    a graph the input task will be connected to the first root, otherwise a new
-    graph will be created with the input task connecting to *graph*.
+    a graph the input tasks will be connected to the roots, otherwise a new
+    graph will be created.
     """
 
     def __init__(self, graph, get_output=False):
-        self.input_task = Ufo.InputTask()
         self.output_task = None
         self._started = False
 
         if isinstance(graph, Ufo.TaskGraph):
             self.graph = graph
             roots = self.graph.get_roots()
-            self.graph.connect_nodes(self.input_task, roots[0])
         elif isinstance(graph, Ufo.TaskNode):
             self.graph = Ufo.TaskGraph()
-            self.graph.connect_nodes(self.input_task, graph)
+            roots = [graph]
         else:
             msg = 'graph is neither Ufo.TaskGraph nor Ufo.TaskNode'
             raise ValueError(msg)
+
+        # Initialize inputs
+        self.input_tasks = {}
+        self.ufo_buffers = {}
+        for root in roots:
+            self.input_tasks[root] = []
+            self.ufo_buffers[root] = []
+            num_inputs = root.get_num_inputs()
+            for i in range(num_inputs):
+                self.input_tasks[root].append(Ufo.InputTask())
+                self.ufo_buffers[root].append(None)
+                self.graph.connect_nodes_full(self.input_tasks[root][i], root, i)
 
         if get_output:
             self.output_task = Ufo.OutputTask()
             leaves = self.graph.get_leaves()
             self.graph.connect_nodes(leaves[0], self.output_task)
-
-        self.ufo_buffer = None
 
     def __enter__(self):
         self.start()
@@ -97,19 +105,24 @@ class InjectProcess(object):
         if not self._started:
             self._started = True
 
-    def insert(self, array):
+    def insert(self, array, node=None, index=0):
         """
-        Insert *array* into the processing chain.
+        Insert *array* into the *node*'s *index* input.
 
         .. note:: *array* must be a NumPy compatible array.
         """
-        if self.ufo_buffer is None:
-            self.ufo_buffer = ufo.numpy.fromarray(array.astype(np.float32))
+        if not node:
+            if len(self.input_tasks) > 1:
+                raise ValueError('input_node cannot be None for graphs with more inputs')
+            else:
+                node = self.input_tasks.keys()[0]
+        if self.ufo_buffers[node][index] is None:
+            self.ufo_buffers[node][index] = ufo.numpy.fromarray(array.astype(np.float32))
         else:
-            self.ufo_buffer = self.input_task.get_input_buffer()
-            ufo.numpy.fromarray_inplace(self.ufo_buffer, array.astype(np.float32))
+            self.ufo_buffers[node][index] = self.input_tasks[node][index].get_input_buffer()
+            ufo.numpy.fromarray_inplace(self.ufo_buffers[node][index], array.astype(np.float32))
 
-        self.input_task.release_input_buffer(self.ufo_buffer)
+        self.input_tasks[node][index].release_input_buffer(self.ufo_buffers[node][index])
 
     def result(self):
         if self.output_task:
@@ -120,7 +133,9 @@ class InjectProcess(object):
 
     def wait(self):
         """Wait until processing has finished."""
-        self.input_task.stop()
+        for input_tasks in self.input_tasks.values():
+            for input_task in input_tasks:
+                input_task.stop()
         self.thread.join()
 
 
