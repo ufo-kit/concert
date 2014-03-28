@@ -178,19 +178,13 @@ class Backproject(InjectProcess):
     @coroutine
     def __call__(self, consumer):
         """Get a sinogram, do filtered backprojection and send it to *consumer*."""
-        slice = None
         if not self._started:
             self.start()
 
         while True:
             sinogram = yield
-
-            if slice is None:
-                width = sinogram.shape[1]
-                slice = np.empty((width, width), dtype=np.float32)
-
             self.insert(sinogram)
-            slice = self.result()[:width, :width]
+            slice = self.result()[:sinogram.shape[1], :sinogram.shape[1]]
 
             consumer.send(slice)
 
@@ -258,20 +252,14 @@ class FlatCorrectedBackproject(InjectProcess):
     @coroutine
     def __call__(self, consumer):
         """Get a sinogram, do filtered backprojection and send it to *consumer*."""
-        slice = None
         if not self._started:
             self.start()
 
         while True:
             sinogram = yield
-
-            if slice is None:
-                width = sinogram.shape[1]
-                slice = np.empty((width, width), dtype=np.float32)
-
             self.insert(sinogram.astype(np.float32), node=self.sino_correction, index=0)
             self.insert(self.dark_row, node=self.sino_correction, index=1)
             self.insert(self.flat_row, node=self.sino_correction, index=2)
-            slice = self.result()[:width, :width]
+            slice = self.result()[:sinogram.shape[1], :sinogram.shape[1]]
 
             consumer.send(slice)
