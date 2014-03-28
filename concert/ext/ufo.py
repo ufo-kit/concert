@@ -156,6 +156,7 @@ class Backproject(InjectProcess):
         self.ifft = self.pm.get_task('ifft', dimensions=1)
         self.fltr = self.pm.get_task('filter')
         self.backprojector = self.pm.get_task('backproject')
+        self.crop = self.pm.get_task('region-of-interest', x=0, y=0)
 
         if axis_pos:
             self.backprojector.props.axis_pos = axis_pos
@@ -164,6 +165,7 @@ class Backproject(InjectProcess):
         graph.connect_nodes(self.fft, self.fltr)
         graph.connect_nodes(self.fltr, self.ifft)
         graph.connect_nodes(self.ifft, self.backprojector)
+        graph.connect_nodes(self.backprojector, self.crop)
 
         super(Backproject, self).__init__(graph, get_output=True)
 
@@ -184,7 +186,9 @@ class Backproject(InjectProcess):
         while True:
             sinogram = yield
             self.insert(sinogram)
-            slice = self.result()[:sinogram.shape[1], :sinogram.shape[1]]
+            self.crop.props.width = sinogram.shape[1]
+            self.crop.props.height = sinogram.shape[1]
+            slice = self.result()
 
             consumer.send(slice)
 
@@ -210,6 +214,7 @@ class FlatCorrectedBackproject(InjectProcess):
         self.ifft = self.pm.get_task('ifft', dimensions=1)
         self.fltr = self.pm.get_task('filter')
         self.backprojector = self.pm.get_task('backproject')
+        self.crop = self.pm.get_task('region-of-interest', x=0, y=0)
 
         if axis_pos:
             self.backprojector.props.axis_pos = axis_pos
@@ -219,6 +224,7 @@ class FlatCorrectedBackproject(InjectProcess):
         graph.connect_nodes(self.fft, self.fltr)
         graph.connect_nodes(self.fltr, self.ifft)
         graph.connect_nodes(self.ifft, self.backprojector)
+        graph.connect_nodes(self.backprojector, self.crop)
 
         super(FlatCorrectedBackproject, self).__init__(graph, get_output=True)
 
@@ -260,6 +266,8 @@ class FlatCorrectedBackproject(InjectProcess):
             self.insert(sinogram.astype(np.float32), node=self.sino_correction, index=0)
             self.insert(self.dark_row, node=self.sino_correction, index=1)
             self.insert(self.flat_row, node=self.sino_correction, index=2)
-            slice = self.result()[:sinogram.shape[1], :sinogram.shape[1]]
+            self.crop.props.width = sinogram.shape[1]
+            self.crop.props.height = sinogram.shape[1]
+            slice = self.result()
 
             consumer.send(slice)
