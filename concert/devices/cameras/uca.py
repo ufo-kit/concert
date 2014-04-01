@@ -338,7 +338,7 @@ class Ufo(Camera):
         # parameters of the quadratic equation to find area
         a = 2 * ratio_area_skip
         b = ratio_area_skip - lines * ratio_area_skip + 2
-        c = total_num_lines - lines + 1
+       c = total_num_lines - lines + 1
         d = b**2 - 4 * a * c
 
         if d < 0:
@@ -375,11 +375,15 @@ class Ufo(Camera):
         self.ufo_fr_area_lines = int(area)
 
         self.trigger_mode = self.trigger_modes.EXTERNAL
+        self.ufo_control = 0x90000201
+        time.sleep(0.01)
+        self.ufo_control = 0x90001201
+        print "Parameters set.."
 
-        with self.recording():
+        # with self.recording():
             # Take reference frame
-            self.ufo_control = 0x100001e1
-            self._reference = self.grab()
+            # self.ufo_control = 0x90000201
+            # self._reference = self.grab()
 
             # Start fast reject
-            self.ufo_control = 0x10001201
+            # self.ufo_control = 0x90001201
