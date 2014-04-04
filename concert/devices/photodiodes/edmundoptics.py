@@ -8,7 +8,7 @@ from concert.devices.photodiodes import base
 class PhotoDiode(base.PhotoDiode):
 
     """
-    Impementation of Edmund Optics photodiode with V output signal
+    Impementation of Edmund Optics photodiode with V output signal.
     """
 
     def __init__(self, host, port):
