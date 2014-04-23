@@ -26,12 +26,11 @@ class Monochromator(Device):
 
         """Rotate the motors"""
 
-        self.magnitude = str(value)
-        self._motor1.position = self.magnitude * q.deg
-        self._motor2.position = self.magnitude * q.deg
+        self._motor1.position = value.magnitude * q.deg
+        self._motor2.position = value.magnitude * q.deg
 
     def _get_wavelength(self):
 
         """Give chosen energylevel"""
 
-        return (self.magnitude)
+        return (self._motor1.position.magnitude*q.deg)
