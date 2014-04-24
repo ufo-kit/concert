@@ -169,6 +169,8 @@ class Backproject(InjectProcess):
 
         super(Backproject, self).__init__(graph, get_output=True)
 
+        self.output_task.props.num_dims = 2
+
     @property
     def axis_position(self):
         return self.backprojector.props.axis_pos
