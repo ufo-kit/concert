@@ -33,4 +33,4 @@ class Monochromator(Device):
 
         """Obtain the wavelength"""
 
-        return (self._motor1.position.magnitude * q.m)
+        return self._motor1.position.magnitude * q.m
