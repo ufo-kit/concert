@@ -293,6 +293,14 @@ def compute_rotation_axis(first_projection, last_projection):
     at 180 deg. It is strongly advised to provide flat-corrected projections.
     """
     width = first_projection.shape[1]
+
+    # Subtract the mean which gets rid of the background
+    mean = first_projection.mean()
+    first_projection = first_projection - mean
+    last_projection = last_projection - mean
+    first_projection[first_projection < 0] = 0
+    last_projection[last_projection < 0] = 0
+
     # The rotation by 180 deg flips the image horizontally, in order
     # to do cross-correlation by convolution we must also flip it
     # vertically, so the image is transposed and we can apply convolution
