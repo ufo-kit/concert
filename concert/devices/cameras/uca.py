@@ -338,7 +338,7 @@ class Ufo(Camera):
         # parameters of the quadratic equation to find area
         a = 2 * ratio_area_skip
         b = ratio_area_skip - lines * ratio_area_skip + 2
-       c = total_num_lines - lines + 1
+        c = total_num_lines - lines + 1
         d = b**2 - 4 * a * c
 
         if d < 0:
