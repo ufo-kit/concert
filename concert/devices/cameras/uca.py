@@ -9,6 +9,7 @@ from concert.quantities import q
 from concert.base import Parameter, Quantity
 from concert.helpers import Bunch
 from concert.devices.cameras import base
+import time as time
 
 LOG = logging.getLogger(__name__)
 
@@ -303,6 +304,20 @@ class Ufo(Camera):
         the noise threshold.
 
         Note, that the trigger mode is explicitly set to *EXTERNAL*.
+
+        Assumptions:
+          - frame rate depends on interleaved time (exp time + fot + row time *
+            rows_interleave) + frame readout time (exp time + fot + row time *
+            rows_readout_saved)
+          - number_of_lines_thr = 1
+          - number of read lines = one triggered line + area
+          - skip = area
+          math behind all:
+          l - lines, i - interleave_lines , r - saved lines, s - skip, a - area, t - total view, n = skip/area
+          l = i + r
+          i = t/(s+1)
+          r = 2*a + 1, minimum acquired data is one row + 2*area
+          --> i+r = t/(s+1) + 2*a + 1 = t/(n*a +1) + 2*a + 1 = l, where a is the unknown
         """
         self.trigger_mode = self.trigger_modes.AUTO
         frames = []
@@ -359,6 +374,8 @@ class Ufo(Camera):
         num_lines = total_num_lines/(skip + 1) + 1
 
         LOG.info("estimated_frame_rate={}".format(frame_rate(num_lines + 2 * area + 1)))
+        LOG.info("pixel_thr={} num_pixel_thr={} num_lines_thr={}".format(pixel_thr, num_of_pixel_thr, num_of_lines_thr))
+        LOG.info("skip={} area={} start_line={} num_lines={} thr_line={}".format(skip, area, start_line, num_lines, thr_line))
 
         msg = "pixel_thr={} num_pixel_thr={} num_lines_thr={}"
         LOG.info(msg.format(pixel_thr, num_of_pixel_thr, num_of_lines_thr))
