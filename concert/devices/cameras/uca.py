@@ -374,8 +374,6 @@ class Ufo(Camera):
         num_lines = total_num_lines/(skip + 1) + 1
 
         LOG.info("estimated_frame_rate={}".format(frame_rate(num_lines + 2 * area + 1)))
-        LOG.info("pixel_thr={} num_pixel_thr={} num_lines_thr={}".format(pixel_thr, num_of_pixel_thr, num_of_lines_thr))
-        LOG.info("skip={} area={} start_line={} num_lines={} thr_line={}".format(skip, area, start_line, num_lines, thr_line))
 
         msg = "pixel_thr={} num_pixel_thr={} num_lines_thr={}"
         LOG.info(msg.format(pixel_thr, num_of_pixel_thr, num_of_lines_thr))
