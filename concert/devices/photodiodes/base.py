@@ -10,10 +10,10 @@ from concert.base import AccessorNotImplementedError
 class PhotoDiode(Device):
 
     """
-    Impementation of photo diode with V/W output signal
+    Impementation of photo diode with V output signal
     """
 
-    intensity = Quantity(q.V / q.W)
+    intensity = Quantity(q.V)
 
     def __init__(self):
         super(PhotoDiode, self).__init__()

@@ -7,10 +7,40 @@ Here you can see the full list of changes between each Concert release.
 Version 0.8
 -----------
 
+Released on April 16th 2014.
+
 Improvements
 ~~~~~~~~~~~~
 
 - ``concert log`` can now ``--follow`` the current operation.
+- Soft limits and parameters can be locked both temporarily and permanently.
+- Added new ``@quantity`` decorator for simple cases.
+- The ``concert``` binary can now be started without a session.
+- Added cross-correlation tomographic axis finding.
+- Added frame consumer to align_rotation_axis.
+- Simplify file camera and allow resetting it
+- Added ports property to the base IO device.
+- Added Photodiode base device class.
+- Added Fiber-Lite halogen lightsource.
+- Added LEDs connected within the wago.
+- Added stream coroutine to cameras.
+- Added EdmundOptics photodiode.
+- Added PCO.4000 camera.
+- Added Wago input/output device.
+
+API breaks
+~~~~~~~~~~
+
+- Raise CameraError instead of ValueError
+- Change Pco's freerun to stream
+
+Fixes
+~~~~~
+- Fix FileCamera pixel units in grab
+- Import GLib.GError correctly
+- Make recording context exception-safe
+- Fix quantity problem with recent Pint versions
+- #200, #203, #206, #209, #228, #230, #245
 
 
 Version 0.7

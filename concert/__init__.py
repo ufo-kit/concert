@@ -1,5 +1,5 @@
 """__init__.py"""
-__version__ = '0.8.0dev'
+__version__ = '0.9.0dev'
 
 
 def get_canonical_version(version=None):

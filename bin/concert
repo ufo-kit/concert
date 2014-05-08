@@ -328,7 +328,7 @@ class StartCommand(Command):
     """Start a session."""
 
     def __init__(self):
-        opts = {'session': {'type': str},
+        opts = {'session': {'nargs': '?', 'type': str, 'default': None},
                 '--logto': {'choices': ['stderr', 'file'],
                             'default': 'file'},
                 '--logfile': {'type': str},
@@ -340,7 +340,8 @@ class StartCommand(Command):
 
     def run(self, session=None, non_interactive=False,
             logto='file', logfile=None, loglevel=None):
-        cs.exit_if_not_exists(session)
+        if session:
+            cs.exit_if_not_exists(session)
 
         if logto == 'file':
             filename = logfile if logfile else cs.logfile_path()
@@ -363,10 +364,11 @@ class StartCommand(Command):
         sys.path.append(cs.path())
 
         if non_interactive:
-            execfile(cs.path(session), globals())
+            if session:
+                execfile(cs.path(session), globals())
         else:
             try:
-                module = cs.load(session)
+                module = cs.load(session) if session else None
             except:
                 traceback.print_exc()
                 sys.exit(1)
@@ -388,16 +390,21 @@ class StartCommand(Command):
         globals().update(mvars)
 
         try:
-            cfg = get_prompt_config(module.__name__)
-            try:
-                shell = get_ipython_shell(config=cfg)
-            except AttributeError:
-                cfg.PromptManager.in_template =\
-                    cfg.PromptManager.in_template.replace('Normal', 'normal')
-                shell = get_ipython_shell(config=cfg)
-
             exceptions = (UnitError, LimitError, ParameterError,
                           ReadAccessError, WriteAccessError, LockError)
+
+            config = get_prompt_config(module.__name__) if module else get_prompt_config('concert')
+
+            if not module:
+                from concert.quantities import q
+
+            try:
+                shell = get_ipython_shell(config=config)
+            except AttributeError:
+                template = config.PromptManager.in_template.replace('Normal', 'normal')
+                config.PromptManager.in_template = template
+                shell = get_ipython_shell(config=config)
+
             shell.set_custom_exc(exceptions, _handler)
             shell()
         except ImportError as exception:

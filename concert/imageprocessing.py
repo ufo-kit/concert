@@ -6,6 +6,8 @@ backprojection, flat field correction and other operations on images.
 import numpy as np
 import logging
 from scipy import ndimage
+from scipy.signal import fftconvolve
+from concert.quantities import q
 
 
 LOG = logging.getLogger(__name__)
@@ -282,3 +284,28 @@ def center_of_mass(frame):
         y = (frame.sum(1)*np.arange(frm_shape[0])).sum() / total
         x = (frame.sum(0)*np.arange(frm_shape[1])).sum() / total
         return np.array([y, x])
+
+
+def compute_rotation_axis(first_projection, last_projection):
+    """
+    Compute the tomographic rotation axis based on cross-correlation technique.
+    *first_projection* is the projection at 0 deg, *last_projection* is the projection
+    at 180 deg. It is strongly advised to provide flat-corrected projections.
+    """
+    width = first_projection.shape[1]
+
+    # Subtract the mean which gets rid of the background
+    mean = first_projection.mean()
+    first_projection = first_projection - mean
+    last_projection = last_projection - mean
+    first_projection[first_projection < 0] = 0
+    last_projection[last_projection < 0] = 0
+
+    # The rotation by 180 deg flips the image horizontally, in order
+    # to do cross-correlation by convolution we must also flip it
+    # vertically, so the image is transposed and we can apply convolution
+    # which will act as cross-correlation
+    convolved = fftconvolve(first_projection, last_projection[::-1, :], mode='same')
+    center = np.unravel_index(convolved.argmax(), convolved.shape)[1]
+
+    return (width / 2.0 + center) / 2 * q.px

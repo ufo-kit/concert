@@ -13,6 +13,7 @@ import numpy as np
 from subprocess import Popen
 from multiprocessing import Queue as MultiprocessingQueue, Process
 from concert.async import threaded
+from concert.quantities import q
 from concert.storage import write_tiff
 from concert.coroutines.base import coroutine
 
@@ -212,7 +213,8 @@ class PyplotViewer(PyplotViewerBase):
         """
         if not self._paused and (self._queue.empty() or force):
             if y is None:
-                if isinstance(x, collections.Iterable):
+                if isinstance(x, q.Quantity) and isinstance(x.magnitude, collections.Iterable) or\
+                   not isinstance(x, q.Quantity) and isinstance(x, collections.Iterable):
                     x_data = np.arange(len(x))
                     y_data = x
                 else:

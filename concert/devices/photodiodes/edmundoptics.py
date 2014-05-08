@@ -8,7 +8,7 @@ from concert.devices.photodiodes import base
 class PhotoDiode(base.PhotoDiode):
 
     """
-    Impementation of Edmund Optics photodiode with V/W output signal
+    Impementation of Edmund Optics photodiode with V output signal
     """
 
     def __init__(self, host, port):
@@ -22,4 +22,4 @@ class PhotoDiode(base.PhotoDiode):
         """
         connection = IO(self._host, self._port)
         intensity = float(connection._read_port(port)) / 1000
-        return intensity * q.V / q.W
+        return intensity * q.V
