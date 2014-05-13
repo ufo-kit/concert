@@ -2,6 +2,7 @@
 import os
 import logging
 from concert.ext import tifffile
+from concert.coroutines.base import coroutine
 
 
 LOG = logging.getLogger(__name__)
@@ -58,3 +59,28 @@ def create_directory(directory, rights=0o0750):
     if not os.path.exists(directory):
         LOG.debug("Creating directory {}".format(directory))
         os.makedirs(directory, rights)
+
+
+@coroutine
+def write_images(writer=write_tiff, prefix="image_{:>05}"):
+    """
+    write_images(writer, prefix="image_{:>05}")
+
+    Write images on disk with specified *writer* and file name *prefix*.
+    *writer* is a callable with the following nomenclature::
+
+        writer(file_name_prefix, data)
+
+    The file extension needs to be applied by a particular writer.
+    """
+    i = 0
+    dir_name = os.path.dirname(prefix)
+
+    if dir_name and not os.path.exists(dir_name):
+        create_directory(dir_name)
+
+    while True:
+        data = yield
+        writer(prefix.format(i), data)
+        i += 1
+

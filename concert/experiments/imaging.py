@@ -2,8 +2,7 @@
 import os
 import numpy as np
 from concert.quantities import q
-from concert.storage import write_tiff, create_directory
-from concert.coroutines.sinks import write_images
+from concert.storage import write_tiff, create_directory, write_images
 from concert.experiments.base import Experiment as BaseExperiment
 
 
