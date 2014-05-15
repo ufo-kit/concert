@@ -9,7 +9,7 @@ import os
 
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
-from widgets import WidgetPattern, LightSourceWidget
+from widgets import WidgetPattern, LightSourceWidget, MotorWidget
 
 
 class ConcertGUI(QWidget):
@@ -17,6 +17,7 @@ class ConcertGUI(QWidget):
     def __init__(self, parent=None):
         super(ConcertGUI, self).__init__(parent)
         self.cursor = QCursor
+        self.numberOfMotorWidget = 1
         self.deviceList = DeviceTreeWidget()
         self.deviceList.setFixedWidth(150)
         self.deviceList.header().setStretchLastSection(False)
@@ -34,22 +35,18 @@ class ConcertGUI(QWidget):
         self.mainLayout.addLayout(self.fieldLayout)
         self.setLayout(self.mainLayout)
         self.setWindowTitle("Concert GUI")
-        self.resize(1024, 786)
+        self.resize(1024, 500)
         self.widget = WidgetPattern("")
 
     def createLinear(self):
-        self.button = QPushButton("Linear")
-        self.label = QLabel("Linear")
-        self.line = QLineEdit()
-        self.widget = WidgetPattern("LinearMotor", self)
-        self.motorvbox = QVBoxLayout()
-        self.motorvbox.addWidget(self.label)
-        self.motorvbox.addWidget(self.line)
-        self.motorvbox.addWidget(self.button)
-        self.widget.setLayout(self.motorvbox)
-        self.widget.setFixedSize(200, 100)
-        self.setObjectName('widget%d')
-        self.widget.show()
+
+        self.widget = MotorWidget(
+            "Linear Motor %d" %
+            self.numberOfMotorWidget,
+            self)
+#         self.widget.setObjectName('LightSource')
+        self.widget().show()
+        self.numberOfMotorWidget += 1
 
     def createContinuousLinear(self):
         self.button = QPushButton("ContinuousLinear")
@@ -98,8 +95,8 @@ class ConcertGUI(QWidget):
 
     def createLightSource(self):
         global count
-        self.widget = LightSourceWidget("LightSource", self)
-        self.widget.setObjectName('LightSource')
+        self.widget = LightSourceWidget("Light Source", self)
+#         self.widget.setObjectName('LightSource')
         self.widget().show()
 
     def paintEvent(self, event):
