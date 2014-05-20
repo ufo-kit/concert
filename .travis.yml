@@ -2,16 +2,10 @@ language: python
 
 python:
     - 2.7
-    - 3.2
 
 env:
     - DISABLE_GEVENT=--disable-gevent
     - DISABLE_GEVENT=
-
-matrix:
-    exclude:
-        - python: 3.2
-          env: DISABLE_GEVENT=--disable-gevent
 
 virtualenv:
     system_site_packages: true
