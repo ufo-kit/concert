@@ -13,43 +13,59 @@ class ConcertGUI(QWidget):
 
     def __init__(self, parent=None):
         super(ConcertGUI, self).__init__(parent)
-        self.cursor = QCursor
-        self.numberOfMotorWidget = 1
         self.deviceTree = DeviceTreeWidget()
-        self.deviceTree.setFixedWidth(150)
+        self._width = 160
+        self.deviceTree.setFixedWidth(self._width)
         self.deviceTree.header().setStretchLastSection(False)
         self.deviceTree.setHeaderItem(QTreeWidgetItem(["Devices"]))
-        self.deviceTree.setColumnWidth(0, 140)
-        self.mainLayout = QHBoxLayout()
-        self.fieldLayout = QGridLayout()
-        self.mainLayout.addWidget(self.deviceTree, 0, Qt.AlignLeft)
-        self.mainLayout.addLayout(self.fieldLayout)
-        self.setLayout(self.mainLayout)
-        self.setWindowTitle("Concert GUI")
-        self.resize(1024, 500)
-        self.widget = WidgetPattern("")
-        self.itemsList = {}
+        self.deviceTree.setColumnWidth(0, 150)
+        self._items_list = {}
         """ Adding items to device tree"""
         for obj in globals():
             if isinstance(globals()[obj], Device):
-                nameOfClass = globals()[obj].__class__.__name__
-                if nameOfClass not in self.itemsList:
-                    header = QTreeWidgetItem(
+                _name_of_class = globals()[obj].__class__.__name__
+                if _name_of_class not in self._items_list:
+                    _header = QTreeWidgetItem(
                         self.deviceTree, [
                             globals()[obj].__class__.__name__])
-                    QTreeWidgetItem(header, [obj])
-                    self.itemsList[globals()[obj].__class__.__name__] = header
+                    QTreeWidgetItem(_header, [obj])
+                    self._items_list[
+                        globals()[obj].__class__.__name__] = _header
                 else:
-                    QTreeWidgetItem(self.itemsList[nameOfClass], [obj])
-                self.deviceTree.setItemExpanded(header,True)
+                    QTreeWidgetItem(self._items_list[_name_of_class], [obj])
+                self.deviceTree.setItemExpanded(_header, True)
+        _exit_action = QAction(
+            QIcon.fromTheme("application-exit"),
+            '&Exit',
+            self)
+        _exit_action.setShortcut('Ctrl+Q')
+        _exit_action.setStatusTip('Exit application')
+        _exit_action.triggered.connect(self.close)
+        _hide_tree_action = QAction(
+            QIcon.fromTheme("zoom-fit-best"),
+            '&Hide/Show list of widgets',
+            self)
+        _hide_tree_action.setShortcut('Ctrl+H')
+        _hide_tree_action.setStatusTip('Hide/Show list of widgets')
+        _hide_tree_action.triggered.connect(self._hide_widgets_list)
+        self._menubar = QMenuBar()
+        _file_menu = self._menubar.addMenu('&File')
+        _file_menu.addAction(_exit_action)
+        _view_menu = self._menubar.addMenu('&View')
+        _view_menu.addAction(_hide_tree_action)
+        self._main_layout = QVBoxLayout()
+        self._main_layout.addWidget(self._menubar, 0)
+        self._main_layout.addWidget(self.deviceTree, 1, Qt.AlignLeft)
+        self.setLayout(self._main_layout)
+        self.setWindowTitle("Concert GUI")
+        self.resize(1024, 500)
+        self.widget = WidgetPattern("")
 
     def createLinearMotor(self, nameOfWidget):
-
         self.widget = MotorWidget(
             str(nameOfWidget),
             globals()[str(nameOfWidget)], self)
         self.widget().show()
-#         self.numberOfMotorWidget += 1
 
     def createContinuousLinearMotor(self, nameOfWidget):
         self.widget = MotorWidget(
@@ -69,94 +85,97 @@ class ConcertGUI(QWidget):
             globals()[str(nameOfWidget)], self)
         self.widget().show()
 
-    def createCameras(self, nameOfWidget):
-        self.button = QPushButton("Camera")
-        self.button.setStyleSheet("background-color: green")
-        self.label = QLabel("Camera")
-        self.line = QLineEdit()
-        self.widget = WidgetPattern("Camera", self)
-        self.motorvbox = QVBoxLayout()
-        self.motorvbox.addWidget(self.label)
-        self.motorvbox.addWidget(self.line)
-        self.motorvbox.addWidget(self.button)
-        self.widget.setLayout(self.motorvbox)
-        self.widget.setFixedSize(200, 100)
-        self.setObjectName('CameraWidget%d')
-        self.widget.show()
-
     def createLightSource(self, nameOfWidget):
         global count
         self.widget = LightSourceWidget(nameOfWidget, self)
         self.widget().show()
 
     def paintEvent(self, event):
-        self.widgetLength, self.widgetHeight = self.widget.widgetLength, self.widget.widgetHeight
-        if self.widget.getShadowStatus():
-            qp = QPainter()
-            qp.begin(self)
-            qp.setBrush(QColor("#ffcccc"))
-            qp.setPen(Qt.NoPen)
-            self.x, self.y = self.widget.getGridPosition()
-            qp.drawRect(self.x, self.y, self.widgetLength, self.widgetHeight)
+        if self.widget.get_shadow_status():
+            _qp = QPainter()
+            _qp.begin(self)
+            _qp.setBrush(QColor("#ffcccc"))
+            _qp.setPen(Qt.NoPen)
+            self.x, self.y = self.widget.get_grid_position()
+            _qp.drawRect(self.x, self.y, self.widget.widgetLength, 60)
             self.update()
-            qp.end()
+            _qp.end()
 
     def mouseReleaseEvent(self, event):
         QApplication.restoreOverrideCursor()
+
+    def _hide_widgets_list(self):
+        self._width = 160 - self._width
+        self.deviceTree.setFixedWidth(self._width)
 
 
 class DeviceTreeWidget(QTreeWidget):
 
+    """Determines device tree widget behavior"""
+
     def __init__(self, parent=None):
         super(DeviceTreeWidget, self).__init__(parent)
-        self.funk = 0
-        self.cursor = QCursor
-        
+        self._func = 0
 
     def mousePressEvent(self, event):
         super(DeviceTreeWidget, self).mousePressEvent(event)
         if (event.buttons() & Qt.LeftButton) and not gui.deviceTree.currentItem().isDisabled():
-            self.newWidgetCreatedFlag = False
-            self.offset = event.pos()
+            self._new_widget_created_flag = False
+            self._offset = event.pos()
             try:
                 self.itemText = gui.deviceTree.currentItem().parent().text(0)
             except:
                 self.itemText = None
-            self.funk = getattr(
+            self._func = getattr(
                 gui,
                 "create" +
                 str(self.itemText), None)
-            if self.funk:
+            if self._func:
                 QApplication.setOverrideCursor(QCursor(Qt.ClosedHandCursor))
 
     def mouseMoveEvent(self, event):
         if (event.buttons() & Qt.LeftButton) and not gui.deviceTree.currentItem().isDisabled():
-            self.distance = (event.pos() - self.offset).manhattanLength()
-            if self.distance > QApplication.startDragDistance():
-                if self.funk:
-                    if not self.newWidgetCreatedFlag:
-                        self.newWidgetCreatedFlag = True
-                        self.funk(gui.deviceTree.currentItem().text(0))
-                    gui.widget.moveWidget(
-                            QTreeWidget.mapToParent(
-                            self,                      
-                            event.pos()-QPoint(140,0)))
+            _distance = (event.pos() - self._offset).manhattanLength()
+            if _distance > QApplication.startDragDistance():
+                if self._func:
+                    if not self._new_widget_created_flag:
+                        self._new_widget_created_flag = True
+                        self._func(gui.deviceTree.currentItem().text(0))
+                    gui.widget.move_widget(
+                        QTreeWidget.mapToParent(
+                            self,
+                            event.pos() - QPoint(140, 0)))
 
     def mouseReleaseEvent(self, event):
         super(DeviceTreeWidget, self).mouseReleaseEvent(event)
         QApplication.restoreOverrideCursor()
-        if self.funk and self.newWidgetCreatedFlag:
-            gui.widget.moveFollowGrid()
+        if self._func and self._new_widget_created_flag:
+            gui.widget.move_by_grid()
             gui.deviceTree.currentItem().setDisabled(True)
-            self.newWidgetCreatedFlag = False
+            self._new_widget_created_flag = False
+
+
+class Embterminal(QWidget):
+
+    """Terminal widget class. Not used yet."""
+
+    def __init__(self):
+        QWidget.__init__(self)
+        self.process = QProcess(self)
+        self.terminal = QWidget(self)
+        self.layout = QVBoxLayout(self)
+        self.layout.addWidget(self.terminal)
+        self.process.start(
+            'xterm', ['-into', str(self.terminal.winId())])
+        self.terminal.resize(500, 200)
 
 if __name__ == '__main__':
     import sys
-    app = QApplication(sys.argv)
-    pal = QPalette
-    pal = app.palette()
-    pal.setColor(QPalette.Window, QColor.fromRgb(230, 227, 224))
-    app.setPalette(pal)
+    _app = QApplication(sys.argv)
+    _pal = QPalette
+    _pal = _app.palette()
+    _pal.setColor(QPalette.Window, QColor.fromRgb(230, 227, 224))
+    _app.setPalette(_pal)
     gui = ConcertGUI()
     gui.show()
-    sys.exit(app.exec_())
+    sys.exit(_app.exec_())

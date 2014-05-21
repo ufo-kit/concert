@@ -1,11 +1,19 @@
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
+import sys
+import os
 from concert.devices.lightsources.dummy import LightSource
 from concert.devices.motors.dummy import LinearMotor, ContinuousRotationMotor
 from concert.devices.motors.dummy import ContinuousLinearMotor, RotationMotor
 from concert.quantities import q
 from concert.devices.base import Device
 from concert.base import HardLimitError
+
+# scriptPath = os.path.realpath(os.path.dirname(sys.argv[0]))
+# os.chdir(scriptPath)
+# sys.path.append(os.path.realpath("../../../../.local/share/concert/"))
+# import tutorial
+# import gc
 
 linear1 = LinearMotor()
 linear2 = LinearMotor()
@@ -18,34 +26,36 @@ contRot5 = ContinuousRotationMotor()
 
 class WidgetPattern(QGroupBox):
 
+    """Determines basic device widgets behavior"""
+
     def __init__(self, name, parent=None):
         super(WidgetPattern, self).__init__(name, parent)
-        self.offset = 0
-        self.cursor = QCursor
+        self._offset = 0
+        self._cursor = QCursor
         self.widgetLength = 280
-        self.widgetHeight = 80
+        self.widgetHeight = 20
         global shadowAccepted
         shadowAccepted = False
 
     def mousePressEvent(self, event):
-        self.offset = event.pos()
+        self._offset = event.pos()
 
     def mouseMoveEvent(self, event):
         try:
-            self.moveWidget(
+            self.move_widget(
                 QGroupBox.mapToParent(
                     self,
                     event.pos() -
-                    self.offset))
+                    self._offset))
         except:
             QApplication.restoreOverrideCursor()
 
     def mouseReleaseEvent(self, event):
         if shadowAccepted:
-            self.moveFollowGrid()
+            self.move_by_grid()
         QApplication.restoreOverrideCursor()
 
-    def moveWidget(self, position):
+    def move_widget(self, position):
         global shadowAccepted
         try:
             self.move(position)
@@ -54,23 +64,23 @@ class WidgetPattern(QGroupBox):
             QApplication.restoreOverrideCursor()
             shadowAccepted = False
 
-    def moveFollowGrid(self):
+    def move_by_grid(self):
         global shadowAccepted
-        x, y = self.getGridPosition()
-        self.moveWidget(QPoint(x, y))
+        x, y = self.get_grid_position()
+        self.move_widget(QPoint(x, y))
         shadowAccepted = False
         QApplication.restoreOverrideCursor()
 
-    def getGridPosition(self):
-        x = self.mapToParent(self.mapFromGlobal(self.cursor.pos())).x()
-        y = self.mapToParent(self.mapFromGlobal(self.cursor.pos())).y()
-        if x < self.widgetLength:
-            x = self.widgetLength
-        x = x / self.widgetLength * self.widgetLength
-        y = y / self.widgetHeight * self.widgetHeight
-        return x, y
+    def get_grid_position(self):
+        _x = self.mapToParent(self.mapFromGlobal(self._cursor.pos())).x()
+        _y = self.mapToParent(self.mapFromGlobal(self._cursor.pos())).y()
+        if _x < self.widgetLength:
+            _x = self.widgetLength
+        _x = _x / self.widgetLength * self.widgetLength
+        _y = _y / self.widgetHeight * self.widgetHeight
+        return _x, _y
 
-    def getShadowStatus(self):
+    def get_shadow_status(self):
         global shadowAccepted
         if shadowAccepted:
             return True
@@ -82,176 +92,183 @@ class LightSourceWidget(WidgetPattern):
 
     def __init__(self, name, parent=None):
         super(LightSourceWidget, self).__init__(name, parent)
-        self.light = LightSource()
-        self.label = QLabel("Intensity")
-        self.spinValue = QDoubleSpinBox()
-        self.spinValue.setRange(-1000000, 1000000)
-        self.spinValue.setDecimals(3)
-        self.spinValue.setAccelerated(True)
-        self.spinValue.setAlignment(Qt.AlignRight)
-        self.positionUnits = QComboBox()
-        self.positionUnits.addItems(["kV", "V", "mV"])
-        self.positionUnits.setCurrentIndex(1)
-
-        self.layout = QGridLayout()
-        self.layout.addWidget(self.label, 0, 0)
-#         self.layout.addWidget(self.value, 0, 1)
-        self.layout.addWidget(self.spinValue, 0, 1)
-        self.layout.addWidget(self.positionUnits, 0, 2)
+        self._light = LightSource()
+        self._label = QLabel("Intensity")
+        self._spin_value = QDoubleSpinBox()
+        self._spin_value.setRange(-1000000, 1000000)
+        self._spin_value.setDecimals(3)
+        self._spin_value.setAccelerated(True)
+        self._spin_value.setAlignment(Qt.AlignRight)
+        self._intensity_units = QComboBox()
+        self._intensity_units.addItems(["kV", "V", "mV"])
+        self._intensity_units.setCurrentIndex(1)
+        self._layout = QGridLayout()
+        self._layout.addWidget(self._label, 0, 0)
+        self._layout.addWidget(self._spin_value, 0, 1)
+        self._layout.addWidget(self._intensity_units, 0, 2)
         self.setFixedSize(self.widgetLength, 60)
-        self.setLayout(self.layout)
-        self.positionUnits.currentIndexChanged.connect(self.unitChanged)
-        self.spinValue.valueChanged.connect(self.numberChanged)
+        self.setLayout(self._layout)
+        self._intensity_units.currentIndexChanged.connect(self._unit_changed)
+        self._spin_value.valueChanged.connect(self._number_changed)
 
     def __call__(self):
         return self
 
-    def unitChanged(self, index):
-        self.unit = self.positionUnits.currentText()
-        if not self.unit == q.get_symbol(str(self.light.intensity.units)):
-            new_value = self.light.intensity.ito(
-                q.parse_expression(str(self.unit)))
+    def _unit_changed(self, index):
+        self._unit = self._intensity_units.currentText()
+        if not self._unit == q.get_symbol(str(self._light.intensity.units)):
+            _new_value = self._light.intensity.ito(
+                q.parse_expression(str(self._unit)))
         else:
-            new_value = self.light.intensity
-        self.spinValue.setValue(float(new_value.magnitude))
+            _new_value = self._light.intensity
+        self._spin_value.setValue(float(_new_value.magnitude))
 
-    def numberChanged(self):
-        num = self.spinValue.text()
-        unit = self.positionUnits.currentText()
-        new_value = q.parse_expression(str(num) + str(unit))
-        self.light.intensity = new_value
+    def _number_changed(self):
+        _num = self._spin_value.text()
+        _unit = self._intensity_units.currentText()
+        _new_value = q.parse_expression(str(_num) + str(_unit))
+        self._light.intensity = _new_value
 
 
 class MotorWidget(WidgetPattern):
 
     def __init__(self, name, deviceObject, parent=None):
         super(MotorWidget, self).__init__(name, parent)
-        self.motorWidget = deviceObject
-        self.unitsDict = {}
-        self.unitsDict['meter'] = ["mm", "um"]
-        self.unitsDict['degree'] = ["deg", "rad"]
-        self.unitsDict['meter / second'] = ["m/s", "mm/s"]
-        self.unitsDict['degree / second'] = ["deg/s", 'rad/s']
-        self.position = QLabel("Position")
-        self.homeButton = QToolButton()
-        self.homeButton.setIcon(QIcon.fromTheme("go-home"))
-        self.stopButton = QToolButton()
-        self.stopButton.setIcon(QIcon.fromTheme("process-stop"))
-        self.positionValue = QDoubleSpinBox()
-        self.positionValue.setRange(-1000000, 1000000)
-        self.positionValue.setAccelerated(True)
-        self.positionValue.setDecimals(3)
-        self.positionValue.setAlignment(Qt.AlignRight)
-        self.positionUnits = QComboBox()
-        self.positionUnits.addItems(
-            self.unitsDict[str(self.motorWidget.position.units)])
-        self.layout = QGridLayout()
-        self.layout.addWidget(self.position, 0, 0)
-        self.layout.addWidget(self.homeButton, 0, 1)
-        self.layout.addWidget(self.stopButton, 0, 2)
-        self.layout.addWidget(self.positionValue, 0, 3)
-        self.layout.addWidget(self.positionUnits, 0, 4)
-        self.setFixedSize(self.widgetLength, 60)
-        self.setLayout(self.layout)
-        self.positionUnits.currentIndexChanged.connect(
-            self.getValueFromConcert)
-        self.positionValue.valueChanged.connect(self.positionValueChanged)
-        self.homeButton.clicked.connect(self.homeButtonClicked)
-        self.stopButton.clicked.connect(self.stopButtonClicked)
+        self._green = "background-color: rgb(230, 255, 230);"
+        self._orange = "background-color: rgb(255, 214, 156);"
+        self._motor_widget = deviceObject
+        self._units_dict = {}
+        self._units_dict['meter'] = ["mm", "um"]
+        self._units_dict['degree'] = ["deg", "rad"]
+        self._units_dict['meter / second'] = ["m/s", "mm/s"]
+        self._units_dict['degree / second'] = ["deg/s", 'rad/s']
+        self._state = QLabel("State")
+        self._state_label = QLabel("")
+        self._state_label.setFrameShape(QFrame.WinPanel)
+        self._state_label.setFrameShadow(QFrame.Raised)
+        self._position = QLabel("Position")
+        self._home_button = QToolButton()
+        self._home_button.setIcon(QIcon.fromTheme("go-home"))
+        self._stop_button = QToolButton()
+        self._stop_button.setIcon(QIcon.fromTheme("process-stop"))
+        self._position_value = QDoubleSpinBox()
+        self._position_value.setRange(-1000000, 1000000)
+        self._position_value.setAccelerated(True)
+        self._position_value.setDecimals(3)
+        self._position_value.setAlignment(Qt.AlignRight)
+        self._positionUnits = QComboBox()
+        self._positionUnits.addItems(
+            self._units_dict[str(self._motor_widget.position.units)])
+        self._layout = QGridLayout()
+        self._layout.addWidget(self._state, 0, 0)
+        self._layout.addWidget(self._state_label, 0, 3, 1, 1, Qt.AlignCenter)
+        self._layout.addWidget(self._position, 1, 0)
+        self._layout.addWidget(self._home_button, 1, 1)
+        self._layout.addWidget(self._stop_button, 1, 2)
+        self._layout.addWidget(self._position_value, 1, 3)
+        self._layout.addWidget(self._positionUnits, 1, 4)
+        self.setFixedSize(self.widgetLength, 80)
+        self.setLayout(self._layout)
+        self._positionUnits.currentIndexChanged.connect(
+            self._get_value_from_concert)
+        self._position_value.valueChanged.connect(self._position_value_changed)
+        self._home_button.clicked.connect(self._home_button_clicked)
+        self._stop_button.clicked.connect(self._stop_button_clicked)
         try:
-            self.motorWidget.velocity
+            self._motor_widget.velocity
         except:
-            self.velocityExist = False
+            self._velocity_exist = False
         else:
-            self.velocityExist = True
-        if self.velocityExist:
-            self.velocity = QLabel("Velocity")
-            self.velocityValue = QDoubleSpinBox()
-            self.velocityValue.setRange(-1000000, 1000000)
-            self.velocityValue.setAccelerated(True)
-            self.velocityValue.setDecimals(3)
-            self.velocityValue.setAlignment(Qt.AlignRight)
-            self.velocityUnits = QComboBox()
-            self.velocityUnits.addItems(
-                self.unitsDict[str(self.motorWidget.velocity.units)])
-            self.layout.addWidget(self.velocity, 1, 0)
-            self.layout.addWidget(self.velocityValue, 1, 3)
-            self.layout.addWidget(self.velocityUnits, 1, 4)
-            self.setFixedSize(self.widgetLength, 80)
-            self.velocityUnits.currentIndexChanged.connect(
-                self.getValueFromConcert)
-            self.velocityValue.valueChanged.connect(self.velocityValueChanged)
-        self.getValueFromConcert()
+            self._velocity_exist = True
+        if self._velocity_exist:
+            self._velocity = QLabel("Velocity")
+            self._velocity_value = QDoubleSpinBox()
+            self._velocity_value.setRange(-1000000, 1000000)
+            self._velocity_value.setAccelerated(True)
+            self._velocity_value.setDecimals(3)
+            self._velocity_value.setAlignment(Qt.AlignRight)
+            self._velocity_units = QComboBox()
+            self._velocity_units.addItems(
+                self._units_dict[str(self._motor_widget.velocity.units)])
+            self._layout.addWidget(self._velocity, 2, 0)
+            self._layout.addWidget(self._velocity_value, 2, 3)
+            self._layout.addWidget(self._velocity_units, 2, 4)
+            self.setFixedSize(self.widgetLength, 100)
+            self._velocity_units.currentIndexChanged.connect(
+                self._get_value_from_concert)
+            self._velocity_value.valueChanged.connect(
+                self._velocity_value_changed)
+        self._get_value_from_concert()
 
     def __call__(self):
         return self
 
-    def positionValueChanged(self):
-        num = self.positionValue.text()
-        unit = self.positionUnits.currentText()
-        new_value = q.parse_expression(str(num) + str(unit))
+    def _position_value_changed(self):
+        _num = self._position_value.text()
+        _unit = self._positionUnits.currentText()
+        _new_value = q.parse_expression(str(_num) + str(_unit))
         try:
-            self.motorWidget.position = new_value
+            self._motor_widget.position = _new_value
         except HardLimitError:
             pass
-        self.getValueFromConcert()
-        self.checkState()
+        self._get_value_from_concert()
+        self._check_state()
 
-    def velocityValueChanged(self):
-        num = self.velocityValue.text()
-        unit = self.velocityUnits.currentText()
-        new_value = q.parse_expression(str(num) + str(unit))
+    def _velocity_value_changed(self):
+        _num = self._velocity_value.text()
+        _unit = self._velocity_units.currentText()
+        _new_value = q.parse_expression(str(_num) + str(_unit))
         try:
-            self.motorWidget.velocity = new_value
+            self._motor_widget.velocity = _new_value
         except HardLimitError:
             pass
-        self.getValueFromConcert()
-        self.checkState()
+        self._get_value_from_concert()
+        self._check_state()
 
-    def getValueFromConcert(self):
-        self.positionValue.valueChanged.disconnect(self.positionValueChanged)
-        self.unit = self.positionUnits.currentText()
-        if not self.unit == q.get_symbol(str(self.motorWidget.position.units)):
-            new_value = self.motorWidget.position.ito(
-                q.parse_expression(str(self.unit)))
+    def _get_value_from_concert(self):
+        self._position_value.valueChanged.disconnect(
+            self._position_value_changed)
+        self._unit = self._positionUnits.currentText()
+        if not self._unit == q.get_symbol(str(self._motor_widget.position.units)):
+            _new_value = self._motor_widget.position.ito(
+                q.parse_expression(str(self._unit)))
         else:
-            new_value = self.motorWidget.position
-        self.positionValue.setValue(float(new_value.magnitude))
-        self.positionValue.valueChanged.connect(self.positionValueChanged)
-        if self.velocityExist:
-            self.velocityValue.valueChanged.disconnect(
-                self.velocityValueChanged)
-            self.unit1 = str(self.velocityUnits.currentText()).split("/")[0]
-            self.unit2 = str(self.velocityUnits.currentText()).split("/")[1]
+            _new_value = self._motor_widget.position
+        self._position_value.setValue(float(_new_value.magnitude))
+        self._position_value.valueChanged.connect(self._position_value_changed)
+        if self._velocity_exist:
+            self._velocity_value.valueChanged.disconnect(
+                self._velocity_value_changed)
+            self._unit1 = str(self._velocity_units.currentText()).split("/")[0]
+            self._unit2 = str(self._velocity_units.currentText()).split("/")[1]
             self.concertUnit1 = q.get_symbol(
-                str(self.motorWidget.velocity.units).split(" / ")[0])
+                str(self._motor_widget.velocity.units).split(" / ")[0])
             self.concertUnit2 = q.get_symbol(
-                str(self.motorWidget.velocity.units).split(" / ")[1])
-            if not self.unit1 == self.concertUnit1 or not self.unit2 == self.concertUnit2:
-                new_value = self.motorWidget.velocity.ito(
-                    q.parse_expression(str(self.unit1) + "/" + str(self.unit2)))
+                str(self._motor_widget.velocity.units).split(" / ")[1])
+            if not self._unit1 == self.concertUnit1 or not self._unit2 == self.concertUnit2:
+                _new_value = self._motor_widget.velocity.ito(
+                    q.parse_expression(str(self._unit1) + "/" + str(self._unit2)))
             else:
-                new_value = self.motorWidget.velocity
-            self.velocityValue.setValue(float(new_value.magnitude))
+                _new_value = self._motor_widget.velocity
+            self._velocity_value.setValue(float(_new_value.magnitude))
 
-            self.velocityValue.valueChanged.connect(self.velocityValueChanged)
-        self.checkState()
+            self._velocity_value.valueChanged.connect(
+                self._velocity_value_changed)
+        self._check_state()
 
-    def checkState(self):
-        state = self.motorWidget.state
-        if (state == 'standby') and not (
-                self.positionValue.styleSheet() == "background-color: rgb(230, 255, 230);"):
-            self.positionValue.setStyleSheet(
-                "background-color: rgb(230, 255, 230);")
-        elif (state == 'moving') and not (
-                self.positionValue.styleSheet() == "background-color: rgb(255, 214, 156);"):
-            self.positionValue.setStyleSheet(
-                "background-color: rgb(255, 214, 156);")
+    def _check_state(self):
+        _state = self._motor_widget.state
+        if (_state == 'standby') and not (self._state_label.styleSheet() == self._green):
+            self._state_label.setStyleSheet(self._green)
+            self._state_label.setText("standby")
+        elif (_state == 'moving') and not (self._state_label.styleSheet() == self._orange):
+            self._state_label.setStyleSheet(self._orange)
+            self._state_label.setText("moving")
 
-    def homeButtonClicked(self):
-        self.motorWidget.home
-        self.getValueFromConcert()
+    def _home_button_clicked(self):
+        self._motor_widget.home
+        self._get_value_from_concert()
 
-    def stopButtonClicked(self):
-        self.motorWidget.stop
-        self.checkState()
+    def _stop_button_clicked(self):
+        self._motor_widget.stop
+        self._check_state()
