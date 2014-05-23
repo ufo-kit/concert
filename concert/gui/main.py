@@ -24,15 +24,38 @@ class ConcertGUI(QWidget):
         for obj in globals():
             if isinstance(globals()[obj], Device):
                 _name_of_class = globals()[obj].__class__.__name__
-                if _name_of_class not in self._items_list:
-                    _header = QTreeWidgetItem(
-                        self.deviceTree, [
-                            globals()[obj].__class__.__name__])
-                    QTreeWidgetItem(_header, [obj])
-                    self._items_list[
-                        globals()[obj].__class__.__name__] = _header
+                try:
+                    str(_name_of_class).split("Motor")[1]
+                except:
+                    if _name_of_class not in self._items_list:
+                        _header = QTreeWidgetItem(
+                            self.deviceTree, [_name_of_class])
+                        QTreeWidgetItem(_header, [obj])
+                        self._items_list[_name_of_class] = _header
+                    else:
+                        QTreeWidgetItem(
+                            self._items_list[_name_of_class],
+                            [obj])
                 else:
-                    QTreeWidgetItem(self._items_list[_name_of_class], [obj])
+                    if "Motors" not in self._items_list:
+                        _header_motor = QTreeWidgetItem(
+                            self.deviceTree,
+                            ["Motors"])
+                        self._items_list["Motors"] = _header_motor
+                        self.deviceTree.setItemExpanded(_header_motor, True)
+
+                    _name_of_class = str(_name_of_class).split("Motor")[0]
+
+                    if _name_of_class not in self._items_list:
+                        _header = QTreeWidgetItem(
+                            _header_motor,
+                            [_name_of_class])
+                        QTreeWidgetItem(_header, [obj])
+                        self._items_list[_name_of_class] = _header
+                    else:
+                        QTreeWidgetItem(
+                            self._items_list[_name_of_class],
+                            [obj])
                 self.deviceTree.setItemExpanded(_header, True)
         _exit_action = QAction(
             QIcon.fromTheme("application-exit"),
@@ -61,25 +84,25 @@ class ConcertGUI(QWidget):
         self.resize(1024, 500)
         self.widget = WidgetPattern("")
 
-    def createLinearMotor(self, nameOfWidget):
+    def createLinear(self, nameOfWidget):
         self.widget = MotorWidget(
             str(nameOfWidget),
             globals()[str(nameOfWidget)], self)
         self.widget().show()
 
-    def createContinuousLinearMotor(self, nameOfWidget):
+    def createContinuousLinear(self, nameOfWidget):
         self.widget = MotorWidget(
             str(nameOfWidget),
             globals()[str(nameOfWidget)], self)
         self.widget().show()
 
-    def createRotationMotor(self, nameOfWidget):
+    def createRotation(self, nameOfWidget):
         self.widget = MotorWidget(
             str(nameOfWidget),
             globals()[str(nameOfWidget)], self)
         self.widget().show()
 
-    def createContinuousRotationMotor(self, nameOfWidget):
+    def createContinuousRotation(self, nameOfWidget):
         self.widget = MotorWidget(
             str(nameOfWidget),
             globals()[str(nameOfWidget)], self)
@@ -97,7 +120,11 @@ class ConcertGUI(QWidget):
             _qp.setBrush(QColor("#ffcccc"))
             _qp.setPen(Qt.NoPen)
             self.x, self.y = self.widget.get_grid_position()
-            _qp.drawRect(self.x, self.y, self.widget.widgetLength, 60)
+            _qp.drawRect(
+                self.x,
+                self.y,
+                self.widget.widgetLength,
+                self.widget.height())
             self.update()
             _qp.end()
 
@@ -153,21 +180,6 @@ class DeviceTreeWidget(QTreeWidget):
             gui.widget.move_by_grid()
             gui.deviceTree.currentItem().setDisabled(True)
             self._new_widget_created_flag = False
-
-
-class Embterminal(QWidget):
-
-    """Terminal widget class. Not used yet."""
-
-    def __init__(self):
-        QWidget.__init__(self)
-        self.process = QProcess(self)
-        self.terminal = QWidget(self)
-        self.layout = QVBoxLayout(self)
-        self.layout.addWidget(self.terminal)
-        self.process.start(
-            'xterm', ['-into', str(self.terminal.winId())])
-        self.terminal.resize(500, 200)
 
 if __name__ == '__main__':
     import sys

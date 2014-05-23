@@ -1,19 +1,11 @@
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-import sys
-import os
 from concert.devices.lightsources.dummy import LightSource
 from concert.devices.motors.dummy import LinearMotor, ContinuousRotationMotor
 from concert.devices.motors.dummy import ContinuousLinearMotor, RotationMotor
 from concert.quantities import q
 from concert.devices.base import Device
 from concert.base import HardLimitError
-
-# scriptPath = os.path.realpath(os.path.dirname(sys.argv[0]))
-# os.chdir(scriptPath)
-# sys.path.append(os.path.realpath("../../../../.local/share/concert/"))
-# import tutorial
-# import gc
 
 linear1 = LinearMotor()
 linear2 = LinearMotor()
@@ -76,8 +68,8 @@ class WidgetPattern(QGroupBox):
         _y = self.mapToParent(self.mapFromGlobal(self._cursor.pos())).y()
         if _x < self.widgetLength:
             _x = self.widgetLength
-        _x = _x / self.widgetLength * self.widgetLength
-        _y = _y / self.widgetHeight * self.widgetHeight
+        _x = (_x / 32 * 32) - 130
+        _y = _y / 32 * 32
         return _x, _y
 
     def get_shadow_status(self):
@@ -115,13 +107,14 @@ class LightSourceWidget(WidgetPattern):
         return self
 
     def _unit_changed(self, index):
+        self._spin_value.valueChanged.disconnect(self._number_changed)
         self._unit = self._intensity_units.currentText()
         if not self._unit == q.get_symbol(str(self._light.intensity.units)):
-            _new_value = self._light.intensity.ito(
-                q.parse_expression(str(self._unit)))
+            _new_value = self._light.intensity.to(q[str(self._unit)])
         else:
             _new_value = self._light.intensity
         self._spin_value.setValue(float(_new_value.magnitude))
+        self._spin_value.valueChanged.connect(self._number_changed)
 
     def _number_changed(self):
         _num = self._spin_value.text()
@@ -140,128 +133,96 @@ class MotorWidget(WidgetPattern):
         self._units_dict = {}
         self._units_dict['meter'] = ["mm", "um"]
         self._units_dict['degree'] = ["deg", "rad"]
-        self._units_dict['meter / second'] = ["m/s", "mm/s"]
+        self._units_dict['meter / second'] = ["m/s", "mm/s", "um/s"]
         self._units_dict['degree / second'] = ["deg/s", 'rad/s']
-        self._state = QLabel("State")
-        self._state_label = QLabel("")
-        self._state_label.setFrameShape(QFrame.WinPanel)
-        self._state_label.setFrameShadow(QFrame.Raised)
-        self._position = QLabel("Position")
         self._home_button = QToolButton()
         self._home_button.setIcon(QIcon.fromTheme("go-home"))
         self._stop_button = QToolButton()
         self._stop_button.setIcon(QIcon.fromTheme("process-stop"))
-        self._position_value = QDoubleSpinBox()
-        self._position_value.setRange(-1000000, 1000000)
-        self._position_value.setAccelerated(True)
-        self._position_value.setDecimals(3)
-        self._position_value.setAlignment(Qt.AlignRight)
-        self._positionUnits = QComboBox()
-        self._positionUnits.addItems(
-            self._units_dict[str(self._motor_widget.position.units)])
+        self._home_button.clicked.connect(self._home_button_clicked)
+        self._stop_button.clicked.connect(self._stop_button_clicked)
+        self._state = QLabel("state")
+        self._state_label = QLabel("")
+        self._state_label.setFrameShape(QFrame.WinPanel)
+        self._state_label.setFrameShadow(QFrame.Raised)
         self._layout = QGridLayout()
         self._layout.addWidget(self._state, 0, 0)
         self._layout.addWidget(self._state_label, 0, 3, 1, 1, Qt.AlignCenter)
-        self._layout.addWidget(self._position, 1, 0)
         self._layout.addWidget(self._home_button, 1, 1)
         self._layout.addWidget(self._stop_button, 1, 2)
-        self._layout.addWidget(self._position_value, 1, 3)
-        self._layout.addWidget(self._positionUnits, 1, 4)
-        self.setFixedSize(self.widgetLength, 80)
-        self.setLayout(self._layout)
-        self._positionUnits.currentIndexChanged.connect(
-            self._get_value_from_concert)
-        self._position_value.valueChanged.connect(self._position_value_changed)
-        self._home_button.clicked.connect(self._home_button_clicked)
-        self._stop_button.clicked.connect(self._stop_button_clicked)
-        try:
-            self._motor_widget.velocity
-        except:
-            self._velocity_exist = False
-        else:
-            self._velocity_exist = True
-        if self._velocity_exist:
-            self._velocity = QLabel("Velocity")
-            self._velocity_value = QDoubleSpinBox()
-            self._velocity_value.setRange(-1000000, 1000000)
-            self._velocity_value.setAccelerated(True)
-            self._velocity_value.setDecimals(3)
-            self._velocity_value.setAlignment(Qt.AlignRight)
-            self._velocity_units = QComboBox()
-            self._velocity_units.addItems(
-                self._units_dict[str(self._motor_widget.velocity.units)])
-            self._layout.addWidget(self._velocity, 2, 0)
-            self._layout.addWidget(self._velocity_value, 2, 3)
-            self._layout.addWidget(self._velocity_units, 2, 4)
-            self.setFixedSize(self.widgetLength, 100)
-            self._velocity_units.currentIndexChanged.connect(
+        self._row_number = 1
+
+        """_obj_dict is a dictionary where key is a name of widget,
+            value[0] is QDoubleSpinBox for this parameter
+            value[1] is QComboBox object with units for this parameter"""
+
+        self._obj_dict = {}
+        for param in self._motor_widget:
+            _parameter_name = param.name
+            self._value = str(param.get().result()).split(" ", 1)[0]
+            self._unit = str(param.get().result()).split(" ", 1)[1]
+            _parameter_label = QLabel(_parameter_name)
+            _parameter_value = QDoubleSpinBox()
+            _parameter_value.setRange(-1000000, 1000000)
+            _parameter_value.setAccelerated(True)
+            _parameter_value.setDecimals(3)
+            _parameter_value.setAlignment(Qt.AlignRight)
+            _parameter_unit = QComboBox()
+            _parameter_unit.addItems(
+                self._units_dict[str(getattr(self._motor_widget, _parameter_name).units)])
+            _parameter_unit.setObjectName(_parameter_name)
+            self._obj_dict[_parameter_name] = [
+                _parameter_value,
+                _parameter_unit]
+            self._layout.addWidget(_parameter_label, self._row_number, 0)
+            self._layout.addWidget(_parameter_value, self._row_number, 3)
+            self._layout.addWidget(_parameter_unit, self._row_number, 4)
+            _parameter_value.valueChanged.connect(self._value_changed)
+            _parameter_unit.currentIndexChanged.connect(
                 self._get_value_from_concert)
-            self._velocity_value.valueChanged.connect(
-                self._velocity_value_changed)
+            self._row_number += 1
+        self.setFixedSize(self.widgetLength, 60 + (self._row_number - 1) * 25)
+        self.setLayout(self._layout)
         self._get_value_from_concert()
 
     def __call__(self):
         return self
 
-    def _position_value_changed(self):
-        _num = self._position_value.text()
-        _unit = self._positionUnits.currentText()
-        _new_value = q.parse_expression(str(_num) + str(_unit))
-        try:
-            self._motor_widget.position = _new_value
-        except HardLimitError:
-            pass
-        self._get_value_from_concert()
-        self._check_state()
-
-    def _velocity_value_changed(self):
-        _num = self._velocity_value.text()
-        _unit = self._velocity_units.currentText()
-        _new_value = q.parse_expression(str(_num) + str(_unit))
-        try:
-            self._motor_widget.velocity = _new_value
-        except HardLimitError:
-            pass
-        self._get_value_from_concert()
-        self._check_state()
+    def _value_changed(self):
+        _sender = self.sender()
+        for _key, _value in self._obj_dict.iteritems():
+            if _value[0] == _sender:
+                _num = _sender.text()
+                _unit = _value[1].currentText()
+                _new_value = q.parse_expression(str(_num) + str(_unit))
+                try:
+                    setattr(self._motor_widget, _key, _new_value)
+                except HardLimitError:
+                    pass
+                self._get_value_from_concert()
+                self._check_state()
 
     def _get_value_from_concert(self):
-        self._position_value.valueChanged.disconnect(
-            self._position_value_changed)
-        self._unit = self._positionUnits.currentText()
-        if not self._unit == q.get_symbol(str(self._motor_widget.position.units)):
-            _new_value = self._motor_widget.position.ito(
-                q.parse_expression(str(self._unit)))
-        else:
-            _new_value = self._motor_widget.position
-        self._position_value.setValue(float(_new_value.magnitude))
-        self._position_value.valueChanged.connect(self._position_value_changed)
-        if self._velocity_exist:
-            self._velocity_value.valueChanged.disconnect(
-                self._velocity_value_changed)
-            self._unit1 = str(self._velocity_units.currentText()).split("/")[0]
-            self._unit2 = str(self._velocity_units.currentText()).split("/")[1]
-            self.concertUnit1 = q.get_symbol(
-                str(self._motor_widget.velocity.units).split(" / ")[0])
-            self.concertUnit2 = q.get_symbol(
-                str(self._motor_widget.velocity.units).split(" / ")[1])
-            if not self._unit1 == self.concertUnit1 or not self._unit2 == self.concertUnit2:
-                _new_value = self._motor_widget.velocity.ito(
-                    q.parse_expression(str(self._unit1) + "/" + str(self._unit2)))
+        for _key in self._obj_dict.keys():
+            _parameter_value = self._obj_dict[_key][0]
+            _parameter_unit = self._obj_dict[_key][1]
+            _parameter_value.valueChanged.disconnect(self._value_changed)
+            self._unit = _parameter_unit.currentText()
+            if not q[str(self._unit)] == q[str(getattr(self._motor_widget, _key).units)]:
+                _new_value = getattr(self._motor_widget, _key).to(
+                    q[str(self._unit)])
             else:
-                _new_value = self._motor_widget.velocity
-            self._velocity_value.setValue(float(_new_value.magnitude))
-
-            self._velocity_value.valueChanged.connect(
-                self._velocity_value_changed)
+                _new_value = getattr(self._motor_widget, _key)
+            _parameter_value.setValue(float(_new_value.magnitude))
+            _parameter_value.valueChanged.connect(self._value_changed)
         self._check_state()
 
     def _check_state(self):
         _state = self._motor_widget.state
-        if (_state == 'standby') and not (self._state_label.styleSheet() == self._green):
+        if (_state == 'standby'):
             self._state_label.setStyleSheet(self._green)
             self._state_label.setText("standby")
-        elif (_state == 'moving') and not (self._state_label.styleSheet() == self._orange):
+        elif (_state == 'moving'):
             self._state_label.setStyleSheet(self._orange)
             self._state_label.setText("moving")
 
