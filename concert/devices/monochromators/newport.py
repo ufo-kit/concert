@@ -43,7 +43,7 @@ class NewPort74000(base.Monochromator):
         """
         Set the wavelength
         """
-        self._connection.send('GOWAVE ' + wave + '\r\n')
+        self._connection.send('GOWAVE ' + str(wave) + '\r\n')
 
     def _get_wavelength(self):
         """
@@ -51,7 +51,7 @@ class NewPort74000(base.Monochromator):
         """
         self._connection.send('WAVE?\r\n')
         time.sleep(0.1)
-        self._wavelength = self._connection.recv()[8:]
+        self._wavelength = float(self._connection.recv()[8:])
         return self._wavelength
         
         
