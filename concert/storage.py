@@ -29,22 +29,20 @@ READERS = {".tif": read_tiff,
            ".tiff": read_tiff}
 
 
-def write_tiff(file_name_prefix, data):
+def write_tiff(file_name, data):
     """
     The default TIFF writer which uses :py:mod:`tifffile` module.
     Return the written file name.
     """
-    file_name = file_name_prefix + ".tif"
     tifffile.imsave(file_name, data)
 
     return file_name
 
 
-def write_libtiff(file_name_prefix, data):
+def write_libtiff(file_name, data):
     """Write a TIFF file using pylibtiff. Return the written file name."""
     from libtiff import TIFF
 
-    file_name = file_name_prefix + ".tif"
     tiff_file = TIFF.open(file_name, "w")
     try:
         tiff_file.write_image(data)
@@ -62,16 +60,14 @@ def create_directory(directory, rights=0o0750):
 
 
 @coroutine
-def write_images(writer=write_tiff, prefix="image_{:>05}"):
+def write_images(writer=write_tiff, prefix="image_{:>05}.tif"):
     """
-    write_images(writer, prefix="image_{:>05}")
+    write_images(writer=write_tiff, prefix="image_{:>05}.tif")
 
     Write images on disk with specified *writer* and file name *prefix*.
     *writer* is a callable with the following nomenclature::
 
-        writer(file_name_prefix, data)
-
-    The file extension needs to be applied by a particular writer.
+        writer(file_name, data)
     """
     i = 0
     dir_name = os.path.dirname(prefix)
