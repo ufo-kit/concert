@@ -2,9 +2,6 @@
 Test experiments. Logging is disabled, so just check the directory and log
 files creation.
 """
-import shutil
-import os
-import tempfile
 import numpy as np
 from concert.quantities import q
 from concert.coroutines.base import coroutine, inject
@@ -13,6 +10,7 @@ from concert.experiments.imaging import (Experiment as ImagingExperiment,
                                          tomo_angular_step, tomo_max_speed,
                                          tomo_projections_number, frames)
 from concert.devices.cameras.dummy import Camera
+from concert.storage import Walker
 from concert.tests import TestCase, suppressed_logging, assert_almost_equal
 
 
@@ -49,15 +47,60 @@ def test_frames():
     assert count.i == 5
 
 
+def compute_path(*parts):
+    return '/'.join(parts)
+
+
+class DummyWalker(Walker):
+    def __init__(self, root=''):
+        super(DummyWalker, self).__init__(root)
+        self._paths = set([])
+
+    @property
+    def paths(self):
+        return self._paths
+
+    def exists(self, *paths):
+        return compute_path(*paths) in self._paths
+
+    def _descend(self, name):
+        self._current = compute_path(self._current, name)
+        self._paths.add(self._current)
+
+    def _ascend(self):
+        if self._current != self._root:
+            self._current = compute_path(*self._current.split('/')[:-1])
+
+    @coroutine
+    def write_sequence(self, fname=None):
+        fname = fname if fname is not None else self._fname
+        path = compute_path(self._current, fname)
+
+        i = 0
+        while True:
+            yield
+            self._paths.add(compute_path(path, str(i)))
+            i += 1
+
+
 class TestExperimentBase(TestCase):
 
     def setUp(self):
         super(TestExperimentBase, self).setUp()
-        self.base_directory = tempfile.mkdtemp()
+        self.root = ''
+        self.walker = DummyWalker(root=self.root)
+        self.name_fmt = 'scan_{:>04}'
+        self.visited = 0
+        self.foo = Acquisition("foo", self.produce, consumer_callers=[self.consume])
+        self.bar = Acquisition("bar", self.produce)
+        self.acquisitions = [self.foo, self.bar]
+        self.num_produce = 2
         self.item = None
 
-    def tearDown(self):
-        shutil.rmtree(self.base_directory)
+    def produce(self):
+        self.visited += 1
+        for i in range(self.num_produce):
+            yield i
 
     @coroutine
     def consume(self):
@@ -69,26 +112,20 @@ class TestExperiment(TestExperimentBase):
 
     def setUp(self):
         super(TestExperiment, self).setUp()
-        self.item = None
-        self.start = 0
-        self.foo = Acquisition("foo", self.produce, consumer_callers=[self.consume])
-        self.bar = Acquisition("bar", self.produce, consumer_callers=[self.consume])
-        self.acquisitions = [self.foo, self.bar]
-        self.experiment = Experiment(self.acquisitions, self.base_directory)
-
-    def produce(self, start=0):
-        for i in range(self.start, self.start + 2):
-            yield i
+        self.experiment = Experiment(self.acquisitions, self.walker, name_fmt=self.name_fmt)
 
     def test_run(self):
         self.experiment.run().join()
-        self.assertTrue(os.path.exists(self.experiment.directory))
-        self.assertEqual(self.item, 1)
+        self.assertEqual(self.visited, len(self.experiment.acquisitions))
 
-        self.start = 2
         self.experiment.run().join()
-        self.assertTrue(os.path.exists(self.experiment.directory))
-        self.assertEqual(self.item, 3)
+        self.assertEqual(self.visited, 2 * len(self.experiment.acquisitions))
+
+        truth = set([compute_path(self.root, self.name_fmt.format(i + 1)) for i in range(2)])
+        self.assertEqual(truth, self.walker.paths)
+
+        # Consumers must be called
+        self.assertTrue(self.item is not None)
 
     def test_swap(self):
         self.experiment.swap(self.foo, self.bar)
@@ -104,15 +141,16 @@ class TestImagingExperiment(TestExperimentBase):
 
     def setUp(self):
         super(TestImagingExperiment, self).setUp()
-        self.foo = Acquisition("foo", self.produce, consumer_callers=[self.consume])
-        self.experiment = ImagingExperiment([self.foo], os.path.join(self.base_directory,
-                                            "scan_{:>03}"))
-
-    def produce(self):
-        for i in range(2):
-            yield np.ones((2, 2)) * (i + 1)
+        self.experiment = ImagingExperiment(self.acquisitions, self.walker, self.name_fmt)
 
     def test_run(self):
         self.experiment.run().join()
-        directory = os.path.join(self.experiment.directory, self.foo.name)
-        self.assertEqual(sorted(os.listdir(directory)), ['frame_00000.tif', 'frame_00001.tif'])
+
+        scan_name = self.name_fmt.format(1)
+        # Check if the writing coroutine has been attached
+        for i in range(self.num_produce):
+            foo = compute_path(self.root, scan_name, 'foo', str(i))
+            bar = compute_path(self.root, scan_name, 'bar', str(i))
+
+            self.assertTrue(self.walker.exists(foo))
+            self.assertTrue(self.walker.exists(bar))
