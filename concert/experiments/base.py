@@ -3,12 +3,8 @@ An experiment can be run multiple times. The base :py:class:`.Experiment`
 takes care of proper logging structure.
 """
 
-import os
-import re
 import logging
-from logging import FileHandler, Formatter
 from concert.async import async
-from concert.storage import create_directory
 from concert.coroutines.base import broadcast, inject
 
 
@@ -52,46 +48,35 @@ class Acquisition(object):
 class Experiment(object):
 
     r"""
-    Experiment base class. An experiment can be run multiple times
-    with logging output saved on disk. The log from every
-    :meth:`~.Experiment.run` is saved in the current experiment
-    directory given by *directory_prefix*.
+    Experiment base class. An experiment can be run multiple times with the output data and log
+    stored on disk.
 
     .. py:attribute:: acquisitions
 
         A list of acquisitions this experiment is composed of
 
-    .. py:attribute:: directory_prefix
+    .. py:attribute:: walker
 
-       Directory prefix is either a formattable string in which case the
-       at each experiment run a new directory given by the prefix and
-       the current iteration is created. If the *directory_prefix* is a
-       simple string then the individual experiment runs are stored in
-       its subdirectories starting with scan\_ and suffixed by the run
-       iteration.
+       A :class:`concert.storage.Walker` stores experimental data and
+       logging output
 
-    .. py:attribute:: log
+    .. py:attribute:: name_fmt
 
-        A logger to which a file handler will be attached in order to
-        store the log output in the current directory
-
-    .. py:attribute:: log_file_name
-
-        Log file name used for storing logging information.
+        Since experiment can be run multiple times each iteration will have a separate entry
+        on the disk. The entry consists of a name and a number of the current iteration, so the
+        parameter is a formattable string.
 
     """
 
-    def __init__(self, acquisitions, directory_prefix, log=None,
-                 log_file_name="experiment.log"):
+    def __init__(self, acquisitions, walker, name_fmt='scan_{:>04}'):
         self.acquisitions = acquisitions
-        self.directory_prefix = directory_prefix
-        self.log = log
-        self.log_file_name = log_file_name
-        pattern = re.compile(".*\{.*\}.*")
-        if pattern.match(self.directory_prefix) is None:
-            self.directory_prefix = os.path.join(self.directory_prefix, "scan_{:>03}")
-        self._file_stream = None
+        self.walker = walker
+        self.name_fmt = name_fmt
         self.iteration = 1
+        # The data is not supposed to be overwritten, so find an iteration which
+        # hasn't been used yet
+        while self.walker.exists(self.name_fmt.format(self.iteration)):
+            self.iteration += 1
 
     def swap(self, first, second):
         """
@@ -118,23 +103,6 @@ class Experiment(object):
                 return acq
         raise ExperimentError("Acquisition with name `{}' not found".format(name))
 
-    @property
-    def directory(self):
-        """Current directory for running the experiment."""
-        return self.directory_prefix.format(self.iteration)
-
-    def _create_stream_handler(self):
-        """
-        Create file stream handler for given scan to log information
-        to the current directory.
-        """
-        path = os.path.join(self.directory, self.log_file_name)
-        self._file_stream = FileHandler(path)
-        self._file_stream.setLevel(logging.INFO)
-        formatter = Formatter("[%(asctime)s] %(levelname)s: %(name)s: %(message)s")
-        self._file_stream.setFormatter(formatter)
-        self.log.addHandler(self._file_stream)
-
     def acquire(self):
         """
         Acquire data by running the acquisitions. This is the method which implements
@@ -149,27 +117,17 @@ class Experiment(object):
         """
         run()
 
-        Create current directory, attach logging output to file and run the
-        :meth:`~.base.Experiment.acquire`. After the run is complete the logging
-        is cleaned up automatically. This method should *not* be overriden.
+        Compute the next iteration and run the :meth:`~.base.Experiment.acquire`.
         """
-        # Create directory for next scan
-        while os.path.exists(self.directory):
-            # Iterate until an unused directory has been found
-            self.iteration += 1
-        create_directory(self.directory)
-
-        # Initiate new logger for this scan
-        if self.log:
-            self._create_stream_handler()
+        self.walker.descend(self.name_fmt.format(self.iteration))
 
         try:
             self.acquire()
         finally:
-            if self.log:
-                self._file_stream.close()
-                self.log.removeHandler(self._file_stream)
+            self.walker.ascend()
+            self.iteration += 1
 
 
 class ExperimentError(Exception):
+    """Experiment-related exceptions."""
     pass
