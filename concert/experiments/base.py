@@ -129,4 +129,5 @@ class Experiment(object):
 
 
 class ExperimentError(Exception):
+    """Experiment-related exceptions."""
     pass
