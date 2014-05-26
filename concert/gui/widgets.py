@@ -3,6 +3,7 @@ from PyQt4.QtCore import *
 from concert.devices.lightsources.dummy import LightSource
 from concert.devices.motors.dummy import LinearMotor, ContinuousRotationMotor
 from concert.devices.motors.dummy import ContinuousLinearMotor, RotationMotor
+from concert.devices.positioners.dummy import Positioner
 from concert.quantities import q
 from concert.devices.base import Device
 from concert.base import HardLimitError
@@ -14,6 +15,7 @@ light2 = LightSource()
 contLin3 = ContinuousLinearMotor()
 rotation4 = RotationMotor()
 contRot5 = ContinuousRotationMotor()
+positioner = Positioner()
 
 
 class WidgetPattern(QGroupBox):
@@ -21,13 +23,26 @@ class WidgetPattern(QGroupBox):
     """Determines basic device widgets behavior"""
 
     def __init__(self, name, parent=None):
-        super(WidgetPattern, self).__init__(name, parent)
+        super(WidgetPattern, self).__init__(parent=parent)
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(0, 24, 0, 0)
         self._offset = 0
         self._cursor = QCursor
         self.widgetLength = 280
         self.widgetHeight = 20
         global shadowAccepted
         shadowAccepted = False
+        self.name = QLabel(parent=self)
+        self.name.setText(name)
+        self.name.adjustSize()
+        self.name.move(self.widgetLength / 2 - self.name.width() / 2, 5)
+        self.close_button = QToolButton(parent=self)
+        self.close_button.resize(24, 24)
+        self.close_button.setAutoRaise(True)
+        self.close_button.move(self.widgetLength - self.close_button.width(), 0)
+        self.close_button.setIcon(QIcon.fromTheme("application-exit"))
+        self.grid_x_step = 140
+        self.grid_y_step = 32
 
     def mousePressEvent(self, event):
         self._offset = event.pos()
@@ -68,8 +83,8 @@ class WidgetPattern(QGroupBox):
         _y = self.mapToParent(self.mapFromGlobal(self._cursor.pos())).y()
         if _x < self.widgetLength:
             _x = self.widgetLength
-        _x = (_x / 32 * 32) - 130
-        _y = _y / 32 * 32
+        _x = (_x / self.grid_x_step * self.grid_x_step) - 130
+        _y = _y / self.grid_y_step * self.grid_y_step
         return _x, _y
 
     def get_shadow_status(self):
@@ -82,9 +97,9 @@ class WidgetPattern(QGroupBox):
 
 class LightSourceWidget(WidgetPattern):
 
-    def __init__(self, name, parent=None):
+    def __init__(self, name, deviceObject,parent=None):
         super(LightSourceWidget, self).__init__(name, parent)
-        self._light = LightSource()
+        self._light = deviceObject
         self._label = QLabel("Intensity")
         self._spin_value = QDoubleSpinBox()
         self._spin_value.setRange(-1000000, 1000000)
@@ -99,7 +114,7 @@ class LightSourceWidget(WidgetPattern):
         self._layout.addWidget(self._spin_value, 0, 1)
         self._layout.addWidget(self._intensity_units, 0, 2)
         self.setFixedSize(self.widgetLength, 60)
-        self.setLayout(self._layout)
+        self.layout.addLayout(self._layout)
         self._intensity_units.currentIndexChanged.connect(self._unit_changed)
         self._spin_value.valueChanged.connect(self._number_changed)
 
@@ -182,7 +197,7 @@ class MotorWidget(WidgetPattern):
                 self._get_value_from_concert)
             self._row_number += 1
         self.setFixedSize(self.widgetLength, 60 + (self._row_number - 1) * 25)
-        self.setLayout(self._layout)
+        self.layout.addLayout(self._layout)
         self._get_value_from_concert()
 
     def __call__(self):
@@ -233,3 +248,53 @@ class MotorWidget(WidgetPattern):
     def _stop_button_clicked(self):
         self._motor_widget.stop
         self._check_state()
+
+
+class PositionerWidget(WidgetPattern):
+
+    def __init__(self, name, deviceObject,parent=None):
+        super(PositionerWidget, self).__init__(name, parent)
+        self._positioner_widget = deviceObject
+        self._button_left = QToolButton()
+        self._button_left.setIcon(QIcon.fromTheme("go-previous"))
+        self._button_right = QToolButton()
+        self._button_right.setIcon(QIcon.fromTheme("go-next"))
+        self._button_up = QToolButton()
+        self._button_up.setIcon(QIcon.fromTheme("go-up"))
+        self._button_down = QToolButton()
+        self._button_down.setIcon(QIcon.fromTheme("go-down"))
+        self._vertical_axis = QComboBox()
+        self._vertical_axis.addItems(["x", "y", "z"])
+        self._horizontal_axis = QComboBox()
+        self._horizontal_axis.addItems(["x", "y", "z"])
+        self._layout = QGridLayout()
+        self._layout.addWidget(self._button_left, 1, 0, Qt.AlignRight)
+        self._layout.addWidget(self._button_right, 1, 2, Qt.AlignLeft)
+        self._layout.addWidget(self._button_up, 0, 1, Qt.AlignBottom)
+        self._layout.addWidget(self._button_down, 2, 1, Qt.AlignTop)
+        self._layout.addWidget(self._vertical_axis, 0, 2, Qt.AlignLeft)
+        self._layout.addWidget(self._horizontal_axis, 1, 2, Qt.AlignCenter)
+        self.layout.addLayout(self._layout)
+        self.setFixedSize(self.widgetLength, 100)
+        
+        self._button_left.clicked.connect(self._button_left_clicked)
+        self._button_right.clicked.connect(self._button_right_clicked)
+        self._button_up.clicked.connect(self._button_up_clicked)
+        self._button_down.clicked.connect(self._button_down_clicked)
+        
+    def __call__(self):
+        return self
+    
+    def _button_left_clicked(self):
+        _index=self._horizontal_axis.currentIndex()
+    
+    def _button_right_clicked(self):
+        print "right"
+    
+    def _button_up_clicked(self):
+        print "up"
+    
+    def _button_down_clicked(self):
+        print "down"
+    
+
