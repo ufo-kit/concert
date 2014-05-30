@@ -9,12 +9,11 @@ from PyQt4.QtGui import *
 from widgets import *
 
 
-
 class ConcertGUI(QWidget):
 
     def __init__(self, parent=None):
         super(ConcertGUI, self).__init__(parent)
-        self.device_tree = device_treeWidget()
+        self.device_tree = DeviceTreeWidget()
         self._grid_lines = []
         self._width = 160
         self.device_tree.setFixedWidth(self._width)
@@ -25,18 +24,18 @@ class ConcertGUI(QWidget):
         """ Adding items to device tree"""
         for obj in globals():
             if isinstance(globals()[obj], Device):
-                _name_of_class = globals()[obj].__class__.__name__
+                name_of_class = globals()[obj].__class__.__name__
                 try:
-                    str(_name_of_class).split("Motor")[1]
+                    str(name_of_class).split("Motor")[1]
                 except:
-                    if _name_of_class not in self._items_list:
-                        _header = QTreeWidgetItem(
-                            self.device_tree, [_name_of_class])
-                        QTreeWidgetItem(_header, [obj])
-                        self._items_list[_name_of_class] = _header
+                    if name_of_class not in self._items_list:
+                        header = QTreeWidgetItem(
+                            self.device_tree, [name_of_class])
+                        QTreeWidgetItem(header, [obj])
+                        self._items_list[name_of_class] = header
                     else:
                         QTreeWidgetItem(
-                            self._items_list[_name_of_class],
+                            self._items_list[name_of_class],
                             [obj])
                 else:
                     if "Motors" not in self._items_list:
@@ -45,37 +44,37 @@ class ConcertGUI(QWidget):
                             ["Motors"])
                         self._items_list["Motors"] = _header_motor
                         self.device_tree.setItemExpanded(_header_motor, True)
-                    _name_of_class = str(_name_of_class).split("Motor")[0]
-                    if _name_of_class not in self._items_list:
-                        _header = QTreeWidgetItem(
+                    name_of_class = str(name_of_class).split("Motor")[0]
+                    if name_of_class not in self._items_list:
+                        header = QTreeWidgetItem(
                             _header_motor,
-                            [_name_of_class])
-                        QTreeWidgetItem(_header, [obj])
-                        self._items_list[_name_of_class] = _header
+                            [name_of_class])
+                        QTreeWidgetItem(header, [obj])
+                        self._items_list[name_of_class] = header
                     else:
                         QTreeWidgetItem(
-                            self._items_list[_name_of_class],
+                            self._items_list[name_of_class],
                             [obj])
-                self.device_tree.setItemExpanded(_header, True)
-        _exit_action = QAction(
+                self.device_tree.setItemExpanded(header, True)
+        exit_action = QAction(
             QIcon.fromTheme("application-exit"),
             '&Exit',
             self)
-        _exit_action.setShortcut('Ctrl+Q')
-        _exit_action.setStatusTip('Exit application')
-        _exit_action.triggered.connect(self.close)
-        _hide_tree_action = QAction(
+        exit_action.setShortcut('Ctrl+Q')
+        exit_action.setStatusTip('Exit application')
+        exit_action.triggered.connect(self.close)
+        hide_tree_action = QAction(
             QIcon.fromTheme("zoom-fit-best"),
             '&Hide/Show list of widgets',
             self)
-        _hide_tree_action.setShortcut('Ctrl+H')
-        _hide_tree_action.setStatusTip('Hide/Show list of widgets')
-        _hide_tree_action.triggered.connect(self._hide_widgets_list)
+        hide_tree_action.setShortcut('Ctrl+H')
+        hide_tree_action.setStatusTip('Hide/Show list of widgets')
+        hide_tree_action.triggered.connect(self._hide_widgets_list)
         self._menubar = QMenuBar()
-        _file_menu = self._menubar.addMenu('&File')
-        _file_menu.addAction(_exit_action)
-        _view_menu = self._menubar.addMenu('&View')
-        _view_menu.addAction(_hide_tree_action)
+        file_menu = self._menubar.addMenu('&File')
+        file_menu.addAction(exit_action)
+        view_menu = self._menubar.addMenu('&View')
+        view_menu.addAction(hide_tree_action)
         self._main_layout = QVBoxLayout()
         self._main_layout.addWidget(self._menubar, 0)
         self._main_layout.addWidget(self.device_tree, 1, Qt.AlignLeft)
@@ -109,32 +108,36 @@ class ConcertGUI(QWidget):
         self.widget().show()
 
     def createLightSource(self, nameOfWidget):
-        self.widget = LightSourceWidget(nameOfWidget, 
-             globals()[str(nameOfWidget)],self)
+        self.widget = LightSourceWidget(nameOfWidget,
+                                        globals()[str(nameOfWidget)], self)
         self.widget().show()
-        
 
     def createPositioner(self, nameOfWidget):
         self.widget = PositionerWidget(nameOfWidget,
-             globals()[str(nameOfWidget)],self)
+                                       globals()[str(nameOfWidget)], self)
+        self.widget().show()
+
+    def createShutter(self, nameOfWidget):
+        self.widget = ShutterWidget(nameOfWidget,
+                                    globals()[str(nameOfWidget)], self)
         self.widget().show()
 
     def paintEvent(self, event):
         if self.widget.get_shadow_status():
-            _qp = QPainter()
-            _qp.begin(self)
-            _qp.setBrush(QColor("#ffcccc"))
-            _qp.setPen(Qt.NoPen)
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor("#ffcccc"))
+            qp.setPen(Qt.NoPen)
             self.x, self.y = self.widget.get_grid_position()
-            _qp.drawRect(
+            qp.drawRect(
                 self.x,
                 self.y,
                 self.widget.widgetLength,
                 self.widget.height())
-            _qp.setPen(QPen(Qt.black, 1, Qt.DashDotLine))
-            _qp.drawLines(self._grid_lines)
+            qp.setPen(QPen(Qt.black, 1, Qt.DashDotLine))
+            qp.drawLines(self._grid_lines)
             self.update()
-            _qp.end()
+            qp.end()
 
     def resizeEvent(self, event):
         for i in xrange(int(self.width() / self.widget.grid_x_step)):
@@ -151,24 +154,26 @@ class ConcertGUI(QWidget):
     def _hide_widgets_list(self):
         self._width = 160 - self._width
         self.device_tree.setFixedWidth(self._width)
-        
+
     def _close_button_clicked(self):
-        _sender=self.sender().parent()
-        _item=self.device_tree.findItems(_sender.name.text(), Qt.MatchExactly | Qt.MatchRecursive)
-        _item[-1].setDisabled(False)
-        _sender.close()
+        sender = self.sender().parent()
+        item = self.device_tree.findItems(
+            sender.name.text(),
+            Qt.MatchExactly | Qt.MatchRecursive)
+        item[-1].setDisabled(False)
+        sender.close()
 
 
-class device_treeWidget(QTreeWidget):
+class DeviceTreeWidget(QTreeWidget):
 
     """Determines device tree widget behavior"""
 
     def __init__(self, parent=None):
-        super(device_treeWidget, self).__init__(parent)
+        super(DeviceTreeWidget, self).__init__(parent)
         self._func = 0
 
     def mousePressEvent(self, event):
-        super(device_treeWidget, self).mousePressEvent(event)
+        super(DeviceTreeWidget, self).mousePressEvent(event)
         if (event.buttons() & Qt.LeftButton) and not gui.device_tree.currentItem().isDisabled():
             self._new_widget_created_flag = False
             self._offset = event.pos()
@@ -191,14 +196,15 @@ class device_treeWidget(QTreeWidget):
                     if not self._new_widget_created_flag:
                         self._new_widget_created_flag = True
                         self._func(gui.device_tree.currentItem().text(0))
-                        gui.widget.close_button.clicked.connect(gui._close_button_clicked)
+                        gui.widget.close_button.clicked.connect(
+                            gui._close_button_clicked)
                     gui.widget.move_widget(
                         QTreeWidget.mapToParent(
                             self,
                             event.pos() - QPoint(140, 0)))
 
     def mouseReleaseEvent(self, event):
-        super(device_treeWidget, self).mouseReleaseEvent(event)
+        super(DeviceTreeWidget, self).mouseReleaseEvent(event)
         QApplication.restoreOverrideCursor()
         if self._func and self._new_widget_created_flag:
             gui.widget.move_by_grid()
@@ -207,11 +213,11 @@ class device_treeWidget(QTreeWidget):
 
 if __name__ == '__main__':
     import sys
-    _app = QApplication(sys.argv)
-    _pal = QPalette
-    _pal = _app.palette()
-    _pal.setColor(QPalette.Window, QColor.fromRgb(230, 227, 224))
-    _app.setPalette(_pal)
+    app = QApplication(sys.argv)
+    pal = QPalette
+    pal = app.palette()
+    pal.setColor(QPalette.Window, QColor.fromRgb(230, 227, 224))
+    app.setPalette(pal)
     gui = ConcertGUI()
     gui.show()
-    sys.exit(_app.exec_())
+    sys.exit(app.exec_())
