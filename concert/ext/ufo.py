@@ -209,7 +209,7 @@ class FlatCorrectedBackproject(InjectProcess):
     rotation.
     """
 
-    def __init__(self, flat_row, dark_row, axis_pos=None):
+    def __init__(self, axis_pos=None, flat_row=None, dark_row=None):
         self.pm = PluginManager()
         self.sino_correction = self.pm.get_task('sino-correction')
         self.fft = self.pm.get_task('fft', dimensions=1)
@@ -247,7 +247,10 @@ class FlatCorrectedBackproject(InjectProcess):
 
     @dark_row.setter
     def dark_row(self, row):
-        self._dark_row = row.astype(np.float32)
+        if row is not None:
+            row = row.astype(np.float32)
+
+        self._dark_row = row
 
     @property
     def flat_row(self):
@@ -255,7 +258,10 @@ class FlatCorrectedBackproject(InjectProcess):
 
     @flat_row.setter
     def flat_row(self, row):
-        self._flat_row = row.astype(np.float32)
+        if row is not None:
+            row = row.astype(np.float32)
+
+        self._flat_row = row
 
     @coroutine
     def __call__(self, consumer):
@@ -266,6 +272,8 @@ class FlatCorrectedBackproject(InjectProcess):
         while True:
             sinogram = yield
             self.insert(sinogram.astype(np.float32), node=self.sino_correction, index=0)
+            if self.dark_row is None or self.flat_row is None:
+                raise ValueError('Both flat and dark rows must be set')
             self.insert(self.dark_row, node=self.sino_correction, index=1)
             self.insert(self.flat_row, node=self.sino_correction, index=2)
             self.crop.props.width = sinogram.shape[1]
