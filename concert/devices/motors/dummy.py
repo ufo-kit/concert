@@ -3,6 +3,7 @@ import random
 from concert.base import HardLimitError
 from concert.quantities import q
 from concert.devices.motors import base
+import time
 
 
 class _PositionMixin(object):
@@ -65,6 +66,18 @@ class LinearMotor(base.LinearMotor, _PositionMixin):
             return 'standby'
 
         return 'hard-limit'
+
+
+class SlowLinearMotor(LinearMotor):
+
+    """A linear step motor dummy."""
+
+    def __init__(self, position=None):
+        super(SlowLinearMotor, self).__init__()
+
+    def _set_position(self, position):
+        time.sleep(2)
+        super(SlowLinearMotor, self)._set_position(position)
 
 
 class ContinuousLinearMotor(LinearMotor, base.ContinuousLinearMotor, _ContinuousMixin):
