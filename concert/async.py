@@ -24,14 +24,6 @@ except ImportError:
     import queue
 
 
-# Provide nicely formatted exceptions if possible
-_colored_exceptions = True
-try:
-    from IPython.core.ultratb import AutoFormattedTB
-except ImportError:
-    _colored_exceptions = False
-
-
 # Patch futures so that they provide a join() and kill() method
 def _join(self, _timeout=None):
     self.result()
@@ -61,10 +53,7 @@ def no_async(func):
             result = func(*args, **kwargs)
             future.set_result(result)
         except Exception as e:
-            if _colored_exceptions:
-                AutoFormattedTB(mode='Verbose')()
-            else:
-                traceback.print_exc()
+            traceback.print_exc()
             future.set_exception(e)
 
         return future
