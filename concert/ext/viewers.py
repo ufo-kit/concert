@@ -376,6 +376,9 @@ class _PyplotUpdater(_PyplotUpdaterBase):
         self.line = None
         self.style = style
         self.plot_kwargs = {} if plot_kwargs is None else plot_kwargs
+        if 'color' not in self.plot_kwargs:
+            # Matplotlib changes colors all the time by default
+            self.plot_kwargs['color'] = 'b'
         self.autoscale = autoscale
         self.commands = {_PyplotUpdater.PLOT: self.plot,
                          _PyplotUpdater.STYLE: self.change_style,
