@@ -607,6 +607,8 @@ class _PyplotImageUpdater(_PyplotUpdaterBase):
         Determine whether the colormap limits changed enough for colorbar
         redrawing.
         """
+        if lower >= upper:
+            return False
         new_range = upper - lower
         lower_ratio = np.abs(lower - self.mpl_image.get_clim()[0]) / new_range
         upper_ratio = np.abs(upper - self.mpl_image.get_clim()[1]) / new_range
