@@ -1,23 +1,10 @@
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
-from concert.devices.lightsources.dummy import LightSource
-from concert.devices.motors.dummy import LinearMotor, ContinuousRotationMotor
-from concert.devices.motors.dummy import ContinuousLinearMotor, RotationMotor
-from concert.devices.positioners.dummy import Positioner
-from concert.devices.shutters.dummy import Shutter
+from PyQt4.QtGui import QGroupBox, QVBoxLayout, QCursor, QLabel, QToolButton, QFrame
+from PyQt4.QtGui import QApplication, QGridLayout, QDoubleSpinBox, QIcon, QComboBox, QSlider
+from PyQt4.QtCore import Qt, QPoint, QObject, SIGNAL, QRect
 from concert.quantities import q
 from concert.devices.base import Device
 from concert.base import HardLimitError
-
-linear1 = LinearMotor()
-linear2 = LinearMotor()
-light1 = LightSource()
-light2 = LightSource()
-contLin3 = ContinuousLinearMotor()
-rotation4 = RotationMotor()
-contRot5 = ContinuousRotationMotor()
-positioner = Positioner()
-shutter = Shutter()
+from concert.session.management import load
 
 
 class WidgetPattern(QGroupBox):
@@ -162,7 +149,6 @@ class MotorWidget(WidgetPattern):
         self._green = "background-color: rgb(230, 255, 230);"
         self._orange = "background-color: rgb(255, 214, 156);"
         self._motor_widget = deviceObject
-
         self._home_button = QToolButton()
         self._home_button.setIcon(QIcon.fromTheme("go-home"))
         self._stop_button = QToolButton()
@@ -224,11 +210,16 @@ class MotorWidget(WidgetPattern):
                 unit = value[1].currentText()
                 new_value = q.parse_expression(str(num) + str(unit))
                 try:
-                    setattr(self._motor_widget, key, new_value)
+                    f = getattr(
+                        self._motor_widget, "set_" + key, None)(new_value)
+                    f.add_done_callback(self.state_switched)
                 except HardLimitError:
                     pass
                 self._get_value_from_concert()
-                self._check_state()
+
+    def state_switched(self, f):
+        QObject.connect(self, SIGNAL("state_changed"), self._check_state)
+        self.emit(SIGNAL("state_changed"))
 
     def _get_value_from_concert(self):
         for _key in self._obj_dict.keys():
@@ -247,6 +238,7 @@ class MotorWidget(WidgetPattern):
 
     def _check_state(self):
         state = self._motor_widget.state
+
         if (state == 'standby'):
             self._state_label.setStyleSheet(self._green)
             self._state_label.setText("standby")

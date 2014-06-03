@@ -1,9 +1,4 @@
-
-import sys
-import os
-import concert
-
-from concert.helpers import Command, Bunch
+from concert.helpers import Command
 
 
 class GuiCommand(Command):
@@ -16,5 +11,14 @@ class GuiCommand(Command):
         super(GuiCommand, self).__init__('gui', opts)
 
     def run(self, session):
-        path = os.path.dirname(concert.__file__)
-        os.system("python " + path + "/gui/main.py 1")
+        import sys
+        from PyQt4.QtGui import QApplication, QPalette, QColor
+        from concert.gui.main import ConcertGUI
+        app = QApplication(sys.argv)
+        pal = QPalette
+        pal = app.palette()
+        pal.setColor(QPalette.Window, QColor.fromRgb(230, 227, 224))
+        app.setPalette(pal)
+        gui = ConcertGUI(session)
+        gui.show()
+        sys.exit(app.exec_())
