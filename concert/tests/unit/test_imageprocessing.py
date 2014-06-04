@@ -27,7 +27,7 @@ def test_rotation_axis():
         left = triangle(n, width, left_position)
         right = triangle(n, width, right_position, left=False)
 
-        center = compute_rotation_axis(left, right, is_absorptivity=True)
+        center = compute_rotation_axis(left, right)
         truth = (left_position + right_position + width) / 2.0 * q.px
         assert_almost_equal(center, truth)
 

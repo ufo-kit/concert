@@ -286,21 +286,15 @@ def center_of_mass(frame):
         return np.array([y, x])
 
 
-def compute_rotation_axis(first_projection, last_projection, is_absorptivity=True):
+def compute_rotation_axis(first_projection, last_projection):
     """
     Compute the tomographic rotation axis based on cross-correlation technique.
     *first_projection* is the projection at 0 deg, *last_projection* is the projection
-    at 180 deg. If *is_absorptivity* is True the input images are absorptivities.
+    at 180 deg.
     """
     width = first_projection.shape[1]
-    first_projection = np.copy(first_projection)
-    last_projection = np.copy(last_projection)
-
-    # Cut below/above (based on is_absorptivity) the mean to get rid of the background
-    mean = first_projection.mean()
-    cmp = np.less if is_absorptivity else np.greater
-    first_projection[cmp(first_projection, mean)] = 0
-    last_projection[cmp(last_projection, mean)] = 0
+    first_projection = first_projection - first_projection.mean()
+    last_projection = last_projection - last_projection.mean()
 
     # The rotation by 180 deg flips the image horizontally, in order
     # to do cross-correlation by convolution we must also flip it
