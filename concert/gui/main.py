@@ -18,11 +18,9 @@ class ConcertGUI(QMainWindow):
         self.session = load(session_name)
         self.device_tree = DeviceTreeWidget(self)
         self._grid_lines = []
-        self._width = 160
-        self.device_tree.setFixedWidth(self._width)
+        self.device_tree.setMaximumWidth(200)
         self.device_tree.header().setStretchLastSection(False)
         self.device_tree.setHeaderItem(QTreeWidgetItem(["Devices"]))
-        self.device_tree.setColumnWidth(0, 150)
         self._items_list = {}
         """ Adding items to device tree"""
         for name in dir(self.session):
@@ -60,6 +58,7 @@ class ConcertGUI(QMainWindow):
                             self._items_list[name_of_class],
                             [name])
                 self.device_tree.setItemExpanded(header, True)
+        self.device_tree.resizeColumnToContents(0)
         exit_action = QAction(
             QIcon.fromTheme("application-exit"),
             '&Exit',
@@ -94,18 +93,17 @@ class ConcertGUI(QMainWindow):
         console_dock = QDockWidget("Console", self)
         console_dock.setWidget(cons)
         self.addDockWidget(Qt.BottomDockWidgetArea, console_dock)
-        self.resize(800, 600)
         self.setCentralWidget(self.device_tree)
         view_menu.addAction(hide_tree_action)
         self.setWindowTitle("Concert GUI")
-        self.resize(1024, 500)
+        self.resize(1024, 1000)
         self.widget = WidgetPattern("")
 
     def createMotors(self, nameOfWidget):
         self.widget = MotorWidget(
             str(nameOfWidget),
             getattr(self.session, str(nameOfWidget)), self)
-        self.widget().show()
+        self.widget.show()
 
     def createLightSource(self, nameOfWidget):
         self.widget = LightSourceWidget(nameOfWidget,
@@ -121,6 +119,11 @@ class ConcertGUI(QMainWindow):
         self.widget = ShutterWidget(nameOfWidget,
                                     getattr(self.session, str(nameOfWidget)), self)
         self.widget().show()
+
+    def createCamera(self, nameOfWidget):
+        self.widget = CameraWidget(nameOfWidget,
+                                   getattr(self.session, str(nameOfWidget)), self)
+        self.widget.show()
 
     def paintEvent(self, event):
         if self.widget.get_shadow_status():
@@ -193,7 +196,6 @@ class DeviceTreeWidget(QTreeWidget):
                 self.gui,
                 "create" +
                 str(self.itemText), None)
-            print self.itemText
             if self._func:
                 QApplication.setOverrideCursor(QCursor(Qt.ClosedHandCursor))
         self.itemText = str(self.itemText)
@@ -203,7 +205,7 @@ class DeviceTreeWidget(QTreeWidget):
                 self.gui.device_tree.currentItem().isDisabled()):
             _distance = (event.pos() - self._offset).manhattanLength()
             if _distance > QApplication.startDragDistance():
-                if self._func:
+                if self._func and self.gui.device_tree.currentItem().child(0) is None:
                     if not self._new_widget_created_flag:
                         self._new_widget_created_flag = True
                         self._func(self.gui.device_tree.currentItem().text(0))

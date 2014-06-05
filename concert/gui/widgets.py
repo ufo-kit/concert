@@ -1,10 +1,14 @@
 from PyQt4.QtGui import QGroupBox, QVBoxLayout, QCursor, QLabel, QToolButton, QFrame
-from PyQt4.QtGui import QApplication, QGridLayout, QDoubleSpinBox, QIcon, QComboBox, QSlider
+from PyQt4.QtGui import QApplication, QGridLayout, QDoubleSpinBox, QIcon, QComboBox
+from PyQt4.QtGui import QPushButton, QSlider
 from PyQt4.QtCore import Qt, QPoint, QObject, SIGNAL, QRect
 from concert.quantities import q
 from concert.devices.base import Device
 from concert.base import HardLimitError
 from concert.session.management import load
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbar
 
 
 class WidgetPattern(QGroupBox):
@@ -40,6 +44,10 @@ class WidgetPattern(QGroupBox):
         self._units_dict['degree'] = ["deg", "rad"]
         self._units_dict['meter / second'] = ["m/s", "mm/s", "um/s"]
         self._units_dict['degree / second'] = ["deg/s", 'rad/s']
+        self._units_dict['second'] = ["s", "ms"]
+        self._units_dict['pixel'] = ["pixel"]
+        self._units_dict['micrometer'] = ["um", "nm"]
+        self._units_dict['1 / second'] = ["1 / second"]
 
     def mousePressEvent(self, event):
         global shadowAccepted
@@ -198,9 +206,6 @@ class MotorWidget(WidgetPattern):
         self.setFixedSize(self.widgetLength, 60 + (self._row_number - 1) * 25)
         self.layout.addLayout(self._layout)
         self._get_value_from_concert()
-
-    def __call__(self):
-        return self
 
     def _value_changed(self):
         sender = self.sender()
@@ -423,3 +428,96 @@ class ShutterWidget(WidgetPattern):
             self._shutter.open()
         elif value == 0:
             self._shutter.close()
+
+
+class CameraWidget(WidgetPattern):
+
+    def __init__(self, name, deviceObject, parent=None):
+        super(CameraWidget, self).__init__(name, parent)
+        self.camera = deviceObject
+        self.figure = plt.figure()
+        # this is the Canvas Widget that displays the `figure`
+        # it takes the `figure` instance as a parameter to __init__
+        self.canvas = FigureCanvas(self.figure)
+        self.toolbar = NavigationToolbar(self.canvas, self)
+        self.button = QPushButton('Update')
+        self.button.clicked.connect(self.plot)
+        layout = QGridLayout()
+        layout.addWidget(self.canvas, 0, 0, 1, 5)
+        layout.addWidget(self.toolbar, 1, 0, 1, 5)
+        layout.addWidget(self.button, 2, 0, 1, 5)
+        self._row_number = 3
+
+        """_obj_dict is a dictionary where key is a name of widget,
+            value[0] is QDoubleSpinBox for this parameter
+            value[1] is QComboBox object with units for this parameter"""
+
+        self._obj_dict = {}
+        for param in self.camera:
+            _parameter_name = param.name
+            self._value = str(param.get().result()).split(" ", 1)[0]
+            try:
+                self._unit = str(param.get().result()).split(" ", 1)[1]
+            except:
+                pass
+            else:
+                parameter_label = QLabel(_parameter_name)
+                parameter_value = QDoubleSpinBox()
+                parameter_value.setRange(-1000000, 1000000)
+                parameter_value.setAccelerated(True)
+                parameter_value.setDecimals(3)
+                parameter_value.setAlignment(Qt.AlignRight)
+                parameter_unit = QComboBox()
+                parameter_unit.addItems(
+                    self._units_dict[str(getattr(self.camera, _parameter_name).units)])
+                parameter_unit.setObjectName(_parameter_name)
+                self._obj_dict[_parameter_name] = [
+                    parameter_value,
+                    parameter_unit]
+                layout.addWidget(parameter_label, self._row_number, 0)
+                layout.addWidget(parameter_value, self._row_number, 3)
+                layout.addWidget(parameter_unit, self._row_number, 4)
+                parameter_value.valueChanged.connect(self._value_changed)
+                parameter_unit.currentIndexChanged.connect(
+                    self._get_value_from_concert)
+                self._row_number += 1
+        self.setFixedSize(self.widgetLength, 360 + (self._row_number - 1) * 25)
+        self.layout.addLayout(layout)
+        self.plot()
+        self._get_value_from_concert()
+
+    def _value_changed(self):
+        sender = self.sender()
+        for key, value in self._obj_dict.iteritems():
+            if value[0] == sender:
+                num = sender.text()
+                unit = value[1].currentText()
+                new_value = q.parse_expression(str(num) + str(unit))
+                try:
+                    getattr(
+                        self.camera, "set_" + key, None)(new_value)
+                except HardLimitError:
+                    pass
+                self._get_value_from_concert()
+
+    def _get_value_from_concert(self):
+        for _key in self._obj_dict.keys():
+            parameter_value = self._obj_dict[_key][0]
+            parameter_unit = self._obj_dict[_key][1]
+            parameter_value.valueChanged.disconnect(self._value_changed)
+            self._unit = parameter_unit.currentText()
+            if not q[str(self._unit)] == q[str(getattr(self.camera, _key).units)]:
+                new_value = getattr(self.camera, _key).to(
+                    q[str(self._unit)])
+            else:
+                new_value = getattr(self.camera, _key)
+            parameter_value.setValue(float(new_value.magnitude))
+            parameter_value.valueChanged.connect(self._value_changed)
+
+    def plot(self):
+        data = self.camera.grab()
+        ax = self.figure.add_subplot(111)
+        ax.hold(False)
+        ax.imshow(data, interpolation='nearest')
+        self.canvas.draw()
+#
