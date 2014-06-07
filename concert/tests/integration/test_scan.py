@@ -2,6 +2,7 @@ from concert.quantities import q
 from concert.tests import assert_almost_equal, TestCase
 from concert.devices.motors.dummy import LinearMotor
 from concert.processes import scan, ascan, dscan, scan_param_feedback
+from concert.async import resolve
 
 
 def compare_sequences(first_sequence, second_sequence, assertion):
@@ -43,11 +44,10 @@ class TestScan(TestCase):
         def feedback():
             return self.motor.position
 
-        x, y = scan(self.motor['position'], feedback,
-                    1 * q.mm, 10 * q.mm, 10).result()
+        x, y = resolve(scan(self.motor['position'], feedback, 1 * q.mm, 10 * q.mm, 12))
         compare_sequences(x, y, self.assertEqual)
 
     def test_scan_param_feedback(self):
         p = self.motor['position']
-        x, y = scan_param_feedback(p, p, 1 * q.mm, 10 * q.mm, 10).result()
+        x, y = resolve(scan_param_feedback(p, p, 1 * q.mm, 10 * q.mm, 10))
         compare_sequences(x, y, self.assertEqual)
