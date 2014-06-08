@@ -17,33 +17,37 @@ def _pull_first(tuple_list):
             yield tup[0]
 
 
-@async
 def scan(param, feedback, minimum=None, maximum=None, intervals=64, convert=lambda x: x):
     """
-    scan(param, feedback, minimum=None, maximum=None, intervals=64, convert=lambda x: x)
-
     Scan the parameter object in *intervals* steps between *minimum* and
-    *maximum* and call *feedback* at each step. *feedback* must return a value
-    that is evaluated at the parameter position. If *minimum* or *maximum* is
+    *maximum* and call *feedback* at each step. If *minimum* or *maximum* is
     ``None``, :attr:`.ParameterValue.lower` or :attr:`.ParameterValue.upper` is
     used.
 
     Set *convert* to a callable that transforms the parameter value prior to
     setting it.
 
-    Returns a tuple *(x, y)* with parameter and feedback values.
+    Generates futures which resolve to tuples containing the set and feedback
+    values *(x, y)*.
     """
-    minimum = minimum if minimum is not None else param.lower
-    maximum = maximum if maximum is not None else param.upper
+    minimum = minimum or param.lower
+    maximum = maximum or param.upper
 
     xss = np.linspace(minimum, maximum, intervals)
-    yss = []
+
+    @async
+    def get_value(x, previous):
+        if previous:
+            previous.join()
+
+        param.set(convert(x)).join()
+        return (x, feedback())
+
+    future = None
 
     for xval in xss:
-        param.set(convert(xval)).join()
-        yss.append(feedback())
-
-    return (xss, yss)
+        future = get_value(xval, future)
+        yield future
 
 
 def scan_param_feedback(scan_param, feedback_param, minimum=None, maximum=None, intervals=64,
