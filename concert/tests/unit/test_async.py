@@ -1,7 +1,7 @@
 import time
 import random
 from concert.devices.dummy import DummyDevice
-from concert.async import async, wait, KillException, HAVE_GEVENT
+from concert.async import async, wait, resolve, KillException, HAVE_GEVENT
 from concert.tests import slow, TestCase
 
 
@@ -13,6 +13,11 @@ def func():
 @async
 def bad_func():
     raise RuntimeError
+
+
+@async
+def identity(x):
+    return x, x**2
 
 
 class TestAsync(TestCase):
@@ -59,3 +64,10 @@ class TestAsync(TestCase):
 
         if HAVE_GEVENT:
             self.assertTrue(d['killed'])
+
+    def test_resolve(self):
+        result = (identity(x) for x in xrange(10))
+        tuples = resolve(result)
+        self.assertEqual(len(tuples), 2)
+        self.assertSequenceEqual(tuples[0], range(10))
+        self.assertSequenceEqual(tuples[1], [x**2 for x in range(10)])

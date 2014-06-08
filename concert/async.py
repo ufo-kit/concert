@@ -248,3 +248,12 @@ class Dispatcher(object):
 
 
 dispatcher = Dispatcher()
+
+
+def resolve(result):
+    """
+    Return a list of tuples *(x, y, ...)* from a process that returns a list
+    of futures each returning a single tuple *(x, y, ...)*.
+    """
+    r = (f.result() for f in result)
+    return zip(*r)
