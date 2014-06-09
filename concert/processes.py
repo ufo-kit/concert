@@ -30,8 +30,10 @@ def scan(param, feedback, minimum=None, maximum=None, intervals=64, convert=lamb
     Generates futures which resolve to tuples containing the set and feedback
     values *(x, y)*.
     """
-    minimum = minimum or param.lower
-    maximum = maximum or param.upper
+    if minimum is None:
+        minimum = param.lower
+    if maximum is None:
+        maximum = param.upper
 
     xss = np.linspace(minimum, maximum, intervals)
 
