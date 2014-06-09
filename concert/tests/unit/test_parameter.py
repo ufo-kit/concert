@@ -14,6 +14,7 @@ class FooDevice(BaseDevice):
 
     state = State(default='standby')
 
+    no_write = Parameter()
     foo = Quantity(q.m, transition=transition(source='*', target='moved'))
 
     def __init__(self, default):
@@ -63,6 +64,10 @@ class TestParameterizable(TestCase):
     def test_param(self):
         self.device.param = 15
         self.assertEqual(self.device.param, 15)
+
+    def test_is_writable(self):
+        self.assertTrue(self.device['foo'].writable)
+        self.assertFalse(self.device['no_write'].writable)
 
     def test_saving(self):
         self.device.foo = 1 * q.mm
