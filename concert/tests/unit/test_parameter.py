@@ -1,7 +1,7 @@
 from concert.quantities import q
 from concert.tests import TestCase
 from concert.base import (Parameterizable, Parameter, Quantity, State, SoftLimitError,
-                          transition, LockError)
+                          transition, LockError, ParameterError)
 
 
 class BaseDevice(Parameterizable):
@@ -132,6 +132,22 @@ class TestParameterizable(TestCase):
 
         with self.assertRaises(LockError):
             self.device.unlock()
+
+
+class TestParameter(TestCase):
+
+    def test_saving(self):
+        device = FooDevice(0 * q.mm)
+        device['foo'].stash().join()
+        device.foo = 1 * q.mm
+        device['foo'].restore().join()
+        self.assertEqual(device.foo, 0 * q.mm)
+
+        with self.assertRaises(ParameterError):
+            device['no_write'].stash().join()
+
+        with self.assertRaises(ParameterError):
+            device['no_write'].restore().join()
 
 
 class TestQuantity(TestCase):
