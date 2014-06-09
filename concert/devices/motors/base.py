@@ -77,7 +77,7 @@ class LinearMotor(_PositionMixin):
     def __init__(self):
         super(LinearMotor, self).__init__()
 
-    def check_state(self):
+    def _get_state(self):
         raise NotImplementedError
 
     state = State(default='standby')
@@ -85,7 +85,7 @@ class LinearMotor(_PositionMixin):
     position = Quantity(q.m, help="Position",
                         transition=transition(source=['hard-limit', 'standby'],
                                               target=['hard-limit', 'standby'],
-                                              immediate='moving', check=check_state))
+                                              immediate='moving'))
 
 
 class ContinuousLinearMotor(LinearMotor):
@@ -101,15 +101,14 @@ class ContinuousLinearMotor(LinearMotor):
     def __init__(self):
         super(ContinuousLinearMotor, self).__init__()
 
-    def check_state(self):
+    def _get_state(self):
         raise NotImplementedError
 
     state = State(default='standby')
 
     velocity = Quantity(q.m / q.s, help="Linear velocity",
                         transition=transition(source=['hard-limit', 'standby', 'moving'],
-                                              target=['moving', 'standby'],
-                                              check=check_state))
+                                              target=['moving', 'standby']))
 
 
 class RotationMotor(_PositionMixin):
@@ -124,13 +123,13 @@ class RotationMotor(_PositionMixin):
 
     state = State(default='standby')
 
-    def check_state(self):
+    def _get_state(self):
         raise NotImplementedError
 
     position = Quantity(q.deg, help="Angular position",
                         transition=transition(source=['hard-limit', 'standby'],
                                               target=['hard-limit', 'standby'],
-                                              immediate='moving', check=check_state))
+                                              immediate='moving'))
 
     def __init__(self):
         super(RotationMotor, self).__init__()
@@ -149,11 +148,11 @@ class ContinuousRotationMotor(RotationMotor):
     def __init__(self):
         super(ContinuousRotationMotor, self).__init__()
 
-    def check_state(self):
+    def _get_state(self):
         raise NotImplementedError
 
     state = State(default='standby')
 
     velocity = Quantity(q.deg / q.s, help="Angular velocity",
                         transition=transition(source=['hard-limit', 'standby', 'moving'],
-                                              target=['moving', 'standby'], check=check_state))
+                                              target=['moving', 'standby']))

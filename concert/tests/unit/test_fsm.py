@@ -17,6 +17,7 @@ class SomeDevice(Device):
     def __init__(self):
         super(SomeDevice, self).__init__()
         self.velocity = STOP_VELOCITY
+        self._error = False
 
     @transition(source='standby', target='moving')
     def start_moving(self, velocity):
@@ -37,20 +38,23 @@ class SomeDevice(Device):
     def stop_no_matter_what(self):
         self.velocity = STOP_VELOCITY
 
-    def actual_state(self):
+    def _get_state(self):
+        if self._error:
+            return 'error'
         return 'standby' if not self.velocity else 'moving'
 
-    @transition(source='*', target=['standby', 'moving'], check=actual_state)
+    @transition(source='*', target=['standby', 'moving'])
     def set_velocity(self, velocity):
         self.velocity = velocity
 
     @transition(source='*', target=['ok', 'error'])
     def make_error(self):
+        self._error = True
         raise StateError('error')
 
     @transition(source='error', target='standby')
     def reset(self):
-        pass
+        self._error = False
 
 
 class BaseDevice(Device):

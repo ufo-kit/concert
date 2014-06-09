@@ -56,7 +56,7 @@ class LinearMotor(base.LinearMotor, _PositionMixin):
         if position:
             self._position = position
 
-    def check_state(self):
+    def _get_state(self):
         if self._position > self.lower and self._position < self.upper:
             return 'standby'
 
@@ -71,11 +71,11 @@ class ContinuousLinearMotor(LinearMotor, base.ContinuousLinearMotor, _Continuous
         super(ContinuousLinearMotor, self).__init__()
         _ContinuousMixin.__init__(self)
 
-    def check_state(self):
+    def _get_state(self):
         if self.velocity.magnitude != 0:
             return 'moving'
 
-        return LinearMotor.check_state(self)
+        return LinearMotor._get_state(self)
 
     def _stop(self):
         self._velocity = 0 * q.mm / q.s
@@ -92,7 +92,7 @@ class RotationMotor(base.RotationMotor, _PositionMixin):
         self.upper = float("Inf") * q.deg
         self._position = self._position.magnitude * q.deg
 
-    def check_state(self):
+    def _get_state(self):
         return 'standby'
 
 
@@ -109,11 +109,11 @@ class ContinuousRotationMotor(RotationMotor,
         self.velocity_upper = self.velocity_upper.magnitude * q.deg / q.s
         self._velocity = self._velocity.magnitude * q.deg / q.s
 
-    def check_state(self):
+    def _get_state(self):
         if self.velocity != 0:
             return 'moving'
 
-        return RotationMotor.check_state(self)
+        return RotationMotor._get_state(self)
 
     def _stop(self):
         self._velocity = 0 * q.deg / q.s
