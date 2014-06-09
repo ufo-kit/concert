@@ -29,10 +29,12 @@ class TestRotationAxisMeasure(TestCase):
     def make_images(self, x_angle, z_angle, intervals=10):
         self.x_motor.position = z_angle
         self.z_motor.position = x_angle
-        return scan(self.y_motor["position"],
-                    self.image_source.grab, minimum=0 * q.rad,
-                    maximum=2 * np.pi * q.rad,
-                    intervals=intervals).result()[1]
+        result = [f.result()[1] for f in scan(self.y_motor["position"],
+                  self.image_source.grab, minimum=0 * q.rad,
+                  maximum=2 * np.pi * q.rad,
+                  intervals=intervals)]
+
+        return result
 
     def align_check(self, x_angle, z_angle):
         images = self.make_images(x_angle, z_angle)
