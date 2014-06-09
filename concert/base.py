@@ -18,6 +18,14 @@ def identity(x):
     return x
 
 
+def _setter_not_implemented(value, *args):
+    raise AccessorNotImplementedError
+
+
+def _getter_not_implemented(*args):
+    raise AccessorNotImplementedError
+
+
 class TransitionNotAllowed(Exception):
     pass
 
@@ -520,6 +528,11 @@ class ParameterValue(object):
     def data(self):
         return self._parameter.data
 
+    @property
+    def writable(self):
+        """Return True if the parameter is writable."""
+        return getattr(self._instance, '_set_' + self.name) is not _setter_not_implemented
+
     @async
     def get(self):
         return getattr(self._instance, self.name)
@@ -535,6 +548,9 @@ class ParameterValue(object):
         If the parameter is writable the current value is saved on a stack and
         to be later retrieved with :meth:`.ParameterValue.restore`.
         """
+        if not self.writable:
+            raise ParameterError("Parameter `{}' is not writable".format(self.name))
+
         self._saved.append(self.get().result())
 
     def restore(self):
@@ -543,6 +559,9 @@ class ParameterValue(object):
         If the parameter can only be read or no value has been saved, this
         operation does nothing.
         """
+        if not self.writable:
+            raise ParameterError("Parameter `{}' is not writable".format(self.name))
+
         if self._saved:
             val = self._saved.pop()
             return self.set(val)
@@ -742,20 +761,14 @@ class Parameterizable(six.with_metaclass(MetaParameterizable, object)):
 
         self._params[name] = value
 
-        def setter_not_implemented(value, *args):
-            raise AccessorNotImplementedError
-
-        def getter_not_implemented(*args):
-            raise AccessorNotImplementedError
-
         setattr(self, 'set_' + name, value.set)
         setattr(self, 'get_' + name, value.get)
 
         if not hasattr(self, '_set_' + name):
-            setattr(self, '_set_' + name, setter_not_implemented)
+            setattr(self, '_set_' + name, _setter_not_implemented)
 
         if not hasattr(self, '_get_' + name):
-            setattr(self, '_get_' + name, getter_not_implemented)
+            setattr(self, '_get_' + name, _getter_not_implemented)
 
     @async
     def stash(self):
@@ -766,12 +779,12 @@ class Parameterizable(six.with_metaclass(MetaParameterizable, object)):
         The values are stored on a stacked, hence subsequent saved states can
         be restored one by one.
         """
-        wait((param.stash() for param in self))
+        wait((param.stash() for param in self if param.writable))
 
     @async
     def restore(self):
         """Restore all parameters saved with :meth:`.Parameterizable.stash`."""
-        wait((param.restore() for param in self))
+        wait((param.restore() for param in self if param.writable))
 
     def lock(self, permanent=False):
         """Lock all the parameters for writing. If *permanent* is True, the
