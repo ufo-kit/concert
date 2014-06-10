@@ -1,6 +1,7 @@
 import time
 from concert.tests import TestCase
-from concert.base import transition, check, StateError, TransitionNotAllowed, State, Parameter
+from concert.base import (transition, check, StateError, TransitionNotAllowed, State, Parameter,
+                          FSMError)
 from concert.quantities import q
 from concert.async import async
 from concert.devices.base import Device
@@ -60,7 +61,6 @@ class SomeDevice(Device):
     @transition(target='standby')
     def reset(self):
         self._error = False
-        pass
 
 
 class BaseDevice(Device):
@@ -90,6 +90,14 @@ class DerivedDevice(BaseDevice):
     @check(source='standby', target='in-derived')
     @transition(target='in-derived')
     def switch_derived(self):
+        pass
+
+
+class StatelessDevice(Device):
+    foo = Parameter(check=check(source='*', target='*'))
+
+    @transition(target='changed')
+    def change(self):
         pass
 
 
@@ -175,3 +183,20 @@ class TestStateMachine(TestCase):
     def test_state_setting(self):
         with self.assertRaises(AttributeError):
             self.device.state = 'foo'
+
+    def test_stateless_parameter_transition(self):
+        dev = StatelessDevice()
+        with self.assertRaises(FSMError):
+            dev.foo = 1
+
+    def test_stateless_transition(self):
+        dev = StatelessDevice()
+        with self.assertRaises(FSMError):
+            dev.change()
+
+    def test_no_default_state(self):
+        class BadStatelessDevice(Device):
+            state = State()
+
+        with self.assertRaises(FSMError):
+            BadStatelessDevice().state
