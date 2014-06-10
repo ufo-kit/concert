@@ -37,7 +37,11 @@ def _execute_func(func, instance, *args, **kwargs):
     return result
 
 
-class TransitionNotAllowed(Exception):
+class FSMError(Exception):
+    """All errors connected with the finite state machine"""
+
+
+class TransitionNotAllowed(FSMError):
     pass
 
 
@@ -158,7 +162,7 @@ def transition(immediate=None, target=None):
         @functools.wraps(func)
         def call_func(instance, *args, **kwargs):
             if not hasattr(instance, 'state'):
-                raise TransitionNotAllowed('Transitioning requires state parameter')
+                raise FSMError('Changing state requires state parameter')
 
             # Store the original in case target is None
             target_state = target if target else instance.state
@@ -196,7 +200,7 @@ def check(source='*', target=None):
         @functools.wraps(func)
         def call_func(instance, *args, **kwargs):
             if not hasattr(instance, 'state'):
-                raise TransitionNotAllowed('Transitioning requires state parameter')
+                raise FSMError('Transitioning requires state parameter')
 
             if instance.state not in sources and '*' not in sources:
                 msg = "Current state `{}' not in `{}'".format(instance.state, sources)
