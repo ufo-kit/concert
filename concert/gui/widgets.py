@@ -14,6 +14,7 @@ from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as Naviga
 class WidgetPattern(QGroupBox):
 
     """Determines basic device widgets behavior"""
+    shadowAccepted = False
 
     def __init__(self, name, parent=None):
         super(WidgetPattern, self).__init__(parent=parent)
@@ -23,8 +24,6 @@ class WidgetPattern(QGroupBox):
         self._cursor = QCursor
         self.widgetLength = 280
         self.widgetHeight = 20
-        global shadowAccepted
-        shadowAccepted = False
         self.name = QLabel(parent=self)
         self.name.setText(name)
         self.name.adjustSize()
@@ -44,14 +43,12 @@ class WidgetPattern(QGroupBox):
         self._units_dict['degree'] = ["deg", "rad"]
         self._units_dict['meter / second'] = ["m/s", "mm/s", "um/s"]
         self._units_dict['degree / second'] = ["deg/s", 'rad/s']
-        self._units_dict['second'] = ["s", "ms"]
+        self._units_dict['second'] = ["s", "ms", "us"]
         self._units_dict['pixel'] = ["pixel"]
         self._units_dict['micrometer'] = ["um", "nm"]
         self._units_dict['1 / second'] = ["1 / second"]
 
     def mousePressEvent(self, event):
-        global shadowAccepted
-        shadowAccepted = False
         self._offset = event.pos()
 
     def mouseMoveEvent(self, event):
@@ -66,29 +63,26 @@ class WidgetPattern(QGroupBox):
                 QApplication.restoreOverrideCursor()
 
     def mouseReleaseEvent(self, event):
-        global shadowAccepted
-        if shadowAccepted:
+        if WidgetPattern.shadowAccepted:
             self.move_by_grid()
-            shadowAccepted = False
+            WidgetPattern.shadowAccepted = False
         QApplication.restoreOverrideCursor()
         self._offset = None
 
     def move_widget(self, position):
-        global shadowAccepted
         try:
             self.move(position)
         except:
             QApplication.restoreOverrideCursor()
-            shadowAccepted = False
+            WidgetPattern.shadowAccepted = False
         else:
-            shadowAccepted = True
+            WidgetPattern.shadowAccepted = True
 
     def move_by_grid(self):
-        global shadowAccepted
         x, y = self.get_grid_position()
         self.move_widget(QPoint(x, y))
         QApplication.restoreOverrideCursor()
-        shadowAccepted = False
+        WidgetPattern.shadowAccepted = False
 
     def get_grid_position(self):
         x = self.mapToParent(self.mapFromGlobal(self._cursor.pos())).x()
@@ -100,8 +94,7 @@ class WidgetPattern(QGroupBox):
         return x, y
 
     def get_shadow_status(self):
-        global shadowAccepted
-        if shadowAccepted:
+        if WidgetPattern.shadowAccepted:
             return True
         else:
             return False
@@ -129,9 +122,6 @@ class LightSourceWidget(WidgetPattern):
         self.layout.addLayout(self._layout)
         self._intensity_units.currentIndexChanged.connect(self._unit_changed)
         self._spin_value.valueChanged.connect(self._number_changed)
-
-    def __call__(self):
-        return self
 
     def _unit_changed(self, index):
         self._spin_value.valueChanged.disconnect(self._number_changed)
@@ -351,9 +341,6 @@ class PositionerWidget(WidgetPattern):
         self._button_counterclockwise.clicked.connect(
             self._button_counterclockwise_clicked)
 
-    def __call__(self):
-        return self
-
     def _button_left_clicked(self):
         num = self._step_value.text()
         unit = self._step_unit.currentText()
@@ -418,9 +405,6 @@ class ShutterWidget(WidgetPattern):
         self._slider.valueChanged.connect(self._slider_value_changed)
         self.setFixedSize(self.widgetLength, 60)
         self.layout.addLayout(self._layout)
-
-    def __call__(self):
-        return self
 
     def _slider_value_changed(self):
         value = self._slider.value()

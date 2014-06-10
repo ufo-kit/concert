@@ -4,7 +4,7 @@ Created on Apr 28, 2014
 @author: Pavel Rybalko (ANKA)
 '''
 
-from PyQt4.QtGui import QApplication, QPalette, QColor, QMainWindow, QTreeWidgetItem, QAction
+from PyQt4.QtGui import QPalette, QColor, QMainWindow, QTreeWidgetItem, QAction
 from PyQt4.QtGui import QTreeWidget, QFont, QDockWidget, QPen, QPainter
 from PyQt4.QtCore import QLine
 from widgets import *
@@ -17,8 +17,38 @@ class ConcertGUI(QMainWindow):
         super(ConcertGUI, self).__init__(parent)
         self.session = load(session_name)
         self.device_tree = DeviceTreeWidget(self)
+        self._width = 200
         self._grid_lines = []
-        self.device_tree.setMaximumWidth(200)
+        self._add_device_tree()
+        exit_action = QAction(
+            QIcon.fromTheme("application-exit"),
+            '&Exit',
+            self)
+        exit_action.setShortcut('Ctrl+Q')
+        exit_action.setStatusTip('Exit application')
+        exit_action.triggered.connect(self.close)
+        hide_tree_action = QAction(
+            QIcon.fromTheme("zoom-fit-best"),
+            '&Widgets list',
+            self)
+        hide_tree_action.setShortcut('Ctrl+H')
+        hide_tree_action.setStatusTip('widgets list')
+        hide_tree_action.triggered.connect(self._hide_widgets_list)
+        hide_tree_action.setCheckable(True)
+        hide_tree_action.setChecked(True)
+        self._menubar = self.menuBar()
+        file_menu = self._menubar.addMenu('&File')
+        file_menu.addAction(exit_action)
+        view_menu = self._menubar.addMenu('&View')
+        self._create_terminal()
+        self.setCentralWidget(self.device_tree)
+        view_menu.addAction(hide_tree_action)
+        self.setWindowTitle("Concert GUI")
+        self.resize(1024, 1000)
+        self.widget = WidgetPattern("")
+
+    def _add_device_tree(self):
+        self.device_tree.setMaximumWidth(self._width)
         self.device_tree.header().setStretchLastSection(False)
         self.device_tree.setHeaderItem(QTreeWidgetItem(["Devices"]))
         self._items_list = {}
@@ -59,45 +89,25 @@ class ConcertGUI(QMainWindow):
                             [name])
                 self.device_tree.setItemExpanded(header, True)
         self.device_tree.resizeColumnToContents(0)
-        exit_action = QAction(
-            QIcon.fromTheme("application-exit"),
-            '&Exit',
-            self)
-        exit_action.setShortcut('Ctrl+Q')
-        exit_action.setStatusTip('Exit application')
-        exit_action.triggered.connect(self.close)
-        hide_tree_action = QAction(
-            QIcon.fromTheme("zoom-fit-best"),
-            '&Widgets list',
-            self)
-        hide_tree_action.setShortcut('Ctrl+H')
-        hide_tree_action.setStatusTip('widgets list')
-        hide_tree_action.triggered.connect(self._hide_widgets_list)
-        hide_tree_action.setCheckable(True)
-        hide_tree_action.setChecked(True)
-        self._menubar = self.menuBar()
-        file_menu = self._menubar.addMenu('&File')
-        file_menu.addAction(exit_action)
-        view_menu = self._menubar.addMenu('&View')
+
+    def _create_terminal(self):
         font = QFont()
         font.setStyleHint(QFont.Monospace)
-        ns = {'win': self}
+        ns = {'win': self, 'concert': self.session, '': self.session}
         self.console = cons = InternalShell(
             self, namespace=ns, multithreaded=False)
-        # Setup the console widget
         cons.set_font(font)
         cons.set_codecompletion_auto(True)
-        cons.set_calltips(True)
-        cons.setup_calltips(size=600, font=font)
-        cons.setup_completion(size=(300, 180), font=font)
+        cons.execute_command("from concert.devices.base import Device")
+        cons.execute_command("from concert.quantities import q")
+        cons.execute_lines("""for name in dir(concert):
+            object = getattr(concert, name) 
+            if isinstance(object, Device):
+                globals().update({name:object}) \n\n""")
+        cons.execute_command("cls")
         console_dock = QDockWidget("Console", self)
         console_dock.setWidget(cons)
         self.addDockWidget(Qt.BottomDockWidgetArea, console_dock)
-        self.setCentralWidget(self.device_tree)
-        view_menu.addAction(hide_tree_action)
-        self.setWindowTitle("Concert GUI")
-        self.resize(1024, 1000)
-        self.widget = WidgetPattern("")
 
     def createMotors(self, nameOfWidget):
         self.widget = MotorWidget(
@@ -108,17 +118,17 @@ class ConcertGUI(QMainWindow):
     def createLightSource(self, nameOfWidget):
         self.widget = LightSourceWidget(nameOfWidget,
                                         getattr(self.session, str(nameOfWidget)), self)
-        self.widget().show()
+        self.widget.show()
 
     def createPositioner(self, nameOfWidget):
         self.widget = PositionerWidget(nameOfWidget,
                                        getattr(self.session, str(nameOfWidget)), self)
-        self.widget().show()
+        self.widget.show()
 
     def createShutter(self, nameOfWidget):
         self.widget = ShutterWidget(nameOfWidget,
                                     getattr(self.session, str(nameOfWidget)), self)
-        self.widget().show()
+        self.widget.show()
 
     def createCamera(self, nameOfWidget):
         self.widget = CameraWidget(nameOfWidget,
@@ -131,12 +141,8 @@ class ConcertGUI(QMainWindow):
             qp.begin(self)
             qp.setBrush(QColor("#ffcccc"))
             qp.setPen(Qt.NoPen)
-            self.x, self.y = self.widget.get_grid_position()
-            qp.drawRect(
-                self.x,
-                self.y,
-                self.widget.widgetLength,
-                self.widget.height())
+            x, y = self.widget.get_grid_position()
+            qp.drawRect(x, y, 280, 100)
             qp.setPen(QPen(Qt.black, 1, Qt.DashDotLine))
             qp.drawLines(self._grid_lines)
             self.update()
@@ -155,7 +161,7 @@ class ConcertGUI(QMainWindow):
         QApplication.restoreOverrideCursor()
 
     def _hide_widgets_list(self):
-        self._width = 160 - self._width
+        self._width = 200 - self._width
         self.device_tree.setFixedWidth(self._width)
 
     def _close_button_clicked(self):
@@ -212,9 +218,7 @@ class DeviceTreeWidget(QTreeWidget):
                         self.gui.widget.close_button.clicked.connect(
                             self.gui._close_button_clicked)
                     self.gui.widget.move_widget(
-                        QTreeWidget.mapToParent(
-                            self,
-                            event.pos() - QPoint(140, 0)))
+                        event.pos() - QPoint(140, 0))
 
     def mouseReleaseEvent(self, event):
         super(DeviceTreeWidget, self).mouseReleaseEvent(event)
