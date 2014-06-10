@@ -357,6 +357,16 @@ class State(Parameter):
             def move(self):
                 pass
 
+    In case your device doesn't provide information on its state you can use
+    the :func:`.transition` to store the state in an instance of your device::
+
+        @transition(immediate='moving', target='standby')
+        def _set_some_param(self, param_value):
+            # when the method starts device state is set to *immediate*
+            # long operation goes here
+            pass
+            # the state is set to *target* in the end
+
     Accessing the state variable will return the current state value, i.e.::
 
         obj = SomeObject()

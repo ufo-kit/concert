@@ -32,6 +32,8 @@ State machine
 .. autoclass:: concert.base.State
     :members:
 
+.. autofunction:: concert.base.check
+
 .. autofunction:: concert.base.transition
 
 
@@ -59,6 +61,7 @@ Exceptions
 .. autoclass:: concert.base.AccessorNotImplementedError
 .. autoclass:: concert.base.ReadAccessError
 .. autoclass:: concert.base.WriteAccessError
+.. autoclass:: concert.base.StateError
 
 
 Configuration
