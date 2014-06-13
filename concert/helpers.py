@@ -11,7 +11,6 @@ class Command(object):
         """
         Command objects are loaded at run-time and injected into Concert's
         command parser.
-
         *name* denotes the name of the sub-command parser, e.g. "mv" for the
         MoveCommand. *opts* must be an argparse-compatible dictionary
         of command options.
@@ -27,14 +26,11 @@ class Command(object):
 class Bunch(object):
 
     """Encapsulate a list or dictionary to provide attribute-like access.
-
     Common use cases look like this::
-
         d = {'foo': 123, 'bar': 'baz'}
         b = Bunch(d)
         print(b.foo)
         >>> 123
-
         l = ['foo', 'bar']
         b = Bunch(l)
         print(b.foo)
@@ -50,7 +46,6 @@ class Bunch(object):
 def memoize(func):
     """
     Memoize the result of *func*.
-
     Remember the result of *func* depending on its arguments. Note, that this
     requires that the function is free from any side effects, e.g. returns the
     same value given the same arguments.
@@ -71,7 +66,6 @@ def memoize(func):
 def measure(func=None, return_result=False):
     """
     Measure and print execution time of *func*.
-
     If *return_result* is True, the decorated function returns a tuple
     consisting of the original return value and the measured time in seconds.
     """
@@ -181,14 +175,11 @@ class expects(object):
     Decorator which determines expected arguments for the function
     and also check correctness of given arguments. If input arguments differ from
     expected ones, exception *TypeError* will be raised.
-
     For numeric arguments use *Numeric* class with 2 parameters: dimension of
     the array and units (optional). E.g. "Numeric (1)" means function expects
     one number or "Numeric (2, q.mm)" means function expects expression like
     [4,5]*q.mm
-
     Common use case looks like this::
-
         @expects(Camera, LinearMotor, pixelsize = Numeric(2, q.mm))
         def foo(camera, motor, pixelsize = None):
             pass
@@ -223,7 +214,6 @@ class Region(object):
 
     """A Region holds a :class:`~concert.base.Parameter` and *values* which are the x-values of a
     scan. You can create the values e.g. by numpy's *linspace* function::
-
         import numpy as np
         # minimum=0, maximum=10, intervals=100
         values = np.linspace(0, 10, 100) * q.mm

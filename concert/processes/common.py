@@ -4,6 +4,7 @@ import logging
 from scipy.ndimage.filters import gaussian_filter
 from concert.async import async, wait
 from concert.quantities import q
+from concert.helpers import expects, Numeric
 from concert.measures import rotation_axis
 from concert.optimization import halver, optimize_parameter
 from concert.imageprocessing import center_of_mass, flat_correct
@@ -17,8 +18,8 @@ LOG = logging.getLogger(__name__)
 
 
 def _pull_first(tuple_list):
-        for tup in tuple_list:
-            yield tup[0]
+    for tup in tuple_list:
+        yield tup[0]
 
 
 def scan(feedback, regions, callbacks=None):
@@ -173,7 +174,6 @@ def dscan(parameter_list, n_intervals, handler):
                       for param in _pull_first(parameter_list)]
 
     return ascan(parameter_list, n_intervals, handler, initial_values)
-
 
 @expects(Camera, LinearMotor, measure=None, opt_kwargs=None,
          plot_consumer=None, frame_consumer=None)
@@ -352,9 +352,9 @@ def find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
     *cam* is the camera-device, *xmotor* the motor-device horizontally aligned
     to the image and *zmotor* the motor-device vertically aligned to the image.
     *pixelsize* determines the realworld size of an image pixels (scalar or
-    2-element array-like, e.g. [4*q.um, 5*q.um]). *xborder* and *zborder*
+    2-element array-like, e.g. [4,5]*q.um). *xborder* and *zborder*
     define the search area. Each constructed with a start- and an end-value
-    (e.g. [-1.2*q.mm, 5.5*q.mm]).
+    (e.g. [-1.2, 5.5]*q.mm).
 
     Optional arguments *xstep* and *zstep* define the length of one movement
     in the specific direction. Defaults are calculated from cam_img.shape and
@@ -370,8 +370,8 @@ def find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
 
     def check(rel_move):
         """Move to new position and check if the beam is visible."""
-        fut_0 = zmotor.move(rel_move[0]*q.um)
-        fut_1 = xmotor.move(rel_move[1]*q.um)
+        fut_0 = zmotor.move(rel_move[0] * q.um)
+        fut_1 = xmotor.move(rel_move[1] * q.um)
         wait([fut_0, fut_1])
         cam.trigger()
         img = gaussian_filter(cam.grab().astype(np.float32), 40.0)
@@ -408,17 +408,17 @@ def find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
             else:
                 pos[0], pos[1] = dr[0], dr[1]
             scanned_points[pos[0], pos[1]] = True
-            if (old == 0).any() or (old == sp_shape-1).any() or \
-                    (pos == 0).any() or (pos == sp_shape-1).any():
-                new_pos = np.array([zpos, xpos]) + step * (pos-[nz0, nx0])
+            if (old == 0).any() or (old == sp_shape - 1).any() or \
+                    (pos == 0).any() or (pos == sp_shape - 1).any():
+                new_pos = np.array([zpos, xpos]) + step * (pos - [nz0, nx0])
                 clip = np.append((new_pos < [zborder[0], xborder[0]]),
                                  (new_pos > [zborder[1], xborder[1]]))
                 new_pos[0] = zborder[1] if clip[2] else \
                     zborder[0] if clip[0] else new_pos[0]
                 new_pos[1] = xborder[1] if clip[3] else \
                     xborder[0] if clip[1] else new_pos[1]
-                old_pos = np.array([zmotor.position.to(q.um.units).magnitude,
-                                    xmotor.position.to(q.um.units).magnitude])
+                old_pos = np.array([zmotor.position.to(q.um).magnitude,
+                                    xmotor.position.to(q.um).magnitude])
                 return new_pos - old_pos
             else:
                 if rel_move:
@@ -432,30 +432,30 @@ def find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
             """
             dr = np.array(map(trydir, range(4))) == 2
             r = np.arange(4)[dr][0]
-            w0 = sp_pos-[nz0, nx0]
+            w0 = sp_pos - [nz0, nx0]
             w1 = w0 + dir2rpos[r]
             w = np.arctan2(w1[0], w1[1]) - np.arctan2(w0[0], w0[1])
-            search_rot[0] = int((w % (2*np.pi)) < np.pi)
+            search_rot[0] = int((w % (2 * np.pi)) < np.pi)
             return r
 
-        xpos = xmotor.position.to(q.um.units).magnitude
-        zpos = zmotor.position.to(q.um.units).magnitude
+        xpos = xmotor.position.to(q.um).magnitude
+        zpos = zmotor.position.to(q.um).magnitude
         search_rot = [0]
         rdir2try = [[1, 0, 3], [3, 0, 1]]
         dir2rpos = [[1, 0], [0, 1], [-1, 0], [0, -1]]
         step = img_shape[0] * \
-            np.array([x.to(q.um.units).magnitude for x in ps])
-        step[0] = step[0] if zstep is None else zstep.to(q.um.units).magnitude
-        step[1] = step[1] if xstep is None else xstep.to(q.um.units).magnitude
-        nz0 = int((zpos-zborder[0])/step[0]) + \
-            ((zpos-zborder[0]) % step[0] > step[0]/2.)
-        nz1 = int((zborder[1]-zpos)/step[0]) + \
-            ((zborder[1]-zpos) % step[0] > step[0]/2.)
-        nx0 = int((xpos-xborder[0])/step[1]) + \
-            ((xpos-xborder[0]) % step[1] > step[1]/2.)
-        nx1 = int((xborder[1]-xpos)/step[1]) + \
-            ((xborder[1]-xpos) % step[1] > step[1]/2.)
-        sp_shape = np.array([nz0+nz1+1, nx0+nx1+1])
+            np.array([x.to(q.um).magnitude for x in ps])
+        step[0] = step[0] if zstep is None else zstep.to(q.um).magnitude
+        step[1] = step[1] if xstep is None else xstep.to(q.um).magnitude
+        nz0 = int((zpos - zborder[0]) / step[0]) + \
+            ((zpos - zborder[0]) % step[0] > step[0] / 2.)
+        nz1 = int((zborder[1] - zpos) / step[0]) + \
+            ((zborder[1] - zpos) % step[0] > step[0] / 2.)
+        nx0 = int((xpos - xborder[0]) / step[1]) + \
+            ((xpos - xborder[0]) % step[1] > step[1] / 2.)
+        nx1 = int((xborder[1] - xpos) / step[1]) + \
+            ((xborder[1] - xpos) % step[1] > step[1] / 2.)
+        sp_shape = np.array([nz0 + nz1 + 1, nx0 + nx1 + 1])
         scanned_points = np.zeros(sp_shape, np.bool_)
         sp_pos = np.array([nz0, nx0])
         scanned_points[sp_pos[0], sp_pos[1]] = True
@@ -476,7 +476,7 @@ def find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
                     if c == 2:
                         break
                     elif c == 1:
-                        search_rot[0] = (search_rot[0]+1) % 2
+                        search_rot[0] = (search_rot[0] + 1) % 2
                 if c == 2:
                     sdir = rd
                     yield next_move(sp_pos, sdir)
@@ -487,7 +487,7 @@ def find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
                 ind = np.indices(sp_shape)
                 mask = np.logical_not(scanned_points)
                 ind = np.array([ind[0][mask], ind[1][mask]])
-                dist = ((ind-np.array([nz0, nx0]).reshape(2, 1))**2).sum(0)
+                dist = ((ind - np.array([nz0, nx0]).reshape(2, 1)) ** 2).sum(0)
                 sort_pos = ind[:, np.argsort(dist)]
                 n_pos = sort_pos[:, 0]
                 r = next_move(sp_pos, n_pos, False)
@@ -496,19 +496,19 @@ def find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
     units = (u for u in pixelsize.units if pixelsize.units[u] > 0.0)
     units = q.parse_expression(' * '.join(units))
     ps = np.tile(pixelsize.magnitude, 2)[:2] * units
-    xborder = np.array([xborder[0].to(q.um.units).magnitude,
-                        xborder[1].to(q.um.units).magnitude])
-    zborder = np.array([zborder[0].to(q.um.units).magnitude,
-                        zborder[1].to(q.um.units).magnitude])
+    xborder = np.array([xborder[0].to(q.um).magnitude,
+                        xborder[1].to(q.um).magnitude])
+    zborder = np.array([zborder[0].to(q.um).magnitude,
+                        zborder[1].to(q.um).magnitude])
 
     # startpoint
     img_shape = [0]
-    xpos = xmotor.position.to(q.um.units).magnitude
-    zpos = zmotor.position.to(q.um.units).magnitude
+    xpos = xmotor.position.to(q.um).magnitude
+    zpos = zmotor.position.to(q.um).magnitude
     outside = (xpos < xborder[0]) or (xpos > xborder[1]) or \
         (zpos < zborder[0]) or (zpos > zborder[1])
     rmov = (zborder.mean() - zpos, xborder.mean() - xpos) if outside \
-        else (0*zpos, 0*xpos)
+        else (0 * zpos, 0 * xpos)
     if check(rmov):
         return True
 
@@ -543,13 +543,13 @@ def drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance=5,
     ps = np.tile(pixelsize.magnitude, 2)[:2] * units
 
     img = take_frame()
-    frm_center = (np.array(img.shape)-1)/2
-    d = center_of_mass(img-img.min()) - frm_center
+    frm_center = (np.array(img.shape) - 1) / 2
+    d = center_of_mass(img - img.min()) - frm_center
 
     iter_ = 0
-    while ((d**2).sum() > tolerance**2) and (iter_ < max_iterations):
-        fut_0 = zmotor.move(d[0]*ps[0])
-        fut_1 = xmotor.move(d[1]*ps[1])
+    while ((d ** 2).sum() > tolerance ** 2) and (iter_ < max_iterations):
+        fut_0 = zmotor.move(d[0] * ps[0])
+        fut_1 = xmotor.move(d[1] * ps[1])
         wait([fut_0, fut_1])
         img = take_frame()
         if img.sum() == 0:
@@ -557,7 +557,7 @@ def drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance=5,
                       "Can't follow center of mass.")
             raise ProcessException("There is nothing to see! "
                                    "Can't follow the center of mass.")
-        d = center_of_mass(img-img.min()) - frm_center
+        d = center_of_mass(img - img.min()) - frm_center
         iter_ += 1
 
     if iter_ < max_iterations:
@@ -593,14 +593,14 @@ def center_to_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
             if not find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
                              xstep, zstep, thres):
                 message = "Unable to find the beam"
-                LOG.debug('center_to_beam: '+message)
+                LOG.debug('center_to_beam: ' + message)
                 raise ProcessException(message)
             else:
                 LOG.debug('center_to_beam: switch to drift_to_beam')
                 if not drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance,
                                      max_iterations):
                     message = "Maximum iterations reached"
-                    LOG.debug('center_to_beam: '+message)
+                    LOG.debug('center_to_beam: ' + message)
                     raise ProcessException(message)
     finally:
         cam.stop_recording()
