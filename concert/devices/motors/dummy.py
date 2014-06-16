@@ -110,7 +110,7 @@ class ContinuousRotationMotor(RotationMotor,
         self._velocity = self._velocity.magnitude * q.deg / q.s
 
     def _get_state(self):
-        if self.velocity != 0:
+        if abs(self.velocity) > 1e-3 * q.deg / q.s:
             return 'moving'
 
         return RotationMotor._get_state(self)
