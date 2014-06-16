@@ -1,4 +1,5 @@
 """Shutter Dummy."""
+from concert.base import transition
 from concert.devices.shutters import base
 
 
@@ -8,10 +9,11 @@ class Shutter(base.Shutter):
 
     def __init__(self):
         super(Shutter, self).__init__()
-        self._dummy_state = 'open'
 
+    @transition(target='open')
     def _open(self):
-        self._dummy_state = 'open'
+        pass
 
+    @transition(target='closed')
     def _close(self):
-        self._dummy_state = 'closed'
+        pass

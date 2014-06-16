@@ -1,6 +1,6 @@
 """Pumps."""
 
-from concert.base import Quantity, State, transition, AccessorNotImplementedError
+from concert.base import Quantity, State, check, AccessorNotImplementedError
 from concert.quantities import q
 from concert.async import async
 from concert.devices.base import Device
@@ -17,7 +17,7 @@ class Pump(Device):
         super(Pump, self).__init__()
 
     @async
-    @transition(source='standby', target='pumping')
+    @check(source='standby', target='pumping')
     def start(self):
         """
         start()
@@ -27,7 +27,7 @@ class Pump(Device):
         self._start()
 
     @async
-    @transition(source='pumping', target='standby')
+    @check(source='pumping', target='standby')
     def stop(self):
         """
         stop()

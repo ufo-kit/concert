@@ -3,7 +3,7 @@ import os
 import time
 import numpy as np
 from concert.quantities import q
-from concert.base import Quantity
+from concert.base import transition, Quantity
 from concert.devices.cameras import base
 from concert.storage import read_image
 
@@ -76,9 +76,11 @@ class Base(base.Camera):
     def _set_trigger_mode(self, mode):
         self._trigger_mode = mode
 
+    @transition(target='recording')
     def _record_real(self):
         pass
 
+    @transition(target='standby')
     def _stop_real(self):
         pass
 

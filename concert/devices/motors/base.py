@@ -16,7 +16,7 @@ As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 import logging
 from concert.quantities import q
 from concert.async import async
-from concert.base import Quantity, State, transition, AccessorNotImplementedError
+from concert.base import Quantity, State, check, AccessorNotImplementedError
 from concert.devices.base import Device
 
 
@@ -39,7 +39,7 @@ class _PositionMixin(Device):
         self.position += delta
 
     @async
-    @transition(source=['hard-limit', 'moving'], target='standby')
+    @check(source=['hard-limit', 'moving'], target='standby')
     def stop(self):
         """
         stop()
@@ -48,7 +48,7 @@ class _PositionMixin(Device):
         self._stop()
 
     @async
-    @transition(source='*', target='standby', immediate='moving')
+    @check(source='*', target='standby')
     def home(self):
         """
         home()
@@ -83,9 +83,8 @@ class LinearMotor(_PositionMixin):
     state = State(default='standby')
 
     position = Quantity(q.m, help="Position",
-                        transition=transition(source=['hard-limit', 'standby'],
-                                              target=['hard-limit', 'standby'],
-                                              immediate='moving'))
+                        check=check(source=['hard-limit', 'standby'],
+                                    target=['hard-limit', 'standby']))
 
 
 class ContinuousLinearMotor(LinearMotor):
@@ -107,8 +106,8 @@ class ContinuousLinearMotor(LinearMotor):
     state = State(default='standby')
 
     velocity = Quantity(q.m / q.s, help="Linear velocity",
-                        transition=transition(source=['hard-limit', 'standby', 'moving'],
-                                              target=['moving', 'standby']))
+                        check=check(source=['hard-limit', 'standby', 'moving'],
+                                    target=['moving', 'standby']))
 
 
 class RotationMotor(_PositionMixin):
@@ -127,9 +126,8 @@ class RotationMotor(_PositionMixin):
         raise NotImplementedError
 
     position = Quantity(q.deg, help="Angular position",
-                        transition=transition(source=['hard-limit', 'standby'],
-                                              target=['hard-limit', 'standby'],
-                                              immediate='moving'))
+                        check=check(source=['hard-limit', 'standby'],
+                                    target=['hard-limit', 'standby']))
 
     def __init__(self):
         super(RotationMotor, self).__init__()
@@ -154,5 +152,5 @@ class ContinuousRotationMotor(RotationMotor):
     state = State(default='standby')
 
     velocity = Quantity(q.deg / q.s, help="Angular velocity",
-                        transition=transition(source=['hard-limit', 'standby', 'moving'],
-                                              target=['moving', 'standby']))
+                        check=check(source=['hard-limit', 'standby', 'moving'],
+                                    target=['moving', 'standby']))

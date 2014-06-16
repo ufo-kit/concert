@@ -48,7 +48,7 @@ To setup and use a camera in a typical environment, you would do::
     print("mean=%f, stddev=%f" % (np.mean(data), np.std(data))
 """
 import contextlib
-from concert.base import AccessorNotImplementedError, Parameter, Quantity, State, transition
+from concert.base import AccessorNotImplementedError, Parameter, Quantity, State, check
 from concert.async import async
 from concert.quantities import q
 from concert.helpers import Bunch
@@ -78,12 +78,12 @@ class Camera(Device):
     def __init__(self):
         super(Camera, self).__init__()
 
-    @transition(source='standby', target='recording')
+    @check(source='standby', target='recording')
     def start_recording(self):
         """Start recording frames."""
         self._record_real()
 
-    @transition(source='recording', target='standby')
+    @check(source='recording', target='standby')
     def stop_recording(self):
         """Stop recording frames."""
         self._stop_real()
@@ -148,7 +148,7 @@ class BufferedMixin(Device):
 
     state = State(default='standby')
 
-    @transition(source='standby', target='standby', immediate='readout')
+    @check(source='standby', target='standby')
     def readout_buffer(self, *args, **kwargs):
         return self._readout_real(*args, **kwargs)
 
