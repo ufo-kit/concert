@@ -3,7 +3,6 @@
 import numpy as np
 import logging
 import six
-import collections
 import functools
 import inspect
 import types
@@ -26,13 +25,29 @@ def _getter_not_implemented(*args):
     raise AccessorNotImplementedError
 
 
-class TransitionNotAllowed(Exception):
+def _execute_func(func, instance, *args, **kwargs):
+    """Execute *func* irrespective of whether it is a function or a method. *instance*
+    is discarded if *func* is a function, otherwise it is used as a first real argument.
+    """
+    if isinstance(func, types.MethodType):
+        result = func(*args, **kwargs)
+    else:
+        result = func(instance, *args, **kwargs)
+
+    return result
+
+
+class FSMError(Exception):
+    """All errors connected with the finite state machine"""
+
+
+class TransitionNotAllowed(FSMError):
     pass
 
 
 class StateError(Exception):
 
-    """Raised in check functions of state transitions of devices."""
+    """Raised in state check functions of devices."""
 
     def __init__(self, error_state, msg=None):
         self.state = error_state
@@ -139,124 +154,65 @@ class MultiContext(object):
                     for obj in self.objs])
 
 
-class State(object):
-
-    """
-    Finite state machine.
-
-    Use this on a class, to keep some sort of known state. In order to enforce
-    restrictions, you would decorate methods on the class with
-    :func:`.transition`::
-
-        class SomeObject(object):
-
-            state = State(default='standby')
-
-            @transition(source='*', target='moving')
-            def move(self):
-                pass
-
-    Accessing the state variable will return the current state value, i.e.::
-
-        obj = SomeObject()
-        assert obj.state == 'standby'
-
-    The state cannot be set explicitly by::
-
-        obj.state = 'some_state'
-
-    but the object needs to provide methods which transition out of
-    states, the same holds for transitioning out of error states.
-    """
-
-    def __init__(self, default=None):
-        self.default = default
-
-    def __get__(self, instance, owner):
-        return self._value(instance)
-
-    def __set__(self, instance, value):
-        raise AttributeError('State cannot be set')
-
-    def _value(self, instance):
-        if not hasattr(instance, '_state_value'):
-            setattr(instance, '_state_value', self.default)
-
-        return getattr(instance, '_state_value')
-
-
-def transition(source='*', target=None, immediate=None, check=None):
-    """
-    Decorates a method that triggers state transitions.
-
-    *source* denotes the source state that must be present at the time of
-    invoking the decorated method. *target* is the state that the state object
-    will be after successful completion of the method or a list of possible
-    target states. *immediate* is an optional state that will be set during
-    execution of the method.
-
-    *check* is a callable that will be called to determine the actual state in
-    case *target* is a list of possible target states. Hence, when *check* is
-    called it must return one of those target states.
+def transition(immediate=None, target=None):
+    """Change software state of a device to *immediate*. After the function
+    execution finishes change the state to *target*.
     """
     def wrapped(func):
-        transitions = collections.defaultdict(list)
-
-        sources = [source] if isinstance(source, str) else source
-        targets = [target] if isinstance(target, str) else target
-
-        if immediate:
-            sources.append(immediate)
-            targets.append(immediate)
-
-        for s in sources:
-            transitions[s] = targets
-
-        def _value(instance):
-            if not hasattr(instance, '_state_value'):
-                setattr(instance, '_state_value', instance.state)
-            return instance.state
-
-        def try_transition(target, instance, *args, **kwargs):
-            current = _value(instance)
-            succ = transitions.get(current, transitions.get('*', None))
-
-            if not succ:
-                msg = "Cannot transition from `{}' to `{}'".format(current, target)
-                raise TransitionNotAllowed(msg)
-
         @functools.wraps(func)
         def call_func(instance, *args, **kwargs):
-            current = _value(instance)
+            if not hasattr(instance, 'state'):
+                raise FSMError('Changing state requires state parameter')
 
-            if current not in sources and '*' not in sources:
-                msg = "`{}' not in `{}'".format(source, sources)
-                raise TransitionNotAllowed(msg)
+            # Store the original in case target is None
+            target_state = target if target else instance.state
 
             if immediate:
-                # Since it was listed by the user, the transition must exist so no check required.
                 setattr(instance, '_state_value', immediate)
 
             try:
-                # If there is an edge to the desired transition from source or immediate
-                # we execute the actual function
-                try_transition(target, instance)
-
-                if isinstance(func, types.MethodType):
-                    result = func(*args, **kwargs)
-                else:
-                    result = func(instance, *args, **kwargs)
-
-                # The final state can come from the device itself (more possible target states)
-                final = getattr(instance, check.__name__)() if isinstance(target, list) else target
-                # We check the actual state after the function execution before we do the final
-                # transition
-                try_transition(final, instance)
-                setattr(instance, '_state_value', final)
+                result = _execute_func(func, instance, *args, **kwargs)
+                setattr(instance, '_state_value', target_state)
             except StateError as error:
                 setattr(instance, '_state_value', error.state)
                 raise error
 
+            return result
+
+        return call_func
+
+    return wrapped
+
+
+def check(source='*', target=None):
+    """
+    Decorates a method for checking the device state.
+
+    *source* denotes the source state that must be present at the time of
+    invoking the decorated method. *target* is the state that the state object
+    will be after successful completion of the method or a list of possible
+    target states.
+    """
+    def wrapped(func):
+        sources = [source] if isinstance(source, str) else source
+        targets = [target] if isinstance(target, str) else target
+
+        @functools.wraps(func)
+        def call_func(instance, *args, **kwargs):
+            if not hasattr(instance, 'state'):
+                raise FSMError('Transitioning requires state parameter')
+
+            if instance.state not in sources and '*' not in sources:
+                msg = "Current state `{}' not in `{}'".format(instance.state, sources)
+                raise TransitionNotAllowed(msg)
+
+            result = _execute_func(func, instance, *args, **kwargs)
+
+            # Check if the device got into an allowed state after the check
+            final = instance.state
+            if final not in targets:
+                msg = "Final state `{}' not in `{}'".format(final, targets)
+                raise TransitionNotAllowed(msg)
             return result
 
         return call_func
@@ -269,7 +225,7 @@ class Parameter(object):
     """A parameter with getter and setter.
 
     Parameters are similar to normal Python properties and can additionally
-    trigger state transitions. If *fget* or *fset* is not given, you must
+    trigger state checks. If *fget* or *fset* is not given, you must
     implement the accessor functions named `_set_name` and `_get_name`::
 
         from concert.base import Parameter, State
@@ -281,7 +237,7 @@ class Parameter(object):
             def actual(self):
                 return 'moving'
 
-            param = Parameter(transition=transition(source='standby',
+            param = Parameter(check=check(source='standby',
                                                     target=['standby', 'moving'],
                                                     check=actual))
 
@@ -299,14 +255,14 @@ class Parameter(object):
         print(obj['param'])
     """
 
-    def __init__(self, fget=None, fset=None, data=None, transition=None, help=None):
+    def __init__(self, fget=None, fset=None, data=None, check=None, help=None):
         """
         *fget* is a callable that is called when reading the parameter. *fset*
         is called when the parameter is written to.
 
-        *data* is passed to the state transition function.
+        *data* is passed to the state check function.
 
-        *transition* is a :func:`.transition` that changes states when a value
+        *check* is a :func:`.check` that changes states when a value
         is written to the parameter.
 
         *help* is a string describing the parameter in more detail.
@@ -315,7 +271,7 @@ class Parameter(object):
         self.fget = fget
         self.fset = fset
         self.data_args = (data,) if data is not None else ()
-        self.transition = transition
+        self.check = check
         self.decorated = None
         self.help = help
 
@@ -368,9 +324,9 @@ class Parameter(object):
         else:
             func = getattr(instance, '_set_' + self.name)
 
-            if self.transition and not hasattr(func, '_is_transitioned'):
-                func = self.transition(func)
-                func._is_transitioned = True
+            if self.check and not hasattr(func, '_is_checked'):
+                func = self.check(func)
+                func._is_checked = True
                 setattr(instance, '_set_' + self.name, func)
 
             try:
@@ -384,21 +340,86 @@ class Parameter(object):
         log_access('set')
 
 
+class State(Parameter):
+
+    """
+    Finite state machine.
+
+    Use this on a class, to keep some sort of known state. In order to enforce
+    restrictions, you would decorate methods on the class with
+    :func:`.check`::
+
+        class SomeObject(object):
+
+            state = State(default='standby')
+
+            @check(source='*', target='moving')
+            def move(self):
+                pass
+
+    In case your device doesn't provide information on its state you can use
+    the :func:`.transition` to store the state in an instance of your device::
+
+        @transition(immediate='moving', target='standby')
+        def _set_some_param(self, param_value):
+            # when the method starts device state is set to *immediate*
+            # long operation goes here
+            pass
+            # the state is set to *target* in the end
+
+    Accessing the state variable will return the current state value, i.e.::
+
+        obj = SomeObject()
+        assert obj.state == 'standby'
+
+    The state cannot be set explicitly by::
+
+        obj.state = 'some_state'
+
+    but the object needs to provide methods which transition out of
+    states, the same holds for transitioning out of error states.
+    If the :meth:`_get_state` method is implemented in the device
+    it is always used to get the state, otherwise the state is stored
+    in software.
+    """
+
+    def __init__(self, default=None, fget=None, fset=None, data=None, check=None, help=None):
+        super(State, self).__init__(fget=fget, help=help)
+        self.default = default
+
+    def __get__(self, instance, owner):
+        try:
+            return super(State, self).__get__(instance, owner)
+        except ReadAccessError:
+            if self.default is None:
+                raise FSMError('Software state must have a default value')
+            return self._value(instance)
+
+    def __set__(self, instance, value):
+        raise AttributeError('State cannot be set')
+
+    def _value(self, instance):
+        if not hasattr(instance, '_state_value'):
+            setattr(instance, '_state_value', self.default)
+
+        return getattr(instance, '_state_value')
+
+
 class Quantity(Parameter):
 
     """A :class:`.Parameter` associated with a unit."""
 
     def __init__(self, unit, fget=None, fset=None, lower=None, upper=None,
-                 data=None, transition=None, help=None):
+                 data=None, check=None, help=None):
         """
-        *fget*, *fset*, *data*, *transition* and *help* are identical to the
+        *fget*, *fset*, *data*, *check* and *help* are identical to the
         :class:`.Parameter` constructor arguments.
 
         *unit* is a Pint quantity. *lower* and *upper* denote soft limits
         between the :class:`.Quantity` values can lie.
         """
         super(Quantity, self).__init__(fget=fget, fset=fset, data=data,
-                                       transition=transition, help=help)
+                                       check=check, help=help)
         self.unit = unit
 
         self.upper = upper if upper is not None else float('Inf')
@@ -458,7 +479,7 @@ class Quantity(Parameter):
         super(Quantity, self).__set__(instance, converted)
 
 
-def quantity(unit=None, lower=None, upper=None, data=None, transition=None, help=None):
+def quantity(unit=None, lower=None, upper=None, data=None, check=None, help=None):
     """
     Decorator for read-only quantity functions.
 
@@ -478,7 +499,7 @@ def quantity(unit=None, lower=None, upper=None, data=None, transition=None, help
         doc = help if help else inspect.getdoc(func)
 
         return Quantity(fget=func, unit=unit, lower=lower, upper=upper,
-                        data=data, transition=transition, help=doc)
+                        data=data, check=check, help=doc)
 
     return wrapper
 
@@ -719,10 +740,6 @@ class Parameterizable(six.with_metaclass(MetaParameterizable, object)):
         for param in self:
             table.add_row([param.name, str(param.get().result())])
 
-        # If self would be Stateful, I'd feel better ...
-        if hasattr(self, 'state'):
-            table.add_row(['state', self.state])
-
         return table.get_string(sortby="Parameter")
 
     def __repr__(self):
@@ -754,9 +771,9 @@ class Parameterizable(six.with_metaclass(MetaParameterizable, object)):
             setattr(self.__class__, name, param)
 
     def _install_parameter(self, name, param):
-        if param.__class__ == Quantity:
+        if isinstance(param, Quantity):
             value = QuantityValue(self, param)
-        elif param.__class__ == Parameter:
+        elif isinstance(param, Parameter):
             value = ParameterValue(self, param)
 
         self._params[name] = value

@@ -20,7 +20,7 @@ class BreakingMotor(ImproperlyImplemented):
     def __init__(self):
         super(BreakingMotor, self).__init__()
 
-    def check_state(self):
+    def _get_state(self):
         return 'standby'
 
 
@@ -29,7 +29,7 @@ class TestIssue209(TestCase):
     def test_method_not_implemented(self):
         """
         Although required by base.RotationMotor, the BreakingMotor does not
-        implement check_state but rather than telling us that, it says that the
+        implement _get_state but rather than telling us that, it says that the
         parameter cannot be written.
         """
         fancy = ImproperlyImplemented()

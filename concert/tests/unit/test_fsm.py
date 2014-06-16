@@ -1,6 +1,7 @@
 import time
 from concert.tests import TestCase
-from concert.base import transition, StateError, TransitionNotAllowed, State
+from concert.base import (transition, check, StateError, TransitionNotAllowed, State, Parameter,
+                          FSMError)
 from concert.quantities import q
 from concert.async import async
 from concert.devices.base import Device
@@ -17,40 +18,49 @@ class SomeDevice(Device):
     def __init__(self):
         super(SomeDevice, self).__init__()
         self.velocity = STOP_VELOCITY
+        self._error = False
 
-    @transition(source='standby', target='moving')
+    @check(source='standby', target='moving')
+    @transition(target='moving')
     def start_moving(self, velocity):
         self.velocity = velocity
 
-    @transition(source='*', target='standby')
+    @check(source='*', target='standby')
+    @transition(target='standby')
     def stop_moving(self):
         self.velocity = STOP_VELOCITY
 
     @async
-    @transition(source='standby', target='standby', immediate='moving')
+    @check(source='standby', target='standby')
+    @transition(immediate='moving', target='standby')
     def move_some_time(self, velocity, duration):
         self.velocity = velocity
         time.sleep(duration)
         self.velocity = STOP_VELOCITY
 
-    @transition(source=['standby', 'moving'], target='standby')
+    @check(source=['standby', 'moving'], target='standby')
+    @transition(target='standby')
     def stop_no_matter_what(self):
         self.velocity = STOP_VELOCITY
 
-    def actual_state(self):
+    def _get_state(self):
+        if self._error:
+            return 'error'
         return 'standby' if not self.velocity else 'moving'
 
-    @transition(source='*', target=['standby', 'moving'], check=actual_state)
+    @check(source='*', target=['standby', 'moving'])
     def set_velocity(self, velocity):
         self.velocity = velocity
 
-    @transition(source='*', target=['ok', 'error'])
+    @check(source='*', target=['ok', 'error'])
     def make_error(self):
+        self._error = True
         raise StateError('error')
 
-    @transition(source='error', target='standby')
+    @check(source='error', target='standby')
+    @transition(target='standby')
     def reset(self):
-        pass
+        self._error = False
 
 
 class BaseDevice(Device):
@@ -60,11 +70,13 @@ class BaseDevice(Device):
     def __init__(self):
         super(BaseDevice, self).__init__()
 
-    @transition(source='standby', target='in-base')
+    @check(source='standby', target='in-base')
+    @transition(target='in-base')
     def switch_base(self):
         pass
 
-    @transition(source='*', target='standby')
+    @check(source='*', target='standby')
+    @transition(target='standby')
     def reset(self):
         pass
 
@@ -75,8 +87,17 @@ class DerivedDevice(BaseDevice):
     def __init__(self):
         super(DerivedDevice, self).__init__()
 
-    @transition(source='standby', target='in-derived')
+    @check(source='standby', target='in-derived')
+    @transition(target='in-derived')
     def switch_derived(self):
+        pass
+
+
+class StatelessDevice(Device):
+    foo = Parameter(check=check(source='*', target='*'))
+
+    @transition(target='changed')
+    def change(self):
         pass
 
 
@@ -162,3 +183,20 @@ class TestStateMachine(TestCase):
     def test_state_setting(self):
         with self.assertRaises(AttributeError):
             self.device.state = 'foo'
+
+    def test_stateless_parameter_transition(self):
+        dev = StatelessDevice()
+        with self.assertRaises(FSMError):
+            dev.foo = 1
+
+    def test_stateless_transition(self):
+        dev = StatelessDevice()
+        with self.assertRaises(FSMError):
+            dev.change()
+
+    def test_no_default_state(self):
+        class BadStatelessDevice(Device):
+            state = State()
+
+        with self.assertRaises(FSMError):
+            BadStatelessDevice().state

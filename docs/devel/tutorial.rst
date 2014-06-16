@@ -188,45 +188,89 @@ State machine
 
 A formally defined finite state machine is necessary to ensure and reason about
 correct behaviour. Concert provides an implicitly defined, decorator-based state
-machine. All you need to do is declare a :class:`.State` object on the base
-device class and apply the :func:`.transition` decorator on each method that
-changes the state of a device::
+machine. The machine can be used to model devices which support hardware state
+reading but also the ones which don't thanks to the possibility to store the
+state in the device itself. To use the state machine you need to declare a
+:class:`.State` object in the base device class and apply the :func:`.check`
+decorator on each method that changes the state of a device.  If you are
+implementing a device which can read the hardware state you need to define the
+``_get_state`` method. If you are implementing a device which does not support
+hardware state reading then you need to redefine the :class:`.State` in such a
+way that it has a default value (see the code below) and you can ensure it is
+changed by respective methods by using the :func:`.transition` decorator on such
+methods, so that you can keep track of state changes at least in software and
+comply with transitioning. Examples of such devices could look as follows::
 
-    from concert.fsm import State, transition
+    from concert.base import Quantity, State, transition, check
 
-    class Motor(Device):
 
-        state = State(default='open')
+    class BaseMotor(Device):
+
+        """A base motor class."""
+
+        state = State()
+        position = Quantity(unit=q.m)
+
+        @check(source='standby', target='moving')
+        def start(self):
+            ...
+
+        def _start(self):
+            # the actual implementation of starting something
+            ...
+
+
+    class Motor(BaseMotor):
+
+        """A motor with hardware state reading support."""
 
         ...
 
-        @transition(source='standby', target='moving')
-        def start_moving(self):
+        def _start(self):
+            # Implementation communicates with hardware
             ...
 
-If the source state is valid on such a device, ``start_moving`` will run and
-eventually change the state to ``moving``. In case of two-step functions, an
-``immediate`` state can be set that is valid throughout the body of the
-function::
-
-        @transition(source='standby', target='standby', immediate='moving')
-        def move(self):
+        def _get_state(self):
+            # Get the state from the hardware
             ...
 
-Besides single state strings you can also add arrays of strings and a catch-all
+
+    class StatelessMotor(BaseMotor):
+
+        """A motor which doesn't support state reading from hardware."""
+
+        # we have to specify a default value since we cannot get it from
+        # hardware
+        state = State(default='standby')
+
+        ...
+
+        @transition(target='moving')
+        def _start(self):
+            ...
+
+The example above explains two devices with the same functionality, however, one
+supports hardware state reading and the other does not. When they want to
+``start`` the state is checked before the method is executed and afterwards. By
+checking we mean the current state is checked against the one specified by
+``source`` and the state after the execution is checked against ``target``.  The
+``Motor`` represents a device which supports hardware state reading.  That means
+all we have to do is to implement ``_get_state``. The ``StatelessMotor``, on the
+other hand, has no way of determining the hardware state, thus we need to keep
+track of it in software. That is achieved by the :func:`.transition` which sets the
+device state after the execution of the decorated function to ``target``.  This
+way the ``start`` method can look the same for both devices.
+
+Besides single state strings you can also add lists of strings and a catch-all
 ``*`` state that matches all states.
 
-In some cases it might be necessary to reach more than one target state. For
-this, you can pass a list of possible target state and must provide a check
-function that returns the current state. It is called after the decorated
-function was called::
-
-        @transition(source='here', target=['this', 'that'], check=func)
-        def do_something(self):
-            ...
-
-There is no explicit error handling implemented but it can be easily modeled by
-adding error states and reset functions that transition out of them.
+There is no explicit error handling implemented for devices which support
+hardware state reading but it can be easily modeled by adding error states and
+reset functions that transition out of them. In case the device does not support
+state reading and it runs into an error state all you need to do is to raise a
+:class:`.StateError` exception, which has a parameter ``error_state``. The
+exception is caught by :func:`.transition` and the ``error_state`` parameter is used
+for setting the device state.
 
 
 Parameters

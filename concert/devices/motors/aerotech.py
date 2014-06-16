@@ -58,7 +58,7 @@ class Aerorot(ContinuousRotationMotor):
         while self._query_state() >> Aerorot.AXISSTATUS_ACCEL_PHASE & 1:
             time.sleep(Aerorot.SLEEP_TIME)
 
-    def check_state(self):
+    def _get_state(self):
         res = self._query_state()
 
         # Simplified behavior because of unstable motor states, i.e.
@@ -71,14 +71,13 @@ class Aerorot(ContinuousRotationMotor):
         return state
 
     def _stop(self):
-        if self.check_state() == 'moving':
-            self._connection.execute("ABORT %s" % (Aerorot.AXIS))
+        self._connection.execute("ABORT %s" % (Aerorot.AXIS))
 
-        while self.check_state() == 'moving':
+        while self.state == 'moving':
             time.sleep(Aerorot.SLEEP_TIME)
 
     def _home(self):
         self._connection.execute("HOME %s" % (Aerorot.AXIS))
 
-        while self.check_state() == 'moving':
+        while self.state == 'moving':
             time.sleep(Aerorot.SLEEP_TIME)
