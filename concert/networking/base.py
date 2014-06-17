@@ -52,12 +52,9 @@ class SocketConnection(object):
 
     def execute(self, data):
         """Execute command and wait for response (thread safe)."""
-        self._lock.acquire()
-        try:
+        with self._lock:
             self.send(data)
             result = self.recv()
-        finally:
-            self._lock.release()
 
         return result
 
