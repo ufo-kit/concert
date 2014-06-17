@@ -23,12 +23,14 @@ class NewPort74000(base.Monochromator):
         Open the shutter
         """
         self._connection.send('SHUTTER O\r\n')
+        self._connection.recv()
 
     def shutter_close(self):
         """
         Close the shutter
         """
         self._connection.send('SHUTTER C\r\n')
+        self._connection.recv()
 
     def shutter_status(self):
         """
@@ -44,6 +46,7 @@ class NewPort74000(base.Monochromator):
         Set the wavelength
         """
         self._connection.send('GOWAVE ' + str(wave) + '\r\n')
+        self._connection.recv()
 
     def _get_wavelength(self):
         """
