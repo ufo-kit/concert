@@ -139,13 +139,16 @@ try:
             self.link(callback)
 
     def async(func):
-        @functools.wraps(func)
-        def _inner(*args, **kwargs):
-            g = GreenletFuture(func, args, kwargs)
-            g.start()
-            return g
+        if concert.config.DISABLE_ASYNC:
+            return no_async(func)
+        else:
+            @functools.wraps(func)
+            def _inner(*args, **kwargs):
+                g = GreenletFuture(func, args, kwargs)
+                g.start()
+                return g
 
-        return _inner
+            return _inner
 
     def threaded(func):
         @functools.wraps(func)
