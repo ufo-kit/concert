@@ -1,5 +1,5 @@
 """Aerotech"""
-import time
+from concert.helpers import busy_wait
 from concert.quantities import q
 from concert.networking.aerotech import Connection
 from concert.devices.motors.base import ContinuousRotationMotor
@@ -46,8 +46,8 @@ class Aerorot(ContinuousRotationMotor):
     def _set_position(self, position):
         self._connection.execute("MOVEABS %s %f" % (Aerorot.AXIS, position.magnitude))
 
-        while not self._query_state() >> Aerorot.AXISSTATUS_IN_POSITION & 1:
-            time.sleep(Aerorot.SLEEP_TIME)
+        # If this is not precise enough one can try the IN_POSITION
+        self['state'].wait('standby', sleep_time=Aerorot.SLEEP_TIME)
 
     def _get_velocity(self):
         return float(self._connection.execute("VFBK(%s)" % (Aerorot.AXIS))) * q.deg / q.s
@@ -55,8 +55,7 @@ class Aerorot(ContinuousRotationMotor):
     def _set_velocity(self, velocity):
         self._connection.execute("FREERUN %s %f" % (Aerorot.AXIS, velocity.magnitude))
 
-        while self._query_state() >> Aerorot.AXISSTATUS_ACCEL_PHASE & 1:
-            time.sleep(Aerorot.SLEEP_TIME)
+        busy_wait(self._is_velocity_stable, sleep_time=Aerorot.SLEEP_TIME)
 
     def _get_state(self):
         res = self._query_state()
@@ -71,13 +70,18 @@ class Aerorot(ContinuousRotationMotor):
         return state
 
     def _stop(self):
-        self._connection.execute("ABORT %s" % (Aerorot.AXIS))
+        if self.check_state() == 'moving':
+            self._connection.execute("ABORT %s" % (Aerorot.AXIS))
 
-        while self.state == 'moving':
-            time.sleep(Aerorot.SLEEP_TIME)
+        self['state'].wait('standby', sleep_time=Aerorot.SLEEP_TIME)
 
     def _home(self):
         self._connection.execute("HOME %s" % (Aerorot.AXIS))
 
-        while self.state == 'moving':
-            time.sleep(Aerorot.SLEEP_TIME)
+        self['state'].wait('standby', sleep_time=Aerorot.SLEEP_TIME)
+
+    def _is_velocity_stable(self):
+        accel = self._query_state() >> Aerorot.AXISSTATUS_ACCEL_PHASE & 1
+        decel = self._query_state() >> Aerorot.AXISSTATUS_DECEL_PHASE & 1
+
+        return not (accel or decel)

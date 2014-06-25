@@ -6,8 +6,9 @@ import six
 import functools
 import inspect
 import types
-from concert.helpers import memoize
+from concert.helpers import memoize, busy_wait
 from concert.async import async, wait
+from concert.quantities import q
 
 
 LOG = logging.getLogger(__name__)
@@ -607,6 +608,13 @@ class ParameterValue(object):
         """Unlock parameter for writing."""
         self._locked = False
 
+    def wait(self, value, sleep_time=1e-1 * q.s, timeout=None):
+        """Wait until the parameter value is *value*. *sleep_time* is the time to sleep
+        between consecutive checks. *timeout* specifies the maximum waiting time.
+        """
+        condition = lambda: self.get().result() == value
+        busy_wait(condition, sleep_time=sleep_time, timeout=timeout)
+
 
 class QuantityValue(ParameterValue):
 
@@ -661,6 +669,19 @@ class QuantityValue(ParameterValue):
     @property
     def unit(self):
         return self._parameter.unit
+
+    def wait(self, value, eps=None, sleep_time=1e-1 * q.s, timeout=None):
+        """Wait until the parameter value is *value*. *eps* is the allowed discrepancy between the
+        actual value and *value*. *sleep_time* is the time to sleep between consecutive checks.
+        *timeout* specifies the maximum waiting time.
+        """
+        def eps_condition():
+            """Take care of rountind errors"""
+            diff = np.abs((self.get().result() - value).to(eps.units))
+            return diff < eps
+
+        condition = lambda: self.get().result() == value if eps is None else eps_condition
+        busy_wait(condition, sleep_time=sleep_time, timeout=timeout)
 
 
 class MetaParameterizable(type):

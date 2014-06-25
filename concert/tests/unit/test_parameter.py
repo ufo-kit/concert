@@ -2,6 +2,7 @@ from concert.quantities import q
 from concert.tests import TestCase
 from concert.base import (Parameterizable, Parameter, Quantity, State, SoftLimitError,
                           transition, check, LockError, ParameterError)
+from concert.helpers import WaitError
 
 
 class BaseDevice(Parameterizable):
@@ -54,6 +55,14 @@ class TestDescriptor(TestCase):
         self.foo1.set_foo(15 * q.m).join()
         self.assertEqual(self.foo1.get_foo().result(), 15 * q.m)
         self.assertEqual(self.foo2.get_foo().result(), 23 * q.m)
+
+    def test_wait(self):
+        self.foo1.foo = 1 * q.m
+        self.foo1['foo'].wait(1 * q.m, eps=1e-3 * q.m)
+
+        # No change on the parameter, timeout must take place
+        with self.assertRaises(WaitError):
+            self.foo1['foo'].wait(0 * q.m, timeout=1e-5 * q.s)
 
 
 class TestParameterizable(TestCase):
