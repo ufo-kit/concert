@@ -269,7 +269,7 @@ class Dimax(Pco, base.BufferedMixin):
         try:
             self.uca.start_readout()
 
-            for i in xrange(num_frames):
+            for i in xrange(num_frames.magnitude):
                 yield self.grab()
         finally:
             self.uca.stop_readout()
