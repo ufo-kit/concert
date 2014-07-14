@@ -1,3 +1,4 @@
+import time
 from concert.quantities import q
 from concert.tests import TestCase
 from concert.base import (Parameterizable, Parameter, Quantity, State, SoftLimitError,
@@ -37,6 +38,27 @@ class RestrictedFooDevice(FooDevice):
         super(RestrictedFooDevice, self).__init__(0 * q.mm)
         self['foo'].lower = lower
         self['foo'].upper = upper
+
+
+class AccessorCheckDevice(Parameterizable):
+
+    foo = Quantity(q.m)
+
+    def __init__(self, future, check):
+        super(AccessorCheckDevice, self).__init__()
+        self.check = check
+        self.future = future
+        self._value = 0 * q.mm
+
+    def _set_foo(self, value):
+        self.check(self.future)
+        self._value = value
+        time.sleep(0.01)
+
+    def _get_foo(self):
+        self.check(self.future)
+        time.sleep(0.01)
+        return self._value
 
 
 class TestDescriptor(TestCase):
@@ -143,6 +165,19 @@ class TestParameterizable(TestCase):
         with self.assertRaises(LockError):
             self.device.unlock()
 
+    def test_wait_on_future(self):
+        def check(future):
+            if future:
+                self.assertTrue(future.done())
+
+        d1 = AccessorCheckDevice(None, check)
+        f1 = d1.set_foo(2 * q.mm)
+        d2 = AccessorCheckDevice(f1, check)
+        f2 = d2.set_foo(5 * q.mm, wait_on=f1)
+        d3 = AccessorCheckDevice(f2, check)
+        d3.get_foo(wait_on=f2).join()
+
+
 
 class TestParameter(TestCase):
 
@@ -191,4 +226,3 @@ class TestQuantity(TestCase):
         device['foo'].lock_limits(True)
         with self.assertRaises(LockError):
             device['foo'].unlock_limits()
-
