@@ -556,11 +556,29 @@ class ParameterValue(object):
         return getattr(self._instance, '_set_' + self.name) is not _setter_not_implemented
 
     @async
-    def get(self):
+    def get(self, wait_on=None):
+        """
+        Get concrete *value* of this object.
+
+        If *wait_on* is not None, it must be a future on which this method
+        joins.
+        """
+        if wait_on:
+            wait_on.join()
+
         return getattr(self._instance, self.name)
 
     @async
-    def set(self, value):
+    def set(self, value, wait_on=None):
+        """
+        Set concrete *value* on the object.
+
+        If *wait_on* is not None, it must be a future on which this method
+        joins.
+        """
+        if wait_on:
+            wait_on.join()
+
         setattr(self._instance, self.name, value)
 
     @async
