@@ -156,7 +156,6 @@ class Backproject(InjectProcess):
         self.ifft = self.pm.get_task('ifft', dimensions=1)
         self.fltr = self.pm.get_task('filter')
         self.backprojector = self.pm.get_task('backproject')
-        self.crop = self.pm.get_task('region-of-interest', x=0, y=0)
 
         if axis_pos:
             self.backprojector.props.axis_pos = axis_pos
@@ -165,7 +164,6 @@ class Backproject(InjectProcess):
         graph.connect_nodes(self.fft, self.fltr)
         graph.connect_nodes(self.fltr, self.ifft)
         graph.connect_nodes(self.ifft, self.backprojector)
-        graph.connect_nodes(self.backprojector, self.crop)
 
         super(Backproject, self).__init__(graph, get_output=True)
 
@@ -182,17 +180,20 @@ class Backproject(InjectProcess):
     @coroutine
     def __call__(self, consumer):
         """Get a sinogram, do filtered backprojection and send it to *consumer*."""
+        def process(sino):
+            self.insert(sino)
+            consumer.send(self.result())
+
         if not self._started:
             self.start()
 
+        sinogram = yield
+        self.ifft.props.crop_width = sinogram.shape[1]
+        process(sinogram)
+
         while True:
             sinogram = yield
-            self.insert(sinogram)
-            self.crop.props.width = sinogram.shape[1]
-            self.crop.props.height = sinogram.shape[1]
-            slice = self.result()
-
-            consumer.send(slice)
+            process(sinogram)
 
 
 class FlatCorrectedBackproject(InjectProcess):
@@ -216,7 +217,6 @@ class FlatCorrectedBackproject(InjectProcess):
         self.ifft = self.pm.get_task('ifft', dimensions=1)
         self.fltr = self.pm.get_task('filter')
         self.backprojector = self.pm.get_task('backproject')
-        self.crop = self.pm.get_task('region-of-interest', x=0, y=0)
 
         if axis_pos:
             self.backprojector.props.axis_pos = axis_pos
@@ -226,12 +226,12 @@ class FlatCorrectedBackproject(InjectProcess):
         graph.connect_nodes(self.fft, self.fltr)
         graph.connect_nodes(self.fltr, self.ifft)
         graph.connect_nodes(self.ifft, self.backprojector)
-        graph.connect_nodes(self.backprojector, self.crop)
 
         super(FlatCorrectedBackproject, self).__init__(graph, get_output=True)
 
         self.flat_row = flat_row
         self.dark_row = dark_row
+        self.ifft.props.crop_width = dark_row.shape[0]
 
     @property
     def axis_position(self):
@@ -276,8 +276,6 @@ class FlatCorrectedBackproject(InjectProcess):
                 raise ValueError('Both flat and dark rows must be set')
             self.insert(self.dark_row, node=self.sino_correction, index=1)
             self.insert(self.flat_row, node=self.sino_correction, index=2)
-            self.crop.props.width = sinogram.shape[1]
-            self.crop.props.height = sinogram.shape[1]
             slice = self.result()
 
             consumer.send(slice)
