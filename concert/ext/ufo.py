@@ -276,6 +276,4 @@ class FlatCorrectedBackproject(InjectProcess):
                 raise ValueError('Both flat and dark rows must be set')
             self.insert(self.dark_row, node=self.sino_correction, index=1)
             self.insert(self.flat_row, node=self.sino_correction, index=2)
-            slice = self.result()
-
-            consumer.send(slice)
+            consumer.send(self.result())
