@@ -2,7 +2,7 @@ import numpy as np
 from concert.coroutines.base import coroutine, broadcast, inject
 from concert.coroutines.filters import (absorptivity, backproject, flat_correct, average_images,
                                         queue, sinograms, downsize, stall, PickSlice)
-from concert.coroutines.sinks import null, Result
+from concert.coroutines.sinks import null, Result, Accumulate
 from concert.tests import TestCase
 
 
@@ -149,3 +149,8 @@ class TestCoroutines(TestCase):
 
     def test_backproject(self):
         frame_producer(backproject(1, null()))
+
+    def test_accumulate(self):
+        accumulate = Accumulate()
+        inject(generator(), accumulate())
+        self.assertEqual(accumulate.items, range(5))
