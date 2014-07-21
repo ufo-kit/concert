@@ -31,3 +31,24 @@ def null():
     """
     while True:
         yield
+
+
+class Accumulate(object):
+    """Accumulate items in a list."""
+
+    def __init__(self):
+        self.items = []
+
+    @coroutine
+    def __call__(self):
+        """
+        __call__(self)
+
+        Coroutine interface for processing in a pipeline.
+        """
+        # Clear results from possible previous execution
+        self.items = []
+
+        while True:
+            item = yield
+            self.items.append(item)
