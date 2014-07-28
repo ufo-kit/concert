@@ -7,6 +7,10 @@ from concert.measures import rotation_axis
 from concert.optimization import halver, optimize_parameter
 from concert.imageprocessing import center_of_mass, flat_correct
 from concert.coroutines.base import coroutine
+from concert.helpers import expects, Numeric
+from concert.devices.motors.base import LinearMotor, ContinuousLinearMotor
+from concert.devices.motors.base import RotationMotor, ContinuousRotationMotor
+from concert.devices.cameras.base import Camera
 
 
 LOG = logging.getLogger(__name__)
@@ -122,7 +126,8 @@ def dscan(parameter_list, n_intervals, handler):
 
     return ascan(parameter_list, n_intervals, handler, initial_values)
 
-
+@expects(Camera, LinearMotor, measure=np.std, opt_kwargs=None,
+         plot_consumer=None, frame_consumer=None, output=Numeric(1))
 def focus(camera, motor, measure=np.std, opt_kwargs=None,
           plot_consumer=None, frame_consumer=None):
     """
@@ -168,6 +173,10 @@ def focus(camera, motor, measure=np.std, opt_kwargs=None,
 
 
 @async
+@expects(Camera, RotationMotor, x_motor=LinearMotor, z_motor=LinearMotor,
+         measure=rotation_axis, num_frames=Numeric(1), absolute_eps=Numeric(1, q.deg),
+         max_iterations=Numeric(1), flat=None, dark=None,
+         frame_consumer=None, output=Numeric(1))
 def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
                         measure=rotation_axis, num_frames=10, absolute_eps=0.1 * q.deg,
                         max_iterations=5, flat=None, dark=None, frame_consumer=None):
@@ -279,7 +288,8 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
     # Return the last known ellipse fit
     return x_angle, z_angle, center
 
-
+@expects(Camera, LinearMotor, LinearMotor, Numeric(2, q.um), Numeric(2, q.mm), Numeric(2, q.mm),
+         xstep=Numeric(1), zstep=Numeric(1), thres=Numeric(1), output=Numeric(1))
 def find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
               xstep=None, zstep=None, thres=1000):
     """

@@ -1,4 +1,5 @@
 import time
+import inspect
 from concert.quantities import q
 
 
@@ -83,3 +84,103 @@ def busy_wait(condition, sleep_time=1e-1 * q.s, timeout=None):
 class WaitError(Exception):
     """Raised on busy waiting timeouts"""
     pass
+
+
+class _Structure(object):
+
+    def __init__(self, func, e_args, f_args, f_defaults, e_keywords):
+        self.func = func
+        self.e_args = e_args
+        self.f_args = f_args
+        self.f_defaults = f_defaults
+        self.outputs = e_keywords['output']
+        self.e_keywords = e_keywords
+        self._isfunction = True
+        self.__name__ = func.__name__
+
+    def __call__(self, *args, **kwargs):
+        self._check_types(*args, **kwargs)
+        return self.func(*args, **kwargs)
+
+    def _check_types(self, *args, **kwargs):
+        for i, key in enumerate(args):
+            if i < len(self.e_args):
+                if self.e_args[i].__class__.__name__ == 'MetaParameterizable':
+                    if not isinstance(args[i], self.e_args[i]):
+                        raise TypeError
+                elif self.e_args[i].__class__.__name__ == 'Numeric':
+                    if self.e_args[i].units is not None:
+                        e_units = self.e_args[i].units.to_base_units().units
+                        if not e_units == args[i].to_base_units().units:
+                            raise TypeError
+                    else:
+                        if args[i].units is not None:
+                            raise TypeError
+            else:
+                expected = self.e_keywords.pop(self.f_args[i])
+                if expected.__class__.__name__ == 'MetaParameterizable':
+                    if not isinstance(args[i], expected):
+                        raise TypeError
+                elif expected.__class__.__name__ == 'Numeric':
+                    if expected.units is not None:
+                        if not expected.units.to_base_units().units == args[
+                                i].to_base_units().units:
+                            raise TypeError
+                    else:
+                        if args[i].units is not None:
+                            raise TypeError
+
+        for i, key in enumerate(kwargs):
+            expected = self.e_keywords[key]
+            if expected.__class__.__name__ == 'MetaParameterizable':
+                if not isinstance(kwargs[key], expected):
+                    raise TypeError
+            elif expected.__class__.__name__ == 'Numeric':
+                if expected.units is not None:
+                    if not expected.units.to_base_units().units == kwargs[
+                            key].to_base_units().units:
+                        raise TypeError
+                    else:
+                        if kwargs[key].units is not None:
+                            raise TypeError
+
+
+class expects(object):
+
+    """
+    Decorator which determines expected arguments for the function
+    and also check correctness of given arguments. If input arguments differ from
+    expected ones, exception *TypeError* will be raised.
+
+    For numeric arguments use *Numeric* class with 2 parameters: dimension of the array
+    and units (optional). E.g. "Numeric (1)" means function expects one number or
+    "Numeric (2, q.mm)" means function expects expression like [4,5]*q.mm
+
+    Common use case looks like this:
+
+    @expects (Camera, LinearMotor, pixelsize = Numeric(2, q.mm))
+    def foo(camera, motor, pixelsize = None):
+        pass
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.e_args = args
+        self.e_keywords = kwargs
+
+    def __call__(self, f):
+        f_args = inspect.getargspec(f).args
+        f_defaults = inspect.getargspec(f).defaults
+        self.func = _Structure(
+            f,
+            self.e_args,
+            f_args,
+            f_defaults,
+            self.e_keywords)
+        return self.func
+
+
+class Numeric(object):
+
+    def __init__(self, dimension, units=None):
+        self.dimension = dimension
+        self.units = units
