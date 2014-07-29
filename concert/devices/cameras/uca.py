@@ -9,7 +9,7 @@ from concert.quantities import q
 from concert.base import Parameter, Quantity, transition
 from concert.helpers import Bunch
 from concert.devices.cameras import base
-
+import time as time
 
 LOG = logging.getLogger(__name__)
 
@@ -273,3 +273,134 @@ class Dimax(Pco, base.BufferedMixin):
                 yield self.grab()
         finally:
             self.uca.stop_readout()
+
+
+class Ufo(Camera):
+
+    """Adaptions for the IPE/KIT UFO camera."""
+
+    def __init__(self):
+        super(Ufo, self).__init__('ufo')
+        self._reference = None
+
+    @property
+    def clock_cycle(self):
+        if self.ufo_cmosis_bit_mode == 0:
+            return 0.000000025 * q.s
+
+        if self.ufo_cmosis_bit_mode == 1:
+            return 0.00000002083 * q.s
+
+        raise base.CameraError("Cannot determine clock cycle, bit mode unknown")
+
+    def prepare_fast_reject(self, max_frame_rate=1000 / q.s, num_of_pixel_thr=30,
+                            num_of_lines_thr=1, num_frames=40):
+        """
+        Prepare the camera for fast reject mode.
+
+        *max_frame_rate* denotes the maximum target frame rate.
+        *num_of_pixel_thr* and *num_of_lines_thr* determine thresholds for
+        triggering per pixel and per frame.
+
+        *num_frames* denotes the number of frames that are used for calculating
+        the noise threshold.
+
+        Note, that the trigger mode is explicitly set to *EXTERNAL*.
+
+        Assumptions:
+          - frame rate depends on interleaved time (exp time + fot + row time *
+            rows_interleave) + frame readout time (exp time + fot + row time *
+            rows_readout_saved)
+          - number_of_lines_thr = 1
+          - number of read lines = one triggered line + area
+          - skip = area
+          math behind all:
+          l - lines, i - interleave_lines , r - saved lines, s - skip, a - area, t - total view, n = skip/area
+          l = i + r
+          i = t/(s+1)
+          r = 2*a + 1, minimum acquired data is one row + 2*area
+          --> i+r = t/(s+1) + 2*a + 1 = t/(n*a +1) + 2*a + 1 = l, where a is the unknown
+        """
+        self.trigger_mode = self.trigger_modes.AUTO
+        frames = []
+
+        with self.recording():
+            for i in range(num_frames):
+                frames.append(self.grab())
+
+        frames = np.dstack(tuple(frames))
+        stds = np.std(frames, axis=2)
+        pixel_thr = 3 * np.amax(stds)
+
+        output_mode = self.ufo_cmosis_output_mode
+        start_line = self.ufo_cmosis_start1
+        total_num_lines = self.ufo_cmosis_number_lines - start_line
+        clk_per = self.clock_cycle
+        outputs_used = 16 / 2**output_mode
+
+        reg_73 = 10  # default in CMOSIS, never changes
+        frame_overhead_time = (reg_73 + (2 * 16 / outputs_used)) * 129 * clk_per
+        row_readout_time = 129 * clk_per * 16 / outputs_used
+        exposure_time = self.exposure_time
+
+        def frame_rate(area):
+            return 1 / (area * row_readout_time + 2 * (frame_overhead_time + exposure_time))
+
+        ratio_area_skip = 1
+
+        # lines that can be read with desired frame rate
+        lines = int(((1 / max_frame_rate) -
+                    2 * (frame_overhead_time + exposure_time)) / row_readout_time)
+
+        # parameters of the quadratic equation to find area
+        a = 2 * ratio_area_skip
+        b = ratio_area_skip - lines * ratio_area_skip + 2
+        c = total_num_lines - lines + 1
+        d = b**2 - 4 * a * c
+
+        if d < 0:
+            b = int(np.sqrt([4 * a * c])[0] + 1)
+            min_lines = int((b + 2 + ratio_area_skip) / ratio_area_skip)
+            msg = "maximum frame rate {0} > interleave + readout rows:{1}"
+            raise base.CameraError(msg.format(frame_rate(min_lines), min_lines))
+
+        LOG.info("frame_rate={}".format(frame_rate(lines)))
+
+        area = int(-b / (2 * a) + np.sqrt([b**2 - 4 * a * c])[0] / (2 * a))
+        skip = ratio_area_skip * area
+        thr_line = total_num_lines % (skip + 1) + start_line
+
+        if thr_line == 0:
+            thr_line = skip + start_line + 3
+
+        num_lines = total_num_lines/(skip + 1) + 1
+
+        LOG.info("estimated_frame_rate={}".format(frame_rate(num_lines + 2 * area + 1)))
+
+        msg = "pixel_thr={} num_pixel_thr={} num_lines_thr={}"
+        LOG.info(msg.format(pixel_thr, num_of_pixel_thr, num_of_lines_thr))
+
+        msg = "skip={} area={} start_line={} num_lines={} thr_line={}"
+        LOG.info(msg.format(skip, area, start_line, num_lines, thr_line))
+
+        self.ufo_fr_pixel_thr = int(pixel_thr)
+        self.ufo_fr_num_lines_thr = int(num_of_lines_thr)
+        self.ufo_fr_num_pixel_thr = int(num_of_pixel_thr)
+        self.ufo_fr_num_lines = int(num_lines)
+        self.ufo_fr_skip_lines = int(skip)
+        self.ufo_fr_threshold_start_line = int(thr_line)
+        self.ufo_fr_area_lines = int(area)
+
+        self.trigger_mode = self.trigger_modes.EXTERNAL
+        self.ufo_control = 0x90000201
+        time.sleep(0.01)
+        self.ufo_control = 0x90001201
+        print "Parameters set.."
+
+        # with self.recording():
+            # Take reference frame
+            # self.ufo_control = 0x90000201
+            # self._reference = self.grab()
+
+            # Start fast reject
+            # self.ufo_control = 0x90001201
