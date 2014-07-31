@@ -117,7 +117,7 @@ class _Structure(object):
                         if args[i].units is not None:
                             raise TypeError
             else:
-                expected = self.e_keywords.pop(self.f_args[i])
+                expected = self.e_keywords[self.f_args[i]]
                 if expected.__class__.__name__ == 'MetaParameterizable':
                     if not isinstance(args[i], expected):
                         raise TypeError
