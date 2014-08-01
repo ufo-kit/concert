@@ -5,7 +5,10 @@ from concert.tests import TestCase
 from concert.coroutines.base import coroutine
 from concert.quantities import q
 from concert.devices.cameras.dummy import Camera, BufferedCamera
-from concert.devices.cameras.pco import Timestamp, TimestampError
+try:
+    from concert.devices.cameras.pco import Timestamp, TimestampError
+except:
+    pass
 
 
 class TestDummyCamera(TestCase):
