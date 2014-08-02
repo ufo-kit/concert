@@ -111,9 +111,9 @@ class Timestamp(object):
             figures.append(num >> 4 & 0xf)
             figures.append(num & 0xf)
 
-        try:
-            self._number = _concatenate_ints(figures[:8])
+        self._number = _concatenate_ints(figures[:8])
 
+        try:
             year = _concatenate_ints(figures[8:12])
             month = _concatenate_ints(figures[12:14])
             day = _concatenate_ints(figures[14:16])
@@ -122,7 +122,7 @@ class Timestamp(object):
             sec = _concatenate_ints(figures[20:22])
             usec = _concatenate_ints(figures[22:])
             self._time = datetime(year, month, day, hour, minute, sec, usec)
-        except:
+        except ValueError:
             raise TimestampError('No valid timestamp found.')
 
     @property
