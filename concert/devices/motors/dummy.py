@@ -14,8 +14,10 @@ class _PositionMixin(object):
     def _set_position(self, position):
         if position < self.lower:
             self._position = self.lower
+            raise HardLimitError('hard-limit')
         elif position > self.upper:
             self._position = self.upper
+            raise HardLimitError('hard-limit')
         else:
             self._position = position
 
@@ -36,8 +38,10 @@ class _ContinuousMixin(object):
     def _set_velocity(self, velocity):
         if velocity < self.velocity_lower:
             self._velocity = self.velocity_lower
+            raise HardLimitError('hard-limit')
         elif velocity > self.velocity_upper:
             self._velocity = self.velocity_upper
+            raise HardLimitError('hard-limit')
         else:
             self._velocity = velocity
 
@@ -60,7 +64,7 @@ class LinearMotor(base.LinearMotor, _PositionMixin):
         if self._position > self.lower and self._position < self.upper:
             return 'standby'
 
-        raise HardLimitError('hard-limit')
+        return 'hard-limit'
 
 
 class ContinuousLinearMotor(LinearMotor, base.ContinuousLinearMotor, _ContinuousMixin):
