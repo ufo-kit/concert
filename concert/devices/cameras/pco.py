@@ -108,9 +108,8 @@ class Timestamp(object):
         figures = []
         for num in image[0, :14]:
             # 16 bits per pixel, 4-bit BCD in the last 8 bits -> 2 decimal digits
-            bcd = np.binary_repr(num, width=16)[8:]
-            figures.append(int(bcd[:4], base=2))
-            figures.append(int(bcd[4:8], base=2))
+            figures.append(num >> 4 & 0xf)
+            figures.append(num & 0xf)
 
         try:
             self._number = _concatenate_ints(figures[:8])
