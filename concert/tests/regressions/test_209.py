@@ -1,3 +1,4 @@
+from concert.base import FSMError
 from concert.tests import TestCase
 from concert.quantities import q
 from concert.devices.motors.base import RotationMotor as BaseRotationMotor
@@ -34,7 +35,7 @@ class TestIssue209(TestCase):
         """
         fancy = ImproperlyImplemented()
 
-        with self.assertRaises(NotImplementedError):
+        with self.assertRaises(FSMError):
             fancy.position = 20 * q.deg
 
     def test_shared_parameters(self):
