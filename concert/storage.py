@@ -143,7 +143,7 @@ class Walker(object):
         raise NotImplementedError
 
     @coroutine
-    def write_sequence(self, fname=None):
+    def write(self, fname=None):
         """Write a sequence of data in a coroutine fashion to a data set *fname*."""
         raise NotImplementedError
 
@@ -194,7 +194,7 @@ class DirectoryWalker(Walker):
         """Check if *paths* exist."""
         return os.path.exists(os.path.join(self.current, *paths))
 
-    def write_sequence(self, fname=None):
+    def write(self, fname=None):
         """Write frames to data set *fname*."""
         fname = fname if fname else self._fname
         ds_path = os.path.join(self._current, fname)

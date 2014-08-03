@@ -72,7 +72,7 @@ class DummyWalker(Walker):
             self._current = compute_path(*self._current.split('/')[:-1])
 
     @coroutine
-    def write_sequence(self, fname=None):
+    def write(self, fname=None):
         fname = fname if fname is not None else self._fname
         path = compute_path(self._current, fname)
 
