@@ -51,7 +51,7 @@ class Hdf5Walker(Walker):
         return '/'.join(paths) in self.current
 
     @coroutine
-    def write_sequence(self, fname=None):
+    def _write_coroutine(self, fname=None):
         """Write frames to data set *fname*."""
         data = yield
         shape = (1, ) + data.shape
