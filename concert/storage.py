@@ -3,7 +3,7 @@ import os
 import logging
 from logging import FileHandler, Formatter
 from concert.ext import tifffile
-from concert.coroutines.base import coroutine
+from concert.coroutines.base import coroutine, inject
 
 
 LOG = logging.getLogger(__name__)
@@ -142,9 +142,19 @@ class Walker(object):
         """Ascend from current depth."""
         raise NotImplementedError
 
-    @coroutine
-    def write(self, fname=None):
-        """Write a sequence of data in a coroutine fashion to a data set *fname*."""
+    def write(self, data=None, fname=None):
+        """Write a sequence of *data* if specified, otherwise this method turns into a coroutine.
+        The data set name is given by *fname*.
+        """
+        write_coro = self._write_coroutine(fname=fname)
+
+        if data is None:
+            return write_coro
+        else:
+            inject(data, write_coro)
+
+    def _write_coroutine(self, fname=None):
+        """Coroutine for writing data set *fname*."""
         raise NotImplementedError
 
 
@@ -194,7 +204,7 @@ class DirectoryWalker(Walker):
         """Check if *paths* exist."""
         return os.path.exists(os.path.join(self.current, *paths))
 
-    def write(self, fname=None):
+    def _write_coroutine(self, fname=None):
         """Write frames to data set *fname*."""
         fname = fname if fname else self._fname
         ds_path = os.path.join(self._current, fname)
