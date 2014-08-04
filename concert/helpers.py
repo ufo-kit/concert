@@ -4,6 +4,7 @@ from concert.quantities import q
 
 
 class Command(object):
+
     """Command class for the CLI script"""
 
     def __init__(self, name, opts):
@@ -24,6 +25,7 @@ class Command(object):
 
 
 class Bunch(object):
+
     """Encapsulate a list or dictionary to provide attribute-like access.
 
     Common use cases look like this::
@@ -38,6 +40,7 @@ class Bunch(object):
         print(b.foo)
         >>> 'foo'
     """
+
     def __init__(self, values):
         if isinstance(values, list):
             values = dict(zip(values, values))
@@ -82,6 +85,7 @@ def busy_wait(condition, sleep_time=1e-1 * q.s, timeout=None):
 
 
 class WaitError(Exception):
+
     """Raised on busy waiting timeouts"""
     pass
 
@@ -99,52 +103,50 @@ class _Structure(object):
         self.__name__ = func.__name__
 
     def __call__(self, *args, **kwargs):
-        self._check_types(*args, **kwargs)
+        self._check_args(*args, **kwargs)
         return self.func(*args, **kwargs)
 
-    def _check_types(self, *args, **kwargs):
+    def _check_args(self, *args, **kwargs):
         for i, key in enumerate(args):
             if i < len(self.e_args):
-                if self.e_args[i].__class__.__name__ == 'MetaParameterizable':
-                    if not isinstance(args[i], self.e_args[i]):
-                        raise TypeError
-                elif self.e_args[i].__class__.__name__ == 'Numeric':
-                    if self.e_args[i].units is not None:
-                        e_units = self.e_args[i].units.to_base_units().units
-                        if not e_units == args[i].to_base_units().units:
-                            raise TypeError
-                    else:
-                        if args[i].units is not None:
-                            raise TypeError
+                self._check_type_correctness(
+                    self.f_args[i],
+                    self.e_args[i],
+                    args[i])
             else:
-                expected = self.e_keywords[self.f_args[i]]
-                if expected.__class__.__name__ == 'MetaParameterizable':
-                    if not isinstance(args[i], expected):
-                        raise TypeError
-                elif expected.__class__.__name__ == 'Numeric':
-                    if expected.units is not None:
-                        if not expected.units.to_base_units().units == args[
-                                i].to_base_units().units:
-                            raise TypeError
-                    else:
-                        if args[i].units is not None:
-                            raise TypeError
-
+                self._check_type_correctness(
+                    self.f_args[i],
+                    self.e_keywords[self.f_args[i]],
+                    args[i])
         for i, key in enumerate(kwargs):
-            expected = self.e_keywords[key]
-            if kwargs[key] is None:
+            if kwargs[key] is not None:
+                self._check_type_correctness(
+                    key,
+                    self.e_keywords[key],
+                    kwargs[key])
+
+    def _check_type_correctness(self, arg_name, expected, given):
+        from concert.devices.base import Device
+        if expected is not None:
+            try:
+                issubclass(expected, Device)
+            except:
                 pass
-            elif expected.__class__.__name__ == 'MetaParameterizable':
-                if not isinstance(kwargs[key], expected):
+            else:
+                if not isinstance(given, expected):
                     raise TypeError
-            elif expected.__class__.__name__ == 'Numeric':
+            if isinstance(expected, Numeric):
                 if expected.units is not None:
-                    if not expected.units.to_base_units().units == kwargs[
-                            key].to_base_units().units:
+                    e_units = expected.units.to_base_units().units
+                    if not e_units == given.to_base_units().units:
                         raise TypeError
+                else:
+                    try:
+                        given.units
+                    except:
+                        pass
                     else:
-                        if kwargs[key].units is not None:
-                            raise TypeError
+                        raise TypeError
 
 
 class expects(object):
@@ -182,6 +184,7 @@ class expects(object):
 
 
 class Numeric(object):
+    __name__ = "Numeric"
 
     def __init__(self, dimension, units=None):
         self.dimension = dimension
