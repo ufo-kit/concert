@@ -132,7 +132,9 @@ class _Structure(object):
 
         for i, key in enumerate(kwargs):
             expected = self.e_keywords[key]
-            if expected.__class__.__name__ == 'MetaParameterizable':
+            if kwargs[key] is None:
+                pass
+            elif expected.__class__.__name__ == 'MetaParameterizable':
                 if not isinstance(kwargs[key], expected):
                     raise TypeError
             elif expected.__class__.__name__ == 'Numeric':

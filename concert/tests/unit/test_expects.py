@@ -26,7 +26,7 @@ class TestExpects(TestCase):
             align_rotation_axis(self.camera, self.linear_motor).result()
         with self.assertRaises(TypeError):
             align_rotation_axis(
-                self.camera, self.rotation_motor, self.rotation_motor).result()
+                self.camera, self.rotation_motor, self.linear_motor).result()
 
     def test_align_rotation_axis_function(self):
         align_rotation_axis(
