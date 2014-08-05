@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 import traceback
 import concert
+import concert.config
 import concert.session.management as cs
 from concert.helpers import Command
 from concert.ext.cmd import plugins
@@ -55,6 +56,13 @@ def get_ipython_shell(config=None):
     else:
         from IPython.terminal.embed import InteractiveShellEmbed
         shell = InteractiveShellEmbed(config=config, banner1='')
+
+    if not concert.config.DISABLE_GEVENT:
+        from IPython.lib.inputhook import inputhook_manager
+        from concert.ext.gevent import inputhook_gevent
+
+        inputhook_manager.set_inputhook(inputhook_gevent)
+        inputhook_manager._current_gui = 'gevent'
 
     return shell
 
