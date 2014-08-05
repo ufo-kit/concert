@@ -134,19 +134,31 @@ class _Structure(object):
                 pass
             else:
                 if not isinstance(given, expected):
-                    raise TypeError
+                    raise TypeError(
+                        'Sorry, as an argument "{0}" was expected to get {1}, but got {2}'.format(
+                            arg_name,
+                            expected.__name__,
+                            given.__class__.__name__))
             if isinstance(expected, Numeric):
                 if expected.units is not None:
                     e_units = expected.units.to_base_units().units
                     if not e_units == given.to_base_units().units:
-                        raise TypeError
+                        raise TypeError(
+                            'Sorry, as an argument "{0}" was expected to get {1}, but got {2}'.format(
+                                arg_name,
+                                expected.units,
+                                given.units))
                 else:
                     try:
                         given.units
                     except:
                         pass
                     else:
-                        raise TypeError
+                        raise TypeError(
+                            'Sorry, as an argument "{0}" was expected to get {1}, but got {2}'.format(
+                                arg_name,
+                                "number",
+                                given.__class__.__name__))
 
 
 class expects(object):
