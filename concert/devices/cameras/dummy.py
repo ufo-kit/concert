@@ -147,6 +147,7 @@ class FileCamera(Base):
         self._roi_width = image.shape[1] * q.pixel
         self._roi_height = image.shape[0] * q.pixel
 
+    @transition(target='recording')
     def _record_real(self):
         self._index = 0
 
