@@ -1,4 +1,5 @@
 """Dummy IO"""
+from concert.base import transition
 from concert.devices.io import base
 
 
@@ -15,3 +16,16 @@ class IO(base.IO):
 
     def _write_port(self, port, value):
         self._ports[port] = value
+
+
+class Signal(base.Signal):
+
+    """Dummy signal device."""
+
+    @transition(target='on')
+    def _on(self):
+        pass
+
+    @transition(target='off')
+    def _off(self):
+        pass
