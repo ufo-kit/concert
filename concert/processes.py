@@ -126,6 +126,7 @@ def dscan(parameter_list, n_intervals, handler):
 
     return ascan(parameter_list, n_intervals, handler, initial_values)
 
+
 @expects(Camera, LinearMotor, measure=np.std, opt_kwargs=None,
          plot_consumer=None, frame_consumer=None, output=Numeric(1))
 def focus(camera, motor, measure=np.std, opt_kwargs=None,
@@ -173,7 +174,7 @@ def focus(camera, motor, measure=np.std, opt_kwargs=None,
 
 
 @async
-@expects(Camera, RotationMotor, x_motor=LinearMotor, z_motor=LinearMotor,
+@expects(Camera, RotationMotor, x_motor=RotationMotor, z_motor=RotationMotor,
          measure=rotation_axis, num_frames=Numeric(1), absolute_eps=Numeric(1, q.deg),
          max_iterations=Numeric(1), flat=None, dark=None,
          frame_consumer=None, output=Numeric(1))
@@ -287,6 +288,7 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
 
     # Return the last known ellipse fit
     return x_angle, z_angle, center
+
 
 @expects(Camera, LinearMotor, LinearMotor, Numeric(2, q.um), Numeric(2, q.mm), Numeric(2, q.mm),
          xstep=Numeric(1), zstep=Numeric(1), thres=Numeric(1), output=Numeric(1))
