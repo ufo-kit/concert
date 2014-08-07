@@ -1,6 +1,31 @@
 """Port, IO Device."""
-from concert.base import AccessorNotImplementedError
+from concert.base import AccessorNotImplementedError, State, check
 from concert.devices.base import Device
+
+
+class Signal(Device):
+
+    """Base device for binary signals, e.g. TTL trigger signals and similar."""
+
+    state = State(default='off')
+
+    @check(source='off', target='on')
+    def on(self):
+        """Switch the signal on."""
+        self._on()
+
+    @check(source='on', target='off')
+    def off(self):
+        """Switch the signal off."""
+        self._off()
+
+    def _on(self):
+        """Implementation."""
+        raise NotImplementedError
+
+    def _off(self):
+        """Implementation."""
+        raise NotImplementedError
 
 
 class IO(Device):
