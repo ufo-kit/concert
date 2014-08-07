@@ -1,6 +1,7 @@
 from concert.tests import TestCase
+from concert.base import TransitionNotAllowed
 from concert.devices.io.base import IODeviceError
-from concert.devices.io.dummy import IO
+from concert.devices.io.dummy import IO, Signal
 
 
 class TestIO(TestCase):
@@ -22,3 +23,24 @@ class TestIO(TestCase):
 
     def test_non_existent_write(self):
         self.assertRaises(IODeviceError, self.io.write_port, 1, 0)
+
+
+class TestSignal(TestCase):
+
+    def setUp(self):
+        self.signal = Signal()
+
+    def test_on(self):
+        self.signal.on()
+        self.assertEqual(self.signal.state, 'on')
+
+        with self.assertRaises(TransitionNotAllowed):
+            self.signal.on()
+
+    def test_off(self):
+        self.signal.on()
+        self.signal.off()
+        self.assertEqual(self.signal.state, 'off')
+
+        with self.assertRaises(TransitionNotAllowed):
+            self.signal.off()
