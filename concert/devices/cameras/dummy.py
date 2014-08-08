@@ -129,38 +129,42 @@ class Camera(Base):
 
 class FileCamera(Base):
 
-    """A camera that reads files in a *directory*."""
+    """A camera that reads files in a *directory*. If *reset_on_start* is True the files are read
+    from the beginning when the recording starts.
+    """
 
-    def __init__(self, directory):
+    def __init__(self, directory, reset_on_start=True):
         # Let users change the directory
         self.directory = directory
         super(FileCamera, self).__init__()
 
-        self._index = 0
-        self._files = [os.path.join(directory, file_name) for file_name in
-                       sorted(os.listdir(directory))]
+        self.index = 0
+        self.reset_on_start = reset_on_start
+        self.filenames = [os.path.join(directory, file_name) for file_name in
+                          sorted(os.listdir(directory))]
 
-        if not self._files:
+        if not self.filenames:
             raise base.CameraError("No files found")
 
-        image = read_image(self._files[0])
+        image = read_image(self.filenames[0])
         self._roi_width = image.shape[1] * q.pixel
         self._roi_height = image.shape[0] * q.pixel
 
     @transition(target='recording')
     def _record_real(self):
-        self._index = 0
+        if self.reset_on_start:
+            self.index = 0
 
     def _grab_real(self):
-        if self._index < len(self._files):
-            image = read_image(self._files[self._index])
+        if self.index < len(self.filenames):
+            image = read_image(self.filenames[self.index])
 
             y_region = self.roi_y0 + self.roi_height
             x_region = self.roi_x0 + self.roi_width
 
             result = image[self.roi_y0.magnitude:y_region.magnitude,
                            self.roi_x0.magnitude:x_region.magnitude]
-            self._index += 1
+            self.index += 1
         else:
             result = None
 
