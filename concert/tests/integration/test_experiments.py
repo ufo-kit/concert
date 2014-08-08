@@ -93,8 +93,8 @@ class TestExperiment(TestExperimentBase):
 
     def test_swap(self):
         self.experiment.swap(self.foo, self.bar)
-        self.assertEqual(self.acquisitions[0], self.bar)
-        self.assertEqual(self.acquisitions[1], self.foo)
+        self.assertEqual(self.experiment.acquisitions[0], self.bar)
+        self.assertEqual(self.experiment.acquisitions[1], self.foo)
 
     def test_get_by_name(self):
         self.assertEqual(self.foo, self.experiment.get_acquisition('foo'))
