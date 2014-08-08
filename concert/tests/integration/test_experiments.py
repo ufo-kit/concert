@@ -100,6 +100,19 @@ class TestExperiment(TestExperimentBase):
         self.assertEqual(self.foo, self.experiment.get_acquisition('foo'))
         self.assertRaises(ExperimentError, self.experiment.get_acquisition, 'non-existing')
 
+    def test_acquisition_access(self):
+        with self.assertRaises(AttributeError):
+            self.experiment.acquisitions.remove(self.bar)
+
+    def test_add(self):
+        self.assertEqual(self.experiment.foo, self.foo)
+        self.assertEqual(self.experiment.bar, self.bar)
+
+    def test_remove(self):
+        self.experiment.remove(self.bar)
+        self.assertFalse(hasattr(self.experiment, 'bar'))
+        self.assertNotIn(self.bar, self.experiment.acquisitions)
+
 
 class TestImagingExperiment(TestExperimentBase):
 
