@@ -231,7 +231,6 @@ class FlatCorrectedBackproject(InjectProcess):
 
         self.flat_row = flat_row
         self.dark_row = dark_row
-        self.ifft.props.crop_width = dark_row.shape[0]
 
     @property
     def axis_position(self):
@@ -249,6 +248,7 @@ class FlatCorrectedBackproject(InjectProcess):
     def dark_row(self, row):
         if row is not None:
             row = row.astype(np.float32)
+            self.ifft.props.crop_width = row.shape[0]
 
         self._dark_row = row
 
