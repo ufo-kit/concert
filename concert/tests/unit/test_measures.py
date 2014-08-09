@@ -8,7 +8,6 @@ from concert.processes import scan
 from concert.measures import rotation_axis
 
 
-@attr('skip-travis')
 class TestRotationAxisMeasure(TestCase):
 
     def setUp(self):
