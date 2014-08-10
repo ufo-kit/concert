@@ -7,7 +7,6 @@ from concert.tests import slow, TestCase
 from concert.tests.util.rotationaxis import SimulationCamera
 
 
-@attr('skip-travis')
 class TestDummyAlignment(TestCase):
 
     def setUp(self):
