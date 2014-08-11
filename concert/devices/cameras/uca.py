@@ -184,5 +184,5 @@ class Camera(base.Camera):
 
         if self.uca.grab(data):
             return array
-
-        return None
+        else:
+            raise base.CameraError('No frame available')
