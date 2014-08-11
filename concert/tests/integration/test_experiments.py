@@ -10,7 +10,7 @@ from concert.experiments.imaging import (Experiment as ImagingExperiment,
                                          tomo_angular_step, tomo_max_speed,
                                          tomo_projections_number, frames)
 from concert.devices.cameras.dummy import Camera
-from concert.tests import TestCase, suppressed_logging, assert_almost_equal
+from concert.tests import TestCase, suppressed_logging, assert_almost_equal, VisitChecker
 from concert.tests.unit.test_walker import DummyWalker, compute_path
 
 
@@ -77,6 +77,7 @@ class TestExperiment(TestExperimentBase):
     def setUp(self):
         super(TestExperiment, self).setUp()
         self.experiment = Experiment(self.acquisitions, self.walker, name_fmt=self.name_fmt)
+        self.visit_checker = VisitChecker()
 
     def test_run(self):
         self.experiment.run().join()
@@ -112,6 +113,16 @@ class TestExperiment(TestExperimentBase):
         self.experiment.remove(self.bar)
         self.assertFalse(hasattr(self.experiment, 'bar'))
         self.assertNotIn(self.bar, self.experiment.acquisitions)
+
+    def test_prepare(self):
+        self.experiment.prepare = self.visit_checker.visit
+        self.experiment.run().join()
+        self.assertTrue(self.visit_checker.visited)
+
+    def test_finish(self):
+        self.experiment.finish = self.visit_checker.visit
+        self.experiment.run().join()
+        self.assertTrue(self.visit_checker.visited)
 
 
 class TestImagingExperiment(TestExperimentBase):
