@@ -76,7 +76,7 @@ class Dimax(Pco, base.BufferedMixin):
     def _readout_real(self, num_frames=None):
         """Readout *num_frames* frames."""
         if num_frames is None:
-            num_frames = self.recorded_frames
+            num_frames = self.recorded_frames.magnitude
 
         if not 0 < num_frames <= self.recorded_frames:
             raise base.CameraError("Number of frames {} ".format(num_frames) +
@@ -86,7 +86,7 @@ class Dimax(Pco, base.BufferedMixin):
         try:
             self.uca.start_readout()
 
-            for i in xrange(num_frames.magnitude):
+            for i in xrange(num_frames):
                 frame = self.grab()
                 if frame is not None:
                     yield frame
