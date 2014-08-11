@@ -1,14 +1,10 @@
 from datetime import datetime
 import numpy as np
-from nose.plugins.attrib import attr
 from concert.tests import TestCase
 from concert.coroutines.base import coroutine
 from concert.quantities import q
 from concert.devices.cameras.dummy import Camera, BufferedCamera
-try:
-    from concert.devices.cameras.pco import Timestamp, TimestampError
-except:
-    pass
+from concert.devices.cameras.pco import Timestamp, TimestampError
 
 
 class TestDummyCamera(TestCase):
@@ -64,7 +60,6 @@ class TestDummyCamera(TestCase):
         self.assertTrue(check.ok)
 
 
-@attr('skip-travis')
 class TestPCOTimeStamp(TestCase):
     def test_valid(self):
         image = np.empty((1, 14), dtype=np.uint16)
