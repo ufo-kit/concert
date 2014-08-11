@@ -41,10 +41,9 @@ def _new_getter_wrapper(name, unit=None):
 
 
 def _translate_gerror(func):
-    from gi.repository import GLib
-
     @functools.wraps(func)
     def _wrapper(*args, **kwargs):
+        from gi.repository import GLib
         try:
             return func(*args, **kwargs)
         except GLib.GError as ge:
