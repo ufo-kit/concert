@@ -49,7 +49,9 @@ class Experiment(object):
 
     r"""
     Experiment base class. An experiment can be run multiple times with the output data and log
-    stored on disk.
+    stored on disk. You can prepare every run by :meth:`.prepare` and finsh the run by
+    :meth:`.finish`. These methods do nothing by default. They can be useful e.g. if you need to
+    reinitialize some experiment parts or want to attach some logging output.
 
     .. py:attribute:: acquisitions
 
@@ -79,6 +81,14 @@ class Experiment(object):
         # hasn't been used yet
         while self.walker.exists(self.name_fmt.format(self.iteration)):
             self.iteration += 1
+
+    def prepare(self):
+        """Gets executed before every experiment run."""
+        pass
+
+    def finish(self):
+        """Gets executed after every experiment run."""
+        pass
 
     @property
     def acquisitions(self):
@@ -147,7 +157,9 @@ class Experiment(object):
         self.walker.descend(self.name_fmt.format(self.iteration))
 
         try:
+            self.prepare()
             self.acquire()
+            self.finish()
         finally:
             self.walker.ascend()
             self.iteration += 1
