@@ -2,7 +2,8 @@ import time
 from concert.quantities import q
 from concert.tests import TestCase
 from concert.base import (Parameterizable, Parameter, Quantity, State, SoftLimitError,
-                          transition, check, LockError, ParameterError)
+                          transition, check, LockError, ParameterError,
+                          UnitError, WriteAccessError)
 from concert.helpers import WaitError
 
 
@@ -101,6 +102,10 @@ class TestParameterizable(TestCase):
         self.assertTrue(self.device['foo'].writable)
         self.assertFalse(self.device['no_write'].writable)
 
+        with self.assertRaises(WriteAccessError):
+            self.device.no_write = 42
+
+
     def test_saving(self):
         self.device.foo = 1 * q.mm
         self.device.stash().join()
@@ -120,7 +125,7 @@ class TestParameterizable(TestCase):
         self.device.foo = 2 * q.m
         self.assertEqual(self.device.state, 'moved')
 
-    def test_lock(self):
+    def test_manual_lock(self):
         self.device['foo'].lock()
         self.assertTrue(self.device['foo'].locked)
 
@@ -216,6 +221,9 @@ class TestQuantity(TestCase):
     def test_parameter_property(self):
         device = FooDevice(42 * q.m)
         self.assertEqual(device['foo'].unit, q.m)
+
+        with self.assertRaises(UnitError):
+            device.foo = 2 * q.s
 
     def test_limits_lock(self):
         device = FooDevice(10 * q.mm)

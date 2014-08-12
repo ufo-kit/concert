@@ -6,6 +6,7 @@ import six
 import functools
 import inspect
 import types
+import threading
 from concert.helpers import memoize, busy_wait
 from concert.async import async, wait
 from concert.quantities import q
@@ -20,6 +21,14 @@ def identity(x):
 
 def _setter_not_implemented(value, *args):
     raise AccessorNotImplementedError
+
+
+def _is_compatible(unit, value):
+    try:
+        unit + value
+        return True
+    except ValueError:
+        return False
 
 
 def _getter_not_implemented(*args):
@@ -432,13 +441,6 @@ class Quantity(Parameter):
         if lower is None:
             self.lower = self.lower * unit
 
-    def is_compatible(self, value):
-        try:
-            self.unit + value
-            return True
-        except ValueError:
-            return False
-
     def convert(self, value):
         return value.to(self.unit)
 
@@ -451,7 +453,7 @@ class Quantity(Parameter):
         return self.convert(value)
 
     def __set__(self, instance, value):
-        if not self.is_compatible(value):
+        if not _is_compatible(self.unit, value):
             msg = "{} of {} can only receive values of unit {} but got {}"
             raise UnitError(
                 msg.format(self.name, type(instance), self.unit, value))
@@ -510,20 +512,18 @@ class ParameterValue(object):
     """Value object of a :class:`.Parameter`."""
 
     def __init__(self, instance, parameter):
-        self._lock = None
+        self._lock = threading.Lock()
         self._locked = False
         self._instance = instance
         self._parameter = parameter
         self._saved = []
 
     def __enter__(self):
-        if self._lock is not None:
-            self._lock.acquire()
+        self._lock.acquire()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        if self._lock is not None:
-            self._lock.release()
+        self._lock.release()
 
     def __lt__(self, other):
         return self._parameter.name < other._parameter.name
