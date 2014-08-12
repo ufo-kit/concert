@@ -4,6 +4,7 @@ omit =
     concert/networking/aerotech.py
     concert/networking/wago.py
     concert/devices/cameras/uca.py
+    concert/devices/cameras/pco.py
     concert/devices/controllers/motion/aerotech.py
     concert/devices/monochromators/newport.py
     concert/devices/motors/aerotech.py
