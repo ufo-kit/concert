@@ -89,7 +89,7 @@ class Walker(object):
     at a specific location.
     """
 
-    def __init__(self, root, dsetname=None, log=None, log_handler=None):
+    def __init__(self, root, dsetname='frames', log=None, log_handler=None):
         """Constructor. *root* is the topmost level of the data structure."""
         self._root = root
         self._current = self._root
