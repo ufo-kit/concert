@@ -19,11 +19,11 @@ class TestWalker(TestCase):
         self.assertEqual(self.walker.paths, truth)
 
     def test_coroutine(self):
-        inject(self.data, self.walker.write(fname='foo'))
+        inject(self.data, self.walker.write(dsetname='foo'))
         self.check()
 
     def test_generator(self):
-        self.walker.write(data=self.data, fname='foo')
+        self.walker.write(data=self.data, dsetname='foo')
         self.check()
 
 
@@ -49,11 +49,18 @@ class TestDirectoryWalker(TestCase):
         self.assertTrue(op.exists(op.join(self.path, 'frame_000000.tif')))
         self.assertTrue(op.exists(op.join(self.path, 'frame_000001.tif')))
 
+        # Cannot write if directory is not empty
         with self.assertRaises(StorageError):
             self.walker.write([self.data])
 
+        # Make a new one ...
+        self.walker.descend('foo')
+        self.walker.write([self.data])
+        self.assertTrue(op.exists(op.join(self.path, 'foo', 'frame_000000.tif')))
+
+
     def test_custom_write(self):
-        self.walker.write([self.data], fname='foo-{}.tif')
+        self.walker.write([self.data], dsetname='foo-{}.tif')
         self.assertTrue(op.exists(op.join(self.path, 'foo-0.tif')))
 
     def test_invalid_ascend(self):

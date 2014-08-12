@@ -20,7 +20,7 @@ class Hdf5Walker(Walker):
 
     """An HDF5 file walker implementation."""
 
-    def __init__(self, hdf5, fname='frames', log=None, log_name='log'):
+    def __init__(self, hdf5, dsetname='frames', log=None, log_name='log'):
         """
         *hdf5* is a writeable h5py.File file. *fname* is the dataset name that the
         sequence is stored in.
@@ -35,7 +35,7 @@ class Hdf5Walker(Walker):
                 log_dset = hdf5[log_name]
             log_handler = StreamHandler(stream=Hdf5Stream(log_dset))
 
-        super(Hdf5Walker, self).__init__(hdf5, fname=fname, log=log, log_handler=log_handler)
+        super(Hdf5Walker, self).__init__(hdf5, dsetname=dsetname, log=log, log_handler=log_handler)
 
     def _descend(self, name):
         if self.exists(name):
@@ -51,17 +51,17 @@ class Hdf5Walker(Walker):
         return '/'.join(paths) in self.current
 
     @coroutine
-    def _write_coroutine(self, fname=None):
-        """Write frames to data set *fname*."""
+    def _write_coroutine(self, dsetname=None):
+        """Write frames to data set *dsetname*."""
         data = yield
         shape = (1, ) + data.shape
         maxshape = (None, ) + data.shape
-        fname = fname if fname else self._fname
+        dsetname = dsetname or self._dsetname
 
-        if fname in self._current:
-            raise StorageError('`{}\' is not empty'.format(self._current.name + '/' + fname))
+        if dsetname in self._current:
+            raise StorageError("`{}' is not empty".format(self._current.name + '/' + dsetname))
 
-        dset = self._current.create_dataset(fname, shape, maxshape=maxshape, dtype=data.dtype)
+        dset = self._current.create_dataset(dsetname, shape, maxshape=maxshape, dtype=data.dtype)
 
         dset[0, :, :] = data[:, :]
         i = 1
