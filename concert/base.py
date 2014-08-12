@@ -134,36 +134,6 @@ class LockError(Exception):
     pass
 
 
-class MultiContext(object):
-
-    """Multi context manager to be used in a Python `with` management.
-
-    For example, to use multiple axes safely in one process, all you have to do
-    is ::
-
-        with MultiContext([axis1, axis2]):
-            axis1.set_position()
-            axis2.set_position()
-
-    Original code by João S. O. Bueno licensed under CC-BY-3.0.
-    """
-
-    def __init__(self, *args):
-        if (len(args) == 1 and
-               (hasattr(args[0], "__len__") or
-                hasattr(args[0], "__iter__"))):
-            self.objs = list(args[0])
-        else:
-            self.objs = args
-
-    def __enter__(self):
-        return tuple(obj.__enter__() for obj in self.objs)
-
-    def __exit__(self, type_, value, traceback):
-        return all([obj.__exit__(type_, value, traceback)
-                    for obj in self.objs])
-
-
 def transition(immediate=None, target=None):
     """Change software state of a device to *immediate*. After the function
     execution finishes change the state to *target*.
@@ -855,17 +825,3 @@ class Parameterizable(six.with_metaclass(MetaParameterizable, object)):
             param.unlock()
 
 
-class Process(Parameterizable):
-
-    """Base process."""
-
-    def __init__(self, params=None):
-        super(Process, self).__init__(params)
-
-    @async
-    def run(self):
-        """run()
-
-        Run the process. The result depends on the actual process.
-        """
-        raise NotImplementedError
