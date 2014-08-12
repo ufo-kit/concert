@@ -93,7 +93,7 @@ class Walker(object):
         """Constructor. *root* is the topmost level of the data structure."""
         self._root = root
         self._current = self._root
-        self._dsetname = dsetname
+        self.dsetname = dsetname
         self._log = log
         self._log_handler = log_handler
 
@@ -235,7 +235,7 @@ class DirectoryWalker(Walker):
         if os.listdir(self._current):
             raise StorageError("`{}' is not empty".format(self._current))
 
-        prefix = os.path.join(self._current, dsetname or self._dsetname)
+        prefix = os.path.join(self._current, dsetname or self.dsetname)
         return write_images(writer=self._write_func, prefix=prefix)
 
 

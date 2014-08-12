@@ -56,7 +56,7 @@ class Hdf5Walker(Walker):
         data = yield
         shape = (1, ) + data.shape
         maxshape = (None, ) + data.shape
-        dsetname = dsetname or self._dsetname
+        dsetname = dsetname or self.dsetname
 
         if dsetname in self._current:
             raise StorageError("`{}' is not empty".format(self._current.name + '/' + dsetname))
