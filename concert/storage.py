@@ -232,11 +232,32 @@ class DirectoryWalker(Walker):
         return os.path.exists(os.path.join(self.current, *paths))
 
     def _write_coroutine(self, dsetname=None):
-        if os.listdir(self._current):
+        dsetname = dsetname or self.dsetname
+
+        if self._dset_exists(dsetname):
             raise StorageError("`{}' is not empty".format(self._current))
 
-        prefix = os.path.join(self._current, dsetname or self.dsetname)
+        prefix = os.path.join(self._current, dsetname)
         return write_images(writer=self._write_func, prefix=prefix)
+
+    def _dset_exists(self, dsetname):
+        """Check if *dsetname* exists on the current level."""
+        bad = '{' not in dsetname
+
+        try:
+            dsetname.format(0)
+        except ValueError:
+            bad = True
+
+        if bad:
+            raise ValueError('dsetname `{}\' has wrong format'.format(dsetname))
+
+        filenames = os.listdir(self._current)
+        for name in filenames:
+            if name.startswith(dsetname.split('{')[0]):
+                return True
+
+        return False
 
 
 class StorageError(Exception):
