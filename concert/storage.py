@@ -89,13 +89,13 @@ class Walker(object):
     at a specific location.
     """
 
-    def __init__(self, root, fname='frames', log=None, log_handler=None):
+    def __init__(self, root, dsetname=None, log=None, log_handler=None):
         """Constructor. *root* is the topmost level of the data structure."""
         self._root = root
         self._current = self._root
+        self._dsetname = dsetname
         self._log = log
         self._log_handler = log_handler
-        self._fname = fname
 
         if self._log:
             self._log_handler.setLevel(logging.INFO)
@@ -142,20 +142,52 @@ class Walker(object):
         """Ascend from current depth."""
         raise NotImplementedError
 
-    def write(self, data=None, fname=None):
+    def write(self, data=None, dsetname=None):
         """Write a sequence of *data* if specified, otherwise this method turns into a coroutine.
-        The data set name is given by *fname*.
+        The data set name is given by *dsetname*.
         """
-        write_coro = self._write_coroutine(fname=fname)
+        write_coro = self._write_coroutine(dsetname=dsetname)
 
         if data is None:
             return write_coro
         else:
             inject(data, write_coro)
 
-    def _write_coroutine(self, fname=None):
-        """Coroutine for writing data set *fname*."""
+    def _write_coroutine(self, dsetname=None):
+        """Coroutine for writing data set *dsetname*."""
         raise NotImplementedError
+
+
+class DummyWalker(Walker):
+    def __init__(self, root=''):
+        super(DummyWalker, self).__init__(root)
+        self._paths = set([])
+
+    @property
+    def paths(self):
+        return self._paths
+
+    def exists(self, *paths):
+        return os.path.join(*paths) in self._paths
+
+    def _descend(self, name):
+        self._current = os.path.join(self._current, name)
+        self._paths.add(self._current)
+
+    def _ascend(self):
+        if self._current != self._root:
+            self._current = os.path.dirname(self._current)
+
+    @coroutine
+    def _write_coroutine(self, dsetname=None):
+        dsetname = dsetname or self.dsetname
+        path = os.path.join(self._current, dsetname)
+
+        i = 0
+        while True:
+            yield
+            self._paths.add(os.path.join(path, str(i)))
+            i += 1
 
 
 class DirectoryWalker(Walker):
@@ -165,31 +197,24 @@ class DirectoryWalker(Walker):
     specific filename template.
     """
 
-    def __init__(self, write_func=write_tiff, fname_fmt=None, fname='frames', root=None,
+    def __init__(self, write_func=write_tiff, dsetname='frame_{:>06}.tif', root=None,
                  log=None, log_name='experiment.log'):
         """
         Use *write_func* to write data to files with filenames with a template
-        from *fname_fmt*.
+        from *dsetname*.
         """
         if not root:
             root = os.getcwd()
 
         log_handler = None
+
         if log:
             create_directory(root)
             log_path = os.path.join(root, log_name)
             log_handler = FileHandler(log_path)
 
-        super(DirectoryWalker, self).__init__(root, fname=fname, log=log, log_handler=log_handler)
-
-        if fname_fmt is None:
-            if write_func in [write_tiff, write_libtiff]:
-                self._fname_fmt = 'frame_{:>06}.tif'
-            else:
-                raise AttributeError('fname_fmt must be specified')
-        else:
-            self._fname_fmt = fname_fmt
-
+        super(DirectoryWalker, self).__init__(root, dsetname=dsetname,
+                                              log=log, log_handler=log_handler)
         self._write_func = write_func
 
     def _descend(self, name):
@@ -197,23 +222,21 @@ class DirectoryWalker(Walker):
         create_directory(self._current)
 
     def _ascend(self):
-        if self._current != self._root:
-            self._current = os.path.dirname(self._current)
+        if self._current == self._root:
+            raise StorageError("Cannot break out of `{}'.".format(self._root))
+
+        self._current = os.path.dirname(self._current)
 
     def exists(self, *paths):
         """Check if *paths* exist."""
         return os.path.exists(os.path.join(self.current, *paths))
 
-    def _write_coroutine(self, fname=None):
-        """Write frames to data set *fname*."""
-        fname = fname if fname else self._fname
-        ds_path = os.path.join(self._current, fname)
-        path = os.path.join(ds_path, self._fname_fmt)
+    def _write_coroutine(self, dsetname=None):
+        if os.listdir(self._current):
+            raise StorageError("`{}' is not empty".format(self._current))
 
-        if os.path.exists(ds_path) and os.listdir(ds_path):
-            raise StorageError('`{}\' is not empty'.format(ds_path))
-
-        return write_images(writer=self._write_func, prefix=path)
+        prefix = os.path.join(self._current, dsetname or self._dsetname)
+        return write_images(writer=self._write_func, prefix=prefix)
 
 
 class StorageError(Exception):
