@@ -66,3 +66,29 @@ class TestDirectoryWalker(TestCase):
     def test_invalid_ascend(self):
         with self.assertRaises(StorageError):
             self.walker.ascend()
+
+    def test_dset_exists(self):
+        self.walker.write(data=self.data)
+        with self.assertRaises(StorageError):
+            self.walker.write(data=self.data)
+
+    def test_same_directory_different_dset(self):
+        self.walker.write(data=self.data)
+        self.walker.write(data=self.data, dsetname='bar-{}.tif')
+
+    def test_dset_prefix(self):
+        def test_raises(dsetname):
+            with self.assertRaises(ValueError):
+                self.walker.write(data=self.data, dsetname=dsetname)
+        def test_ok(dsetname):
+            self.walker.write(data=self.data, dsetname=dsetname)
+
+        test_ok('bar-{}.tif')
+        test_ok('baz-{:>06}.tif')
+        test_ok('spam-{0}')
+
+        test_raises('bar')
+        test_raises('bar-{')
+        test_raises('bar-}')
+        test_raises('bar-}{')
+        test_raises('bar-}{{}')
