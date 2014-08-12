@@ -158,6 +158,38 @@ class Walker(object):
         raise NotImplementedError
 
 
+class DummyWalker(Walker):
+    def __init__(self, root=''):
+        super(DummyWalker, self).__init__(root)
+        self._paths = set([])
+
+    @property
+    def paths(self):
+        return self._paths
+
+    def exists(self, *paths):
+        return os.path.join(*paths) in self._paths
+
+    def _descend(self, name):
+        self._current = os.path.join(self._current, name)
+        self._paths.add(self._current)
+
+    def _ascend(self):
+        if self._current != self._root:
+            self._current = os.path.dirname(self._current)
+
+    @coroutine
+    def _write_coroutine(self, fname=None):
+        fname = fname if fname is not None else self._fname
+        path = os.path.join(self._current, fname)
+
+        i = 0
+        while True:
+            yield
+            self._paths.add(os.path.join(path, str(i)))
+            i += 1
+
+
 class DirectoryWalker(Walker):
 
     """

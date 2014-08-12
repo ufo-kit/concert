@@ -3,6 +3,7 @@ Test experiments. Logging is disabled, so just check the directory and log
 files creation.
 """
 import numpy as np
+import os.path as op
 from concert.quantities import q
 from concert.coroutines.base import coroutine, inject
 from concert.experiments.base import Acquisition, Experiment, ExperimentError
@@ -11,7 +12,7 @@ from concert.experiments.imaging import (Experiment as ImagingExperiment,
                                          tomo_projections_number, frames)
 from concert.devices.cameras.dummy import Camera
 from concert.tests import TestCase, suppressed_logging, assert_almost_equal, VisitChecker
-from concert.tests.unit.test_walker import DummyWalker, compute_path
+from concert.storage import DummyWalker
 
 
 @suppressed_logging
@@ -86,7 +87,7 @@ class TestExperiment(TestExperimentBase):
         self.experiment.run().join()
         self.assertEqual(self.visited, 2 * len(self.experiment.acquisitions))
 
-        truth = set([compute_path(self.root, self.name_fmt.format(i + 1)) for i in range(2)])
+        truth = set([op.join(self.root, self.name_fmt.format(i + 1)) for i in range(2)])
         self.assertEqual(truth, self.walker.paths)
 
         # Consumers must be called
@@ -137,8 +138,8 @@ class TestImagingExperiment(TestExperimentBase):
         scan_name = self.name_fmt.format(1)
         # Check if the writing coroutine has been attached
         for i in range(self.num_produce):
-            foo = compute_path(self.root, scan_name, 'foo', str(i))
-            bar = compute_path(self.root, scan_name, 'bar', str(i))
+            foo = op.join(self.root, scan_name, 'foo', str(i))
+            bar = op.join(self.root, scan_name, 'bar', str(i))
 
             self.assertTrue(self.walker.exists(foo))
             self.assertTrue(self.walker.exists(bar))
