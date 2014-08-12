@@ -190,8 +190,10 @@ class DirectoryWalker(Walker):
         create_directory(self._current)
 
     def _ascend(self):
-        if self._current != self._root:
-            self._current = os.path.dirname(self._current)
+        if self._current == self._root:
+            raise StorageError("Cannot break out of `{}'.".format(self._root))
+
+        self._current = os.path.dirname(self._current)
 
     def exists(self, *paths):
         """Check if *paths* exist."""

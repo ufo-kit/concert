@@ -91,3 +91,7 @@ class TestDirectoryWalker(TestCase):
     def test_custom_write(self):
         self.walker.write([self.data], fname='foo-{}.tif')
         self.assertTrue(op.exists(op.join(self.path, 'foo-0.tif')))
+
+    def test_invalid_ascend(self):
+        with self.assertRaises(StorageError):
+            self.walker.ascend()
