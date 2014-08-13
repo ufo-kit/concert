@@ -5,7 +5,7 @@ import functools
 import logging
 import numpy as np
 from concert.quantities import q
-from concert.base import Parameter, Quantity, transition
+from concert.base import Parameter, Quantity
 from concert.helpers import Bunch
 from concert.devices.cameras import base
 
@@ -161,14 +161,12 @@ class Camera(base.Camera):
         uca_value = getattr(self.uca.enum_values.trigger_mode, mode)
         self._uca_set_trigger(self, uca_value)
 
-    @transition(target='recording')
     @_translate_gerror
     def _record_real(self):
         self._record_shape = self.roi_height.magnitude, self.roi_width.magnitude
         self._record_dtype = np.uint16 if self.sensor_bitdepth.magnitude > 8 else np.uint8
         self.uca.start_recording()
 
-    @transition(target='standby')
     @_translate_gerror
     def _stop_real(self):
         self.uca.stop_recording()

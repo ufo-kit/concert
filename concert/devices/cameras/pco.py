@@ -25,6 +25,12 @@ class Pco(Camera):
 
         return super(Pco, self).stream(consumer)
 
+    def _get_state(self):
+        if self.uca.props.is_recording:
+            return 'recording'
+        else:
+            return 'standby'
+
 
 class PCO4000(Pco):
 
@@ -92,6 +98,12 @@ class Dimax(Pco, base.BufferedMixin):
             raise StopIteration
         finally:
             self.uca.stop_readout()
+
+    def _get_state(self):
+        if self.uca.props.is_readout:
+            return 'readout'
+        else:
+            return super(Dimax, self)._get_state()
 
 
 class Timestamp(object):
