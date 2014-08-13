@@ -51,3 +51,11 @@ class ClosedLoop(object):
                 self.control()
 
         return False
+
+
+class DummyLoop(ClosedLoop):
+
+    """A dummy optimization loop."""
+
+    def compare(self):
+        return True
