@@ -33,7 +33,7 @@ class TestDirectoryWalker(TestCase):
         super(TestDirectoryWalker, self).setUp()
         self.path = tempfile.mkdtemp()
         self.walker = DirectoryWalker(root=self.path)
-        self.data = np.ones((512, 512))
+        self.data = np.ones((2, 2))
 
     def tearDown(self):
         shutil.rmtree(self.path)
