@@ -89,11 +89,11 @@ class Walker(object):
     at a specific location.
     """
 
-    def __init__(self, root, dsetname=None, log=None, log_handler=None):
+    def __init__(self, root, dsetname='frames', log=None, log_handler=None):
         """Constructor. *root* is the topmost level of the data structure."""
         self._root = root
         self._current = self._root
-        self._dsetname = dsetname
+        self.dsetname = dsetname
         self._log = log
         self._log_handler = log_handler
 
@@ -232,11 +232,39 @@ class DirectoryWalker(Walker):
         return os.path.exists(os.path.join(self.current, *paths))
 
     def _write_coroutine(self, dsetname=None):
-        if os.listdir(self._current):
-            raise StorageError("`{}' is not empty".format(self._current))
+        dsetname = dsetname or self.dsetname
 
-        prefix = os.path.join(self._current, dsetname or self._dsetname)
+        if self._dset_exists(dsetname):
+            dset_prefix = split_dsetformat(dsetname)
+            dset_path = os.path.join(self.current, dset_prefix)
+            raise StorageError("`{}' is not empty".format(dset_path))
+
+        prefix = os.path.join(self._current, dsetname)
         return write_images(writer=self._write_func, prefix=prefix)
+
+    def _dset_exists(self, dsetname):
+        """Check if *dsetname* exists on the current level."""
+        bad = '{' not in dsetname
+
+        try:
+            dsetname.format(0)
+        except ValueError:
+            bad = True
+
+        if bad:
+            raise ValueError('dsetname `{}\' has wrong format'.format(dsetname))
+
+        filenames = os.listdir(self._current)
+        for name in filenames:
+            if name.startswith(split_dsetformat(dsetname)):
+                return True
+
+        return False
+
+
+def split_dsetformat(dsetname):
+    """Strip *dsetname* off the formatting part wihch leaves us with the data set name."""
+    return dsetname.split('{')[0]
 
 
 class StorageError(Exception):

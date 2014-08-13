@@ -14,11 +14,13 @@ class Experiment(BaseExperiment):
     def acquire(self):
         """Run the experiment. Add writers to acquisitions dynamically."""
         for acq in self.acquisitions:
-            writer = lambda: self.walker.write(dsetname=acq.name)
+            writer = lambda: self.walker.write()
+            self.walker.descend(acq.name)
+            acq.consumers.append(writer)
             try:
-                acq.consumers.append(writer)
                 acq()
             finally:
+                self.walker.ascend()
                 acq.consumers.remove(writer)
 
 

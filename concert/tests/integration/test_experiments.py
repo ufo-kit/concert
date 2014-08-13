@@ -138,8 +138,8 @@ class TestImagingExperiment(TestExperimentBase):
         scan_name = self.name_fmt.format(1)
         # Check if the writing coroutine has been attached
         for i in range(self.num_produce):
-            foo = op.join(self.root, scan_name, 'foo', str(i))
-            bar = op.join(self.root, scan_name, 'bar', str(i))
+            foo = op.join(self.root, scan_name, 'foo', self.walker.dsetname, str(i))
+            bar = op.join(self.root, scan_name, 'bar', self.walker.dsetname, str(i))
 
             self.assertTrue(self.walker.exists(foo))
             self.assertTrue(self.walker.exists(bar))
