@@ -235,7 +235,9 @@ class DirectoryWalker(Walker):
         dsetname = dsetname or self.dsetname
 
         if self._dset_exists(dsetname):
-            raise StorageError("`{}' is not empty".format(self._current))
+            dset_prefix = split_dsetformat(dsetname)
+            dset_path = os.path.join(self.current, dset_prefix)
+            raise StorageError("`{}' is not empty".format(dset_path))
 
         prefix = os.path.join(self._current, dsetname)
         return write_images(writer=self._write_func, prefix=prefix)
@@ -254,10 +256,15 @@ class DirectoryWalker(Walker):
 
         filenames = os.listdir(self._current)
         for name in filenames:
-            if name.startswith(dsetname.split('{')[0]):
+            if name.startswith(split_dsetformat(dsetname)):
                 return True
 
         return False
+
+
+def split_dsetformat(dsetname):
+    """Strip *dsetname* off the formatting part wihch leaves us with the data set name."""
+    return dsetname.split('{')[0]
 
 
 class StorageError(Exception):
