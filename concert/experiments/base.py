@@ -77,10 +77,6 @@ class Experiment(object):
         self.walker = walker
         self.name_fmt = name_fmt
         self.iteration = 1
-        # The data is not supposed to be overwritten, so find an iteration which
-        # hasn't been used yet
-        while self.walker.exists(self.name_fmt.format(self.iteration)):
-            self.iteration += 1
 
     def prepare(self):
         """Gets executed before every experiment run."""
@@ -154,6 +150,11 @@ class Experiment(object):
 
         Compute the next iteration and run the :meth:`~.base.Experiment.acquire`.
         """
+        # The data is not supposed to be overwritten, so find an iteration which
+        # hasn't been used yet
+        while self.walker.exists(self.name_fmt.format(self.iteration)):
+            self.iteration += 1
+
         self.walker.descend(self.name_fmt.format(self.iteration))
 
         try:
