@@ -74,3 +74,10 @@ settings for conducting a tomographic experiment.
 .. autofunction:: concert.experiments.imaging.tomo_projections_number
 
 .. autofunction:: concert.experiments.imaging.tomo_max_speed
+
+
+Control
+-------
+
+.. automodule:: concert.experiments.control
+    :members:
