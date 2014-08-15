@@ -1,9 +1,9 @@
 import numpy as np
 from concert.coroutines.base import coroutine, broadcast, inject
 from concert.coroutines.filters import (absorptivity, backproject, flat_correct, average_images,
-                                        queue, sinograms, downsize, stall, PickSlice)
+                                        queue, sinograms, downsize, stall, PickSlice, Timer)
 from concert.coroutines.sinks import null, Result, Accumulate
-from concert.tests import TestCase
+from concert.tests import assert_almost_equal, TestCase
 
 
 def generator():
@@ -154,3 +154,24 @@ class TestCoroutines(TestCase):
         accumulate = Accumulate()
         inject(generator(), accumulate())
         self.assertEqual(accumulate.items, range(5))
+
+
+class TestTimer(TestCase):
+
+    def setUp(self):
+        self.timer = Timer()
+        inject([1, 2, 3], self.timer(null()))
+
+    def test_durations(self):
+        self.assertEqual(len(self.timer.durations), 3)
+
+    def test_duration(self):
+        """Test the sum of durations."""
+        assert_almost_equal(self.timer.duration, sum(self.timer.durations))
+
+    def test_mean(self):
+        assert_almost_equal(self.timer.mean, self.timer.duration / len(self.timer.durations))
+
+    def test_reset(self):
+        self.timer.reset()
+        self.assertEqual(len(self.timer.durations), 0)
