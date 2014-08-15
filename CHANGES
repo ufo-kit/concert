@@ -4,6 +4,47 @@ Changelog
 Here you can see the full list of changes between each Concert release.
 
 
+Version 0.9
+-----------
+
+Released on August 15th 2014.
+
+Improvements
+~~~~~~~~~~~~
+
+- The state machine mechanism is not special anymore but directly inherits from
+  `Parameter`.
+- Added walker mechanism to write sequence data in hierarchical structures such
+  as directories or HDF5 files.
+- The long-standing gevent integration with IPython is finished at least for
+  IPython >= 2.0.
+- Added `@expects` decorator to annotate what a function can receive.
+- Added `async.resolve()` to get result of future lists.
+- Added `accumulate` sink and `timer` coroutines.
+- Added `Timestamp` class for PCO cameras that decodes the BCD timestamp
+  embedded in a frame.
+- Added optional `wait_on` to getter and setter of a `ParameterValue`.
+- We now raise an exception in if a uca frame is not available.
+- Experiments have now hooks for preparation and cleanup tasks.
+- Added basic control loop classes.
+- Add binary signal device class.
+
+API breaks
+~~~~~~~~~~
+
+- `scan` yields futures instead of returning a list
+- Moved specific pco cameras to `concert.devices.cameras.pco`.
+- Moved `write_images` to `concert.storage`
+- Removed `base.MultiContext` and `base.Process`
+
+Fixes
+~~~~~
+
+- #198, #254, #271, #277, #280, #286, #293
+- The pint dependency had to be raised to 0.5.2 in order to compute sums of
+  quantities.
+
+
 Version 0.8
 -----------
 
