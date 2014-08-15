@@ -4,7 +4,9 @@ try:
 except ImportError:
     import queue as queue_module
 import logging
+import time
 import numpy as np
+from concert.quantities import q
 from concert.imageprocessing import ramp_filter
 from concert.async import threaded
 from concert.imageprocessing import flat_correct as make_flat_correct
@@ -257,3 +259,58 @@ class PickSlice(object):
         while True:
             volume = yield
             consumer.send(volume[self.index])
+
+
+class Timer(object):
+
+    """Timer object measures execution times of coroutine-based workflows. It measures the time
+    from when this object receives data until all the subsequent stages finish, e.g.::
+
+        acquire(timer(process()))
+
+    would measure only the time of *process*, no matter how complicated it is and whether it invokes
+    subsequent coroutines. Everything what happens in *process* is taken into account.
+    This timer does not treat asynchronous operations in a special way, i.e. if you use it like
+    this::
+
+        def long_but_async_operation():
+            @async
+            def process(data):
+                long_op(data)
+
+            while True:
+                item = yield
+                process(item)
+
+        timer(long_but_async_operation())
+
+    the time you truly measure is only the time to forward the data to *long_but_async_operation*
+    and the time to *start* the asynchronous operation (e.g. spawning a thread).
+
+    """
+
+    def __init__(self):
+        self.durations = []
+
+    def reset(self):
+        """Reset the timer."""
+        self.durations = []
+
+    @property
+    def duration(self):
+        """All iterations summed up."""
+        return sum(self.durations)
+
+    @property
+    def mean(self):
+        """Mean iteration execution time."""
+        return self.duration / len(self.durations)
+
+    @coroutine
+    def __call__(self, consumer):
+        """Measures the execution time of *consumer*."""
+        while True:
+            item = yield
+            start = time.time()
+            consumer.send(item)
+            self.durations.append((time.time() - start) * q.s)
