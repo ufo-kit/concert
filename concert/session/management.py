@@ -95,9 +95,12 @@ def copy(source, target):
     shutil.copy(path(source), path(target))
 
 
-def load(session):
+def load(session, from_file=False):
     """Load *session* and return the module."""
-    return imp.load_source(session, path(session))
+    if not from_file:
+        return imp.load_source(session, path(session))
+
+    return imp.load_source('somename', os.path.abspath(session))
 
 
 def get_existing():

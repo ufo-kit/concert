@@ -341,6 +341,7 @@ class StartCommand(Command):
 
     def __init__(self):
         opts = {'session': {'nargs': '?', 'type': str, 'default': None},
+                '--filename':  {'type': str, 'default': None},
                 '--logto': {'choices': ['stderr', 'file'],
                             'default': 'file'},
                 '--logfile': {'type': str},
@@ -350,14 +351,15 @@ class StartCommand(Command):
                 '--non-interactive': {'action': 'store_true'}}
         super(StartCommand, self).__init__('start', opts)
 
-    def run(self, session=None, non_interactive=False,
+    def run(self, session=None, filename=None,
+            non_interactive=False,
             logto='file', logfile=None, loglevel=None):
         if session:
             cs.exit_if_not_exists(session)
 
         if logto == 'file':
-            filename = logfile if logfile else cs.logfile_path()
-            handler = logging.FileHandler(filename)
+            logfilename = logfile if logfile else cs.logfile_path()
+            handler = logging.FileHandler(logfilename)
         else:
             handler = logging.StreamHandler(sys.stderr)
 
@@ -380,7 +382,10 @@ class StartCommand(Command):
                 execfile(cs.path(session), globals())
         else:
             try:
-                module = cs.load(session) if session else None
+                if filename:
+                    module = cs.load(filename, from_file=True)
+                else:
+                    module = cs.load(session) if session else None
             except:
                 traceback.print_exc()
                 sys.exit(1)
