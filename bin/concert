@@ -263,7 +263,7 @@ class FetchCommand(Command):
     """Import an existing *session*."""
 
     def __init__(self):
-        opts = {'url': {'type': str,
+        opts = {'url': {'nargs': '+', 'type': str,
                         'help': "Fetch a Python module and save as a session."
                         " Note: Server certificates of HTTPS requests"
                         " are NOT verified!"},
@@ -275,10 +275,11 @@ class FetchCommand(Command):
         super(FetchCommand, self).__init__('fetch', opts)
 
     def run(self, url, force=False, repo=False):
-        if repo:
-            self._fetch_repo(url, force)
-        else:
-            self._fetch_file(url, force)
+        for u in url:
+            if repo:
+                self._fetch_repo(u, force)
+            else:
+                self._fetch_file(u, force)
 
     def _fetch_repo(self, url, force):
         path = tempfile.mkdtemp()
@@ -314,6 +315,7 @@ class FetchCommand(Command):
         if cs.exists(session_name) and not force:
             sys.exit("`{0}' already exists".format(session_name))
 
+        print("Add session {0} ...".format(session_name))
         local_url = self._get_url(url)
 
         with contextlib.closing(urllib2.urlopen(local_url)) as data:
