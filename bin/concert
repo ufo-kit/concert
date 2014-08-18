@@ -15,12 +15,6 @@ import concert.config
 import concert.session.management as cs
 from concert.helpers import Command
 from concert.ext.cmd import plugins
-from concert.base import (UnitError,
-                          LimitError,
-                          ParameterError,
-                          ReadAccessError,
-                          WriteAccessError,
-                          LockError)
 
 
 def docstring_summary(doc):
@@ -395,6 +389,9 @@ class StartCommand(Command):
             self.run_shell(module)
 
     def run_shell(self, module=None):
+        from concert.base import (UnitError, LimitError, ParameterError,
+                                  ReadAccessError, WriteAccessError, LockError)
+
         def _handler(_shell, _etype, evalue, _traceback_, tb_offset=None):
             print("Sorry, {0}".format(str(evalue)))
             return None
