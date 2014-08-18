@@ -61,8 +61,8 @@ Disable asynchronous execution
 Testing and debugging asynchronous code can be difficult at times because the
 real source of an error is hidden behind calls from different places. To disable
 asynchronous execution (but still keeping the illusion of having Futures
-returned), you can import :data:`.DISABLE_ASYNC` and set it to ``True`` *before*
+returned), you can import :data:`.ENABLE_ASYNC` and set it to ``False`` *before*
 importing anything else from Concert.
 
-Concert already provides a Nose plugin that adds a ``--disable-async`` flag to
-the test runner which in turn sets :data:`.DISABLE_ASYNC` to ``True``.
+Concert provides a Nose plugin that adds a ``--disable-async`` flag to the test
+runner which, you can use to customize :data:`.ENABLE_ASYNC`.

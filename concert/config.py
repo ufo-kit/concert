@@ -1,13 +1,14 @@
 """
-.. data:: DISABLE_ASYNC
+.. data:: ENABLE_ASYNC
 
-    Disable asynchronous execution by returning a dummy future which is not
-    executed synchronusly.
+    Enable asynchronous execution. If disabled, dummy futures are used that do
+    no execute synchronously.
 
-.. data:: DISABLE_GEVENT
+.. data:: ENABLE_GEVENT
 
-    Turn of gevent support and fall back to ThreadPoolExecutor approach.
+    Turn on gevent support. If geven is not available, fall back to
+    ThreadPoolExecutor approach.
 """
 
-DISABLE_ASYNC = False
-DISABLE_GEVENT = True
+ENABLE_ASYNC = True
+ENABLE_GEVENT = False

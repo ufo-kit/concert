@@ -62,9 +62,6 @@ def no_async(func):
 
 
 try:
-    if concert.config.DISABLE_GEVENT:
-        raise ImportError
-
     import gevent
     import gevent.monkey
     import gevent.threadpool
@@ -139,9 +136,7 @@ try:
             self.link(callback)
 
     def async(func):
-        if concert.config.DISABLE_ASYNC:
-            return no_async(func)
-        else:
+        if concert.config.ENABLE_ASYNC:
             @functools.wraps(func)
             def _inner(*args, **kwargs):
                 g = GreenletFuture(func, args, kwargs)
@@ -149,6 +144,8 @@ try:
                 return g
 
             return _inner
+        else:
+            return no_async(func)
 
     def threaded(func):
         @functools.wraps(func)
@@ -159,6 +156,9 @@ try:
         return _inner
 
 except ImportError:
+    if concert.config.ENABLE_GEVENT:
+        print("Gevent is not available, falling back to threads")
+
     import threading
     HAVE_GEVENT = False
 
@@ -170,14 +170,14 @@ except ImportError:
         pass
 
     def async(func):
-        if concert.config.DISABLE_ASYNC:
-            return no_async(func)
-        else:
+        if concert.config.ENABLE_ASYNC:
             @functools.wraps(func)
             def _inner(*args, **kwargs):
                 return EXECUTOR.submit(func, *args, **kwargs)
 
             return _inner
+        else:
+            return no_async(func)
 
     def threaded(func):
         @functools.wraps(func)

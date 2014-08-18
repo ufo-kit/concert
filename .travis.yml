@@ -4,8 +4,8 @@ python:
     - 2.7
 
 env:
-    - DISABLE_GEVENT=--disable-gevent
-    - DISABLE_GEVENT=
+    - ENABLE_GEVENT=--enable-gevent
+    - ENABLE_GEVENT=
 
 virtualenv:
     system_site_packages: true
@@ -20,7 +20,7 @@ install:
     - pip install coveralls nose-exclude --use-mirrors
 
 script:
-    - python runtests.py --attr='!skip-travis' --with-coverage --cover-package=concert $DISABLE_GEVENT concert
+    - python runtests.py --attr='!skip-travis' --with-coverage --cover-package=concert $ENABLE_GEVENT concert
 
 after_success:
     - coveralls
