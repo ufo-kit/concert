@@ -1,6 +1,4 @@
-import time
 import inspect
-from concert.quantities import q
 
 
 class Command(object):
@@ -66,28 +64,6 @@ def memoize(func):
         return result
 
     return wrapper
-
-
-def busy_wait(condition, sleep_time=1e-1 * q.s, timeout=None):
-    """Busy wait until a callable *condition* returns True. *sleep_time* is the time to sleep
-    between consecutive checks of *condition*. If *timeout* is given and the *condition* doesn't
-    return True within the time specified by it a :class:`.WaitingError` is raised.
-    """
-    sleep_time = sleep_time.to(q.s).magnitude
-    if timeout:
-        start = time.time()
-        timeout = timeout.to(q.s).magnitude
-
-    while not condition():
-        if timeout and time.time() - start > timeout:
-            raise WaitError('Waiting timed out')
-        time.sleep(sleep_time)
-
-
-class WaitError(Exception):
-
-    """Raised on busy waiting timeouts"""
-    pass
 
 
 class _Structure(object):

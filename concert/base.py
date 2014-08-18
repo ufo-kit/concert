@@ -7,8 +7,8 @@ import functools
 import inspect
 import types
 import threading
-from concert.helpers import memoize, busy_wait
-from concert.async import async, wait
+from concert.helpers import memoize
+from concert.async import async, wait, busy_wait
 from concert.quantities import q
 
 

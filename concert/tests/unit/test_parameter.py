@@ -4,7 +4,7 @@ from concert.tests import TestCase
 from concert.base import (Parameterizable, Parameter, Quantity, State, SoftLimitError,
                           transition, check, LockError, ParameterError,
                           UnitError, WriteAccessError)
-from concert.helpers import WaitError
+from concert.async import WaitError
 
 
 class BaseDevice(Parameterizable):
