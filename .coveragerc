@@ -6,6 +6,7 @@ omit =
     concert/devices/cameras/uca.py
     concert/devices/cameras/pco.py
     concert/devices/controllers/motion/aerotech.py
+    concert/devices/lightsources/fiberlite.py
     concert/devices/monochromators/newport.py
     concert/devices/motors/aerotech.py
     concert/devices/motors/ankatango.py
