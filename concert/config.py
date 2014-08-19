@@ -11,4 +11,4 @@
 """
 
 ENABLE_ASYNC = True
-ENABLE_GEVENT = False
+ENABLE_GEVENT = True

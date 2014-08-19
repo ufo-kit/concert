@@ -26,7 +26,6 @@ class TestAsync(TestCase):
         super(TestAsync, self).setUp()
         self.device = DummyDevice()
 
-    @slow
     def test_wait(self):
         @async
         def long_func():
@@ -54,7 +53,7 @@ class TestAsync(TestCase):
         @async
         def long_op(d):
             try:
-                time.sleep(10)
+                time.sleep(1)
             except KillException:
                 d['killed'] = True
 
