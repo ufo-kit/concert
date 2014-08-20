@@ -3,10 +3,18 @@ from concert.quantities import q
 from concert.devices.base import Device
 from concert.base import HardLimitError
 from concert.async import dispatcher
-from concert import processes
+import concert.processes.common as processes
+from functools import partial
 from pyqtgraph.ptime import time
 import pyqtgraph as pg
-from functools import partial
+from vtk.qt4.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
+from libtiff import TIFF
+import scipy.ndimage
+import vtk
+import sys
+import os
+import numpy as np
+import inspect
 
 
 class WidgetPattern(QtGui.QGroupBox):
@@ -35,9 +43,9 @@ class WidgetPattern(QtGui.QGroupBox):
         self.grid_x_step = 70
         self.grid_y_step = 32
         self._units_dict = {}
-        self._units_dict['meter'] = ["mm", "um"]
+        self._units_dict['millimeter'] = ["mm", "um"]
         self._units_dict['degree'] = ["deg", "rad"]
-        self._units_dict['meter / second'] = ["m/s", "mm/s", "um/s"]
+        self._units_dict['millimeter / second'] = ["m/s", "mm/s", "um/s"]
         self._units_dict['degree / second'] = ["deg/s", 'rad/s']
         self._units_dict['second'] = ["s", "ms", "us"]
         self._units_dict['pixel'] = ["pixel"]
@@ -75,7 +83,6 @@ class WidgetPattern(QtGui.QGroupBox):
             self.move(position)
         except:
             QtGui.QApplication.restoreOverrideCursor()
-
             WidgetPattern.shadow_accepted = False
         else:
             WidgetPattern.shadow_accepted = True
@@ -90,8 +97,8 @@ class WidgetPattern(QtGui.QGroupBox):
     def get_grid_position(self):
         x = self.mapToParent(QtCore.QPoint(0, 0)).x()
         y = self.mapToParent(QtCore.QPoint(0, 0)).y()
-        if x < self.widgetLength:
-            x = self.widgetLength
+        if x < 0:
+            x = 0
         x = (x / self.grid_x_step * self.grid_x_step)
         y = y / self.grid_y_step * self.grid_y_step
         return x, y
@@ -260,10 +267,11 @@ class MotorWidget(WidgetPattern):
                 self._value = str(param.get().result()).split(" ", 1)[0]
                 self._unit = str(param.get().result()).split(" ", 1)[1]
                 parameter_label = PortWidget(self, _parameter_name)
+                parameter_label.setFixedWidth(100)
                 parameter_value = QtGui.QDoubleSpinBox()
                 parameter_value.setRange(-1000000, 1000000)
                 parameter_value.setAccelerated(True)
-                parameter_value.setDecimals(3)
+                parameter_value.setDecimals(2)
                 parameter_value.setAlignment(QtCore.Qt.AlignRight)
                 parameter_unit = QtGui.QComboBox()
                 parameter_unit.addItems(
@@ -379,15 +387,15 @@ class PositionerWidget(WidgetPattern):
         z_label = QtGui.QLabel("z")
         self._rotation_axis = QtGui.QComboBox()
         self._rotation_axis.addItems(["x", "y", "z"])
-        self._rotation_axis.setMaximumWidth(50)
-        self._rotation_axis.setMinimumWidth(35)
+#         self._rotation_axis.setMaximumWidth(50)
+#         self._rotation_axis.setMinimumWidth(35)
         self._step_value = QtGui.QDoubleSpinBox()
         self._step_value.setRange(0, 1000000)
         self._step_value.setAccelerated(True)
         self._step_value.setDecimals(2)
         self._step_value.setAlignment(QtCore.Qt.AlignRight)
         self._step_unit = QtGui.QComboBox()
-        self._step_unit.addItems(self._units_dict["meter"])
+        self._step_unit.addItems(self._units_dict["millimeter"])
         self._rotation_step_value = QtGui.QDoubleSpinBox()
         self._rotation_step_value.setRange(0, 1000000)
         self._rotation_step_value.setAccelerated(True)
@@ -495,7 +503,7 @@ class ShutterWidget(WidgetPattern):
         super(ShutterWidget, self).__init__(name, parent)
         self.object = deviceObject
         self._label = QtGui.QLabel("State")
-        self._slider = QtGui.QComboBox(QtCore.Qt.Horizontal)
+        self._slider = QtGui.QSlider(QtCore.Qt.Horizontal)
         self._slider.setMaximumWidth(50)
         self._slider.setMaximum(1)
         on_label = QtGui.QLabel("On")
@@ -543,18 +551,10 @@ class CameraWidget(WidgetPattern):
         self._port_out = PortWidget(self, "port_out")
         self.layout.addWidget(self._port_out)
         self.widget = QtGui.QWidget()
-        """_obj_dict is a dictionary where key is a name of widget,
-            value[0] is QtGui.QDoubleSpinBox for this parameter
-            value[1] is QtGui.QComboBox object with units for this parameter"""
         self._obj_dict = {}
         for param in self.object:
             _parameter_name = param.name
-            self._value = str(param.get().result()).split(" ", 1)[0]
-            try:
-                self._unit = str(param.get().result()).split(" ", 1)[1]
-            except:
-                pass
-            else:
+            if ' ' in str(param.get().result()):
                 parameter_label = QtGui.QLabel(_parameter_name)
                 parameter_value = QtGui.QDoubleSpinBox()
                 parameter_value.setRange(-1000000, 1000000)
@@ -634,7 +634,8 @@ class FunctionWidget(WidgetPattern):
         self._layout = QtGui.QGridLayout()
         self.func = getattr(processes, name)
         for i in xrange(len(self.func.e_args)):
-            if self.func.e_args[i].__class__.__name__ == 'MetaParameterizable':
+            if inspect.isclass(self.func.e_args[i]) and issubclass(
+                    self.func.e_args[i], Device):
                 exec(
                     "self.%s = PortWidget(self, '%s')" %
                     (str(
@@ -644,7 +645,7 @@ class FunctionWidget(WidgetPattern):
                 port.setLayoutDirection(QtCore.Qt.RightToLeft)
                 self._layout.addWidget(port, i, 1, 1, 2, QtCore.Qt.AlignLeft)
 
-            elif self.func.e_args[i].__class__.__name__ == 'Numeric':
+            elif isinstance(self.func.e_args[i], processes.Numeric):
                 exec(
                     "self.%s_label = QtGui.QLabel('%s (%s)')" %
                     (str(
@@ -666,8 +667,8 @@ class FunctionWidget(WidgetPattern):
                 print "Sorry, I didn't finish this part yet"
 
         for j in self.func.e_keywords:
-            if self.func.e_keywords[
-                    j].__class__.__name__ == 'MetaParameterizable':
+            if inspect.isclass(self.func.e_keywords[j]) and issubclass(
+                    self.func.e_keywords[j], Device):
                 i += 1
                 exec("self.%s = PortWidget(self, '%s')" % (str(j), j))
                 port = getattr(self, j)
@@ -675,23 +676,21 @@ class FunctionWidget(WidgetPattern):
                 self._layout.addWidget(port, i, 1, 1, 2, QtCore.Qt.AlignLeft)
 
         for j in self.func.e_keywords:
-            i += 1
-            class_name = self.func.e_keywords[j].__class__.__name__
-            if not (class_name == 'MetaParameterizable' or j == "output"):
-                if class_name == 'Numeric':
+            if isinstance(self.func.e_keywords[j], processes.Numeric) and not j == "output":
+                i += 1
+                exec(
+                    "self.%s_label = QtGui.QLabel('%s (%s)')" %
+                    (str(j), j, str(
+                        self.func.e_keywords[j].units or "no unit")))
+                label = getattr(self, str(j) + "_label")
+                self._layout.addWidget(label, i, 0)
+                for k in xrange(self.func.e_keywords[j].dimension):
                     exec(
-                        "self.%s_label = QtGui.QLabel('%s (%s)')" %
-                        (str(j), j, str(
-                            self.func.e_keywords[j].units or "no unit")))
-                    label = getattr(self, str(j) + "_label")
-                    self._layout.addWidget(label, i, 0)
-                    for k in xrange(self.func.e_keywords[j].dimension):
-                        exec(
-                            "self.%s%i = QtGui.QDoubleSpinBox()" %
-                            (str(j), k))
-                        spin_box = getattr(self, str(j) + str(k))
-                        spin_box.setRange(-1000, 1000)
-                        self._layout.addWidget(spin_box, i, 1 + k)
+                        "self.%s%i = QtGui.QDoubleSpinBox()" %
+                        (str(j), k))
+                    spin_box = getattr(self, str(j) + str(k))
+                    spin_box.setRange(-1000, 1000)
+                    self._layout.addWidget(spin_box, i, 1 + k)
         exec("self.output = PortWidget(self, 'output')")
         port = getattr(self, "output")
         self._layout.addWidget(port, i + 1, 0, QtCore.Qt.AlignLeft)
@@ -717,14 +716,15 @@ class FunctionWidget(WidgetPattern):
     def play_button_clicked(self):
         args = []
         for i in xrange(len(self.func.e_args)):
-            if self.func.e_args[i].__class__.__name__ == 'MetaParameterizable':
+            if inspect.isclass(self.func.e_args[i]) and issubclass(
+                    self.func.e_args[i], Device):
                 port = getattr(self, self.func.f_args[i])
-                try:
+                if hasattr(port.get_another_widget(), "object"):
                     args.append(getattr(port.get_another_widget(), "object"))
-                except:
+                else:
                     print "%s is not defined!" % port.text()
                     return
-            elif self.func.e_args[i].__class__.__name__ == 'Numeric':
+            elif isinstance(self.func.e_args[i], processes.Numeric):
                 spin_box = getattr(self, self.func.f_args[i] + "0")
 
                 if self.func.e_args[i].units is None:
@@ -748,15 +748,15 @@ class FunctionWidget(WidgetPattern):
         for i in xrange(len(self.func.e_args), len(self.func.f_args)):
             item = self.func.f_args[i]
 
-            if self.func.e_keywords[
-                    item].__class__.__name__ == 'MetaParameterizable':
+            if inspect.isclass(self.func.e_keywords[item]) and issubclass(
+                    self.func.e_keywords[item], Device):
                 port = getattr(self, item)
-                try:
+                if hasattr(port.get_another_widget(), "object"):
                     args.append(getattr(port.get_another_widget(), "object"))
-                except:
+                else:
                     break
 
-            elif self.func.e_keywords[item].__class__.__name__ == 'Numeric':
+            elif isinstance(self.func.e_keywords[item], processes.Numeric):
                 spin_box = getattr(self, item + "0")
                 if self.func.e_keywords[item].units is None:
                     args.append(spin_box.value())
@@ -780,4 +780,272 @@ class FunctionWidget(WidgetPattern):
         except Exception as e:
             print "Error: ", str(e)
         else:
-            print "focus function called"
+            print "%s function called" % self.name.text()
+
+
+class ReconstructionWidget(WidgetPattern):
+
+    def __init__(self, name, parent=None):
+        super(ReconstructionWidget, self).__init__(name, parent)
+        self.path = "/home"
+        self.setupUi()
+
+        self.rec = Recostruction()
+        self.isolavel_slider.setValue(self.rec.isolevel)
+        self.gaussian_slider.setValue(self.rec.gaussian_param)
+        self.erosion_iterations_slider.setValue(self.rec.erosion_iterations)
+        self.detalization_slider.setValue(self.rec.detalization)
+
+        self.thread = QtCore.QThread()
+        self.rec.moveToThread(self.thread)
+        self.thread.started.connect(self.rec.reconstruction_from_array)
+        self.rec.finished.connect(self.thread.quit)
+        self.thread.finished.connect(self.update_render)
+
+    def setupUi(self):
+        self.vtkWidget = QVTKRenderWindowInteractor(self)
+        self.layout.addWidget(self.vtkWidget, 0)
+        panel = self.create_panel()
+        self.layout.addLayout(panel, 1)
+        self.setFixedSize(500, 500)
+
+    def create_panel(self):
+        layout = QtGui.QGridLayout()
+        self.isolavel_slider = QtGui.QSlider(QtCore.Qt.Horizontal)
+        self.isolavel_slider.setRange(-300, 300)
+        self.isolavel_label = QtGui.QLabel("isolevel")
+        self.isolavel_value = QtGui.QLabel(str(self.isolavel_slider.value()))
+        self.isolavel_value.setFixedWidth(29)
+        self.isolavel_slider.valueChanged.connect(self.isolavel_changed)
+        self.gaussian_slider = QtGui.QSlider(QtCore.Qt.Horizontal)
+        self.gaussian_slider.setRange(0, 50)
+        self.gaussian_filter_label = QtGui.QLabel("blur")
+        self.gaussian_filter_value = QtGui.QLabel(
+            str(self.gaussian_slider.value()))
+        self.gaussian_slider.valueChanged.connect(self.gaussian_filter_changed)
+        self.erosion_iterations_slider = QtGui.QSlider(QtCore.Qt.Horizontal)
+        self.erosion_iterations_slider.setRange(0, 50)
+        self.erosion_iterations_slider.valueChanged.connect(
+            self.erosion_iterations_changed)
+        self.erosion_iterations_label = QtGui.QLabel("roughness")
+        self.erosion_iterations_value = QtGui.QLabel(
+            str(self.erosion_iterations_slider.value()))
+
+        self.detalization_slider = QtGui.QSlider(QtCore.Qt.Horizontal)
+        self.detalization_slider.setRange(1, 10)
+        self.detalization_label = QtGui.QLabel("detalization")
+        self.detalization_value = QtGui.QLabel(
+            str(self.isolavel_slider.value()))
+        self.detalization_slider.valueChanged.connect(
+            self.detalization_changed)
+
+        self.apply_button = QtGui.QPushButton("Apply")
+        self.apply_button.clicked.connect(self.apply_clicked)
+        self.refresh_button = QtGui.QPushButton("Refresh")
+        self.refresh_button.clicked.connect(self.refresh_clicked)
+
+        self.load_files_button = QtGui.QPushButton("from files")
+        self.load_files_button.clicked.connect(self.load_files_clicked)
+
+        self.pb = QtGui.QProgressBar()
+        self.pb.setRange(0, 0)
+        self.pb.hide()
+        layout.addWidget(self.isolavel_slider, 0, 1)
+        layout.addWidget(self.isolavel_label, 0, 0)
+        layout.addWidget(self.isolavel_value, 0, 2)
+        layout.addWidget(self.gaussian_slider, 1, 1)
+        layout.addWidget(self.gaussian_filter_label, 1, 0)
+        layout.addWidget(self.gaussian_filter_value, 1, 2)
+        layout.addWidget(self.erosion_iterations_slider, 2, 1)
+        layout.addWidget(self.erosion_iterations_label, 2, 0)
+        layout.addWidget(self.erosion_iterations_value, 2, 2)
+
+        layout.addWidget(self.detalization_slider, 3, 1)
+        layout.addWidget(self.detalization_label, 3, 0)
+        layout.addWidget(self.detalization_value, 3, 2)
+
+        layout.addWidget(self.apply_button, 4, 0, 1, 3, QtCore.Qt.AlignCenter)
+#         layout.addWidget(self.refresh_button, 4, 1, QtCore.Qt.AlignLeft)
+        layout.addWidget(self.load_files_button, 4, 0, QtCore.Qt.AlignRight)
+        layout.addWidget(self.pb, 4, 1, 1, 2, QtCore.Qt.AlignRight)
+        return layout
+
+    def isolavel_changed(self, value):
+        self.isolavel_value.setText(str(value))
+
+    def gaussian_filter_changed(self, value):
+        self.gaussian_filter_value.setText(str(value))
+
+    def erosion_iterations_changed(self, value):
+        self.erosion_iterations_value.setText(str(value))
+
+    def detalization_changed(self, value):
+        if value == 1:
+            value = "min"
+        elif value == 10:
+            value = "max"
+        self.detalization_value.setText(str(value))
+
+    def set_reconstruction_parameters(self):
+        self.rec.isolevel = self .isolavel_slider.value()
+        self.rec.gaussian_param = self.gaussian_slider.value()
+        self.rec.erosion_iterations = self.erosion_iterations_slider.value()
+        self.rec.detalization = self.detalization_slider.value()
+
+    def apply_clicked(self):
+        self.pb.show()
+        self.set_reconstruction_parameters()
+        self.thread.start()
+
+    def refresh_clicked(self):
+        self.pb.show()
+        self.set_reconstruction_parameters()
+        self.thread.started.disconnect()
+        self.thread.started.connect(self.rec.reconstruction_from_array)
+        self.thread.start()
+
+    def load_files_clicked(self):
+        self.set_reconstruction_parameters()
+        files = QtGui.QFileDialog.getOpenFileNames(
+                self,
+                'Open files',
+                '%s'%self.path,
+                "All files (*.*);;JPEG (*.jpg *.jpeg);;TIFF (*.tif)",
+                "TIFF (*.tif)")
+        if len(files) > 1:
+            self.path = QtCore.QFileInfo(files[0]).path()
+            file_names = []
+            for i, name in enumerate(files):
+                file_names.append(str(files.__getitem__(i)))
+            self.rec.files = file_names
+            self.thread.started.disconnect()
+            self.thread.started.connect(self.rec.reconstruction_from_files)
+            self.thread.start()
+            self.pb.show()
+
+    def update_render(self):
+        #         print "in add_actor"
+        #         if self.actor is not None:
+        #             self.ren.RemoveActor(self.actor)
+        #         self.ren.Clear()
+
+        self.ren = vtk.vtkRenderer()
+        self.ren.SetBackground(0.329412, 0.34902, 0.427451)
+        self.vtkWidget.GetRenderWindow().AddRenderer(self.ren)
+        self.iren = self.vtkWidget.GetRenderWindow().GetInteractor()
+
+        self.ren.AddActor(self.rec.actor)
+#         self.actor = self.rec.actor
+        self.iren.Initialize()
+        self.pb.hide()
+
+
+class Recostruction(QtCore.QObject):
+
+    actor = None
+    finished = QtCore.pyqtSignal()
+    isolevel = 115
+    gaussian_param = 6
+    erosion_iterations = 10
+    detalization = 5
+    files = None
+    array = None
+
+    def reconstruction_from_files(self):
+        array = self.array_from_files(self.files)
+        data = self.numpy_to_vtk(array)
+        self.actor = self.make_iso(data)
+        self.finished.emit()
+
+    def reconstruction_from_array(self):
+        n = 1000
+        if self.array is None:
+            self.array = self.make_cube(n, n / 2)
+        data = self.numpy_to_vtk(self.array)
+        self.actor = self.make_iso(data)
+        self.finished.emit()
+
+    def make_sphere(self, n, radius):
+        z, y, x = np.mgrid[-n / 2:n / 2, -n / 2:n / 2, -n / 2:n / 2]
+        distances = x ** 2 + y ** 2 + z ** 2
+        sphere = np.zeros_like(distances)
+        sphere[distances <= radius ** 2] = 1
+        return sphere.astype(np.ubyte)
+
+    def make_cube(self, n, edge):
+        cube = np.zeros((n, n, n), dtype=np.ubyte)
+        cube[n / 2 - edge / 2:n / 2 + edge / 2,
+             n / 2 - edge / 2:n / 2 + edge / 2,
+             n / 2 - edge / 2:n / 2 + edge / 2] = 1
+        return cube
+
+    def array_from_files(self, files):
+        frame_rate = 11 - self.detalization
+        (x, y) = TIFF.open(files[0]).read_image()[::frame_rate, ::frame_rate].shape
+        sample = np.zeros((x, y, len(files[::frame_rate])))
+        zeros = np.zeros((x,y))
+        for i in xrange(0, len(files), frame_rate):
+            im = TIFF.open(files[i])
+            image = im.read_image()
+            gauss_denoised = scipy.ndimage.gaussian_filter(
+                image,
+                self.gaussian_param)
+            filtered = gauss_denoised < self.isolevel
+            eroded_img = scipy.ndimage.binary_erosion(
+                filtered,
+                iterations=self.erosion_iterations)
+            reconstruct_img = scipy.ndimage.binary_propagation(
+                eroded_img,
+                mask=filtered)
+            tmp = np.logical_not(reconstruct_img)
+            eroded_tmp = scipy.ndimage.binary_erosion(
+                tmp,
+                iterations=self.erosion_iterations /
+                2)
+            reconstruct_final = np.logical_not(
+                scipy.ndimage.binary_propagation(
+                    eroded_tmp,
+                    mask=tmp))
+            sample[:, :, int(i / frame_rate)] = reconstruct_final[::frame_rate, ::frame_rate]
+        return sample.astype(np.ubyte)
+
+    def numpy_to_vtk(self, array):
+        dataImporter = vtk.vtkImageImport()
+        data_string = array.tostring()
+        dataImporter.CopyImportVoidPointer(data_string, len(data_string))
+        dataImporter.SetDataScalarTypeToUnsignedChar()
+        dataImporter.SetNumberOfScalarComponents(1)
+        z, y, x = [dim - 1 for dim in array.shape]
+        dataImporter.SetDataExtent(0, x, 0, y, 0, z)
+        dataImporter.SetWholeExtent(0, x, 0, y, 0, z)
+        return dataImporter
+
+    def make_iso(self, data):
+        contourBoneHead = vtk.vtkDiscreteMarchingCubes()
+        contourBoneHead.SetInput(data.GetOutput())
+        contourBoneHead.ComputeNormalsOn()
+        contourBoneHead.ComputeScalarsOn()
+        contourBoneHead.SetValue(0, 1)  # Bone isovalue
+        contourBoneHead.Update()
+
+        poly = vtk.vtkPolyData()
+        poly.DeepCopy(contourBoneHead.GetOutput())
+
+        smoother = vtk.vtkSmoothPolyDataFilter()
+        smoother.SetInput(poly)
+        smoother.GenerateErrorScalarsOn()
+        smoother.SetNumberOfIterations(50)
+        smoother.SetRelaxationFactor(0.05)
+        smoother.Update()
+
+        # Take the isosurface data and create geometry
+        geoBoneMapper = vtk.vtkPolyDataMapper()
+        geoBoneMapper.SetInputConnection(smoother.GetOutputPort())
+        geoBoneMapper.ScalarVisibilityOff()
+
+        # Take the isosurface data and create geometry
+        actorBone = vtk.vtkActor()
+        actorBone.SetMapper(geoBoneMapper)
+        self.actor = actorBone
+#         self.finished.emit()
+        return actorBone

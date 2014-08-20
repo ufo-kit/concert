@@ -25,21 +25,27 @@ class ConcertGUI(QtGui.QMainWindow):
         exit_action.triggered.connect(self.close)
         hide_tree_action = QtGui.QAction(
             QtGui.QIcon.fromTheme("zoom-fit-best"),
-            '&Widgets list',
+            '&Device list',
             self)
         hide_tree_action.setShortcut('Ctrl+H')
         hide_tree_action.setStatusTip('widgets list')
         hide_tree_action.triggered.connect(self._hide_widgets_list)
         hide_tree_action.setCheckable(True)
         hide_tree_action.setChecked(True)
+        reconstruction = QtGui.QAction(
+            '&Reconstruction widget', self)
+        reconstruction.triggered.connect(self._create_reconstruction_widget)
+        reconstruction.setShortcut('Ctrl+R')
+
         self._menubar = self.menuBar()
         file_menu = self._menubar.addMenu('&File')
         file_menu.addAction(exit_action)
         view_menu = self._menubar.addMenu('&View')
+        view_menu.addAction(hide_tree_action)
+        view_menu.addAction(reconstruction)
         self._create_terminal()
         self.setCentralWidget(self.device_tree)
         self._add_function_tree()
-        view_menu.addAction(hide_tree_action)
         self.setWindowTitle("Concert GUI")
         self.resize(1300, 1000)
         self.widget = WidgetPattern("")
@@ -48,16 +54,22 @@ class ConcertGUI(QtGui.QMainWindow):
     def set_current_widget(self):
         self.widget = self.sender()
 
+    def _create_reconstruction_widget(self):
+        file_names = None
+        self.widget = ReconstructionWidget(
+            "reconstruction", self)
+        self.widget.close_button.clicked.connect(
+            self._close_button_clicked)
+        self.widget.move(290, 70)
+        self.widget.show()
+
     def _add_function_tree(self):
         self.function_tree = TreeWidget(self)
         self.function_tree.setHeaderItem(QtGui.QTreeWidgetItem(["function"]))
         for name in dir(self.session):
             object = getattr(self.session, name)
-            try:
-                if object._isfunction:
-                    QtGui.QTreeWidgetItem(self.function_tree, [str(name)])
-            except:
-                pass
+            if hasattr(object, "_isfunction"):
+                QtGui.QTreeWidgetItem(self.function_tree, [str(name)])
         self.function_tree.adjustSize()
         self.function_tree.resizeColumnToContents(0)
         dock = QtGui.QDockWidget("Functions", self)
@@ -75,19 +87,7 @@ class ConcertGUI(QtGui.QMainWindow):
             object = getattr(self.session, name)
             if isinstance(object, Device):
                 name_of_class = object.__class__.__name__
-                try:
-                    str(name_of_class).split("Motor")[1]
-                except:
-                    if name_of_class not in self._items_list:
-                        header = QtGui.QTreeWidgetItem(
-                            self.device_tree, [name_of_class])
-                        QtGui.QTreeWidgetItem(header, [name])
-                        self._items_list[name_of_class] = header
-                    else:
-                        QtGui.QTreeWidgetItem(
-                            self._items_list[name_of_class],
-                            [name])
-                else:
+                if "Motor" in name_of_class:
                     if "Motors" not in self._items_list:
                         _header_motor = QtGui.QTreeWidgetItem(
                             self.device_tree,
@@ -99,6 +99,16 @@ class ConcertGUI(QtGui.QMainWindow):
                         header = QtGui.QTreeWidgetItem(
                             _header_motor,
                             [name_of_class])
+                        QtGui.QTreeWidgetItem(header, [name])
+                        self._items_list[name_of_class] = header
+                    else:
+                        QtGui.QTreeWidgetItem(
+                            self._items_list[name_of_class],
+                            [name])
+                else:
+                    if name_of_class not in self._items_list:
+                        header = QtGui.QTreeWidgetItem(
+                            self.device_tree, [name_of_class])
                         QtGui.QTreeWidgetItem(header, [name])
                         self._items_list[name_of_class] = header
                     else:
@@ -120,13 +130,11 @@ class ConcertGUI(QtGui.QMainWindow):
         cons.execute_command("from concert.quantities import q")
         cons.execute_lines("""for name in dir(concert):
             object = getattr(concert, name)
+            print hasattr(object,"_isfunction")
             if isinstance(object, Device):
                 globals().update({name:object})
-            try:
-                if object._isfunction:
+            if hasattr(object,"_isfunction"):
                     globals().update({name:object})
-            except:
-                pass
             \n\n""")
         cons.execute_command("cls")
         console_dock = QtGui.QDockWidget("Console", self)
@@ -201,12 +209,11 @@ class ConcertGUI(QtGui.QMainWindow):
     def resizeEvent(self, event):
         for i in xrange(int(self.width() / self.widget.grid_x_step)):
             x = i * self.widget.grid_x_step
-            if x >= 130:
-
+            if x >= 0:
                 self._grid_lines.append(QtCore.QLine(x, 0, x, self.height()))
         for i in xrange(int(self.height() / self.widget.grid_y_step)):
             y = i * self.widget.grid_y_step
-            self._grid_lines.append(QtCore.QLine(150, y, self.width(), y))
+            self._grid_lines.append(QtCore.QLine(0, y, self.width(), y))
 
     def mouseReleaseEvent(self, event):
         QtGui.QApplication.restoreOverrideCursor()
@@ -230,7 +237,8 @@ class ConcertGUI(QtGui.QMainWindow):
             item = self.function_tree.findItems(
                 sender.name.text(),
                 QtCore.Qt.MatchExactly | QtCore.Qt.MatchRecursive)
-        item[-1].setDisabled(False)
+        if not item == []:
+            item[-1].setDisabled(False)
         sender.close()
 
     def new_connection(self, start_point):
@@ -266,6 +274,7 @@ class TreeWidget(QtGui.QTreeWidget):
         self._func = 0
         self.gui = self.parent()
         self.setHeaderHidden(True)
+        self.header_text = None
 
     def mousePressEvent(self, event):
         super(TreeWidget, self).mousePressEvent(event)
@@ -274,27 +283,23 @@ class TreeWidget(QtGui.QTreeWidget):
                     self.currentItem().isDisabled()):
                 self._new_widget_created_flag = False
                 self._offset = event.pos()
+
                 if self.headerItem().text(0) == "function":
-                    self.itemText = "function"
+                    self.header_text = "function"
                 else:
-                    try:
-                        self.itemText = self.currentItem().parent().text(
-                            0)
-                        try:
-                            self.itemText = self.currentItem(
-                            ).parent().parent().text(0)
-                        except:
-                            pass
-                    except:
-                        self.itemText = self.currentItem().text(0)
+                    header = self.currentItem().parent()
+                    if header is not None:
+                        if hasattr(header.parent(), "text"):
+                            self.header_text = header.parent().text(0)
+                        else:
+                            self.header_text = header.text(0)
                 self._func = getattr(
                     self.gui,
                     "create_" +
-                    str(self.itemText), None)
+                    str(self.header_text), None)
                 if self._func:
                     QtGui.QApplication.setOverrideCursor(
                         QtGui.QCursor(QtCore.Qt.ClosedHandCursor))
-            self.itemText = str(self.itemText)
 
     def mouseMoveEvent(self, event):
         if self.currentItem() is not None:
@@ -308,7 +313,8 @@ class TreeWidget(QtGui.QTreeWidget):
                             self._func(self.currentItem().text(0))
                             self.gui.widget.close_button.clicked.connect(
                                 self.gui._close_button_clicked)
-                        pos = QtCore.QPoint(int(self.gui.widget.width() / 2), 0)
+                        pos = QtCore.QPoint(
+                            int(self.gui.widget.width() / 2), 0)
                         self.gui.widget.move_widget(self.gui.mapFromGlobal(
                             self.gui._cursor.pos()) - pos)
 
