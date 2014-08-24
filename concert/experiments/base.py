@@ -1,6 +1,6 @@
 """
-An experiment can be run multiple times. The base :py:class:`.Experiment`
-takes care of proper logging structure.
+An experiment can be run multiple times. The base :py:class:`.Experiment` takes
+care of proper logging structure.
 """
 
 import logging
@@ -47,7 +47,7 @@ class Acquisition(object):
 
 class Experiment(object):
 
-    r"""
+    """
     Experiment base class. An experiment can be run multiple times with the output data and log
     stored on disk. You can prepare every run by :meth:`.prepare` and finsh the run by
     :meth:`.finish`. These methods do nothing by default. They can be useful e.g. if you need to

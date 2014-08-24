@@ -151,15 +151,16 @@ class expects(object):
     and also check correctness of given arguments. If input arguments differ from
     expected ones, exception *TypeError* will be raised.
 
-    For numeric arguments use *Numeric* class with 2 parameters: dimension of the array
-    and units (optional). E.g. "Numeric (1)" means function expects one number or
-    "Numeric (2, q.mm)" means function expects expression like [4,5]*q.mm
+    For numeric arguments use *Numeric* class with 2 parameters: dimension of
+    the array and units (optional). E.g. "Numeric (1)" means function expects
+    one number or "Numeric (2, q.mm)" means function expects expression like
+    [4,5]*q.mm
 
-    Common use case looks like this:
+    Common use case looks like this::
 
-    @expects (Camera, LinearMotor, pixelsize = Numeric(2, q.mm))
-    def foo(camera, motor, pixelsize = None):
-        pass
+        @expects(Camera, LinearMotor, pixelsize = Numeric(2, q.mm))
+        def foo(camera, motor, pixelsize = None):
+            pass
     """
 
     def __init__(self, *args, **kwargs):

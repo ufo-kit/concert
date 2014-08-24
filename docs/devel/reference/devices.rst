@@ -8,6 +8,12 @@ Cameras
     :show-inheritance:
     :members:
 
+.. autoclass:: concert.devices.cameras.uca.Camera
+.. autoclass:: concert.devices.cameras.pco.Pco
+.. autoclass:: concert.devices.cameras.pco.Dimax
+.. autoclass:: concert.devices.cameras.pco.PCO4000
+
+.. autoclass:: concert.devices.cameras.dummy.Camera
 
 I/O
 ---
@@ -15,6 +21,8 @@ I/O
 .. autoclass:: concert.devices.io.base.IO
     :show-inheritance:
     :members:
+
+.. autoclass:: concert.devices.io.dummy.IO
 
 
 Lightsources
@@ -24,6 +32,8 @@ Lightsources
     :show-inheritance:
     :members:
 
+.. autoclass:: concert.devices.lightsources.dummy.LightSource
+
 
 Monochromators
 --------------
@@ -31,6 +41,8 @@ Monochromators
 .. autoclass:: concert.devices.monochromators.base.Monochromator
     :show-inheritance:
     :members:
+
+.. autoclass:: concert.devices.monochromators.dummy.Monochromator
 
 
 Motors
@@ -49,6 +61,8 @@ Linear motors are characterized by moving along a straight line.
     :show-inheritance:
     :members:
 
+.. autoclass:: concert.devices.motors.dummy.LinearMotor
+.. autoclass:: concert.devices.motors.dummy.ContinuousLinearMotor
 
 Rotational
 ~~~~~~~~~~
@@ -62,6 +76,9 @@ Rotational motors are characterized by rotating around an axis.
 .. autoclass:: concert.devices.motors.base.ContinuousRotationMotor
     :show-inheritance:
     :members:
+
+.. autoclass:: concert.devices.motors.dummy.RotationMotor
+.. autoclass:: concert.devices.motors.dummy.ContinuousRotationMotor
 
 
 Axes
@@ -84,6 +101,8 @@ Photodiodes measure light intensity.
     :show-inheritance:
     :members:
 
+.. autoclass:: concert.devices.photodiodes.dummy.PhotoDiode
+
 
 Positioners
 -----------
@@ -97,6 +116,8 @@ orientation of some object.
     :show-inheritance:
     :members:
 
+.. autoclass:: concert.devices.positioners.dummy.Positioner
+
 
 Imaging Positioners
 ~~~~~~~~~~~~~~~~~~~
@@ -108,6 +129,8 @@ directions by the given amount of pixels.
     :show-inheritance:
     :members:
 
+.. autoclass:: concert.devices.positioners.dummy.ImagingPositioner
+
 
 Pumps
 -----
@@ -115,6 +138,8 @@ Pumps
 .. autoclass:: concert.devices.pumps.base.Pump
     :show-inheritance:
     :members:
+
+.. autoclass:: concert.devices.pumps.dummy.Pump
 
 
 Scales
@@ -128,6 +153,8 @@ Scales
     :show-inheritance:
     :members:
 
+.. autoclass:: concert.devices.scales.dummy.Scales
+
 
 Shutters
 --------
@@ -135,6 +162,8 @@ Shutters
 .. autoclass:: concert.devices.shutters.base.Shutter
     :show-inheritance:
     :members:
+
+.. autoclass:: concert.devices.shutters.dummy.Shutter
 
 
 Storage rings
@@ -144,4 +173,4 @@ Storage rings
     :show-inheritance:
     :members:
 
-
+.. autoclass:: concert.devices.storagerings.dummy.StorageRing
