@@ -864,4 +864,9 @@ class Parameterizable(object):
         for param in self:
             param.unlock()
 
-
+    def serialize(self):
+        """
+        Return dictionary *{param.name: param.value}* with all parameter values
+        serialized as strings.
+        """
+        return {param.name: str(param.get().result()) for param in self}
