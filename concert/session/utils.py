@@ -2,6 +2,7 @@ import math
 import inspect
 import subprocess
 import prettytable
+import json
 from concert.devices.base import Device
 
 
@@ -131,3 +132,8 @@ def code_of(func):
         print(highlight(source, PythonLexer(), TerminalFormatter()))
     except ImportError:
         print(source)
+
+
+def serialize():
+    """Return dictionary with serialized device instances."""
+    return {name: device.serialize() for name, device in _current_instances(Device)}
