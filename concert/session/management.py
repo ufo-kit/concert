@@ -19,6 +19,12 @@ from concert.quantities import q
 from concert.session.utils import ddoc, dstate, pdoc, code_of
 
 LOG = logging.getLogger(__name__)
+
+# --- Define your devices and workflows
+
+
+# --- Registering devices
+concert.session.register()
 """
 
 

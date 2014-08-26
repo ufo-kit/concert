@@ -3,6 +3,7 @@ import inspect
 import subprocess
 import prettytable
 import json
+import concert.session
 from concert.devices.base import Device
 
 
@@ -136,4 +137,10 @@ def code_of(func):
 
 def serialize():
     """Return dictionary with serialized device instances."""
-    return {name: device.serialize() for name, device in _current_instances(Device)}
+    return {name: device.serialize() for name, device in concert.session.DEVICES.items()}
+
+
+def register():
+    """Register locally devices in concert.session.DEVICES."""
+    for name, device in _current_instances(Device):
+        concert.session.DEVICES[name] = device
