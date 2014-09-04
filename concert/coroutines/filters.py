@@ -133,6 +133,8 @@ def flat_correct(flat, consumer, dark=None):
     given), calculates a flat corrected radiograph and forwards it to
     *consumer*.
     """
+    flat = flat.astype(np.float32)
+
     while True:
         radio = yield
         consumer.send(make_flat_correct(radio, flat, dark=dark))
