@@ -8,6 +8,10 @@ try:
     from Queue import Empty
 except ImportError:
     from queue import Empty
+try:
+    import pyqtgraph as pg
+except ImportError:
+    "please install Pyqtgraph"
 import logging
 import numpy as np
 from subprocess import Popen
@@ -620,3 +624,29 @@ class _PyplotImageUpdater(_PyplotUpdaterBase):
         upper_ratio = np.abs(upper - self.mpl_image.get_clim()[1]) / new_range
 
         return lower_ratio > 0.1 or upper_ratio > 0.1
+
+
+class PyqtgraphImageViewer(pg.ImageView):
+
+    def __init__(self):
+        pg.mkQApp()
+        super(PyqtgraphImageViewer, self).__init__()
+        self.viewtimer = pg.Qt.QtCore.QTimer()
+        self.viewtimer.timeout.connect(self._updateview)
+
+    def __call__(self):
+        super(PyqtgraphImageViewer, self).show()
+        self.viewtimer.start(0)
+        return self._coroutine()
+
+    @coroutine
+    def _coroutine(self):
+        while True:
+            self.item = yield
+
+    def _updateview(self):
+        self.setImage(self.item, autoRange=False, autoLevels=False, autoHistogramRange=False)
+
+    def show(self, item):
+        super(PyqtgraphImageViewer, self).show()
+        self.setImage(item, autoRange=False, autoLevels=False)
