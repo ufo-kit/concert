@@ -44,3 +44,11 @@ class TestSignal(TestCase):
 
         with self.assertRaises(TransitionNotAllowed):
             self.signal.off()
+
+    def test_trigger(self):
+        self.signal.trigger()
+        self.assertEqual(self.signal.state, 'off')
+
+        # Test forbidden state
+        self.signal.on()
+        self.assertRaises(TransitionNotAllowed, self.signal.trigger)
