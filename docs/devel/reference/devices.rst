@@ -18,6 +18,10 @@ Cameras
 I/O
 ---
 
+.. autoclass:: concert.devices.io.base.Signal
+    :show-inheritance:
+    :members:
+
 .. autoclass:: concert.devices.io.base.IO
     :show-inheritance:
     :members:
