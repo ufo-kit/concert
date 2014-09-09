@@ -36,6 +36,7 @@ def cmp_versions(v1, v2):
 
 def get_ipython_shell(config=None):
     import IPython
+    import concert.async
 
     version = IPython.__version__
     shell = None
@@ -52,7 +53,7 @@ def get_ipython_shell(config=None):
         from IPython.terminal.embed import InteractiveShellEmbed
         shell = InteractiveShellEmbed(config=config, banner1='')
 
-    if concert.config.ENABLE_GEVENT:
+    if concert.config.ENABLE_GEVENT and concert.async.HAVE_GEVENT:
         if cmp_versions(version, '2.0') < 0:
             from IPython.lib.inputhook import inputhook_manager
             from concert.ext.gevent import inputhook_gevent

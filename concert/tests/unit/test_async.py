@@ -1,5 +1,6 @@
 import time
 import random
+import concert.config
 from concert.devices.dummy import DummyDevice
 from concert.async import async, wait, resolve, KillException, HAVE_GEVENT
 from concert.tests import slow, TestCase
@@ -61,7 +62,7 @@ class TestAsync(TestCase):
         time.sleep(0)
         future.kill()
 
-        if HAVE_GEVENT:
+        if HAVE_GEVENT and concert.config.ENABLE_GEVENT:
             self.assertTrue(d['killed'])
 
     def test_resolve(self):
