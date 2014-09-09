@@ -44,7 +44,7 @@ def downsize(consumer, x_slice=None, y_slice=None, z_slice=None):
         image = yield
         if z_start <= i and (not z_stop or i < z_stop):
             if k % z_step == 0:
-                consumer.send(image[y_start:y_stop:y_step, x_start:x_stop:x_step])
+                consumer.send(np.copy(image[y_start:y_stop:y_step, x_start:x_stop:x_step]))
             k += 1
         i += 1
 
