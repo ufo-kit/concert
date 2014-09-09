@@ -136,60 +136,63 @@ try:
         def add_done_callback(self, callback):
             self.link(callback)
 
-    def async(func):
-        if concert.config.ENABLE_ASYNC:
+    if concert.config.ENABLE_GEVENT:
+        def async(func):
+            if concert.config.ENABLE_ASYNC:
+                @functools.wraps(func)
+                def _inner(*args, **kwargs):
+                    g = GreenletFuture(func, args, kwargs)
+                    g.start()
+                    return g
+
+                return _inner
+            else:
+                return no_async(func)
+
+        def threaded(func):
             @functools.wraps(func)
             def _inner(*args, **kwargs):
-                g = GreenletFuture(func, args, kwargs)
-                g.start()
-                return g
+                result = threadpool.spawn(func, *args, **kwargs)
+                return result
 
             return _inner
-        else:
-            return no_async(func)
-
-    def threaded(func):
-        @functools.wraps(func)
-        def _inner(*args, **kwargs):
-            result = threadpool.spawn(func, *args, **kwargs)
-            return result
-
-        return _inner
 
 except ImportError:
     if concert.config.ENABLE_GEVENT:
         print("Gevent is not available, falling back to threads")
 
-    import threading
     HAVE_GEVENT = False
 
-    # Module-wide executor
-    EXECUTOR = ThreadPoolExecutor(max_workers=128)
+if not concert.config.ENABLE_GEVENT or not HAVE_GEVENT:
+        import threading
 
-    # This is a stub exception that will never be raised.
-    class KillException(Exception):
-        pass
+        # Module-wide executor
+        EXECUTOR = ThreadPoolExecutor(max_workers=128)
 
-    def async(func):
-        if concert.config.ENABLE_ASYNC:
+        # This is a stub exception that will never be raised.
+        class KillException(Exception):
+            pass
+
+        def async(func):
+            if concert.config.ENABLE_ASYNC:
+                @functools.wraps(func)
+                def _inner(*args, **kwargs):
+                    return EXECUTOR.submit(func, *args, **kwargs)
+
+                return _inner
+            else:
+                return no_async(func)
+
+        def threaded(func):
             @functools.wraps(func)
-            def _inner(*args, **kwargs):
-                return EXECUTOR.submit(func, *args, **kwargs)
+            def wrapper(*args, **kwargs):
+                """Execute in a separate thread."""
+                thread = threading.Thread(target=func, args=args, kwargs=kwargs)
+                thread.daemon = True
+                thread.start()
+                return thread
 
-            return _inner
-        else:
-            return no_async(func)
-
-    def threaded(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            """Execute in a separate thread."""
-            thread = threading.Thread(target=func, args=args, kwargs=kwargs)
-            thread.daemon = True
-            thread.start()
-            return thread
-
-        return wrapper
+            return wrapper
 
 
 def wait(futures):
