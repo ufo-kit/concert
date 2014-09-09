@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import tempfile
 import traceback
+import zipfile
 import concert
 import concert.config
 import concert.session.management as cs
@@ -331,6 +332,23 @@ class ImportCommand(Command):
         return urlparse.urlunsplit(result)
 
 
+class ExportCommand(Command):
+
+    """Export all sessions as a Zip archive."""
+
+    def __init__(self):
+        opts = {'name': {'type': str,
+                         'help': "Name of the archive"}}
+        super(ExportCommand, self).__init__('export', opts)
+
+    def run(self, name):
+        name = name if name.endswith('.zip') else name + '.zip'
+
+        with zipfile.ZipFile(name, 'w') as archive:
+            for path in (cs.path(session) for session in cs.get_existing()):
+                archive.writestr(os.path.basename(path), open(path).read())
+
+
 class StartCommand(Command):
 
     """Start a session."""
@@ -446,6 +464,7 @@ def main():
                 CopyCommand(),
                 RemoveCommand(),
                 ImportCommand(),
+                ExportCommand(),
                 StartCommand()]
 
     commands.extend(plugins)

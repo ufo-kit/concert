@@ -29,6 +29,7 @@ help is shown::
         edit      Edit a session
         rm        Remove one or more sessions
         import    Import an existing *session*
+        export    Export all sessions as a Zip archive
 
 The tool is command-driven, that means you call it with a command as its first
 argument. To read command-specific help, use::
@@ -166,7 +167,7 @@ Remove one or more sessions::
 .. _import-command:
 
 import
------
+------
 
 .. program:: concert import
 
@@ -189,6 +190,20 @@ exists.
 
     The server certificates are *not* verified when specifying an HTTPS
     connection!
+
+
+.. _export-command:
+
+export
+------
+
+.. program:: concert export
+
+Export all sessions as a Zip archive::
+
+    concert export foobar
+
+Creates a Zip archive named *foobar.zip* containing all sessions.
 
 
 .. _start-command:
