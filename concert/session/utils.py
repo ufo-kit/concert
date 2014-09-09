@@ -104,7 +104,7 @@ def ddoc():
 
 def pdoc(hide_blacklisted=True):
     """Render process documentation."""
-    black_listed = ('show', 'start', 'init', 'rm', 'log', 'edit', 'fetch')
+    black_listed = ('show', 'start', 'init', 'rm', 'log', 'edit', 'import')
     field_names = ["Name", "Description"]
     table = get_default_table(field_names)
 

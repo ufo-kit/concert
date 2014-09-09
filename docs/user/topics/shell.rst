@@ -28,7 +28,7 @@ help is shown::
         show      Show available sessions or details of a given *session*
         edit      Edit a session
         rm        Remove one or more sessions
-        fetch     Import an existing *session*
+        import    Import an existing *session*
 
 The tool is command-driven, that means you call it with a command as its first
 argument. To read command-specific help, use::
@@ -163,16 +163,16 @@ Remove one or more sessions::
     backup is made.
 
 
-.. _fetch-command:
+.. _import-command:
 
-fetch
+import
 -----
 
-.. program:: concert fetch
+.. program:: concert import
 
 Import an existing session from a Python file::
 
-    concert fetch some-session.py
+    concert import some-session.py
 
 Concert will warn you if you try to import a session with a name that already
 exists.

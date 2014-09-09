@@ -11,10 +11,10 @@ Synchrotron beamline. This guide will briefly show you how to use and extend it.
 Running a session
 =================
 
-In case you don't have a beamline at hand, you can fetch our sample sessions
-with the :ref:`fetch <fetch-command>` command::
+In case you don't have a beamline at hand, you can import our sample sessions
+with the :ref:`import <import-command>` command::
 
-    $ concert fetch --repo https://github.com/ufo-kit/concert-examples
+    $ concert import --repo https://github.com/ufo-kit/concert-examples
 
 Now :ref:`start <start-command>` the tutorial session::
 
