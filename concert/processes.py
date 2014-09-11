@@ -175,7 +175,7 @@ def dscan(parameter_list, n_intervals, handler):
     return ascan(parameter_list, n_intervals, handler, initial_values)
 
 
-@expects(Camera, LinearMotor, measure=np.std, opt_kwargs=None,
+@expects(Camera, LinearMotor, measure=None, opt_kwargs=None,
          plot_consumer=None, frame_consumer=None, output=Numeric(1))
 def focus(camera, motor, measure=np.std, opt_kwargs=None,
           plot_consumer=None, frame_consumer=None):
