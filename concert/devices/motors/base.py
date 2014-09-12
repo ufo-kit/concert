@@ -82,7 +82,7 @@ class LinearMotor(_PositionMixin):
 
     state = State(default='standby')
 
-    position = Quantity(q.m, help="Position",
+    position = Quantity(q.mm, help="Position",
                         check=check(source=['hard-limit', 'standby'],
                                     target=['hard-limit', 'standby']))
 
@@ -105,7 +105,7 @@ class ContinuousLinearMotor(LinearMotor):
 
     state = State(default='standby')
 
-    velocity = Quantity(q.m / q.s, help="Linear velocity",
+    velocity = Quantity(q.mm / q.s, help="Linear velocity",
                         check=check(source=['hard-limit', 'standby', 'moving'],
                                     target=['moving', 'standby']))
 
