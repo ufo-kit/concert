@@ -86,7 +86,7 @@ def halver(function, x_0, initial_step=None, epsilon=None,
     else:
         step = initial_step
     if epsilon is None:
-        epsilon = q.Quantity(1e-3, x_0.units)
+        epsilon = q.Quantity(1e-4, x_0.units)
 
     direction = 1
     i = 0
