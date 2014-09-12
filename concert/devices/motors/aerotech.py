@@ -25,7 +25,9 @@ class Aerorot(ContinuousRotationMotor):
     def __init__(self, host, port=8001, enable=True):
         super(Aerorot, self).__init__()
 
-        self._connection = Connection(host, port)
+        self._host = host
+        self._port = port
+        self.connect()
         if enable:
             self.enable()
 
@@ -36,6 +38,10 @@ class Aerorot(ContinuousRotationMotor):
     def disable(self):
         """Disable the motor."""
         self._connection.execute("DISABLE %s" % (Aerorot.AXIS))
+
+    def connect(self):
+        """Reconnect in case the connection fails or is closed by the motor controller."""
+        self._connection = Connection(self._host, self._port)
 
     def _query_state(self):
         return int(self._connection.execute("AXISSTATUS(%s)" % (Aerorot.AXIS)))
