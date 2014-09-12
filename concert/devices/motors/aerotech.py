@@ -20,7 +20,7 @@ class Aerorot(ContinuousRotationMotor):
     AXISSTATUS_POSITION_CAPTURE = 6
     AXISSTATUS_HOMING = 14
 
-    SLEEP_TIME = 0.01
+    SLEEP_TIME = 0.01 * q.s
 
     def __init__(self, host, port=8001, enable=True):
         super(Aerorot, self).__init__()
