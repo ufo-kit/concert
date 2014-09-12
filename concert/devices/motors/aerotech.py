@@ -76,8 +76,8 @@ class Aerorot(ContinuousRotationMotor):
         return state
 
     def _stop(self):
-        if self.check_state() == 'moving':
-            self._connection.execute("ABORT %s" % (Aerorot.AXIS))
+        if self.state == 'moving':
+            self.velocity = 0 * q.deg / q.s
 
         self['state'].wait('standby', sleep_time=Aerorot.SLEEP_TIME)
 
