@@ -23,6 +23,35 @@ class Addon(object):
         pass
 
 
+class Consumer(Addon):
+
+    """An addon which applies a specific coroutine-based consumer to acquisitions.
+
+    .. py:attribute:: acquisitions
+
+    a list of :class:`~concert.experiments.base.Acquisition` objects
+
+    .. py:attribute:: consumer
+
+    A callable which returns a coroutine which processes the incoming data from acquisitions
+
+    """
+
+    def __init__(self, acquisitions, consumer):
+        self.acquisitions = acquisitions
+        self.consumer = consumer
+
+    def register(self):
+        """Register all acquisitions."""
+        for acq in self.acquisitions:
+            acq.consumers.append(self.consumer)
+
+    def unregister(self):
+        """Unregister all acquisitions."""
+        for acq in self.acquisitions:
+            acq.consumers.remove(self.consumer)
+
+
 class AddonError(Exception):
 
     """Addon errors."""
