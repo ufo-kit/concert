@@ -81,3 +81,9 @@ Control
 
 .. automodule:: concert.experiments.control
     :members:
+
+Addons
+------
+
+.. automodule:: concert.experiments.addons
+    :members:
