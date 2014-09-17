@@ -54,13 +54,6 @@ logger output goes to that directory.
 Imaging
 -------
 
-Imaging experiments all subclass :class:`.imaging.Experiment`, which makes sure
-all the acquired frames are written to disk.
-
-
-.. autoclass:: concert.experiments.imaging.Experiment
-    :members:
-
 A basic frame acquisition generator which triggers the camera itself is provided by
 :func:`.frames`
 

@@ -8,10 +8,9 @@ from concert.quantities import q
 from concert.coroutines.base import coroutine, inject
 from concert.coroutines.sinks import Accumulate
 from concert.experiments.base import Acquisition, Experiment, ExperimentError
-from concert.experiments.imaging import (Experiment as ImagingExperiment,
-                                         tomo_angular_step, tomo_max_speed,
+from concert.experiments.imaging import (tomo_angular_step, tomo_max_speed,
                                          tomo_projections_number, frames)
-from concert.experiments.addons import Addon, Consumer
+from concert.experiments.addons import Addon, Consumer, ImageWriter
 from concert.devices.cameras.dummy import Camera
 from concert.tests import TestCase, suppressed_logging, assert_almost_equal, VisitChecker
 from concert.storage import DummyWalker
@@ -158,14 +157,9 @@ class TestExperiment(TestExperimentBase):
         self.experiment.run().join()
         self.assertEqual(accumulate.items, range(self.num_produce))
 
-
-class TestImagingExperiment(TestExperimentBase):
-
-    def setUp(self):
-        super(TestImagingExperiment, self).setUp()
-        self.experiment = ImagingExperiment(self.acquisitions, self.walker, self.name_fmt)
-
-    def test_run(self):
+    def test_image_writing(self):
+        writer = ImageWriter(self.acquisitions, self.walker)
+        self.experiment.attach(writer)
         self.experiment.run().join()
 
         scan_name = self.name_fmt.format(1)

@@ -52,6 +52,49 @@ class Consumer(Addon):
             acq.consumers.remove(self.consumer)
 
 
+class ImageWriter(Addon):
+
+    """An addon which writes images to disk.
+
+    .. py:attribute:: acquisitions
+
+    a list of :class:`~concert.experiments.base.Acquisition` objects
+
+    .. py:attribute:: walker
+
+    A :class:`~concert.storage.Walker` instance
+    """
+
+    def __init__(self, acquisitions, walker):
+        self.walker = walker
+        self.acquisitions = acquisitions
+        self._writers = {}
+
+    def register(self):
+        """Register all acquisitions."""
+        for acq in self.acquisitions:
+            self._writers[acq] = self._write_sequence(acq)
+            acq.consumers.append(self._writers[acq])
+
+    def unregister(self):
+        """Unregister all acquisitions."""
+        for acq in self.acquisitions:
+            acq.consumers.remove(self._writers[acq])
+            del self._writers[acq]
+
+    def _write_sequence(self, acquisition):
+        """Wrap the walker and write data."""
+        def wrapped_writer():
+            """Returned wrapper."""
+            try:
+                self.walker.descend(acquisition.name)
+                return self.walker.write()
+            finally:
+                self.walker.ascend()
+
+        return wrapped_writer
+
+
 class AddonError(Exception):
 
     """Addon errors."""
