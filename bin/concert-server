@@ -1,0 +1,8 @@
+#!/bin/sh
+
+ARGS=$@
+PID=$$
+
+command -v tmux >/dev/null 2>&1 || { echo "You have to install tmux." >&2; exit 1; }
+
+tmux new -s "concert-$PID" "concert start $ARGS"
