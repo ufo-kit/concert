@@ -131,11 +131,15 @@ class InjectProcess(object):
             self.output_task.release_output_buffer(buf)
             return result
 
-    def wait(self):
-        """Wait until processing has finished."""
+    def stop(self):
+        """Stop input tasks."""
         for input_tasks in self.input_tasks.values():
             for input_task in input_tasks:
                 input_task.stop()
+
+    def wait(self):
+        """Wait until processing has finished."""
+        self.stop()
         self.thread.join()
 
 
