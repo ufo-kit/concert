@@ -1,3 +1,4 @@
+from itertools import product
 import numpy as np
 import logging
 from scipy.ndimage.filters import gaussian_filter
@@ -21,55 +22,73 @@ def _pull_first(tuple_list):
             yield tup[0]
 
 
-def scan(param, feedback, minimum=None, maximum=None, intervals=64, convert=lambda x: x):
+def scan(feedback, *ranges):
+    """A multidimensional scan. *feedback* is a callable which takes no arguments and it provides
+    feedback after some parameter is changed. *ranges* specify the scanned parameters, they are
+    instances of :class:`concert.helpers.Range` class. The fastest changing parameter is the last
+    one specified. One would use it like this::
+
+        scan(feedback, Range(motor['position'], 0 * q.mm, 10 * q.mm, 10),
+             Range(camera['frame_rate'], 1 / q.s, 100 / q.s, 100))
+
+    From the execution order it is equivalent to (in reality there is more for making the code
+    asynchronous)::
+
+        for position in np.linspace(0 * q.mm, 10 * q.mm, 10):
+            for frame_rate in np.linspace(1 / q.s, 100 / q.s, 100):
+                yield feedback()
+
     """
-    Scan the parameter object in *intervals* steps between *minimum* and
-    *maximum* and call *feedback* at each step. If *minimum* or *maximum* is
-    ``None``, :attr:`.ParameterValue.lower` or :attr:`.ParameterValue.upper` is
-    used.
+    changes = []
 
-    Set *convert* to a callable that transforms the parameter value prior to
-    setting it.
+    # Changes store the indices at which parameters change, e.g. for two parameters and interval
+    # lengths 2 for first and 3 for second changes = [3, 1], i. e. first parameter is changed when
+    # the flattened iteration index % 3 == 0, second is changed every iteration.
+    # we do this because parameter setting might be expensive even if the value does not change
+    current_mul = 1
+    for i in range(len(ranges))[::-1]:
+        changes.append(current_mul)
+        current_mul *= ranges[i].intervals
+    changes.reverse()
 
-    Generates futures which resolve to tuples containing the set and feedback
-    values *(x, y)*.
-    """
-    if minimum is None:
-        minimum = param.lower
-    if maximum is None:
-        maximum = param.upper
-
-    xss = np.linspace(minimum, maximum, intervals)
+    def get_changed(index):
+        """Returns a tuple of indices of changed parameters at given iteration *index*."""
+        return [i for i in range(len(ranges)) if index % changes[i] == 0]
 
     @async
-    def get_value(x, previous):
+    def get_value(index, tup, previous):
+        """Get value after setting parameters, *index* is the flattened iteration index, *tup* are
+        all the parameter values, *previous* is the previous future or None if this is the first
+        time.
+        """
         if previous:
             previous.join()
 
-        param.set(convert(x)).join()
-        return (x, feedback())
+        changed = get_changed(index)
+        futures = []
+        for i in changed:
+            futures.append(ranges[i].parameter.set(tup[i]))
+        wait(futures)
+
+        return tup + (feedback(),)
 
     future = None
 
-    for xval in xss:
-        future = get_value(xval, future)
+    for i, tup in enumerate(product(*ranges)):
+        future = get_value(i, tup, future)
         yield future
 
 
-def scan_param_feedback(scan_param, feedback_param, minimum=None, maximum=None, intervals=64,
-                        convert=lambda x: x):
+def scan_param_feedback(scan_param_range, feedback_param):
     """
     Convenience function to scan one parameter and measure another.
 
-    Scan the *scan_param* object and measure *feedback_param* at each of the
-    *intervals* steps between *minimum* and *maximum*.
-
-    Returns a tuple *(x, y)* with scanned parameter and measured values.
+    Scan the *scan_param_range* object and measure *feedback_param*.
     """
     def feedback():
         return feedback_param.get().result()
 
-    return scan(scan_param, feedback, minimum, maximum, intervals, convert)
+    return scan(feedback, scan_param_range)
 
 
 def ascan(param_list, n_intervals, handler, initial_values=None):
