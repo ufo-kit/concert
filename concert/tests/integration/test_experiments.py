@@ -6,10 +6,11 @@ import numpy as np
 import os.path as op
 from concert.quantities import q
 from concert.coroutines.base import coroutine, inject
+from concert.coroutines.sinks import Accumulate
 from concert.experiments.base import Acquisition, Experiment, ExperimentError
-from concert.experiments.imaging import (Experiment as ImagingExperiment,
-                                         tomo_angular_step, tomo_max_speed,
+from concert.experiments.imaging import (tomo_angular_step, tomo_max_speed,
                                          tomo_projections_number, frames)
+from concert.experiments.addons import Addon, Consumer, ImageWriter
 from concert.devices.cameras.dummy import Camera
 from concert.tests import TestCase, suppressed_logging, assert_almost_equal, VisitChecker
 from concert.storage import DummyWalker
@@ -125,14 +126,40 @@ class TestExperiment(TestExperimentBase):
         self.experiment.run().join()
         self.assertTrue(self.visit_checker.visited)
 
+    def test_attach(self):
+        addon = Addon()
+        self.experiment.attach(addon)
+        self.assertTrue(addon in self.experiment.addons)
 
-class TestImagingExperiment(TestExperimentBase):
+    def test_detach(self):
+        addon = Addon()
+        self.experiment.attach(addon)
+        self.experiment.detach(addon)
+        self.assertFalse(addon in self.experiment.addons)
 
-    def setUp(self):
-        super(TestImagingExperiment, self).setUp()
-        self.experiment = ImagingExperiment(self.acquisitions, self.walker, self.name_fmt)
+        # nonpresent addon
+        self.assertRaises(ValueError, self.experiment.detach, addon)
 
-    def test_run(self):
+    def test_detach_all(self):
+        addon_0 = Addon()
+        addon_1 = Addon()
+
+        self.experiment.attach(addon_0)
+        self.experiment.attach(addon_1)
+
+        self.experiment.detach_all()
+        self.assertEqual(self.experiment.addons, ())
+
+    def test_consumer_addon(self):
+        accumulate = Accumulate()
+        consumer = Consumer([self.acquisitions[0]], accumulate)
+        self.experiment.attach(consumer)
+        self.experiment.run().join()
+        self.assertEqual(accumulate.items, range(self.num_produce))
+
+    def test_image_writing(self):
+        writer = ImageWriter(self.acquisitions, self.walker)
+        self.experiment.attach(writer)
         self.experiment.run().join()
 
         scan_name = self.name_fmt.format(1)

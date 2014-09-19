@@ -26,12 +26,12 @@ an acquisition could look like this::
         for i in range(num_items):
             yield i
 
-    # A simple data forwarder filter, next_consumer has to be already defined
+    # A simple coroutine sink which prints items
     @coroutine
     def consumer():
         while True:
             item = yield
-            next_consumer.send(item)
+            print item
 
     acquisition = Acquisition('foo', produce, consumer_callers=[consumer])
     # Now we can run the acquisition
@@ -44,8 +44,23 @@ an acquisition could look like this::
 Base
 ----
 
-Base :class:`.base.Experiment` makes sure a directory for each run is created and
-logger output goes to that directory.
+Base :class:`.base.Experiment` makes sure all acquisitions are executed. It also
+holds :class:`.addons.Addon` instances which provide some extra functionality,
+e.g. live preview, online reconstruction, etc. To make a simple experiment for
+running the acquisition above and storing log with
+:class:`concert.storage.Walker`::
+
+    import logging
+    from concert.experiments.base import Acquisition, Experiment
+    from concert.storage import DirectoryWalker
+
+    LOG = logging.getLogger(__name__)
+
+    walker = DirectoryWalker(log=LOG)
+    acquisitions = [Acquisition('foo', produce)]
+    exp = Experiment(acquisitions, walker)
+
+    future = experiment.run()
 
 .. autoclass:: concert.experiments.base.Experiment
     :members:
@@ -53,13 +68,6 @@ logger output goes to that directory.
 
 Imaging
 -------
-
-Imaging experiments all subclass :class:`.imaging.Experiment`, which makes sure
-all the acquired frames are written to disk.
-
-
-.. autoclass:: concert.experiments.imaging.Experiment
-    :members:
 
 A basic frame acquisition generator which triggers the camera itself is provided by
 :func:`.frames`
@@ -80,4 +88,23 @@ Control
 -------
 
 .. automodule:: concert.experiments.control
+    :members:
+
+Addons
+------
+
+Addons are special features which are attached to experiments and operate on
+their data acquisition. For example, to save images on disk::
+
+    from concert.experiments.addons import ImageWriter
+
+    # Let's assume an experiment is already defined
+    writer = ImageWriter(experiment.acquisitions, experiment.walker)
+    experiment.attach(writer)
+    # Now images are written on disk
+    experiment.run()
+    # To remove the writing addon
+    experiment.detach(writer)
+
+.. automodule:: concert.experiments.addons
     :members:

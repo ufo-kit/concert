@@ -1,27 +1,6 @@
 """Imaging experiments usually conducted at synchrotrons."""
 import numpy as np
 from concert.quantities import q
-from concert.experiments.base import Experiment as BaseExperiment
-
-
-class Experiment(BaseExperiment):
-
-    """
-    Imaging experiment stores images acquired in acquisitions on disk
-    automatically.
-    """
-
-    def acquire(self):
-        """Run the experiment. Add writers to acquisitions dynamically."""
-        for acq in self.acquisitions:
-            writer = lambda: self.walker.write()
-            self.walker.descend(acq.name)
-            acq.consumers.append(writer)
-            try:
-                acq()
-            finally:
-                self.walker.ascend()
-                acq.consumers.remove(writer)
 
 
 def frames(num_frames, camera, callback=None):

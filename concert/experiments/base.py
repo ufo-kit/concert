@@ -76,6 +76,7 @@ class Experiment(object):
             self.add(acquisition)
         self.walker = walker
         self.name_fmt = name_fmt
+        self._addons = []
         self.iteration = 1
 
     def prepare(self):
@@ -87,14 +88,39 @@ class Experiment(object):
         pass
 
     @property
+    def addons(self):
+        """Experiment addons."""
+        return tuple(self._addons)
+
+    @property
     def acquisitions(self):
         """Acquisitions is a read-only attribute which has to be manipulated by explicit methods
         provided by this class.
         """
         return tuple(self._acquisitions)
 
+    def attach(self, addon):
+        """Attach an *addon*."""
+        self._addons.append(addon)
+        addon.register()
+
+    def detach(self, addon):
+        """Detach an *addon*."""
+        if addon not in self._addons:
+            raise ValueError('Addon not attached')
+
+        addon.unregister()
+        self._addons.remove(addon)
+
+    def detach_all(self):
+        """Detach all addons at once."""
+        for addon in tuple(self.addons):
+            self.detach(addon)
+
     def add(self, acquisition):
-        """Add *acquisition* to the acquisition list and make it accessible as attribute, e.g.::
+        """
+        Add *acquisition* to the acquisition list and make it accessible as
+        an attribute::
 
             frames = Acquisition(...)
             experiment.add(frames)
