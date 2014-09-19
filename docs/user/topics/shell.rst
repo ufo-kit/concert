@@ -238,6 +238,25 @@ The quantities package is already loaded and named ``q``.
         Run the session as a script and do not launch a shell.
 
 
+Remote access
+=============
+
+Concert comes with two shell scripts that leverage the terminal multiplexer
+tmux_ and the secure shell protocol. Thus you *must* have installed and started
+an OpenSSH server as well as the relevant ports opened.
+
+To start a Concert session server run::
+
+    concert-server <session-name>
+
+This starts a new tmux session which you can *detach* from by typing Ctrl-B. On
+a client machine you can connect to the server and tmux session by running::
+
+    concert-connect <host address>
+
+.. _tmux: http://tmux.sourceforge.net/
+
+
 Extensions
 ==========
 
