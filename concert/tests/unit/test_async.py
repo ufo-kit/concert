@@ -67,7 +67,7 @@ class TestAsync(TestCase):
 
     def test_resolve(self):
         result = (identity(x) for x in xrange(10))
-        tuples = resolve(result)
+        tuples = list(zip(*resolve(result)))
         self.assertEqual(len(tuples), 2)
         self.assertSequenceEqual(tuples[0], range(10))
         self.assertSequenceEqual(tuples[1], [x**2 for x in range(10)])
