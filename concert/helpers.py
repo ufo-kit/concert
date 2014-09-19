@@ -1,4 +1,5 @@
 import inspect
+import numpy as np
 
 
 class Command(object):
@@ -185,3 +186,27 @@ class Numeric(object):
     def __init__(self, dimension, units=None):
         self.dimension = dimension
         self.units = units
+
+
+class Range(object):
+
+    """A Range holds a :class:`~concert.base.Parameter` and a (minimum, maximum, intervals) range
+    assigned to it.
+    """
+
+    def __init__(self, parameter, minimum, maximum, intervals=64):
+        self.parameter = parameter
+        self.minimum = minimum
+        self.maximum = maximum
+        self.intervals = intervals
+
+    def __iter__(self):
+        """Return the range."""
+        return (x for x in np.linspace(self.minimum, self.maximum, self.intervals))
+
+    def __repr__(self):
+        return 'Range({})'.format(str(self))
+
+    def __str__(self):
+        return '{}, {}, {}, {}'.format(self.parameter.name, self.minimum, self.maximum,
+                                       self.intervals)

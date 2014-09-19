@@ -10,17 +10,54 @@ For instance, to set 10 motor positions between 5 and 12 millimeter and acquire
 the flow rate of a pump could be written like::
 
     from concert.processes import scan
+    from concert.helpers import Range
 
     # Assume motor and pump are already defined
 
     def get_flow_rate():
         return pump.flow_rate
 
-    x, y = scan(motor['position'], get_flow_rate,
-                5*q.mm, 12*q.mm, 10).result()
+    # A parameter object encapsulated with its scanning positions
+    param_range = Range(motor['position'], 5*q.mm, 12*q.mm, 10)
 
-As you can see :func:`.scan` always yields a future that needs to be resolved
-when you need the result.
+    generator = scan(get_flow_rate, param_range)
+
+The parameter is first wrapped into a :class:`concert.helpers.Range` object
+which holds the parameter and the scanning range. :func:`.scan` is
+multidimensional, i.e. you can scan as many parameters as you need, from 1D
+scans to complicated multidimensional scans. :func:`.scan` returns a generator
+which yields futures. This way the scan is asynchronous and you can continuously
+see its progress by resolving the yielded futures. Each future then returns the
+result of one iteration as tuples, which depends on how many parameters scan
+gets on input (scan dimensionality). The general signature of future results is
+*(x_0, x_1, ..., x_n, y)*, where *x_i* are the scanned parameter values and *y*
+is the result of *feedback*. For resolving the futures you would use
+:func:`concert.async.resolve` like this::
+
+    from concert.async import resolve
+
+    for tup in resolve(generator):
+        # resolve yields the results of futures
+        do_smth(tup)
+
+To continuously plot the values obtained by a 1D scan by a
+:class:`concert.ext.viewers.PyplotViewer` you can do::
+
+    from concert.coroutines.base import inject
+    from concert.ext.viewers import PyplotViewer
+
+    viewer = Pyplotviewer()
+
+    inject(resolve(generator), viewer())
+
+A two-dimensional scan with *range_2* parameter in the inner (fastest changing)
+loop could look as follows::
+
+    range_1 = Range(motor_1['position'], 5*q.mm, 12*q.mm, 10)
+    range_2 = Range(motor_2['position'], 0*q.mm, 10*q.mm, 5)
+
+    generator = scan(get_flow_rate, range_1, range_2)
+
 
 :func:`.ascan` and :func:`.dscan` are used to scan multiple parameters
 in a similar way as SPEC::

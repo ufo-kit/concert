@@ -1,8 +1,10 @@
+from itertools import product
 from concert.quantities import q
 from concert.tests import assert_almost_equal, TestCase
 from concert.devices.motors.dummy import LinearMotor
 from concert.processes import scan, ascan, dscan, scan_param_feedback
 from concert.async import resolve
+from concert.helpers import Range
 
 
 def compare_sequences(first_sequence, second_sequence, assertion):
@@ -44,10 +46,39 @@ class TestScan(TestCase):
         def feedback():
             return self.motor.position
 
-        x, y = resolve(scan(self.motor['position'], feedback, 1 * q.mm, 10 * q.mm, 12))
+        param_range = Range(self.motor['position'], 1 * q.mm, 10 * q.mm, 12)
+
+        x, y = zip(*resolve(scan(feedback, param_range)))
         compare_sequences(x, y, self.assertEqual)
 
     def test_scan_param_feedback(self):
         p = self.motor['position']
-        x, y = resolve(scan_param_feedback(p, p, 1 * q.mm, 10 * q.mm, 10))
+        scan_param = Range(p, 1 * q.mm, 10 * q.mm, 10)
+
+        x, y = zip(*resolve(scan_param_feedback(scan_param, p)))
         compare_sequences(x, y, self.assertEqual)
+
+    def test_multiscan(self):
+        """A 2D scan."""
+        other = LinearMotor()
+        range_0 = Range(self.motor['position'], 0 * q.mm, 10 * q.mm, 2)
+        range_1 = Range(other['position'], 5 * q.mm, 10 * q.mm, 3)
+
+        def feedback():
+            return self.motor.position, other.position
+
+        gen = resolve(scan(feedback, range_0, range_1))
+        p_0, p_1, result = zip(*gen)
+        result_x, result_y = zip(*result)
+
+        first_expected = [0 * q.mm, 10 * q.mm]
+        second_expected = [5 * q.mm, 7.5 * q.mm, 10 * q.mm]
+        combined = list(product(first_expected, second_expected))
+        p_0_exp, p_1_exp = zip(*combined)
+
+        # test parameter values
+        compare_sequences(p_0, p_0_exp, assert_almost_equal)
+        compare_sequences(p_1, p_1_exp, assert_almost_equal)
+        # feedback result is a tuple in this case, test both parts
+        compare_sequences(result_x, p_0_exp, assert_almost_equal)
+        compare_sequences(result_y, p_1_exp, assert_almost_equal)

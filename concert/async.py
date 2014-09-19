@@ -259,11 +259,11 @@ dispatcher = Dispatcher()
 
 def resolve(result):
     """
-    Return a list of tuples *(x, y, ...)* from a process that returns a list
-    of futures each returning a single tuple *(x, y, ...)*.
+    Generate tuples *[(x_1, y_1, ...), (x_2, y_2, ...)]* from a process that returns a list of
+    futures each resulting in a single tuple *(x_1, y_1, ...)*.
     """
-    r = (f.result() for f in result)
-    return zip(*r)
+    for f in result:
+        yield f.result()
 
 
 class WaitError(Exception):
