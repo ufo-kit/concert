@@ -9,14 +9,14 @@ from concert.coroutines.base import coroutine, inject
 LOG = logging.getLogger(__name__)
 
 
-def read_image(file_name):
+def read_image(filename):
     """
-    Read image from file with *file_name*. The file type is detected
+    Read image from file with *filename*. The file type is detected
     automatically.
     """
-    ext = os.path.splitext(file_name)[1]
-    if ext in READERS:
-        return READERS[ext](file_name)
+    for ext, reader in READERS.items():
+        if filename.endswith(ext):
+            return reader(filename)
 
     raise ValueError("Unsupported file type")
 
@@ -28,6 +28,19 @@ def read_tiff(file_name):
 
 READERS = {".tif": read_tiff,
            ".tiff": read_tiff}
+
+try:
+    import fabio
+
+    def read_edf_via_fabio(filename):
+        edf = fabio.edfimage.edfimage()
+        edf.read(filename)
+        return edf.data
+
+    for ext in ('.edf', '.edf.gz'):
+        READERS[ext] = read_edf_via_fabio
+except ImportError:
+    pass
 
 
 def write_tiff(file_name, data):
