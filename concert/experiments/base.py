@@ -118,7 +118,9 @@ class Experiment(object):
             self.detach(addon)
 
     def add(self, acquisition):
-        """Add *acquisition* to the acquisition list and make it accessible as attribute, e.g.::
+        """
+        Add *acquisition* to the acquisition list and make it accessible as
+        an attribute::
 
             frames = Acquisition(...)
             experiment.add(frames)
