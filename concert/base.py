@@ -646,10 +646,8 @@ class QuantityValue(ParameterValue):
 
     @lower.setter
     def lower(self, value):
-        if self._limits_locked:
-            raise LockError('lower limit locked')
-        else:
-            self._lower = value
+        self._check_limit(value)
+        self._lower = value
 
     @property
     def upper(self):
@@ -657,10 +655,8 @@ class QuantityValue(ParameterValue):
 
     @upper.setter
     def upper(self, value):
-        if self._limits_locked:
-            raise LockError('upper limit locked')
-        else:
-            self._upper = value
+        self._check_limit(value)
+        self._upper = value
 
     @property
     def info_table(self):
@@ -685,6 +681,14 @@ class QuantityValue(ParameterValue):
 
         condition = lambda: self.get().result() == value if eps is None else eps_condition
         busy_wait(condition, sleep_time=sleep_time, timeout=timeout)
+
+    def _check_limit(self, value):
+        """Common tasks for lower and upper before we set them."""
+        if self._limits_locked:
+            raise LockError('upper limit locked')
+        if not _is_compatible(self._parameter.unit, value):
+            raise UnitError("limit units must be compatible with `{}'".
+                            format(self._parameter.unit))
 
 
 class MetaParameterizable(type):
