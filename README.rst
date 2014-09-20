@@ -1,3 +1,6 @@
+.. image:: https://badge.waffle.io/ufo-kit/concert.png?label=ready&title=Ready 
+ :target: https://waffle.io/ufo-kit/concert
+ :alt: 'Stories in Ready'
 Concert
 =======
 
