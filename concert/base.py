@@ -647,6 +647,8 @@ class QuantityValue(ParameterValue):
     @lower.setter
     def lower(self, value):
         self._check_limit(value)
+        if value >= self._upper:
+            raise ValueError('Lower limit must be lower than upper')
         self._lower = value
 
     @property
@@ -656,6 +658,8 @@ class QuantityValue(ParameterValue):
     @upper.setter
     def upper(self, value):
         self._check_limit(value)
+        if value <= self._lower:
+            raise ValueError('Upper limit must be greater than lower')
         self._upper = value
 
     @property
