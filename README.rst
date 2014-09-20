@@ -10,6 +10,14 @@ Concert
 .. image:: https://coveralls.io/repos/ufo-kit/concert/badge.png?branch=master
     :target: https://coveralls.io/r/ufo-kit/concert?branch=master
 
+.. image:: https://badge.waffle.io/ufo-kit/concert.png?label=in%20progress&title=In%20Progress
+    :target: https://waffle.io/ufo-kit/concert
+    :alt: 'Stories in In Progress'
+
+.. image:: https://badge.waffle.io/ufo-kit/concert.png?label=ready&title=Ready
+    :target: https://waffle.io/ufo-kit/concert
+    :alt: 'Stories in Ready'
+
 *Concert* is a light-weight control system interface to control Tango and native
 devices. It can be used as a library::
 
