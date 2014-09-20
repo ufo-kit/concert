@@ -423,14 +423,8 @@ class Quantity(Parameter):
                                        check=check, help=help)
         self.unit = unit
 
-        self.upper = upper if upper is not None else float('Inf')
-        self.lower = lower if lower is not None else -float('Inf')
-
-        if upper is None:
-            self.upper = self.upper * unit
-
-        if lower is None:
-            self.lower = self.lower * unit
+        self.upper = upper if upper is not None else float('Inf') * unit
+        self.lower = lower if lower is not None else -float('Inf') * unit
 
     def convert(self, value):
         return value.to(self.unit)
