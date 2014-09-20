@@ -247,6 +247,17 @@ class TestQuantity(TestCase):
         with self.assertRaises(LockError):
             device['foo'].unlock_limits()
 
+    def test_limits_setting(self):
+        dev = FooDevice(0 * q.mm)
+        dev['foo'].lower = -1 * q.m
+        dev['foo'].upper = 1 * q.um
+
+        with self.assertRaises(UnitError):
+            dev['foo'].lower = -1 * q.deg
+
+        with self.assertRaises(UnitError):
+            dev['foo'].upper = 1 * q.deg
+
 
 class TestSelection(TestCase):
 
