@@ -316,3 +316,14 @@ class Timer(object):
             start = time.time()
             consumer.send(item)
             self.durations.append((time.time() - start) * q.s)
+
+
+@coroutine
+def process(func, consumer, *args, **kwargs):
+    """A generic processing coroutine. It takes items, applies callable *func* and sends the result
+    to *consumer*. *func*'s first argument is the item obtained from the coroutine pipeline, the
+    rest of the arguments are specified by *args* and keyword aruments are specified by *kwargs*.
+    """
+    while True:
+        item = yield
+        consumer.send(func(item, *args, **kwargs))
