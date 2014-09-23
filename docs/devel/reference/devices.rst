@@ -4,7 +4,7 @@ Device classes
 Cameras
 -------
 
-.. autoclass:: concert.devices.cameras.base.Camera
+.. automodule:: concert.devices.cameras.base
     :show-inheritance:
     :members:
 

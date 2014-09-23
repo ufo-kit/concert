@@ -59,6 +59,15 @@ class TestDummyCamera(TestCase):
         self.camera.stream(check()).join()
         self.assertTrue(check.ok)
 
+    def test_grab_convert(self):
+        def grab():
+            return np.mgrid[:5, :5][1]
+
+        self.camera._grab_real = grab
+        self.camera.convert = np.fliplr
+        image = self.camera.grab()
+        np.testing.assert_equal(image, grab()[:, ::-1])
+
 
 class TestPCOTimeStamp(TestCase):
     def test_valid(self):
