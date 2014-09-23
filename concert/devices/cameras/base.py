@@ -48,7 +48,7 @@ To setup and use a camera in a typical environment, you would do::
     print("mean=%f, stddev=%f" % (np.mean(data), np.std(data))
 """
 import contextlib
-from concert.base import AccessorNotImplementedError, Parameter, Quantity, State, check
+from concert.base import AccessorNotImplementedError, Parameter, Quantity, State, check, identity
 from concert.async import async
 from concert.quantities import q
 from concert.helpers import Bunch
@@ -77,6 +77,7 @@ class Camera(Device):
 
     def __init__(self):
         super(Camera, self).__init__()
+        self.convert = identity
 
     @check(source='standby', target='recording')
     def start_recording(self):
@@ -110,7 +111,7 @@ class Camera(Device):
 
     def grab(self):
         """Return a NumPy array with data of the current frame."""
-        return self._grab_real()
+        return self.convert(self._grab_real())
 
     @async
     def stream(self, consumer):
