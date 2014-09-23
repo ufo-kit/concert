@@ -216,7 +216,7 @@ class FlatCorrectedBackproject(InjectProcess):
 
     def __init__(self, axis_pos=None, flat_row=None, dark_row=None):
         self.pm = PluginManager()
-        self.sino_correction = self.pm.get_task('sino-correction')
+        self.sino_correction = self.pm.get_task('flat-field-correction')
         self.fft = self.pm.get_task('fft', dimensions=1)
         self.ifft = self.pm.get_task('ifft', dimensions=1)
         self.fltr = self.pm.get_task('filter')
@@ -224,6 +224,8 @@ class FlatCorrectedBackproject(InjectProcess):
 
         if axis_pos:
             self.backprojector.props.axis_pos = axis_pos
+
+        self.sino_correction.props.sinogram_input = True
 
         graph = Ufo.TaskGraph()
         graph.connect_nodes(self.sino_correction, self.fft)
