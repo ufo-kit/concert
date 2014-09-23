@@ -46,6 +46,19 @@ To setup and use a camera in a typical environment, you would do::
     camera.stop_recording()
 
     print("mean=%f, stddev=%f" % (np.mean(data), np.std(data))
+
+You can apply primitive operations to the frames obtained by :meth:`Camera.grab` by setting up a
+:attr:`Camera.convert` attribute to some callable which takes just one argument which is the grabbed
+frame. The callable is applied to the frame and the converted one is returned by
+:meth:`Camera.grab`. You can do::
+
+    import numpy as np
+    from concert.devices.cameras.dummy import Camera
+
+    camera = Camera()
+    camera.convert = np.fliplr
+    # The frame is left-right flipped
+    camera.grab()
 """
 import contextlib
 from concert.base import AccessorNotImplementedError, Parameter, Quantity, State, check, identity
