@@ -1,7 +1,8 @@
 import numpy as np
 from concert.coroutines.base import coroutine, broadcast, inject
 from concert.coroutines.filters import (absorptivity, backproject, flat_correct, average_images,
-                                        queue, sinograms, downsize, stall, PickSlice, Timer)
+                                        queue, sinograms, downsize, stall, PickSlice, Timer,
+                                        process)
 from concert.coroutines.sinks import null, Result, Accumulate
 from concert.tests import assert_almost_equal, TestCase
 
@@ -154,6 +155,11 @@ class TestCoroutines(TestCase):
         accumulate = Accumulate()
         inject(generator(), accumulate())
         self.assertEqual(accumulate.items, range(5))
+
+    def test_process(self):
+        result = Result()
+        inject((1,), process(lambda x: -x, result()))
+        self.assertEqual(-1, result.result)
 
 
 class TestTimer(TestCase):
