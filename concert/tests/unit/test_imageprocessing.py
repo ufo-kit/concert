@@ -1,6 +1,6 @@
 import numpy as np
 from concert.quantities import q
-from concert.imageprocessing import compute_rotation_axis
+from concert.imageprocessing import compute_rotation_axis, normalize
 from concert.tests import suppressed_logging, slow, assert_almost_equal
 
 
@@ -42,3 +42,19 @@ def test_rotation_axis():
 
     # Axis is to the right from the center
     test_axis(n, width, 8, n - width)
+
+
+@suppressed_logging
+def test_rescale():
+    array = np.array([-2.5, -1, 14, 100])
+
+    def run_test(minimum, maximum):
+        conversion = float(array.max() - array.min()) / (maximum - minimum)
+        normed = normalize(array, minimum=minimum, maximum=maximum)
+
+        np.testing.assert_almost_equal(np.gradient(array), np.gradient(normed) * conversion)
+        np.testing.assert_almost_equal(normed[0], minimum)
+        np.testing.assert_almost_equal(normed[-1], maximum)
+
+    run_test(0, 1)
+    run_test(-10, 47.5)
