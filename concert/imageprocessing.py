@@ -13,6 +13,13 @@ from concert.quantities import q
 LOG = logging.getLogger(__name__)
 
 
+def normalize(image, minimum=0.0, maximum=1.0):
+    """Normalize *image* intensities to start at *minimum* and end at *maximum*."""
+    mul = (float(maximum) - minimum) / (image.max() - image.min())
+
+    return mul * (image - image.min()) + minimum
+
+
 def flat_correct(radio, flat, dark=None):
     """
     Flat field correction of a radiograph *radio* with *flat* field.
