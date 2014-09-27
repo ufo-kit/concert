@@ -267,3 +267,6 @@ class TestSelection(TestCase):
     def test_wrong_access(self):
         with self.assertRaises(WriteAccessError):
             self.device.selection = 4
+
+    def test_iterable_access(self):
+        np.testing.assert_equal(self.device['selection'].values, range(3))
