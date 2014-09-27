@@ -1,10 +1,11 @@
 import time
+import numpy as np
 from concert.quantities import q
 from concert.tests import TestCase
-from concert.base import (Parameterizable, Parameter, Quantity, State, Selection,
-                          transition, check,
-                          SoftLimitError, LockError, ParameterError,
-                          UnitError, WriteAccessError)
+from concert.base import (Parameterizable, Parameter, Quantity, State, transition, check,
+                          SoftLimitError, LockError, ParameterError, UnitError,
+                          WriteAccessError)
+from concert.devices.dummy import SelectionDevice
 from concert.async import WaitError
 
 
@@ -61,17 +62,6 @@ class AccessorCheckDevice(Parameterizable):
         self.check(self.future)
         time.sleep(0.01)
         return self._value
-
-
-class SelectionDevice(Parameterizable):
-
-    something = Selection([1, 2, 3])
-
-    def _get_something(self):
-        return 1
-
-    def _set_something(self, value):
-        pass
 
 
 class TestDescriptor(TestCase):
@@ -272,8 +262,8 @@ class TestSelection(TestCase):
 
     def test_correct_access(self):
         for i in range(3):
-            self.device.something = i + 1
+            self.device.selection = i
 
     def test_wrong_access(self):
         with self.assertRaises(WriteAccessError):
-            self.device.something = 4
+            self.device.selection = 4
