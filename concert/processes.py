@@ -22,7 +22,7 @@ def _pull_first(tuple_list):
             yield tup[0]
 
 
-def scan(feedback, ranges):
+def scan(feedback, ranges, callbacks=None):
     """A multidimensional scan. *feedback* is a callable which takes no arguments and it provides
     feedback after some parameter is changed. *ranges* specifies the scanned parameter, it is either
     a :class:`concert.helpers.Range` or a list of those for multidimensional scan. The fastest
@@ -42,6 +42,9 @@ def scan(feedback, ranges):
     changes = []
     if not isinstance(ranges, (list, tuple, np.ndarray)):
         ranges = [ranges]
+
+    if callbacks is None:
+        callbacks = {}
 
     # Changes store the indices at which parameters change, e.g. for two parameters and interval
     # lengths 2 for first and 3 for second changes = [3, 1], i. e. first parameter is changed when
@@ -72,6 +75,10 @@ def scan(feedback, ranges):
             futures.append(ranges[i].parameter.set(tup[i]))
         wait(futures)
 
+        for i in changed:
+            if ranges[i] in callbacks:
+                callbacks[ranges[i]]()
+
         return tup + (feedback(),)
 
     future = None
@@ -81,7 +88,7 @@ def scan(feedback, ranges):
         yield future
 
 
-def scan_param_feedback(scan_param_ranges, feedback_param):
+def scan_param_feedback(scan_param_ranges, feedback_param, callbacks=None):
     """
     Convenience function to scan some parameters and measure another parameter.
 
@@ -90,7 +97,7 @@ def scan_param_feedback(scan_param_ranges, feedback_param):
     def feedback():
         return feedback_param.get().result()
 
-    return scan(feedback, scan_param_ranges)
+    return scan(feedback, scan_param_ranges, callbacks=callbacks)
 
 
 def ascan(param_list, n_intervals, handler, initial_values=None):
