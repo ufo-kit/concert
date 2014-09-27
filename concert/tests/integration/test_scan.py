@@ -82,3 +82,15 @@ class TestScan(TestCase):
         # feedback result is a tuple in this case, test both parts
         compare_sequences(result_x, p_0_exp, assert_almost_equal)
         compare_sequences(result_y, p_1_exp, assert_almost_equal)
+
+    def test_callback(self):
+        called = []
+        motor = LinearMotor()
+        qrange = QuantityRange(motor['position'], minimum=0 * q.mm, maximum=2 * q.mm, intervals=3)
+
+        def callback():
+            called.append(motor.position.to(q.mm).magnitude)
+
+        list(resolve(scan(lambda: None, qrange, callbacks={qrange: callback})))
+
+        np.testing.assert_almost_equal(called, range(3))
