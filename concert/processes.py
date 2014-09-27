@@ -81,16 +81,16 @@ def scan(feedback, ranges):
         yield future
 
 
-def scan_param_feedback(scan_param_range, feedback_param):
+def scan_param_feedback(scan_param_ranges, feedback_param):
     """
-    Convenience function to scan one parameter and measure another.
+    Convenience function to scan some parameters and measure another parameter.
 
-    Scan the *scan_param_range* object and measure *feedback_param*.
+    Scan the *scan_param_ranges* parameters and measure *feedback_param*.
     """
     def feedback():
         return feedback_param.get().result()
 
-    return scan(feedback, scan_param_range)
+    return scan(feedback, scan_param_ranges)
 
 
 def ascan(param_list, n_intervals, handler, initial_values=None):
