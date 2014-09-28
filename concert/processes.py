@@ -23,19 +23,39 @@ def _pull_first(tuple_list):
 
 
 def scan(feedback, regions, callbacks=None):
-    """A multidimensional scan. *feedback* is a callable which takes no arguments and it provides
-    feedback after some parameter is changed. *regions* specifies the scanned parameter, it is either
-    a :class:`concert.helpers.Region` or a list of those for multidimensional scan. The fastest
-    changing parameter is the last one specified. One would use it like this::
+    """A multidimensional scan. *feedback* is a callable which takes no arguments and provides
+    feedback after some parameter is changed. *regions* specifies the scanned parameter, it is
+    either a :class:`concert.helpers.Region` or a list of those for multidimensional scan. The
+    fastest changing parameter is the last one specified. *callbacks* is a dictionary in the form
+    {region: function}, where *function* is a callable with no arguments (just like *feedback*) and
+    is called every time the parameter in *region* is changed. One would use a scan for example like
+    this::
 
-        scan(feedback, [Region(motor['position'], 0 * q.mm, 10 * q.mm, 10),
-             Region(camera['frame_rate'], 1 / q.s, 100 / q.s, 100)])
+        import numpy as np
+        from concert.async import resolve
+        from concert.helpers import Region
+
+        def take_flat_field():
+            # Do something here
+            pass
+
+        exp_region = Region(camera['exposure_time'], np.linspace(1, 100, 100) * q.ms)
+        position_region = Region(motor['position'], np.linspace(0, 180, 1000) * q.deg)
+        callbacks = {exp_region: take_flat_field}
+
+        # This is a 2D scan with position_region in the inner loop. It acquires a tomogram, changes
+        # the exposure time and continues like this until all exposure times are exhausted.
+        # Take_flat_field is called every time the exposure_time of the camera is changed
+        # (in this case after every tomogram) and you can use it to correct the acquired images.
+        for result in resolve(scan(camera.grab, [exp_region, position_region], callbacks=callbacks)):
+            # Do something real instead of just a print
+            print result
 
     From the execution order it is equivalent to (in reality there is more for making the code
     asynchronous)::
 
-        for position in np.linspace(0 * q.mm, 10 * q.mm, 10):
-            for frame_rate in np.linspace(1 / q.s, 100 / q.s, 100):
+        for exp_time in np.linspace(1, 100, 100) * q.ms:
+            for position in np.linspace(0, 180, 1000) * q.deg:
                 yield feedback()
 
     """
