@@ -3,6 +3,5 @@ nose==1.3.0
 prettytable==0.7.2
 pyxdg==0.25
 pint==0.5.2
-six==1.4.1
 numpy
 scipy

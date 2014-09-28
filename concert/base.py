@@ -2,7 +2,6 @@
 """Core module Parameters"""
 import numpy as np
 import logging
-import six
 import functools
 import inspect
 import types
@@ -695,27 +694,7 @@ class QuantityValue(ParameterValue):
                             format(self._parameter.unit))
 
 
-class MetaParameterizable(type):
-
-    def __init__(cls, name, bases, dic):
-        super(MetaParameterizable, cls).__init__(name, bases, dic)
-
-        def get_base_parameter_names():
-            for base in bases:
-                if hasattr(base, '_parameter_names'):
-                    return getattr(base, '_parameter_names')
-            return {}
-
-        if not hasattr(cls, '_parameter_names'):
-            setattr(cls, '_parameter_names', get_base_parameter_names())
-
-        for attr_name, attr_type in dic.items():
-            if isinstance(attr_type, Parameter):
-                attr_type.name = attr_name
-                cls._parameter_names[(cls, attr_name)] = attr_type
-
-
-class Parameterizable(six.with_metaclass(MetaParameterizable, object)):
+class Parameterizable(object):
 
     """
     Collection of parameters.
@@ -757,11 +736,11 @@ class Parameterizable(six.with_metaclass(MetaParameterizable, object)):
         if not hasattr(self, '_params'):
             self._params = {}
 
-        for (cls, name), parameter in self._parameter_names.items():
-            if not isinstance(self, cls):
-                continue
-
-            self._install_parameter(name, parameter)
+        for base in self.__class__.__mro__:
+            for attr_name, attr_type in base.__dict__.items():
+                if isinstance(attr_type, Parameter):
+                    attr_type.name = attr_name
+                    self._install_parameter(attr_name, attr_type)
 
     def __str__(self):
         from concert.session.utils import get_default_table
