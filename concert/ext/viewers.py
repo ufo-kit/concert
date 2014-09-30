@@ -87,11 +87,10 @@ class PyplotViewerBase(object):
         self._coroutine = None
         self._proc = None
         # The udater is implementation-specific and must be provided by
-        # the subclass
+        # the subclass by calling self._set_updater
         self._updater = None
         self.view_function = view_function
         self._blit = blit
-        self._started = False
 
     def __call__(self, size=None):
         """
@@ -128,12 +127,15 @@ class PyplotViewerBase(object):
 
             i += 1
 
-    def start(self):
-        if not self._started:
-            self._proc = Process(target=self._run)
-            self._proc.start()
-            _PYPLOT_VIEWERS.append(self)
-            self._started = True
+    def _set_updater(self, updater):
+        """
+        Set the *updater*, now the process can start. This has to be called
+        by the subclasses.
+        """
+        self._updater = updater
+        self._proc = Process(target=self._run)
+        self._proc.start()
+        _PYPLOT_VIEWERS.append(self)
 
     def terminate(self):
         """Close all communication and terminate child process."""
@@ -194,7 +196,9 @@ class PyplotViewer(PyplotViewerBase):
         self._autoscale = autoscale
         self._style = style
         self._iteration = 0
-        self._updater = _PyplotUpdater(self._queue, style, plot_kwargs, autoscale, title=title)
+        self._set_updater(_PyplotUpdater(self._queue, style,
+                                         plot_kwargs, autoscale,
+                                         title=title))
 
     def plot(self, x, y=None, force=False):
         """
@@ -207,9 +211,6 @@ class PyplotViewer(PyplotViewerBase):
 
         Note: if x is not given, the iteration starts at 0.
         """
-        if not self._started:
-            self.start()
-
         if not self._paused and (self._queue.empty() or force):
             if y is None:
                 if isinstance(x, q.Quantity) and isinstance(x.magnitude, collections.Iterable) or\
@@ -264,8 +265,10 @@ class PyplotImageViewer(PyplotViewerBase):
         self._has_colorbar = colorbar
         self._imshow_kwargs = {} if imshow_kwargs is None else imshow_kwargs
         self._make_imshow_defaults()
-        self._updater = _PyplotImageUpdater(self._queue, self._imshow_kwargs, self._has_colorbar,
-                                            title=title)
+        self._set_updater(_PyplotImageUpdater(self._queue,
+                                              self._imshow_kwargs,
+                                              self._has_colorbar,
+                                              title=title))
 
     def show(self, item, force=False):
         """
@@ -273,9 +276,6 @@ class PyplotImageViewer(PyplotViewerBase):
         only if the queue is empty in order to guarantee that the newest
         image is drawn or if the *force* is True.
         """
-        if not self._started:
-            self.start()
-
         if not self._paused and (self._queue.empty() or force):
             self._queue.put((_PyplotImageUpdater.IMAGE, item))
 
