@@ -82,6 +82,12 @@ class Experiment(object):
         self.name_fmt = name_fmt
         self.iteration = 1
 
+        if self.separate_scans:
+            # The data is not supposed to be overwritten, so find an iteration which
+            # hasn't been used yet
+            while self.walker.exists(self.name_fmt.format(self.iteration)):
+                self.iteration += 1
+
     def prepare(self):
         """Gets executed before every experiment run."""
         pass
@@ -156,11 +162,6 @@ class Experiment(object):
 
         Compute the next iteration and run the :meth:`~.base.Experiment.acquire`.
         """
-        # The data is not supposed to be overwritten, so find an iteration which
-        # hasn't been used yet
-        while self.walker.exists(self.name_fmt.format(self.iteration)):
-            self.iteration += 1
-
         if self.separate_scans:
             self.walker.descend(self.name_fmt.format(self.iteration))
 
