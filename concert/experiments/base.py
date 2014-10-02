@@ -59,8 +59,11 @@ class Experiment(object):
 
     .. py:attribute:: walker
 
-       A :class:`concert.storage.Walker` stores experimental data and
-       logging output
+       A :class:`concert.storage.Walker` descends to a data set specific for every run if given
+
+    .. py:attribute:: separate_scans
+
+        If True, *walker* does not descend to data sets based on specific runs
 
     .. py:attribute:: name_fmt
 
@@ -70,11 +73,12 @@ class Experiment(object):
 
     """
 
-    def __init__(self, acquisitions, walker, name_fmt='scan_{:>04}'):
+    def __init__(self, acquisitions, walker, separate_scans=True, name_fmt='scan_{:>04}'):
         self._acquisitions = []
         for acquisition in acquisitions:
             self.add(acquisition)
         self.walker = walker
+        self.separate_scans = separate_scans
         self.name_fmt = name_fmt
         self.iteration = 1
 
@@ -157,14 +161,16 @@ class Experiment(object):
         while self.walker.exists(self.name_fmt.format(self.iteration)):
             self.iteration += 1
 
-        self.walker.descend(self.name_fmt.format(self.iteration))
+        if self.separate_scans:
+            self.walker.descend(self.name_fmt.format(self.iteration))
 
         try:
             self.prepare()
             self.acquire()
             self.finish()
         finally:
-            self.walker.ascend()
+            if self.separate_scans:
+                self.walker.ascend()
             self.iteration += 1
 
 
