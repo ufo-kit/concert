@@ -73,7 +73,7 @@ class Experiment(object):
 
     """
 
-    def __init__(self, acquisitions, walker, separate_scans=True, name_fmt='scan_{:>04}'):
+    def __init__(self, acquisitions, walker=None, separate_scans=True, name_fmt='scan_{:>04}'):
         self._acquisitions = []
         for acquisition in acquisitions:
             self.add(acquisition)
@@ -82,7 +82,7 @@ class Experiment(object):
         self.name_fmt = name_fmt
         self.iteration = 1
 
-        if self.separate_scans:
+        if self.separate_scans and self.walker:
             # The data is not supposed to be overwritten, so find an iteration which
             # hasn't been used yet
             while self.walker.exists(self.name_fmt.format(self.iteration)):
@@ -162,7 +162,7 @@ class Experiment(object):
 
         Compute the next iteration and run the :meth:`~.base.Experiment.acquire`.
         """
-        if self.separate_scans:
+        if self.separate_scans and self.walker:
             self.walker.descend(self.name_fmt.format(self.iteration))
 
         try:
@@ -170,7 +170,7 @@ class Experiment(object):
             self.acquire()
             self.finish()
         finally:
-            if self.separate_scans:
+            if self.separate_scans and self.walker:
                 self.walker.ascend()
             self.iteration += 1
 
