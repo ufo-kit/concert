@@ -81,6 +81,9 @@ class Aerorot(ContinuousRotationMotor):
 
         self['state'].wait('standby', sleep_time=Aerorot.SLEEP_TIME)
 
+    def _abort(self):
+        self._connection.execute("ABORT %s" % (Aerorot.AXIS))
+
     def _home(self):
         self._connection.execute("HOME %s" % (Aerorot.AXIS))
 

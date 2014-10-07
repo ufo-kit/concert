@@ -34,3 +34,6 @@ class Shutter(Device):
 
     def _close(self):
         raise AccessorNotImplementedError
+
+    def _abort(self):
+        self._close()
