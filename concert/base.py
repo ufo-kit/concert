@@ -2,7 +2,6 @@
 """Core module Parameters"""
 import numpy as np
 import logging
-import six
 import functools
 import inspect
 import types
@@ -695,27 +694,7 @@ class QuantityValue(ParameterValue):
                             format(self._parameter.unit))
 
 
-class MetaParameterizable(type):
-
-    def __init__(cls, name, bases, dic):
-        super(MetaParameterizable, cls).__init__(name, bases, dic)
-
-        def get_base_parameter_names():
-            for base in bases:
-                if hasattr(base, '_parameter_names'):
-                    return getattr(base, '_parameter_names')
-            return {}
-
-        if not hasattr(cls, '_parameter_names'):
-            setattr(cls, '_parameter_names', get_base_parameter_names())
-
-        for attr_name, attr_type in dic.items():
-            if isinstance(attr_type, Parameter):
-                attr_type.name = attr_name
-                cls._parameter_names[(cls, attr_name)] = attr_type
-
-
-class Parameterizable(six.with_metaclass(MetaParameterizable, object)):
+class Parameterizable(object):
 
     """
     Collection of parameters.
@@ -757,11 +736,11 @@ class Parameterizable(six.with_metaclass(MetaParameterizable, object)):
         if not hasattr(self, '_params'):
             self._params = {}
 
-        for (cls, name), parameter in self._parameter_names.items():
-            if not isinstance(self, cls):
-                continue
-
-            self._install_parameter(name, parameter)
+        for base in self.__class__.__mro__:
+            for attr_name, attr_type in base.__dict__.items():
+                if isinstance(attr_type, Parameter):
+                    attr_type.name = attr_name
+                    self._install_parameter(attr_type)
 
     def __str__(self):
         from concert.session.utils import get_default_table
@@ -796,28 +775,28 @@ class Parameterizable(six.with_metaclass(MetaParameterizable, object)):
         """
         for name, param in params.items():
             param.name = name
-            self._install_parameter(name, param)
+            self._install_parameter(param)
 
             # Install param as a property, so that it can be accessed via
             # object-dot notation.
             setattr(self.__class__, name, param)
 
-    def _install_parameter(self, name, param):
+    def _install_parameter(self, param):
         if isinstance(param, Quantity):
             value = QuantityValue(self, param)
         else:
             value = ParameterValue(self, param)
 
-        self._params[name] = value
+        self._params[param.name] = value
 
-        setattr(self, 'set_' + name, value.set)
-        setattr(self, 'get_' + name, value.get)
+        setattr(self, 'set_' + param.name, value.set)
+        setattr(self, 'get_' + param.name, value.get)
 
-        if not hasattr(self, '_set_' + name):
-            setattr(self, '_set_' + name, _setter_not_implemented)
+        if not hasattr(self, '_set_' + param.name):
+            setattr(self, '_set_' + param.name, _setter_not_implemented)
 
-        if not hasattr(self, '_get_' + name):
-            setattr(self, '_get_' + name, _getter_not_implemented)
+        if not hasattr(self, '_get_' + param.name):
+            setattr(self, '_get_' + param.name, _getter_not_implemented)
 
     @async
     def stash(self):
