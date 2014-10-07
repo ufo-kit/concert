@@ -565,7 +565,6 @@ class ParameterValue(object):
 
         return getattr(self._instance, self.name)
 
-    @async
     def set(self, value, wait_on=None):
         """
         Set concrete *value* on the object.
@@ -573,10 +572,20 @@ class ParameterValue(object):
         If *wait_on* is not None, it must be a future on which this method
         joins.
         """
-        if wait_on:
-            wait_on.join()
+        @async
+        def execute():
+            if wait_on:
+                wait_on.join()
 
-        setattr(self._instance, self.name, value)
+            setattr(self._instance, self.name, value)
+
+        future = execute()
+        cancel_name = '_cancel_' + self.name
+
+        if hasattr(self._instance, cancel_name):
+            future.cancel_operation = getattr(self._instance, cancel_name)
+
+        return future
 
     @async
     def stash(self):
