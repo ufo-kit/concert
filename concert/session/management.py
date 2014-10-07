@@ -16,7 +16,7 @@ import concert
 concert.require("{version}")
 
 from concert.quantities import q
-from concert.session.utils import ddoc, dstate, pdoc, code_of
+from concert.session.utils import ddoc, dstate, pdoc, code_of, abort
 
 LOG = logging.getLogger(__name__)
 """

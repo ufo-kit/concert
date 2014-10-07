@@ -2,6 +2,7 @@ import math
 import inspect
 import subprocess
 import prettytable
+from concert.devices.base import abort as device_abort
 from concert.devices.base import Device
 
 
@@ -131,3 +132,11 @@ def code_of(func):
         print(highlight(source, PythonLexer(), TerminalFormatter()))
     except ImportError:
         print(source)
+
+
+def abort():
+    """Abort all actions related with parameters on all devices and lock the devices."""
+    from concert.devices.base import Device
+
+    tuples = _current_instances(Device)
+    return device_abort(zip(*tuples)[1])
