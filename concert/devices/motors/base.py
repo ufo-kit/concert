@@ -69,6 +69,10 @@ class _PositionMixin(Device):
         """
         self._stop()
 
+    def _cancel_position(self):
+        """Cancel position setting."""
+        self._abort()
+
 
 class LinearMotor(_PositionMixin):
 
@@ -108,6 +112,9 @@ class ContinuousLinearMotor(LinearMotor):
 
     def _get_state(self):
         raise NotImplementedError
+
+    def _cancel_velocity(self):
+        self._abort()
 
     state = State(default='standby')
 
@@ -154,6 +161,9 @@ class ContinuousRotationMotor(RotationMotor):
 
     def _get_state(self):
         raise NotImplementedError
+
+    def _cancel_velocity(self):
+        self._abort()
 
     state = State(default='standby')
 

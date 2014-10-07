@@ -55,6 +55,12 @@ class Aerorot(ContinuousRotationMotor):
         # If this is not precise enough one can try the IN_POSITION
         self['state'].wait('standby', sleep_time=Aerorot.SLEEP_TIME)
 
+    def _cancel_position(self):
+        self._abort()
+
+    def _cancel_velocity(self):
+        self._abort()
+
     def _get_velocity(self):
         return float(self._connection.execute("VFBK(%s)" % (Aerorot.AXIS))) * q.deg / q.s
 
