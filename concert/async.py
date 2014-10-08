@@ -43,21 +43,33 @@ def _result(self, timeout=None):
         self.cancel()
 
 
+def _cancel(self):
+    try:
+        self._old_cancel()
+    finally:
+        if self.cancel_operation:
+            self.cancel_operation()
+
+
 def _kill(self, exception=None, block=True, timeout=None):
     pass
 
 
+Future._old_cancel = Future.cancel
+Future.cancel = _cancel
 Future._old_result = Future.result
 Future.result = _result
 Future.join = _join
 Future.kill = _kill
+Future.cancel_operation = None
 
 
 class NoFuture(Future):
 
-    def __init__(self, result):
+    def __init__(self, result, cancel_operation=None):
         super(NoFuture, self).__init__()
         self.set_result(result)
+        self.cancel_operation = cancel_operation
 
 
 def no_async(func):
@@ -97,7 +109,7 @@ try:
         top of a Greenlet.
         """
 
-        def __init__(self, func, args, kwargs):
+        def __init__(self, func, args, kwargs, cancel_operation=None):
             super(GreenletFuture, self).__init__()
             self.func = func
             self.args = args
@@ -105,6 +117,7 @@ try:
             self.saved_exception = None
             self._cancelled = False
             self._running = False
+            self.cancel_operation = cancel_operation
 
         def _run(self, *args, **kwargs):
             try:
@@ -129,7 +142,12 @@ try:
 
         def cancel(self):
             self._cancelled = True
-            self.kill()
+            try:
+                self.kill()
+            finally:
+                if self.cancel_operation:
+                    self.cancel_operation()
+
             return True
 
         def cancelled(self):
