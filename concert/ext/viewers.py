@@ -10,6 +10,7 @@ except ImportError:
     from queue import Empty
 try:
     import pyqtgraph as pg
+    import pyqtgraph.widgets.RemoteGraphicsView
 except ImportError:
     "please install Pyqtgraph"
 import logging
@@ -626,27 +627,44 @@ class _PyplotImageUpdater(_PyplotUpdaterBase):
         return lower_ratio > 0.1 or upper_ratio > 0.1
 
 
-class PyqtgraphImageViewer(pg.ImageView):
+class PyqtgraphImageViewer(object):
 
     def __init__(self):
         pg.mkQApp()
-        super(PyqtgraphImageViewer, self).__init__()
-        self.viewtimer = pg.Qt.QtCore.QTimer()
-        self.viewtimer.timeout.connect(self._updateview)
+        self.remote_view = pg.widgets.RemoteGraphicsView.RemoteGraphicsView()
+        self._view_item = self.remote_view.pg.ImageView()
+        self._view_item._setProxyOptions(deferGetattr=True)
+        self.remote_view.setCentralItem(self._view_item.getView())
+
+        self.image = None
+        self._coro = None
+        self._started = False
+        self.remote_viewtimer = pg.Qt.QtCore.QTimer()
+        self.remote_viewtimer.timeout.connect(self._updateview)
+        self.remote_viewtimer.start(0)
+
+    def show(self, item):
+        self.image = item
 
     def __call__(self):
-        super(PyqtgraphImageViewer, self).show()
-        self.viewtimer.start(0)
-        return self._coroutine()
+        if self._coro is None:
+            self._coro = self._coroutine()
+
+        return self._coro
 
     @coroutine
     def _coroutine(self):
         while True:
-            self.item = yield
+            self.image = yield
 
     def _updateview(self):
-        self.setImage(self.item, autoRange=False, autoLevels=False, autoHistogramRange=False)
+        if self.image is not None:
+            if not self._started:
+                self._start()
 
-    def show(self, item):
-        super(PyqtgraphImageViewer, self).show()
-        self.setImage(item, autoRange=False, autoLevels=False)
+            self._view_item.setImage(self.image, autoRange=False, autoLevels=False,
+                                     autoHistogramRange=False)
+
+    def _start(self):
+        self.remote_view.show()
+        self._started = True
