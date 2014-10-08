@@ -28,14 +28,27 @@ except ImportError:
 
 # Patch futures so that they provide a join() and kill() method
 def _join(self, _timeout=None):
-    self.result()
+    try:
+        self._old_result()
+    except KeyboardInterrupt:
+        self.cancel()
+
     return self
+
+
+def _result(self, timeout=None):
+    try:
+        return self._old_result(timeout=timeout)
+    except KeyboardInterrupt:
+        self.cancel()
 
 
 def _kill(self, exception=None, block=True, timeout=None):
     pass
 
 
+Future._old_result = Future.result
+Future.result = _result
 Future.join = _join
 Future.kill = _kill
 
@@ -106,7 +119,10 @@ try:
                 self.saved_exception = exception
 
         def join(self, timeout=None):
-            super(GreenletFuture, self).join(timeout)
+            try:
+                super(GreenletFuture, self).join(timeout)
+            except KeyboardInterrupt:
+                self.cancel()
 
             if self.saved_exception:
                 raise self.saved_exception
@@ -126,7 +142,10 @@ try:
             return self.ready()
 
         def result(self, timeout=None):
-            value = self.get(timeout=timeout)
+            try:
+                value = self.get(timeout=timeout)
+            except KeyboardInterrupt:
+                self.cancel()
 
             if self.saved_exception:
                 raise self.saved_exception
