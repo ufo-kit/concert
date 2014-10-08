@@ -20,10 +20,14 @@ and :meth:`Parameter.set` methods::
     pos_parameter.set(1 * q.mm)
     print (pos_parameter.get().result())
 
-Both methods will return a *Future*. A future is a promise that a result will
-be delivered when asked for. In the mean time other things can and should
-happen concurrently. As you can see, to get the result of a future you call its
-``result()`` method.
+Both methods will return a *Future*. A future is a promise that a result will be
+delivered when asked for. In the mean time other things can and should happen
+concurrently. As you can see, to get the result of a future you call its
+``result()`` method. In case you call ``join()``, which just waits until a future
+execution is finished, or ``result()`` and you press *ctrl-c* the parameter's
+cancelling action will be called (see below for more detail).  If you use
+``gevent`` futures, the code will even stop execution before the cancelling
+action is called, so you should get to a safe state sooner.
 
 An easier way to set and get parameter values are properties via the
 dot-name-notation::
@@ -32,7 +36,11 @@ dot-name-notation::
     print (motor.position)
 
 As you can see, accessing parameters this way will *always be synchronous* and
-*block* execution until the value is set or fetched.
+*block* execution until the value is set or fetched. If you press *ctrl-c* while
+you are setting a parameter the function will stop and a cancelling action will
+be called, like stopping a motor, so that you don't accidentaly crush your
+devices. However, please be aware that this is up to device implementation, so
+you shuld check if the device you are using is safe in this manner.
 
 Parameter objects are not only used to communicate with a device but also carry
 meta data information about the parameter. The most important ones are

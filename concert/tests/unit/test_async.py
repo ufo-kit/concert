@@ -3,7 +3,7 @@ import random
 import concert.config
 from concert.devices.dummy import DummyDevice
 from concert.async import async, wait, resolve, KillException, HAVE_GEVENT
-from concert.tests import slow, TestCase
+from concert.tests import slow, TestCase, VisitChecker
 
 
 @async
@@ -71,3 +71,15 @@ class TestAsync(TestCase):
         self.assertEqual(len(tuples), 2)
         self.assertSequenceEqual(tuples[0], range(10))
         self.assertSequenceEqual(tuples[1], [x**2 for x in range(10)])
+
+    def test_cancel_operation(self):
+        @async
+        def long_op():
+            time.sleep(0.01)
+
+        check = VisitChecker()
+
+        f = long_op()
+        f.cancel_operation = check.visit
+        f.cancel()
+        self.assertTrue(check.visited)

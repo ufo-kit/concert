@@ -1,5 +1,6 @@
 import threading
 import logging
+from concert.async import async
 from concert.base import Parameterizable
 
 
@@ -34,3 +35,22 @@ class Device(Parameterizable):
 
     def __exit__(self, exc_type, exc_value, traceback):
         self._lock.release()
+
+    @async
+    def abort(self):
+        """Emergency stop."""
+        self._abort()
+
+    def _abort(self):
+        """The actual abort implementation."""
+        pass
+
+
+def abort(devices):
+    """Abort all actions related with parameters on all *devices*."""
+    futures = []
+    for device in devices:
+        future = device.abort()
+        futures.append(future)
+
+    return futures

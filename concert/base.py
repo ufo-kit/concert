@@ -285,38 +285,46 @@ class Parameter(object):
             return value
         except AccessorNotImplementedError:
             raise ReadAccessError(self.name)
+        except KeyboardInterrupt:
+            # do not scream
+            LOG.debug("KeyboardInterrupt caught while getting `{}'".format(self.name))
 
     def __set__(self, instance, value):
-        def log_access(what):
-            """Log access."""
-            msg = "{}: {}: {}='{}'"
-            name = instance.__class__.__name__
-            LOG.info(msg.format(name, what, self.name, value))
+        try:
+            def log_access(what):
+                """Log access."""
+                msg = "{}: {}: {}='{}'"
+                name = instance.__class__.__name__
+                LOG.info(msg.format(name, what, self.name, value))
 
-        log_access('try')
+            log_access('try')
 
-        if instance[self.name].locked:
-            raise LockError("Parameter `{}' is locked for writing".format(self))
+            if instance[self.name].locked:
+                raise LockError("Parameter `{}' is locked for writing".format(self))
 
-        if self.fset:
-            self.fset(instance, value, *self.data_args)
-        else:
-            func = getattr(instance, '_set_' + self.name)
+            if self.fset:
+                self.fset(instance, value, *self.data_args)
+            else:
+                func = getattr(instance, '_set_' + self.name)
 
-            if self.check and not hasattr(func, '_is_checked'):
-                func = self.check(func)
-                func._is_checked = True
-                setattr(instance, '_set_' + self.name, func)
+                if self.check and not hasattr(func, '_is_checked'):
+                    func = self.check(func)
+                    func._is_checked = True
+                    setattr(instance, '_set_' + self.name, func)
 
-            try:
-                if isinstance(func, types.MethodType):
-                    func(value, *self.data_args)
-                else:
-                    func(instance, value, *self.data_args)
-            except AccessorNotImplementedError:
-                raise WriteAccessError(self.name)
+                try:
+                    if isinstance(func, types.MethodType):
+                        func(value, *self.data_args)
+                    else:
+                        func(instance, value, *self.data_args)
+                except AccessorNotImplementedError:
+                    raise WriteAccessError(self.name)
 
-        log_access('set')
+            log_access('set')
+        except KeyboardInterrupt:
+            cancel_name = '_cancel_' + self.name
+            if hasattr(instance, cancel_name):
+                getattr(instance, cancel_name)()
 
 
 class State(Parameter):
@@ -432,9 +440,13 @@ class Quantity(Parameter):
         # If we would just call self.fset(value) we would call the method
         # defined in the base class. This is a hack (?) to call the function on
         # the instance where we actually want the function to be called.
-        value = super(Quantity, self).__get__(instance, owner)
+        try:
+            value = super(Quantity, self).__get__(instance, owner)
 
-        return self.convert(value)
+            if value is not None:
+                return self.convert(value)
+        except KeyboardInterrupt:
+            LOG.debug("KeyboardInterrupt caught while getting `{}'".format(self.name))
 
     def __set__(self, instance, value):
         if not _is_compatible(self.unit, value):
@@ -552,7 +564,6 @@ class ParameterValue(object):
 
         return getattr(self._instance, self.name)
 
-    @async
     def set(self, value, wait_on=None):
         """
         Set concrete *value* on the object.
@@ -560,10 +571,20 @@ class ParameterValue(object):
         If *wait_on* is not None, it must be a future on which this method
         joins.
         """
-        if wait_on:
-            wait_on.join()
+        @async
+        def execute():
+            if wait_on:
+                wait_on.join()
 
-        setattr(self._instance, self.name, value)
+            setattr(self._instance, self.name, value)
+
+        future = execute()
+        cancel_name = '_cancel_' + self.name
+
+        if hasattr(self._instance, cancel_name):
+            future.cancel_operation = getattr(self._instance, cancel_name)
+
+        return future
 
     @async
     def stash(self):

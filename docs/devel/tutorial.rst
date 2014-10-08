@@ -115,6 +115,16 @@ but the value must be compatible, so the above :meth:`._get_position` could
 return millimeters and the user would get the value in kilometers, as defined
 in the respective :class:`.Quantity`.
 
+Parameter setters can be cancelled by hitting *ctrl-c*. If you want a parameter to
+make some cleanup action after *ctrl-c* is pressed, you should implement the
+``_cancel_param`` method in the device class, for the motor above you can write::
+
+        def _cancel_position(self):
+            self.send_stop_command()
+
+And you are guaranteed that when you interrupt the setter the motor stops
+moving.
+
 
 Creating a device class
 =======================

@@ -1,5 +1,6 @@
+from concert.async import wait
 from concert.base import Parameter, ParameterError
-from concert.devices.base import Device
+from concert.devices.base import Device, abort
 from concert.tests import TestCase, suppressed_logging
 from concert.devices.scales.dummy import Scales, TarableScales
 from concert.devices.pumps.dummy import Pump
@@ -31,12 +32,16 @@ class MockDevice(Device):
 
     def __init__(self):
         super(MockDevice, self).__init__()
+        self.aborted = False
 
     def _get_readonly(self):
         return 1
 
     def _set_writeonly(self, value):
         pass
+
+    def _abort(self):
+        self.aborted = True
 
 
 class TestDevice(TestCase):
@@ -76,3 +81,14 @@ class TestDevice(TestCase):
     def test_parameter_lock_acquisition(self):
         with self.device['writeonly']:
             pass
+
+    def test_abort(self):
+        self.device.abort().join()
+        self.assertTrue(self.device.aborted)
+
+    def test_abort_all(self):
+        devices = [self.device, MockDevice()]
+        wait(abort(devices))
+
+        for device in devices:
+            self.assertTrue(device.aborted)

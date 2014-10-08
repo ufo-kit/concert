@@ -54,11 +54,14 @@ def get_ipython_shell(config=None):
         shell = InteractiveShellEmbed(config=config, banner1='')
 
     if concert.config.ENABLE_GEVENT and concert.async.HAVE_GEVENT:
-        if cmp_versions(version, '2.0') < 0:
-            from IPython.lib.inputhook import inputhook_manager
+        if cmp_versions(version, '2.0') >= 0:
+            from IPython.lib.inputhook import inputhook_manager, allow_CTRL_C
             from concert.ext.gevent import inputhook_gevent
 
             inputhook_manager.set_inputhook(inputhook_gevent)
+            # This is not the cleanest way because ctrl-c might come outside the try-except
+            # block of the input hook but this seems to be the only solution yet.
+            allow_CTRL_C()
             inputhook_manager._current_gui = 'gevent'
         else:
             print("IPython {} is too old for gevent integration. "

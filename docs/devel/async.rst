@@ -33,6 +33,17 @@ gather the result::
     except:
         print("synchronous_function raised an exception")
 
+You can assign a cleanup function for a future which will be called when the
+future is cancelled. You can specify the cleanup function by callable with no
+arguments and pass it as ``future.cancel_operation``. The callable is then
+invoked on ``cancel``.
+
+You can invoke future's ``cancel`` method by pressing *ctrl-c* once you invoke
+``join`` or ``result``. If you use ``gevent`` futures, the future execution
+stops and ``cancel`` is invoked. If you use ``concurrent`` futures, keep in mind
+that their execution is always finished! However, once it is, the ``cancel`` is
+invoked.
+
 The asynchronous execution provided by Concert deals with concurrency. If the
 user wants to employ real parallelism they should make use of the
 multiprocessing module which provides functionality not limited by Python's
