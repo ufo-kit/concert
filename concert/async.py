@@ -87,93 +87,93 @@ def no_async(func):
     return _inner
 
 
-try:
-    import gevent
-    import gevent.monkey
-    import gevent.threadpool
+if concert.config.ENABLE_GEVENT:
+    try:
+        import gevent
+        import gevent.monkey
+        import gevent.threadpool
 
-    gevent.monkey.patch_all()
+        gevent.monkey.patch_all()
 
-    # XXX: we have to import threading after patching
-    import threading
+        # XXX: we have to import threading after patching
+        import threading
 
-    HAVE_GEVENT = True
-    KillException = gevent.GreenletExit
-    threadpool = gevent.threadpool.ThreadPool(4)
+        HAVE_GEVENT = True
+        KillException = gevent.GreenletExit
+        threadpool = gevent.threadpool.ThreadPool(4)
 
-    class GreenletFuture(gevent.Greenlet):
+        class GreenletFuture(gevent.Greenlet):
 
-        """A Future interface based on top of a Greenlet.
+            """A Future interface based on top of a Greenlet.
 
-        This class provides the :class:`concurrent.futures.Future` interface on
-        top of a Greenlet.
-        """
+            This class provides the :class:`concurrent.futures.Future` interface on
+            top of a Greenlet.
+            """
 
-        def __init__(self, func, args, kwargs, cancel_operation=None):
-            super(GreenletFuture, self).__init__()
-            self.func = func
-            self.args = args
-            self.kwargs = kwargs
-            self.saved_exception = None
-            self._cancelled = False
-            self._running = False
-            self.cancel_operation = cancel_operation
-
-        def _run(self, *args, **kwargs):
-            try:
-                self._running = True
-                value = self.func(*self.args, **self.kwargs)
+            def __init__(self, func, args, kwargs, cancel_operation=None):
+                super(GreenletFuture, self).__init__()
+                self.func = func
+                self.args = args
+                self.kwargs = kwargs
+                self.saved_exception = None
+                self._cancelled = False
                 self._running = False
+                self.cancel_operation = cancel_operation
 
-                # Force starting at least a bit of the greenlet
-                gevent.sleep(0)
+            def _run(self, *args, **kwargs):
+                try:
+                    self._running = True
+                    value = self.func(*self.args, **self.kwargs)
+                    self._running = False
+
+                    # Force starting at least a bit of the greenlet
+                    gevent.sleep(0)
+                    return value
+                except Exception as exception:
+                    self.saved_exception = exception
+
+            def join(self, timeout=None):
+                try:
+                    super(GreenletFuture, self).join(timeout)
+                except KeyboardInterrupt:
+                    self.cancel()
+
+                if self.saved_exception:
+                    raise self.saved_exception
+
+            def cancel(self):
+                self._cancelled = True
+                try:
+                    self.kill()
+                finally:
+                    if self.cancel_operation:
+                        self.cancel_operation()
+
+                return True
+
+            def cancelled(self):
+                return self._cancelled
+
+            def running(self):
+                return self._running
+
+            def done(self):
+                return self.ready()
+
+            def result(self, timeout=None):
+                try:
+                    value = self.get(timeout=timeout)
+                except KeyboardInterrupt:
+                    self.cancel()
+
+                if self.saved_exception:
+                    raise self.saved_exception
+
                 return value
-            except Exception as exception:
-                self.saved_exception = exception
 
-        def join(self, timeout=None):
-            try:
-                super(GreenletFuture, self).join(timeout)
-            except KeyboardInterrupt:
-                self.cancel()
+            def add_done_callback(self, callback):
+                self.link(callback)
 
-            if self.saved_exception:
-                raise self.saved_exception
-
-        def cancel(self):
-            self._cancelled = True
-            try:
-                self.kill()
-            finally:
-                if self.cancel_operation:
-                    self.cancel_operation()
-
-            return True
-
-        def cancelled(self):
-            return self._cancelled
-
-        def running(self):
-            return self._running
-
-        def done(self):
-            return self.ready()
-
-        def result(self, timeout=None):
-            try:
-                value = self.get(timeout=timeout)
-            except KeyboardInterrupt:
-                self.cancel()
-
-            if self.saved_exception:
-                raise self.saved_exception
-
-            return value
-
-        def add_done_callback(self, callback):
-            self.link(callback)
-
-    if concert.config.ENABLE_GEVENT:
         def async(func):
             if concert.config.ENABLE_ASYNC:
                 @functools.wraps(func)
@@ -193,12 +193,12 @@ try:
                 return result
 
             return _inner
-
-except ImportError:
-    if concert.config.ENABLE_GEVENT:
+    except ImportError:
+        HAVE_GEVENT = False
         print("Gevent is not available, falling back to threads")
-
+else:
     HAVE_GEVENT = False
+
 
 if not concert.config.ENABLE_GEVENT or not HAVE_GEVENT:
         import threading
