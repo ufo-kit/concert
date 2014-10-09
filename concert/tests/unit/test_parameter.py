@@ -132,11 +132,6 @@ class TestParameterizable(TestCase):
         self.device.restore().join()
         self.assertEqual(self.device.foo, 1 * q.mm)
 
-    def test_state(self):
-        self.assertEqual(self.device.state, 'standby')
-        self.device.foo = 2 * q.m
-        self.assertEqual(self.device.state, 'moved')
-
     def test_manual_lock(self):
         self.device['foo'].lock()
         self.assertTrue(self.device['foo'].locked)

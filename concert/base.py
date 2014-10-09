@@ -375,12 +375,17 @@ class State(Parameter):
         self.default = default
 
     def __get__(self, instance, owner):
-        try:
-            return super(State, self).__get__(instance, owner)
-        except ReadAccessError:
-            if self.default is None:
-                raise FSMError('Software state must have a default value')
-            return self._value(instance)
+        if self.fget:
+            value = self.fget(instance, *self.data_args)
+        else:
+            try:
+                value = getattr(instance, self.getter_name())(*self.data_args)
+            except AccessorNotImplementedError:
+                if self.default is None:
+                    raise StateError('Software state must have a default value')
+                value = self._value(instance)
+
+        return value
 
     def __set__(self, instance, value):
         raise AttributeError('State cannot be set')

@@ -193,10 +193,3 @@ class TestStateMachine(TestCase):
         dev = StatelessDevice()
         with self.assertRaises(FSMError):
             dev.change()
-
-    def test_no_default_state(self):
-        class BadStatelessDevice(Device):
-            state = State()
-
-        with self.assertRaises(FSMError):
-            BadStatelessDevice().state
