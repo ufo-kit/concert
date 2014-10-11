@@ -5,7 +5,10 @@ the acquired data, e.g. write images to disk, do tomographic reconstruction etc.
 
 class Addon(object):
 
-    """A base addon class."""
+    """A base addon class. The addon is applied to *acquisitions*."""
+
+    def __init__(self, acquisitions):
+        self.acquisitions = acquisitions
 
     def register(self):
         """Register adds the addon to an experiment. This means all the necessary operations which
@@ -38,7 +41,7 @@ class Consumer(Addon):
     """
 
     def __init__(self, acquisitions, consumer):
-        self.acquisitions = acquisitions
+        super(Consumer, self).__init__(acquisitions)
         self.consumer = consumer
 
     def register(self):
@@ -66,8 +69,8 @@ class ImageWriter(Addon):
     """
 
     def __init__(self, acquisitions, walker):
+        super(ImageWriter, self).__init__(acquisitions)
         self.walker = walker
-        self.acquisitions = acquisitions
         self._writers = {}
 
     def register(self):

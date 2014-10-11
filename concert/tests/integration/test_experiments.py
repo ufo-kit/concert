@@ -127,12 +127,12 @@ class TestExperiment(TestExperimentBase):
         self.assertTrue(self.visit_checker.visited)
 
     def test_attach(self):
-        addon = Addon()
+        addon = Addon([])
         self.experiment.attach(addon)
         self.assertTrue(addon in self.experiment.addons)
 
     def test_detach(self):
-        addon = Addon()
+        addon = Addon([])
         self.experiment.attach(addon)
         self.experiment.detach(addon)
         self.assertFalse(addon in self.experiment.addons)
@@ -141,8 +141,8 @@ class TestExperiment(TestExperimentBase):
         self.assertRaises(ValueError, self.experiment.detach, addon)
 
     def test_detach_all(self):
-        addon_0 = Addon()
-        addon_1 = Addon()
+        addon_0 = Addon([])
+        addon_1 = Addon([])
 
         self.experiment.attach(addon_0)
         self.experiment.attach(addon_1)
