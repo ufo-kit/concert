@@ -5,7 +5,7 @@ from concert.tests import assert_almost_equal, TestCase
 from concert.devices.motors.dummy import LinearMotor
 from concert.processes import scan, ascan, dscan, scan_param_feedback
 from concert.async import resolve
-from concert.helpers import Range
+from concert.helpers import Region
 
 
 def compare_sequences(first_sequence, second_sequence, assertion):
@@ -48,7 +48,7 @@ class TestScan(TestCase):
             return self.motor.position
 
         values = np.linspace(1, 10, 12) * q.mm
-        param_range = Range(self.motor['position'], values)
+        param_range = Region(self.motor['position'], values)
 
         x, y = zip(*list(resolve(scan(feedback, param_range))))
         compare_sequences(x, y, self.assertEqual)
@@ -56,7 +56,7 @@ class TestScan(TestCase):
     def test_scan_param_feedback(self):
         p = self.motor['position']
         values = np.linspace(1, 10, 10) * q.mm
-        scan_param = Range(p, values)
+        scan_param = Region(p, values)
 
         x, y = zip(*resolve(scan_param_feedback(scan_param, p)))
         compare_sequences(x, y, self.assertEqual)
@@ -66,8 +66,8 @@ class TestScan(TestCase):
         other = LinearMotor()
         values_0 = np.linspace(0, 10, 2) * q.mm
         values_1 = np.linspace(5, 10, 3) * q.mm
-        range_0 = Range(self.motor['position'], values_0)
-        range_1 = Range(other['position'], values_1)
+        range_0 = Region(self.motor['position'], values_0)
+        range_1 = Region(other['position'], values_1)
 
         def feedback():
             return self.motor.position, other.position
@@ -92,7 +92,7 @@ class TestScan(TestCase):
         called = []
         motor = LinearMotor()
         values = np.linspace(0, 2, 3) * q.mm
-        qrange = Range(motor['position'], values)
+        qrange = Region(motor['position'], values)
 
         def callback():
             called.append(motor.position.to(q.mm).magnitude)

@@ -22,14 +22,14 @@ def _pull_first(tuple_list):
             yield tup[0]
 
 
-def scan(feedback, ranges, callbacks=None):
+def scan(feedback, regions, callbacks=None):
     """A multidimensional scan. *feedback* is a callable which takes no arguments and it provides
-    feedback after some parameter is changed. *ranges* specifies the scanned parameter, it is either
-    a :class:`concert.helpers.Range` or a list of those for multidimensional scan. The fastest
+    feedback after some parameter is changed. *regions* specifies the scanned parameter, it is either
+    a :class:`concert.helpers.Region` or a list of those for multidimensional scan. The fastest
     changing parameter is the last one specified. One would use it like this::
 
-        scan(feedback, [Range(motor['position'], 0 * q.mm, 10 * q.mm, 10),
-             Range(camera['frame_rate'], 1 / q.s, 100 / q.s, 100)])
+        scan(feedback, [Region(motor['position'], 0 * q.mm, 10 * q.mm, 10),
+             Region(camera['frame_rate'], 1 / q.s, 100 / q.s, 100)])
 
     From the execution order it is equivalent to (in reality there is more for making the code
     asynchronous)::
@@ -40,8 +40,8 @@ def scan(feedback, ranges, callbacks=None):
 
     """
     changes = []
-    if not isinstance(ranges, (list, tuple, np.ndarray)):
-        ranges = [ranges]
+    if not isinstance(regions, (list, tuple, np.ndarray)):
+        regions = [regions]
 
     if callbacks is None:
         callbacks = {}
@@ -51,14 +51,14 @@ def scan(feedback, ranges, callbacks=None):
     # the flattened iteration index % 3 == 0, second is changed every iteration.
     # we do this because parameter setting might be expensive even if the value does not change
     current_mul = 1
-    for i in range(len(ranges))[::-1]:
+    for i in range(len(regions))[::-1]:
         changes.append(current_mul)
-        current_mul *= len(ranges[i].values)
+        current_mul *= len(regions[i].values)
     changes.reverse()
 
     def get_changed(index):
         """Returns a tuple of indices of changed parameters at given iteration *index*."""
-        return [i for i in range(len(ranges)) if index % changes[i] == 0]
+        return [i for i in range(len(regions)) if index % changes[i] == 0]
 
     @async
     def get_value(index, tup, previous):
@@ -72,32 +72,32 @@ def scan(feedback, ranges, callbacks=None):
         changed = get_changed(index)
         futures = []
         for i in changed:
-            futures.append(ranges[i].parameter.set(tup[i]))
+            futures.append(regions[i].parameter.set(tup[i]))
         wait(futures)
 
         for i in changed:
-            if ranges[i] in callbacks:
-                callbacks[ranges[i]]()
+            if regions[i] in callbacks:
+                callbacks[regions[i]]()
 
         return tup + (feedback(),)
 
     future = None
 
-    for i, tup in enumerate(product(*ranges)):
+    for i, tup in enumerate(product(*regions)):
         future = get_value(i, tup, future)
         yield future
 
 
-def scan_param_feedback(scan_param_ranges, feedback_param, callbacks=None):
+def scan_param_feedback(scan_param_regions, feedback_param, callbacks=None):
     """
     Convenience function to scan some parameters and measure another parameter.
 
-    Scan the *scan_param_ranges* parameters and measure *feedback_param*.
+    Scan the *scan_param_regions* parameters and measure *feedback_param*.
     """
     def feedback():
         return feedback_param.get().result()
 
-    return scan(feedback, scan_param_ranges, callbacks=callbacks)
+    return scan(feedback, scan_param_regions, callbacks=callbacks)
 
 
 def ascan(param_list, n_intervals, handler, initial_values=None):

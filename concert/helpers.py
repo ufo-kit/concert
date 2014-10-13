@@ -187,9 +187,9 @@ class Numeric(object):
         self.units = units
 
 
-class Range(object):
+class Region(object):
 
-    """A Range holds a :class:`~concert.base.Parameter` and *values* which are the x-values of a
+    """A Region holds a :class:`~concert.base.Parameter` and *values* which are the x-values of a
     scan. You can create the values e.g. by numpy's *linspace* function::
 
         import numpy as np
@@ -202,11 +202,11 @@ class Range(object):
         self.values = values
 
     def __iter__(self):
-        """Return the range."""
+        """Return region's iterator over its *values*."""
         return iter(self.values)
 
     def __repr__(self):
-        return 'Range({})'.format(str(self))
+        return 'Region({})'.format(str(self))
 
     def __str__(self):
         return '{}: {}'.format(self.parameter.name, self.values)
