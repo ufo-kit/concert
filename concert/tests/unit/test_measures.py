@@ -6,7 +6,7 @@ from concert.tests import slow, TestCase
 from concert.tests.util.rotationaxis import SimulationCamera
 from concert.processes import scan
 from concert.measures import rotation_axis
-from concert.helpers import Range
+from concert.helpers import Region
 
 
 class TestRotationAxisMeasure(TestCase):
@@ -29,8 +29,8 @@ class TestRotationAxisMeasure(TestCase):
     def make_images(self, x_angle, z_angle, intervals=10):
         self.x_motor.position = z_angle
         self.z_motor.position = x_angle
-        prange = Range(self.y_motor["position"], minimum=0 * q.rad, maximum=2 * np.pi * q.rad,
-                       intervals=intervals)
+        values = np.linspace(0, 2 * np.pi, intervals) * q.rad
+        prange = Region(self.y_motor["position"], values)
         result = [f.result()[1] for f in scan(self.image_source.grab, prange)]
 
         return result

@@ -1,5 +1,4 @@
 import inspect
-import numpy as np
 
 
 class Command(object):
@@ -188,25 +187,26 @@ class Numeric(object):
         self.units = units
 
 
-class Range(object):
+class Region(object):
 
-    """A Range holds a :class:`~concert.base.Parameter` and a (minimum, maximum, intervals) range
-    assigned to it.
+    """A Region holds a :class:`~concert.base.Parameter` and *values* which are the x-values of a
+    scan. You can create the values e.g. by numpy's *linspace* function::
+
+        import numpy as np
+        # minimum=0, maximum=10, intervals=100
+        values = np.linspace(0, 10, 100) * q.mm
     """
 
-    def __init__(self, parameter, minimum, maximum, intervals=64):
+    def __init__(self, parameter, values):
         self.parameter = parameter
-        self.minimum = minimum
-        self.maximum = maximum
-        self.intervals = intervals
+        self.values = values
 
     def __iter__(self):
-        """Return the range."""
-        return (x for x in np.linspace(self.minimum, self.maximum, self.intervals))
+        """Return region's iterator over its *values*."""
+        return iter(self.values)
 
     def __repr__(self):
-        return 'Range({})'.format(str(self))
+        return 'Region({})'.format(str(self))
 
     def __str__(self):
-        return '{}, {}, {}, {}'.format(self.parameter.name, self.minimum, self.maximum,
-                                       self.intervals)
+        return '{}: {}'.format(self.parameter.name, self.values)

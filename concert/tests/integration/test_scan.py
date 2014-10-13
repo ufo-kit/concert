@@ -1,10 +1,11 @@
 from itertools import product
+import numpy as np
 from concert.quantities import q
 from concert.tests import assert_almost_equal, TestCase
 from concert.devices.motors.dummy import LinearMotor
 from concert.processes import scan, ascan, dscan, scan_param_feedback
 from concert.async import resolve
-from concert.helpers import Range
+from concert.helpers import Region
 
 
 def compare_sequences(first_sequence, second_sequence, assertion):
@@ -46,14 +47,16 @@ class TestScan(TestCase):
         def feedback():
             return self.motor.position
 
-        param_range = Range(self.motor['position'], 1 * q.mm, 10 * q.mm, 12)
+        values = np.linspace(1, 10, 12) * q.mm
+        param_range = Region(self.motor['position'], values)
 
-        x, y = zip(*resolve(scan(feedback, param_range)))
+        x, y = zip(*list(resolve(scan(feedback, param_range))))
         compare_sequences(x, y, self.assertEqual)
 
     def test_scan_param_feedback(self):
         p = self.motor['position']
-        scan_param = Range(p, 1 * q.mm, 10 * q.mm, 10)
+        values = np.linspace(1, 10, 10) * q.mm
+        scan_param = Region(p, values)
 
         x, y = zip(*resolve(scan_param_feedback(scan_param, p)))
         compare_sequences(x, y, self.assertEqual)
@@ -61,13 +64,15 @@ class TestScan(TestCase):
     def test_multiscan(self):
         """A 2D scan."""
         other = LinearMotor()
-        range_0 = Range(self.motor['position'], 0 * q.mm, 10 * q.mm, 2)
-        range_1 = Range(other['position'], 5 * q.mm, 10 * q.mm, 3)
+        values_0 = np.linspace(0, 10, 2) * q.mm
+        values_1 = np.linspace(5, 10, 3) * q.mm
+        range_0 = Region(self.motor['position'], values_0)
+        range_1 = Region(other['position'], values_1)
 
         def feedback():
             return self.motor.position, other.position
 
-        gen = resolve(scan(feedback, range_0, range_1))
+        gen = resolve(scan(feedback, [range_0, range_1]))
         p_0, p_1, result = zip(*gen)
         result_x, result_y = zip(*result)
 
@@ -82,3 +87,16 @@ class TestScan(TestCase):
         # feedback result is a tuple in this case, test both parts
         compare_sequences(result_x, p_0_exp, assert_almost_equal)
         compare_sequences(result_y, p_1_exp, assert_almost_equal)
+
+    def test_callback(self):
+        called = []
+        motor = LinearMotor()
+        values = np.linspace(0, 2, 3) * q.mm
+        qrange = Region(motor['position'], values)
+
+        def callback():
+            called.append(motor.position.to(q.mm).magnitude)
+
+        list(resolve(scan(lambda: None, qrange, callbacks={qrange: callback})))
+
+        np.testing.assert_almost_equal(called, range(3))

@@ -720,6 +720,19 @@ class QuantityValue(ParameterValue):
                             format(self._parameter.unit))
 
 
+class SelectionValue(ParameterValue):
+
+    """Descriptor for :class:`.Selection` class."""
+
+    def __init__(self, instance, selection):
+        super(SelectionValue, self).__init__(instance, selection)
+
+    @property
+    def values(self):
+        """Selection values."""
+        return tuple(self._parameter.iterable)
+
+
 class Parameterizable(object):
 
     """
@@ -810,6 +823,8 @@ class Parameterizable(object):
     def _install_parameter(self, param):
         if isinstance(param, Quantity):
             value = QuantityValue(self, param)
+        elif isinstance(param, Selection):
+            value = SelectionValue(self, param)
         else:
             value = ParameterValue(self, param)
 

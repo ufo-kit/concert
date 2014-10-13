@@ -1,5 +1,5 @@
 """Dummy"""
-from concert.base import Parameter
+from concert.base import Parameter, Selection
 from concert.devices.base import Device
 from concert.async import async
 
@@ -26,3 +26,20 @@ class DummyDevice(Device):
     def do_nothing(self):
         """Do nothing."""
         pass
+
+
+class SelectionDevice(Device):
+
+    """A dummy device with a selection."""
+
+    selection = Selection(range(3))
+
+    def __init__(self):
+        super(SelectionDevice, self).__init__()
+        self._selection = 0
+
+    def _get_selection(self):
+        return self._selection
+
+    def _set_selection(self, selection):
+        self._selection = selection

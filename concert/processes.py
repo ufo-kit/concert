@@ -22,38 +22,63 @@ def _pull_first(tuple_list):
             yield tup[0]
 
 
-def scan(feedback, *ranges):
-    """A multidimensional scan. *feedback* is a callable which takes no arguments and it provides
-    feedback after some parameter is changed. *ranges* specify the scanned parameters, they are
-    instances of :class:`concert.helpers.Range` class. The fastest changing parameter is the last
-    one specified. One would use it like this::
+def scan(feedback, regions, callbacks=None):
+    """A multidimensional scan. *feedback* is a callable which takes no arguments and provides
+    feedback after some parameter is changed. *regions* specifies the scanned parameter, it is
+    either a :class:`concert.helpers.Region` or a list of those for multidimensional scan. The
+    fastest changing parameter is the last one specified. *callbacks* is a dictionary in the form
+    {region: function}, where *function* is a callable with no arguments (just like *feedback*) and
+    is called every time the parameter in *region* is changed. One would use a scan for example like
+    this::
 
-        scan(feedback, Range(motor['position'], 0 * q.mm, 10 * q.mm, 10),
-             Range(camera['frame_rate'], 1 / q.s, 100 / q.s, 100))
+        import numpy as np
+        from concert.async import resolve
+        from concert.helpers import Region
+
+        def take_flat_field():
+            # Do something here
+            pass
+
+        exp_region = Region(camera['exposure_time'], np.linspace(1, 100, 100) * q.ms)
+        position_region = Region(motor['position'], np.linspace(0, 180, 1000) * q.deg)
+        callbacks = {exp_region: take_flat_field}
+
+        # This is a 2D scan with position_region in the inner loop. It acquires a tomogram, changes
+        # the exposure time and continues like this until all exposure times are exhausted.
+        # Take_flat_field is called every time the exposure_time of the camera is changed
+        # (in this case after every tomogram) and you can use it to correct the acquired images.
+        for result in resolve(scan(camera.grab, [exp_region, position_region], callbacks=callbacks)):
+            # Do something real instead of just a print
+            print result
 
     From the execution order it is equivalent to (in reality there is more for making the code
     asynchronous)::
 
-        for position in np.linspace(0 * q.mm, 10 * q.mm, 10):
-            for frame_rate in np.linspace(1 / q.s, 100 / q.s, 100):
+        for exp_time in np.linspace(1, 100, 100) * q.ms:
+            for position in np.linspace(0, 180, 1000) * q.deg:
                 yield feedback()
 
     """
     changes = []
+    if not isinstance(regions, (list, tuple, np.ndarray)):
+        regions = [regions]
+
+    if callbacks is None:
+        callbacks = {}
 
     # Changes store the indices at which parameters change, e.g. for two parameters and interval
     # lengths 2 for first and 3 for second changes = [3, 1], i. e. first parameter is changed when
     # the flattened iteration index % 3 == 0, second is changed every iteration.
     # we do this because parameter setting might be expensive even if the value does not change
     current_mul = 1
-    for i in range(len(ranges))[::-1]:
+    for i in range(len(regions))[::-1]:
         changes.append(current_mul)
-        current_mul *= ranges[i].intervals
+        current_mul *= len(regions[i].values)
     changes.reverse()
 
     def get_changed(index):
         """Returns a tuple of indices of changed parameters at given iteration *index*."""
-        return [i for i in range(len(ranges)) if index % changes[i] == 0]
+        return [i for i in range(len(regions)) if index % changes[i] == 0]
 
     @async
     def get_value(index, tup, previous):
@@ -67,28 +92,32 @@ def scan(feedback, *ranges):
         changed = get_changed(index)
         futures = []
         for i in changed:
-            futures.append(ranges[i].parameter.set(tup[i]))
+            futures.append(regions[i].parameter.set(tup[i]))
         wait(futures)
+
+        for i in changed:
+            if regions[i] in callbacks:
+                callbacks[regions[i]]()
 
         return tup + (feedback(),)
 
     future = None
 
-    for i, tup in enumerate(product(*ranges)):
+    for i, tup in enumerate(product(*regions)):
         future = get_value(i, tup, future)
         yield future
 
 
-def scan_param_feedback(scan_param_range, feedback_param):
+def scan_param_feedback(scan_param_regions, feedback_param, callbacks=None):
     """
-    Convenience function to scan one parameter and measure another.
+    Convenience function to scan some parameters and measure another parameter.
 
-    Scan the *scan_param_range* object and measure *feedback_param*.
+    Scan the *scan_param_regions* parameters and measure *feedback_param*.
     """
     def feedback():
         return feedback_param.get().result()
 
-    return scan(feedback, scan_param_range)
+    return scan(feedback, scan_param_regions, callbacks=callbacks)
 
 
 def ascan(param_list, n_intervals, handler, initial_values=None):

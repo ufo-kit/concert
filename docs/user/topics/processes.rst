@@ -10,7 +10,7 @@ For instance, to set 10 motor positions between 5 and 12 millimeter and acquire
 the flow rate of a pump could be written like::
 
     from concert.processes import scan
-    from concert.helpers import Range
+    from concert.helpers import Region
 
     # Assume motor and pump are already defined
 
@@ -18,20 +18,22 @@ the flow rate of a pump could be written like::
         return pump.flow_rate
 
     # A parameter object encapsulated with its scanning positions
-    param_range = Range(motor['position'], 5*q.mm, 12*q.mm, 10)
+    region = Region(motor['position'], np.linspace(5, 12, 10) * q.mm)
 
-    generator = scan(get_flow_rate, param_range)
+    generator = scan(get_flow_rate, region)
 
-The parameter is first wrapped into a :class:`concert.helpers.Range` object
-which holds the parameter and the scanning range. :func:`.scan` is
-multidimensional, i.e. you can scan as many parameters as you need, from 1D
-scans to complicated multidimensional scans. :func:`.scan` returns a generator
-which yields futures. This way the scan is asynchronous and you can continuously
-see its progress by resolving the yielded futures. Each future then returns the
-result of one iteration as tuples, which depends on how many parameters scan
-gets on input (scan dimensionality). The general signature of future results is
-*(x_0, x_1, ..., x_n, y)*, where *x_i* are the scanned parameter values and *y*
-is the result of *feedback*. For resolving the futures you would use
+The parameter is first wrapped into a :class:`concert.helpers.Region` object
+which holds the parameter and the scanning region for parameters. :func:`.scan`
+is multidimensional, i.e. you can scan as many parameters as you need, from 1D
+scans to complicated multidimensional scans. If you want to scan just one
+parameter, pass the region instance, if you want to scan more, pass a list or
+tuple of region instances. :func:`.scan` returns a generator which yields
+futures. This way the scan is asynchronous and you can continuously see its
+progress by resolving the yielded futures. Each future then returns the result
+of one iteration as tuples, which depends on how many parameters scan gets on
+input (scan dimensionality). The general signature of future results is *(x_0,
+x_1, ..., x_n, y)*, where *x_i* are the scanned parameter values and *y* is the
+result of *feedback*. For resolving the futures you would use
 :func:`concert.async.resolve` like this::
 
     from concert.async import resolve
@@ -50,13 +52,39 @@ To continuously plot the values obtained by a 1D scan by a
 
     inject(resolve(generator), viewer())
 
-A two-dimensional scan with *range_2* parameter in the inner (fastest changing)
+A two-dimensional scan with *region_2* parameter in the inner (fastest changing)
 loop could look as follows::
 
-    range_1 = Range(motor_1['position'], 5*q.mm, 12*q.mm, 10)
-    range_2 = Range(motor_2['position'], 0*q.mm, 10*q.mm, 5)
+    region_1 = Region(motor_1['position'], np.linspace(5, 12, 10) * q.mm)
+    region_2 = Region(motor_2['position'], np.linspace(0, 10, 5) * q.mm)
 
-    generator = scan(get_flow_rate, range_1, range_2)
+    generator = scan(get_flow_rate, [region_1, region_2])
+
+You can set callbacks which are called when some parameter is changed during a
+scan. This can be useful when you e.g. want to acquire a flat field when the
+scan takes a long time. For example, to acquire tomograms with different
+exposure times and flat field images you can do::
+
+
+    import numpy as np
+    from concert.async import resolve
+    from concert.helpers import Region
+
+    def take_flat_field():
+        # Do something here
+        pass
+
+    exp_region = Region(camera['exposure_time'], np.linspace(1, 100, 100) * q.ms)
+    position_region = Region(motor['position'], np.linspace(0, 180, 1000) * q.deg)
+    callbacks = {exp_region: take_flat_field}
+
+    # This is a 2D scan with position_region in the inner loop. It acquires a tomogram, changes
+    # the exposure time and continues like this until all exposure times are exhausted.
+    # Take_flat_field is called every time the exposure_time of the camera is changed
+    # (in this case after every tomogram) and you can use it to correct the acquired images.
+    for result in resolve(scan(camera.grab, [exp_region, position_region], callbacks=callbacks)):
+        # Do something real instead of just a print
+        print result
 
 
 :func:`.ascan` and :func:`.dscan` are used to scan multiple parameters
