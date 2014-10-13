@@ -67,7 +67,7 @@ class TestScan(TestCase):
         def feedback():
             return self.motor.position, other.position
 
-        gen = resolve(scan(feedback, range_0, range_1))
+        gen = resolve(scan(feedback, [range_0, range_1]))
         p_0, p_1, result = zip(*gen)
         result_x, result_y = zip(*result)
 

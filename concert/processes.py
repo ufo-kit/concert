@@ -22,14 +22,14 @@ def _pull_first(tuple_list):
             yield tup[0]
 
 
-def scan(feedback, *ranges):
+def scan(feedback, ranges):
     """A multidimensional scan. *feedback* is a callable which takes no arguments and it provides
-    feedback after some parameter is changed. *ranges* specify the scanned parameters, they are
-    instances of :class:`concert.helpers.Range` class. The fastest changing parameter is the last
-    one specified. One would use it like this::
+    feedback after some parameter is changed. *ranges* specifies the scanned parameter, it is either
+    a :class:`concert.helpers.Range` or a list of those for multidimensional scan. The fastest
+    changing parameter is the last one specified. One would use it like this::
 
-        scan(feedback, Range(motor['position'], 0 * q.mm, 10 * q.mm, 10),
-             Range(camera['frame_rate'], 1 / q.s, 100 / q.s, 100))
+        scan(feedback, [Range(motor['position'], 0 * q.mm, 10 * q.mm, 10),
+             Range(camera['frame_rate'], 1 / q.s, 100 / q.s, 100)])
 
     From the execution order it is equivalent to (in reality there is more for making the code
     asynchronous)::
@@ -40,6 +40,8 @@ def scan(feedback, *ranges):
 
     """
     changes = []
+    if not isinstance(ranges, (list, tuple, np.ndarray)):
+        ranges = [ranges]
 
     # Changes store the indices at which parameters change, e.g. for two parameters and interval
     # lengths 2 for first and 3 for second changes = [3, 1], i. e. first parameter is changed when
