@@ -1,25 +1,36 @@
-"""Add-ons for experiments are standalone extensions which can be attached to them. They operate on
+"""Add-ons for acquisitions are standalone extensions which can be applied to them. They operate on
 the acquired data, e.g. write images to disk, do tomographic reconstruction etc.
 """
 
 
 class Addon(object):
 
-    """A base addon class."""
+    """A base addon class. An addon can be attached, i.e. its functionality is applied to the
+    specified *acquisitions* and detached.
 
-    def register(self):
-        """Register adds the addon to an experiment. This means all the necessary operations which
+    .. py:attribute:: acquisitions
+
+    A list of :class:`~concert.experiments.base.Acquisition` objects. The addon attaches itself on
+    construction.
+
+    """
+
+    def __init__(self, acquisitions):
+        self.acquisitions = acquisitions
+        self.attach()
+
+    def attach(self):
+        """attach adds the addon to an experiment. This means all the necessary operations which
         provide the addon functionality should be implemented in this method. This mostly means
-        attaching consumers to acquisitions. The method is called by
-        :class:`~concert.experiments.base.Experiment.attach`.
+        appending consumers to acquisitions.
         """
         pass
 
-    def unregister(self):
-        """Unregister removes the addon from an experiment. This means all the necessary operations
+    def detach(self):
+        """Unattach removes the addon from an experiment. This means all the necessary operations
         which provide the addon functionality should be undone by this method. This mostly means
-        removing consumers from acquisitions. The method is called by
-        :class:`~concert.experiments.base.Experiment.detach`.  """
+        removing consumers from acquisitions.
+        """
         pass
 
 
@@ -38,16 +49,16 @@ class Consumer(Addon):
     """
 
     def __init__(self, acquisitions, consumer):
-        self.acquisitions = acquisitions
         self.consumer = consumer
+        super(Consumer, self).__init__(acquisitions)
 
-    def register(self):
-        """Register all acquisitions."""
+    def attach(self):
+        """attach all acquisitions."""
         for acq in self.acquisitions:
             acq.consumers.append(self.consumer)
 
-    def unregister(self):
-        """Unregister all acquisitions."""
+    def detach(self):
+        """Unattach all acquisitions."""
         for acq in self.acquisitions:
             acq.consumers.remove(self.consumer)
 
@@ -67,17 +78,17 @@ class ImageWriter(Addon):
 
     def __init__(self, acquisitions, walker):
         self.walker = walker
-        self.acquisitions = acquisitions
         self._writers = {}
+        super(ImageWriter, self).__init__(acquisitions)
 
-    def register(self):
-        """Register all acquisitions."""
+    def attach(self):
+        """attach all acquisitions."""
         for acq in self.acquisitions:
             self._writers[acq] = self._write_sequence(acq)
             acq.consumers.append(self._writers[acq])
 
-    def unregister(self):
-        """Unregister all acquisitions."""
+    def detach(self):
+        """Unattach all acquisitions."""
         for acq in self.acquisitions:
             acq.consumers.remove(self._writers[acq])
             del self._writers[acq]
