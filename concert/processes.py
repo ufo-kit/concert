@@ -53,7 +53,7 @@ def scan(feedback, ranges, callbacks=None):
     current_mul = 1
     for i in range(len(ranges))[::-1]:
         changes.append(current_mul)
-        current_mul *= ranges[i].intervals
+        current_mul *= len(ranges[i].values)
     changes.reverse()
 
     def get_changed(index):
