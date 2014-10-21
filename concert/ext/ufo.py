@@ -102,13 +102,15 @@ class InjectProcess(object):
             self.insert(item)
             consumer.send(self.result())
 
-    def start(self):
+    def start(self, arch=None, gpu=None):
         """
         Run the processing in a new thread.
 
         Use :meth:`.push` to insert data into the processing chaing and
         :meth:`~InjectProcess.wait` to wait until processing has finished."""
         def run_scheduler():
+            if gpu:
+                self.sched.set_gpu_nodes(arch, [gpu])
             self.sched.run(self.graph)
 
         self.thread = threading.Thread(target=run_scheduler)
@@ -210,13 +212,13 @@ class Backproject(InjectProcess):
         consumer.send(self.result())
 
     @coroutine
-    def __call__(self, consumer):
+    def __call__(self, consumer, arch=None, gpu=None):
         """Get a sinogram, do filtered backprojection and send it to *consumer*."""
         sinogram = yield
         setup_padding(self.pad, self.crop, sinogram.shape[1], sinogram.shape[0])
 
         if not self._started:
-            self.start()
+            self.start(arch=arch, gpu=gpu)
 
         self._process(sinogram, consumer)
 
