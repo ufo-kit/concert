@@ -108,14 +108,20 @@ class InjectProcess(object):
 
         Use :meth:`.push` to insert data into the processing chaing and
         :meth:`~InjectProcess.wait` to wait until processing has finished."""
-        def run_scheduler():
-            if gpu:
-                self.sched.set_gpu_nodes(arch, [gpu])
-            self.sched.run(self.graph)
+        def run_scheduler(sched):
+            sched.run(self.graph)
 
-        self.thread = threading.Thread(target=run_scheduler)
+        if arch and gpu:
+            sched = Ufo.FixedScheduler()
+            sched.set_gpu_nodes(arch, [gpu])
+        else:
+            sched = self.sched
+
+        self.thread = threading.Thread(target=run_scheduler, args=(sched,))
         self.thread.start()
-        self._started = True
+
+        if not self._started:
+            self._started = True
 
     def insert(self, array, node=None, index=0):
         """
