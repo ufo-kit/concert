@@ -146,6 +146,14 @@ Pumps
 .. autoclass:: concert.devices.pumps.dummy.Pump
 
 
+Sample changers
+---------------
+
+.. autoclass:: concert.devices.samplechangers.base.SampleChanger
+    :show-inheritance:
+    :members:
+
+
 Scales
 ------
 
