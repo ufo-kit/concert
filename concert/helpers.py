@@ -1,4 +1,5 @@
 import inspect
+import functools
 
 
 class Command(object):
@@ -76,7 +77,6 @@ class _Structure(object):
         self.outputs = e_keywords['output']
         self.e_keywords = e_keywords
         self._isfunction = True
-        self.__name__ = func.__name__
 
     def __call__(self, *args, **kwargs):
         self._check_args(*args, **kwargs)
@@ -103,16 +103,18 @@ class _Structure(object):
 
     def _check_type_correctness(self, arg_name, expected, given):
         from concert.devices.base import Device
+        import inspect
         if expected is not None:
             if isinstance(expected, Numeric):
                 self._check_numeric(arg_name, expected, given)
 
-            elif issubclass(expected, Device) and not isinstance(given, expected):
-                raise TypeError(
-                    'Sorry, argument "{}" expected to get {}, but got {}'.format(
-                        arg_name,
-                        expected.__name__,
-                        given.__class__.__name__))
+            elif inspect.isclass(expected):
+                if issubclass(expected, Device) and not isinstance(given, expected):
+                    raise TypeError(
+                        'Sorry, argument "{}" expected to get {}, but got {}'.format(
+                            arg_name,
+                            expected.__name__,
+                            given.__class__.__name__))
 
     def _check_numeric(self, arg_name, expected, given):
         if (expected.units is not None) ^ hasattr(given, 'units'):
@@ -176,6 +178,7 @@ class expects(object):
             f_args,
             f_defaults,
             self.e_keywords)
+        functools.update_wrapper(self.func, f)
         return self.func
 
 
