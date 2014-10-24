@@ -15,6 +15,15 @@ Cameras
 
 .. autoclass:: concert.devices.cameras.dummy.Camera
 
+
+Grippers
+--------
+
+.. automodule:: concert.devices.grippers.base
+    :show-inheritance:
+    :members:
+
+
 I/O
 ---
 
