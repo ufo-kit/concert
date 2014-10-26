@@ -17,6 +17,10 @@ class TestDummyCamera(TestCase):
         frame = self.camera.grab()
         self.assertIsNotNone(frame)
 
+    def test_grab_async(self):
+        frame = self.camera.grab_async().result()
+        self.assertIsNotNone(frame)
+
     def test_trigger_mode(self):
         self.camera.trigger_mode = self.camera.trigger_modes.EXTERNAL
         self.assertEqual(self.camera.trigger_mode, 'EXTERNAL')
