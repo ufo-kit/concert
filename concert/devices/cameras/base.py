@@ -127,6 +127,10 @@ class Camera(Device):
         return self.convert(self._grab_real())
 
     @async
+    def grab_async(self):
+        return self.grab()
+
+    @async
     def stream(self, consumer):
         """Grab frames continuously and send them to *consumer*, which
         is a coroutine.
