@@ -191,11 +191,13 @@ class PyplotViewer(PyplotViewerBase):
 
     """
 
-    def __init__(self, style="o", plot_kwargs=None, autoscale=True, title=""):
+    def __init__(self, style="o", plot_kwargs=None, autoscale=True, title="",
+                 coroutine_force=False):
         super(PyplotViewer, self).__init__(self._plot_unraveled)
         self._autoscale = autoscale
         self._style = style
         self._iteration = 0
+        self.coroutine_force = coroutine_force
         self._set_updater(_PyplotUpdater(self._queue, style,
                                          plot_kwargs, autoscale,
                                          title=title))
@@ -228,7 +230,7 @@ class PyplotViewer(PyplotViewerBase):
 
     def _plot_unraveled(self, item):
         """Unravel the *item* for x and y so that it is plotted correctly."""
-        self.plot(item[0], y=item[1])
+        self.plot(item[0], y=item[1], force=self.coroutine_force)
 
     @property
     def style(self):
