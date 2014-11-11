@@ -291,14 +291,6 @@ class Parameter(object):
 
     def __set__(self, instance, value):
         try:
-            def log_access(what):
-                """Log access."""
-                msg = "{}: {}: {}='{}'"
-                name = instance.__class__.__name__
-                LOG.info(msg.format(name, what, self.name, value))
-
-            log_access('try')
-
             if instance[self.name].locked:
                 raise LockError("Parameter `{}' is locked for writing".format(self))
 
@@ -320,7 +312,9 @@ class Parameter(object):
                 except AccessorNotImplementedError:
                     raise WriteAccessError(self.name)
 
-            log_access('set')
+            msg = "set {}::{}='{}'"
+            name = instance.__class__.__name__
+            LOG.info(msg.format(name, self.name, value))
         except KeyboardInterrupt:
             cancel_name = '_cancel_' + self.name
             if hasattr(instance, cancel_name):
