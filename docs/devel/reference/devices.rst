@@ -195,3 +195,11 @@ Storage rings
     :members:
 
 .. autoclass:: concert.devices.storagerings.dummy.StorageRing
+
+
+X-ray tubes
+-----------
+
+.. autoclass:: concert.devices.xraytubes.base.XRayTube
+    :show-inheritance:
+    :members:
