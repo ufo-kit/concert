@@ -1,10 +1,13 @@
+import numpy as np
 import scipy
 from scipy.ndimage import fourier
 from concert.tests import assert_almost_equal, TestCase
 from concert.quantities import q
 from concert.processes import focus
-from concert.devices.cameras.dummy import Base as DummyCameraBase
-from concert.devices.motors.dummy import LinearMotor
+from concert.devices.cameras.dummy import Base as DummyCameraBase, Camera
+from concert.devices.motors.dummy import LinearMotor, RotationMotor
+from concert.devices.shutters.dummy import Shutter
+from concert.processes import acquire_dark, acquire_image_with_beam, determine_rotation_axis
 
 
 MIN_POSITION = 0 * q.mm
@@ -28,9 +31,25 @@ class TestProcesses(TestCase):
 
     def setUp(self):
         self.motor = LinearMotor()
+        self.camera = Camera()
+        self.shutter = Shutter()
 
     def test_focusing(self):
         self.motor.position = 40. * q.mm
         camera = BlurringCamera(self.motor)
         focus(camera, self.motor).join()
         assert_almost_equal(self.motor.position, FOCUS_POSITION, 1e-2)
+
+    def test_acquire_dark(self):
+        self.assertTrue(isinstance(acquire_dark(self.camera, self.shutter).result(), np.ndarray))
+
+    def test_acquire_image_with_beam(self):
+        frame = acquire_image_with_beam(self.camera, self.shutter, self.motor, 1 * q.mm).result()
+        self.assertTrue(isinstance(frame, np.ndarray))
+        self.assertEqual(self.motor.position, 1 * q.mm)
+
+    def test_determine_rotation_axis(self):
+        rot_motor = RotationMotor()
+        axis = determine_rotation_axis(self.camera, self.shutter, self.motor, rot_motor,
+                                       1 * q.mm, 3 * q.mm).result()
+        self.assertTrue(isinstance(axis, q.Quantity))
