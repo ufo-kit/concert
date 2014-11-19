@@ -1,6 +1,6 @@
 import scipy
 from scipy.ndimage import fourier
-from concert.tests import assert_almost_equal, suppressed_logging
+from concert.tests import assert_almost_equal, TestCase
 from concert.quantities import q
 from concert.processes import focus
 from concert.devices.cameras.dummy import Base as DummyCameraBase
@@ -24,10 +24,13 @@ class BlurringCamera(DummyCameraBase):
         return fourier.fourier_gaussian(self._original, sigma)
 
 
-@suppressed_logging
-def test_focusing():
-    motor = LinearMotor()
-    motor.position = 40. * q.mm
-    camera = BlurringCamera(motor)
-    focus(camera, motor).join()
-    assert_almost_equal(motor.position, FOCUS_POSITION, 1e-2)
+class TestProcesses(TestCase):
+
+    def setUp(self):
+        self.motor = LinearMotor()
+
+    def test_focusing(self):
+        self.motor.position = 40. * q.mm
+        camera = BlurringCamera(self.motor)
+        focus(camera, self.motor).join()
+        assert_almost_equal(self.motor.position, FOCUS_POSITION, 1e-2)
