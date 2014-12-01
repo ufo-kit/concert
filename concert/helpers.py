@@ -1,3 +1,4 @@
+import time
 import inspect
 import functools
 
@@ -65,6 +66,32 @@ def memoize(func):
         return result
 
     return wrapper
+
+
+def measure(func=None, return_result=False):
+    """
+    Measure and print execution time of *func*.
+
+    If *return_result* is True, the decorated function returns a tuple
+    consisting of the original return value and the measured time in seconds.
+    """
+
+    if func is not None:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            start = time.time()
+            result = func(*args, **kwargs)
+            elapsed = time.time() - start
+
+            if return_result:
+                from concert.quantities import q
+                return (result, elapsed * q.s)
+            else:
+                print("`{}' took {}s".format(func.__name__, elapsed))
+                return result
+        return wrapper
+    else:
+        return functools.partial(measure, return_result=return_result)
 
 
 class _Structure(object):
