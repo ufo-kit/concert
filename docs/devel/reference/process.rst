@@ -4,25 +4,25 @@ Processes
 Scanning
 --------
 
-.. autofunction:: concert.processes.scan
-.. autofunction:: concert.processes.ascan
-.. autofunction:: concert.processes.dscan
-.. autofunction:: concert.processes.scan_param_feedback
+.. autofunction:: concert.processes.common.scan
+.. autofunction:: concert.processes.common.ascan
+.. autofunction:: concert.processes.common.dscan
+.. autofunction:: concert.processes.common.scan_param_feedback
 
 
 Focusing
 --------
 
-.. autofunction:: concert.processes.focus
+.. autofunction:: concert.processes.common.focus
 
 
 Alignment
 ---------
 
-.. autofunction:: concert.processes.align_rotation_axis
-.. autofunction:: concert.processes.center_to_beam
-.. autofunction:: concert.processes.drift_to_beam
-.. autofunction:: concert.processes.find_beam
+.. autofunction:: concert.processes.common.align_rotation_axis
+.. autofunction:: concert.processes.common.center_to_beam
+.. autofunction:: concert.processes.common.drift_to_beam
+.. autofunction:: concert.processes.common.find_beam
 
 
 Coroutines

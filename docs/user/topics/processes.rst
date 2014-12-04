@@ -9,7 +9,7 @@ Scanning
 For instance, to set 10 motor positions between 5 and 12 millimeter and acquire
 the flow rate of a pump could be written like::
 
-    from concert.processes import scan
+    from concert.processes.common import scan
     from concert.helpers import Region
 
     # Assume motor and pump are already defined
@@ -91,7 +91,7 @@ exposure times and flat field images you can do::
 in a similar way as SPEC::
 
     from concert.quantities import q
-    from concert.processes import ascan
+    from concert.processes.common import ascan
 
     def do_something(parameters):
         for each parameter in parameters:
@@ -107,7 +107,7 @@ Focusing
 
 To adjust the focal plane of a camera, you use :func:`.focus` like this::
 
-    from concert.processes import focus
+    from concert.processes.common import focus
     from concert.cameras.uca import Camera
     from concert.motors.dummy import LinearMotor
 

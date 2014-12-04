@@ -2,7 +2,7 @@ import numpy as np
 from nose.plugins.attrib import attr
 from concert.quantities import q
 from concert.devices.motors.dummy import ContinuousRotationMotor
-from concert.processes import align_rotation_axis
+from concert.processes.common import align_rotation_axis
 from concert.tests import slow, TestCase
 from concert.tests.util.rotationaxis import SimulationCamera
 

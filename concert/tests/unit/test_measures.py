@@ -4,7 +4,7 @@ from concert.quantities import q
 from concert.devices.motors.dummy import ContinuousRotationMotor
 from concert.tests import slow, TestCase
 from concert.tests.util.rotationaxis import SimulationCamera
-from concert.processes import scan
+from concert.processes.common import scan
 from concert.measures import rotation_axis
 from concert.helpers import Region
 
