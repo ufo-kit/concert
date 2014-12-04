@@ -48,7 +48,7 @@ class _PositionMixin(Device):
         self._stop()
 
     @async
-    @check(source='*', target='standby')
+    @check(source='*', target=['standby', 'hard-limit'])
     def home(self):
         """
         home()
