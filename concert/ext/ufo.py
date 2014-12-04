@@ -42,7 +42,7 @@ class InjectProcess(object):
 
     def __init__(self, graph, get_output=False):
         self.output_task = None
-        self._started = False
+        self.scheduler = None
 
         if isinstance(graph, Ufo.TaskGraph):
             self.graph = graph
@@ -82,7 +82,7 @@ class InjectProcess(object):
     @coroutine
     def __call__(self, consumer):
         """Co-routine compatible consumer."""
-        if not self._started:
+        if not self.scheduler:
             self.start()
 
         while True:
@@ -96,14 +96,15 @@ class InjectProcess(object):
 
         Use :meth:`.push` to insert data into the processing chaing and
         :meth:`.wait` to wait until processing has finished."""
-        def run_scheduler():
-            sched = Ufo.Scheduler()
-            sched.run(self.graph)
+        if not self.scheduler:
+            self.scheduler = Ufo.Scheduler()
+            self.scheduler.props.enable_reruns = True
 
-        self.thread = threading.Thread(target=run_scheduler)
+        def run_scheduler(scheduler):
+            scheduler.run(self.graph)
+
+        self.thread = threading.Thread(target=run_scheduler, args=(self.scheduler,))
         self.thread.start()
-        if not self._started:
-            self._started = True
 
     def insert(self, array, node=None, index=0):
         """
@@ -188,7 +189,7 @@ class Backproject(InjectProcess):
             self.insert(sino)
             consumer.send(self.result())
 
-        if not self._started:
+        if not self.scheduler:
             self.start()
 
         sinogram = yield
@@ -272,7 +273,7 @@ class FlatCorrectedBackproject(InjectProcess):
     @coroutine
     def __call__(self, consumer):
         """Get a sinogram, do filtered backprojection and send it to *consumer*."""
-        if not self._started:
+        if not self.scheduler:
             self.start()
 
         while True:
