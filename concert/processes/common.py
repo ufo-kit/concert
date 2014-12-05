@@ -6,7 +6,7 @@ from concert.async import async, wait
 from concert.quantities import q
 from concert.measures import rotation_axis
 from concert.optimization import halver, optimize_parameter
-from concert.imageprocessing import center_of_mass, flat_correct
+from concert.imageprocessing import center_of_mass, flat_correct, compute_rotation_axis
 from concert.coroutines.base import coroutine
 from concert.helpers import expects, Numeric
 from concert.devices.motors.base import LinearMotor, ContinuousLinearMotor

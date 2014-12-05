@@ -3,7 +3,7 @@ from concert.tests import TestCase, suppressed_logging
 from concert.quantities import q
 from concert.helpers import measure
 from concert.measures import rotation_axis
-from concert.processes import focus, align_rotation_axis, find_beam
+from concert.processes.common import focus, align_rotation_axis, find_beam
 from concert.devices.motors.dummy import LinearMotor, RotationMotor
 from concert.devices.cameras.dummy import Camera
 
