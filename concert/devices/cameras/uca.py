@@ -59,7 +59,7 @@ class Camera(base.Camera):
     All properties that are exported by the underlying camera are also visible.
     """
 
-    def __init__(self, name):
+    def __init__(self, name, params=None):
         """
         Create a new libuca camera.
 
@@ -74,8 +74,10 @@ class Camera(base.Camera):
 
         self._manager = Uca.PluginManager()
 
+        params = params if params else {}
+
         try:
-            self.uca = self._manager.get_camerav(name, [])
+            self.uca = self._manager.get_camerah(name, params)
         except:
             raise base.CameraError("`{0}' is not a valid camera".format(name))
 
