@@ -70,7 +70,7 @@ class Camera(base.Camera):
 
         super(Camera, self).__init__()
 
-        from gi.repository import GObject, Uca
+        from gi.repository import GObject, GLib, Uca
 
         self._manager = Uca.PluginManager()
 
@@ -78,6 +78,8 @@ class Camera(base.Camera):
 
         try:
             self.uca = self._manager.get_camerah(name, params)
+        except GLib.GError as ge:
+            raise base.CameraError(str(ge))
         except:
             raise base.CameraError("`{0}' is not a valid camera".format(name))
 
