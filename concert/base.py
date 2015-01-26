@@ -800,6 +800,9 @@ class Parameterizable(object):
 
         return self._params[param]
 
+    def __contains__(self, param):
+        return param in self._params
+
     def install_parameters(self, params):
         """Install parameters at run-time.
 
