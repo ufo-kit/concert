@@ -15,10 +15,9 @@ LOG = logging.getLogger(__name__)
 
 def _new_setter_wrapper(name, unit=None):
     def _wrapper(instance, value):
-        if instance:
-            if instance.state == 'recording':
-                raise base.CameraError(
-                'Changing parameters is not allowed while recording')
+        if instance.state == 'recording':
+            raise base.CameraError(
+            'Changing parameters is not allowed while recording')
 
         if unit:
             value = value.to(unit)
