@@ -800,6 +800,9 @@ class Parameterizable(object):
 
         return self._params[param]
 
+    def __contains__(self, param):
+        return param in self._params
+
     def install_parameters(self, params):
         """Install parameters at run-time.
 
@@ -861,4 +864,9 @@ class Parameterizable(object):
         for param in self:
             param.unlock()
 
-
+    def serialize(self):
+        """
+        Return dictionary *{param.name: param.value}* with all parameter values
+        serialized as strings.
+        """
+        return {param.name: str(param.get().result()) for param in self}

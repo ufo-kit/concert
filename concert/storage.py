@@ -1,6 +1,7 @@
 """Storage implementations."""
 import os
 import logging
+import json
 from logging import FileHandler, Formatter
 from concert.ext import tifffile
 from concert.coroutines.base import coroutine, inject
@@ -93,6 +94,33 @@ def write_images(writer=write_tiff, prefix="image_{:>05}.tif"):
         data = yield
         writer(prefix.format(i), data)
         i += 1
+
+
+def write_metadata(ring, camera, additional=None):
+    data = {
+        'beamline_parameter': {
+            'current': str(ring.current),
+            'energy': str(ring.energy),
+        },
+        'camera': {}
+    }
+
+    if 'roi_x0' in camera:
+        data['camera']['roi'] = (str(camera.roi_x0), str(camera.roi_y0),
+                                 str(camera.roi_width), str(camera.roi_height))
+
+    props = ('name', 'sensor_bitdepth', 'sensor_pixel_width',
+             'sensor_pixel_height', 'frame_rate', 'exposure_time')
+
+    for prop in props:
+        if prop in camera:
+            data['camera'][prop] = str(camera[prop].get().result())
+
+    if additional:
+        data.update(additional)
+
+    with open('metadata.json', 'w') as f:
+        json.dump(data, f)
 
 
 class Walker(object):
