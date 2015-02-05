@@ -215,7 +215,8 @@ if not concert.config.ENABLE_GEVENT or not HAVE_GEVENT:
                 @functools.wraps(func)
                 def _inner(*args, **kwargs):
                     future = EXECUTOR.submit(func, *args, **kwargs)
-                    future.add_done_callback(print_exception)
+                    if concert.config.ENABLE_PRINT_ASYNC_EXCEPTION:
+                        future.add_done_callback(print_exception)
                     return future
 
                 return _inner
