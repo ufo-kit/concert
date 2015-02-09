@@ -93,4 +93,3 @@ def test_measure_execution():
     result, elapsed = sleeping()
     assert(result == 123)
     assert(elapsed > 0.001 * q.s)
-    assert(elapsed < 0.010 * q.s)
