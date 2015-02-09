@@ -47,7 +47,7 @@ class TestDummyCamera(TestCase):
 
         with camera.recording():
             self.assertEqual(camera.state, 'recording')
-            f = camera.grab()
+            camera.grab()
 
         self.assertEqual(camera.state, 'standby')
 

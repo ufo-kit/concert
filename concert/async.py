@@ -15,7 +15,6 @@
 """
 import time
 import functools
-import traceback
 import concert.config
 from concurrent.futures import ThreadPoolExecutor, Future
 from concert.quantities import q

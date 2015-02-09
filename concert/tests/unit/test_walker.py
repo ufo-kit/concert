@@ -2,7 +2,7 @@ import tempfile
 import shutil
 import numpy as np
 import os.path as op
-from concert.coroutines.base import coroutine, inject
+from concert.coroutines.base import inject
 from concert.storage import DummyWalker, DirectoryWalker, StorageError
 from concert.tests import TestCase
 
@@ -58,7 +58,6 @@ class TestDirectoryWalker(TestCase):
         self.walker.write([self.data])
         self.assertTrue(op.exists(op.join(self.path, 'foo', 'frame_000000.tif')))
 
-
     def test_custom_write(self):
         self.walker.write([self.data], dsetname='foo-{}.tif')
         self.assertTrue(op.exists(op.join(self.path, 'foo-0.tif')))
@@ -80,6 +79,7 @@ class TestDirectoryWalker(TestCase):
         def test_raises(dsetname):
             with self.assertRaises(ValueError):
                 self.walker.write(data=self.data, dsetname=dsetname)
+
         def test_ok(dsetname):
             self.walker.write(data=self.data, dsetname=dsetname)
 

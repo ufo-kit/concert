@@ -48,5 +48,3 @@ class NewPort74000(base.Monochromator):
         """
         self._wavelength = float(self._connection.execute('WAVE?\r\n')[8:])
         return self._wavelength
-        
-        

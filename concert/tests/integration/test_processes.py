@@ -7,7 +7,8 @@ from concert.devices.cameras.dummy import Base as DummyCameraBase, Camera
 from concert.devices.motors.dummy import LinearMotor, RotationMotor
 from concert.devices.shutters.dummy import Shutter
 from concert.processes.common import focus
-from concert.processes.beamline import acquire_dark, acquire_image_with_beam, determine_rotation_axis
+from concert.processes.beamline import (acquire_dark, acquire_image_with_beam,
+                                        determine_rotation_axis)
 
 
 MIN_POSITION = 0 * q.mm

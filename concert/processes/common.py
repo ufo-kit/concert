@@ -6,11 +6,11 @@ from concert.async import async, wait
 from concert.quantities import q
 from concert.measures import rotation_axis
 from concert.optimization import halver, optimize_parameter
-from concert.imageprocessing import center_of_mass, flat_correct, compute_rotation_axis
+from concert.imageprocessing import center_of_mass, flat_correct
 from concert.coroutines.base import coroutine
 from concert.helpers import expects, Numeric
-from concert.devices.motors.base import LinearMotor, ContinuousLinearMotor
-from concert.devices.motors.base import RotationMotor, ContinuousRotationMotor
+from concert.devices.motors.base import LinearMotor
+from concert.devices.motors.base import RotationMotor
 from concert.devices.cameras.base import Camera
 
 
@@ -47,7 +47,8 @@ def scan(feedback, regions, callbacks=None):
         # the exposure time and continues like this until all exposure times are exhausted.
         # Take_flat_field is called every time the exposure_time of the camera is changed
         # (in this case after every tomogram) and you can use it to correct the acquired images.
-        for result in resolve(scan(camera.grab, [exp_region, position_region], callbacks=callbacks)):
+        for result in resolve(scan(camera.grab, [exp_region, position_region],
+                              callbacks=callbacks)):
             # Do something real instead of just a print
             print result
 

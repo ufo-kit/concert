@@ -3,7 +3,7 @@ import random
 import concert.config
 from concert.devices.dummy import DummyDevice
 from concert.async import async, wait, resolve, KillException, HAVE_GEVENT
-from concert.tests import slow, TestCase, VisitChecker
+from concert.tests import TestCase, VisitChecker
 
 
 @async

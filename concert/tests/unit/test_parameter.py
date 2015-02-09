@@ -107,7 +107,6 @@ class TestParameterizable(TestCase):
         with self.assertRaises(WriteAccessError):
             self.device.no_write = 42
 
-
     def test_saving(self):
         self.device.foo = 1 * q.mm
         self.device.stash().join()
@@ -178,7 +177,6 @@ class TestParameterizable(TestCase):
         f2 = d2.set_foo(5 * q.mm, wait_on=f1)
         d3 = AccessorCheckDevice(f2, check)
         d3.get_foo(wait_on=f2).join()
-
 
 
 class TestParameter(TestCase):

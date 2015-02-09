@@ -1,5 +1,4 @@
 import numpy as np
-from nose.plugins.attrib import attr
 from concert.quantities import q
 from concert.devices.motors.dummy import ContinuousRotationMotor
 from concert.processes.common import align_rotation_axis
@@ -36,7 +35,7 @@ class TestDummyAlignment(TestCase):
         z_motor = self.z_motor if has_z_motor else None
 
         align_rotation_axis(self.camera, self.y_motor, x_motor=x_motor, z_motor=z_motor, flat=flat,
-                dark=dark).join()
+                            dark=dark).join()
 
         # In our case the best perfectly aligned position is when both
         # motors are in 0.

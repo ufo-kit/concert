@@ -860,5 +860,3 @@ class Parameterizable(object):
         """Unlock all the parameters for writing."""
         for param in self:
             param.unlock()
-
-

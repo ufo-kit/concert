@@ -128,12 +128,12 @@ class TestExperiment(TestExperimentBase):
 
     def test_consumer_addon(self):
         accumulate = Accumulate()
-        consumer = Consumer([self.acquisitions[0]], accumulate)
+        Consumer([self.acquisitions[0]], accumulate)
         self.experiment.run().join()
         self.assertEqual(accumulate.items, range(self.num_produce))
 
     def test_image_writing(self):
-        writer = ImageWriter(self.acquisitions, self.walker)
+        ImageWriter(self.acquisitions, self.walker)
         self.experiment.run().join()
 
         scan_name = self.name_fmt.format(1)

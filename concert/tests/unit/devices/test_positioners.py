@@ -147,7 +147,8 @@ class TestImagingPositioner(TestCase):
 
     def test_left(self):
         self.positioner.left(1 * q.px).join()
-        assert_almost_equal((- self._pixel_width_position, 0.0, 0.0) * q.m, self.positioner.position)
+        assert_almost_equal((- self._pixel_width_position, 0.0, 0.0) * q.m,
+                            self.positioner.position)
 
     def test_up(self):
         self.positioner.up(1 * q.px).join()
@@ -155,7 +156,8 @@ class TestImagingPositioner(TestCase):
 
     def test_down(self):
         self.positioner.down(1 * q.px).join()
-        assert_almost_equal((0.0, - self._pixel_height_position, 0.0) * q.m, self.positioner.position)
+        assert_almost_equal((0.0, - self._pixel_height_position, 0.0) * q.m,
+                            self.positioner.position)
 
     def test_forward(self):
         with self.assertRaises(PositionerError):

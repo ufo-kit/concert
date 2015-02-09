@@ -1,5 +1,4 @@
 import numpy as np
-from nose.plugins.attrib import attr
 from concert.quantities import q
 from concert.devices.motors.dummy import ContinuousRotationMotor
 from concert.tests import slow, TestCase
