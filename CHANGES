@@ -4,6 +4,57 @@ Changelog
 Here you can see the full list of changes between each Concert release.
 
 
+Version 0.10
+------------
+
+Released on February 9th 2015.
+
+Improvements
+~~~~~~~~~~~~
+
+- Uca cameras support optional parameters.
+- We added convenience functions for acquiring certain image types like dark
+  fields, etc.
+- We can determine tomographic rotation axis based on the convenince functions
+  mentioned above.
+- Hard-limit state is allowed as target in motor's `home` method.
+- Added a decorator for measuring function execution time.
+- Added XRayTube device.
+- Added Gripper device.
+- Added asynchronous grab `Camera.grab_async`.
+- Added SampleChanger device.
+- Parameter setters are abortable. Thanks to that we added the `abort` function
+  to stop actions on devices. It can be used also per-device.
+- Simplified `concert.base`, we don't use metaclasses anymore.
+- Added `normalize` for intensity normalization.
+- Added `Camera.convert` for converting images before they are returned by the
+  camera's `grab` method (useful for flipping, etc.).
+- Added a generic `process` coroutine which takes a callable and applies it to
+  the coming data.
+- We check soft limits for correct unit.
+- Added EDF reading support via fabio.
+- Added experiment `Addon`s which operate on the data produced by an experiment
+  (e.g. image viewing, online reconstruction, etc.).
+- Added n-dimensional scans.
+- Added ssh+tmux support via `concert-server` and `concert-connect`.
+- Added session `export` command.
+- Added session loading via `--filename`.
+- Walker can write data stored in lists, not only in a coroutine way.
+
+API breaks
+~~~~~~~~~~
+
+- Renamed `fetch` command to `import`.
+- Use positive config names (ENABLE_ instead of DISABLE_).
+
+Fixes
+~~~~~
+
+- Various beam time fixes from #345.
+- IPython version check in #332.
+- #300, #301, #306, #308, #310, #331, #353.
+
+
 Version 0.9
 -----------
 
