@@ -109,11 +109,11 @@ We guarantee that in setters which implement a :class:`.Quantity`, like the
 :meth:`._set_position` above, obtain the value in the exact same units as they
 were specified in the respective :class:`.Quantity` they implement. E.g. if the
 above :meth:`_set_position` implemented a quantity with units set in kilometers,
-the :attr:`.position` of the :meth:`._set_position` will also be in kilometers.
-On the other hand the getters do not need to return the exact same quantity
-but the value must be compatible, so the above :meth:`._get_position` could
-return millimeters and the user would get the value in kilometers, as defined
-in the respective :class:`.Quantity`.
+the :attr:`~.LinearMotor.position` of the :meth:`._set_position` will also be in
+kilometers.  On the other hand the getters do not need to return the exact same
+quantity but the value must be compatible, so the above :meth:`._get_position`
+could return millimeters and the user would get the value in kilometers, as
+defined in the respective :class:`.Quantity`.
 
 Parameter setters can be cancelled by hitting *ctrl-c*. If you want a parameter to
 make some cleanup action after *ctrl-c* is pressed, you should implement the

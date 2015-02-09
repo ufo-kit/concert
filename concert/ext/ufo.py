@@ -33,7 +33,7 @@ class InjectProcess(object):
 
     :class:`InjectProcess` can also be used as a context manager, in which
     case it will call :meth:`~.InjectProcess.start` on entering the manager
-    and :meth:`.wait` on exiting it.
+    and :meth:`~InjectProcess.wait` on exiting it.
 
     *graph* must either be a Ufo.TaskGraph or a Ufo.TaskNode object.  If it is
     a graph the input tasks will be connected to the roots, otherwise a new
@@ -95,7 +95,7 @@ class InjectProcess(object):
         Run the processing in a new thread.
 
         Use :meth:`.push` to insert data into the processing chaing and
-        :meth:`.wait` to wait until processing has finished."""
+        :meth:`~InjectProcess.wait` to wait until processing has finished."""
         def run_scheduler():
             sched = Ufo.Scheduler()
             sched.run(self.graph)
