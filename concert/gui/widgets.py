@@ -11,10 +11,9 @@ from vtk.qt4.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from libtiff import TIFF
 import scipy.ndimage
 import vtk
-import sys
-import os
 import numpy as np
 import inspect
+import weakref
 
 
 class WidgetPattern(QtGui.QGroupBox):
@@ -23,9 +22,13 @@ class WidgetPattern(QtGui.QGroupBox):
     shadow_accepted = False
     widget_moved = QtCore.pyqtSignal()
     widget_pressed = QtCore.pyqtSignal()
+    instances = weakref.WeakSet()
+    grid_x_step = 70
+    grid_y_step = 32
 
     def __init__(self, name, parent=None):
         super(WidgetPattern, self).__init__(parent=parent)
+        WidgetPattern.instances.add(self)
         self._line_start_position = QtCore.QPoint()
         self.layout = QtGui.QVBoxLayout(self)
         self.layout.setContentsMargins(0, 24, 0, 0)
@@ -40,8 +43,7 @@ class WidgetPattern(QtGui.QGroupBox):
         self.close_button.resize(24, 24)
         self.close_button.setAutoRaise(True)
         self.close_button.setIcon(QtGui.QIcon.fromTheme("application-exit"))
-        self.grid_x_step = 70
-        self.grid_y_step = 32
+
         self._units_dict = {}
         self._units_dict['millimeter'] = ["mm", "um"]
         self._units_dict['degree'] = ["deg", "rad"]
@@ -51,6 +53,7 @@ class WidgetPattern(QtGui.QGroupBox):
         self._units_dict['pixel'] = ["pixel"]
         self._units_dict['micrometer'] = ["um", "nm"]
         self._units_dict['1 / second'] = ["1 / second"]
+        self.close_button.clicked.connect(self.parent()._close_button_clicked)
 
     def mousePressEvent(self, event):
         self._offset = event.pos()
@@ -93,14 +96,15 @@ class WidgetPattern(QtGui.QGroupBox):
         QtGui.QApplication.restoreOverrideCursor()
         WidgetPattern.shadow_accepted = False
         self.widget_moved.emit()
+        self.parent().save_layout("autosave")
 
     def get_grid_position(self):
         x = self.mapToParent(QtCore.QPoint(0, 0)).x()
         y = self.mapToParent(QtCore.QPoint(0, 0)).y()
         if x < 0:
             x = 0
-        x = (x / self.grid_x_step * self.grid_x_step)
-        y = y / self.grid_y_step * self.grid_y_step
+        x = (x / WidgetPattern.grid_x_step * WidgetPattern.grid_x_step)
+        y = y / WidgetPattern.grid_y_step * WidgetPattern.grid_y_step
         return x, y
 
     def get_shadow_status(self):
@@ -124,6 +128,11 @@ class WidgetPattern(QtGui.QGroupBox):
             self.width() -
             self.close_button.width(),
             0)
+
+    @classmethod
+    def get_instances(self):
+        # Returns list of all current instances
+        return list(WidgetPattern.instances)
 
 
 class PortWidget(QtGui.QCheckBox):
@@ -293,7 +302,7 @@ class MotorWidget(WidgetPattern):
         dispatcher.subscribe(self.object, 'standby', self.callback)
 
     def callback(self, who):
-        print "called by:"
+        pass
 
     def _value_changed(self):
         sender = self.sender()
@@ -545,7 +554,7 @@ class CameraWidget(WidgetPattern):
         self.imv.setImage(img, autoRange=False)
         self.layout.addWidget(self.imv)
         self.timer = QtCore.QTimer(self)
-#         self.timer.timeout.connect(self.update)
+        self.timer.timeout.connect(self.update)
         self.timer.start(0)
         self._row_number = 3
         self._port_out = PortWidget(self, "port_out")
@@ -590,7 +599,6 @@ class CameraWidget(WidgetPattern):
         img = self.object.grab()
         now = time()
         self.imv.setImage(img, autoRange=False, autoLevels=False)
-        print "fps=", (1.0 / (time() - now))
 
     def _value_changed(self):
         sender = self.sender()
@@ -789,7 +797,6 @@ class ReconstructionWidget(WidgetPattern):
         super(ReconstructionWidget, self).__init__(name, parent)
         self.path = "/home"
         self.setupUi()
-
         self.rec = Recostruction()
         self.isolavel_slider.setValue(self.rec.isolevel)
         self.gaussian_slider.setValue(self.rec.gaussian_param)
@@ -841,8 +848,6 @@ class ReconstructionWidget(WidgetPattern):
 
         self.apply_button = QtGui.QPushButton("Apply")
         self.apply_button.clicked.connect(self.apply_clicked)
-        self.refresh_button = QtGui.QPushButton("Refresh")
-        self.refresh_button.clicked.connect(self.refresh_clicked)
 
         self.load_files_button = QtGui.QPushButton("from files")
         self.load_files_button.clicked.connect(self.load_files_clicked)
@@ -865,7 +870,6 @@ class ReconstructionWidget(WidgetPattern):
         layout.addWidget(self.detalization_value, 3, 2)
 
         layout.addWidget(self.apply_button, 4, 0, 1, 3, QtCore.Qt.AlignCenter)
-#         layout.addWidget(self.refresh_button, 4, 1, QtCore.Qt.AlignLeft)
         layout.addWidget(self.load_files_button, 4, 0, QtCore.Qt.AlignRight)
         layout.addWidget(self.pb, 4, 1, 1, 2, QtCore.Qt.AlignRight)
         return layout
@@ -897,21 +901,14 @@ class ReconstructionWidget(WidgetPattern):
         self.set_reconstruction_parameters()
         self.thread.start()
 
-    def refresh_clicked(self):
-        self.pb.show()
-        self.set_reconstruction_parameters()
-        self.thread.started.disconnect()
-        self.thread.started.connect(self.rec.reconstruction_from_array)
-        self.thread.start()
-
     def load_files_clicked(self):
         self.set_reconstruction_parameters()
         files = QtGui.QFileDialog.getOpenFileNames(
-                self,
-                'Open files',
-                '%s'%self.path,
-                "All files (*.*);;JPEG (*.jpg *.jpeg);;TIFF (*.tif)",
-                "TIFF (*.tif)")
+            self,
+            'Open files',
+            '%s' % self.path,
+            "All files (*.*);;JPEG (*.jpg *.jpeg);;TIFF (*.tif)",
+            "TIFF (*.tif)")
         if len(files) > 1:
             self.path = QtCore.QFileInfo(files[0]).path()
             file_names = []
@@ -924,18 +921,12 @@ class ReconstructionWidget(WidgetPattern):
             self.pb.show()
 
     def update_render(self):
-        #         print "in add_actor"
-        #         if self.actor is not None:
-        #             self.ren.RemoveActor(self.actor)
-        #         self.ren.Clear()
-
         self.ren = vtk.vtkRenderer()
         self.ren.SetBackground(0.329412, 0.34902, 0.427451)
         self.vtkWidget.GetRenderWindow().AddRenderer(self.ren)
         self.iren = self.vtkWidget.GetRenderWindow().GetInteractor()
 
         self.ren.AddActor(self.rec.actor)
-#         self.actor = self.rec.actor
         self.iren.Initialize()
         self.pb.hide()
 
@@ -958,7 +949,7 @@ class Recostruction(QtCore.QObject):
         self.finished.emit()
 
     def reconstruction_from_array(self):
-        n = 1000
+        n = 256
         if self.array is None:
             self.array = self.make_cube(n, n / 2)
         data = self.numpy_to_vtk(self.array)
@@ -981,9 +972,10 @@ class Recostruction(QtCore.QObject):
 
     def array_from_files(self, files):
         frame_rate = 11 - self.detalization
-        (x, y) = TIFF.open(files[0]).read_image()[::frame_rate, ::frame_rate].shape
+        (x, y) = TIFF.open(files[0]).read_image()[
+            ::frame_rate, ::frame_rate].shape
         sample = np.zeros((x, y, len(files[::frame_rate])))
-        zeros = np.zeros((x,y))
+        zeros = np.zeros((x, y))
         for i in xrange(0, len(files), frame_rate):
             im = TIFF.open(files[i])
             image = im.read_image()
@@ -1006,7 +998,8 @@ class Recostruction(QtCore.QObject):
                 scipy.ndimage.binary_propagation(
                     eroded_tmp,
                     mask=tmp))
-            sample[:, :, int(i / frame_rate)] = reconstruct_final[::frame_rate, ::frame_rate]
+            sample[
+                :, :, int(i / frame_rate)] = reconstruct_final[::frame_rate, ::frame_rate]
         return sample.astype(np.ubyte)
 
     def numpy_to_vtk(self, array):
@@ -1047,5 +1040,4 @@ class Recostruction(QtCore.QObject):
         actorBone = vtk.vtkActor()
         actorBone.SetMapper(geoBoneMapper)
         self.actor = actorBone
-#         self.finished.emit()
         return actorBone

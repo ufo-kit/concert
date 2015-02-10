@@ -1,21 +1,31 @@
 from widgets import *
 from spyderlib.widgets.internalshell import InternalShell
-from concert.session.management import load
+import concert.session.management as cs
+import sip
 
 
 class ConcertGUI(QtGui.QMainWindow):
 
-    def __init__(self, session_name, parent=None):
+    def __init__(self, session_name=None, parent=None):
         super(ConcertGUI, self).__init__(parent)
-        self.session = load(session_name)
+
         self._cursor = QtGui.QCursor
         self._start_line_point = QtCore.QPoint()
         self.dic_index = 0
-        self.device_tree = TreeWidget(self)
         self._width = 200
         self._grid_lines = []
         self.lines_info = {}
-        self._add_device_tree()
+        self.widget = None
+        self.initial_port = None
+        self.current_layout = "Untitled"
+        self.session = session_name
+        self.device_tree = TreeWidget(self)
+        self.device_tree.setMaximumWidth(self._width)
+        self.device_tree.setHeaderItem(QtGui.QTreeWidgetItem(["Devices"]))
+        self.device_tree.header().setStretchLastSection(False)
+        self.function_tree = TreeWidget(self)
+        self.function_tree.setHeaderItem(QtGui.QTreeWidgetItem(["function"]))
+
         exit_action = QtGui.QAction(
             QtGui.QIcon.fromTheme("application-exit"),
             '&Exit',
@@ -37,25 +47,72 @@ class ConcertGUI(QtGui.QMainWindow):
         reconstruction.triggered.connect(self._create_reconstruction_widget)
         reconstruction.setShortcut('Ctrl+R')
 
+        save_layout = QtGui.QAction('&save layout', self)
+        save_layout.triggered.connect(self.save_layout)
+        save_layout.setShortcut('Ctrl+S')
+
+        save_layout_as = QtGui.QAction('&save layout as', self)
+        save_layout_as.triggered.connect(self.save_layout_as)
+        save_layout_as.setShortcut('Ctrl+Shift+S')
+
+        open_layout = QtGui.QAction('&open layout', self)
+        open_layout.triggered.connect(self.open_layout)
+        open_layout.setShortcut('Ctrl+O')
+
+        open_last_layout = QtGui.QAction('&open last layout', self)
+        open_last_layout.triggered.connect(self.open_last_layout)
+        open_last_layout.setShortcut('Ctrl+Shift+L')
+
+        load_session = QtGui.QAction('&load session', self)
+        load_session.triggered.connect(self.load_session)
+        load_session.setShortcut('Ctrl+L')
+
         self._menubar = self.menuBar()
         file_menu = self._menubar.addMenu('&File')
+        file_menu.addAction(load_session)
+        file_menu.addAction(open_layout)
+        file_menu.addAction(open_last_layout)
+        file_menu.addAction(save_layout)
+        file_menu.addAction(save_layout_as)
+
         file_menu.addAction(exit_action)
         view_menu = self._menubar.addMenu('&View')
         view_menu.addAction(hide_tree_action)
         view_menu.addAction(reconstruction)
-        self._create_terminal()
+
+        self.console_dock = QtGui.QDockWidget("Console", self)
+        self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, self.console_dock)
+
+        self.initUI(session_name)
+
+        dock = QtGui.QDockWidget("Functions", self)
+        dock.setWidget(self.function_tree)
+        dock.adjustSize()
+        self.addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)
+
         self.setCentralWidget(self.device_tree)
-        self._add_function_tree()
-        self.setWindowTitle("Concert GUI")
+        self.set_window_title()
         self.resize(1300, 1000)
-        self.widget = WidgetPattern("")
-        self.initial_port = None
+        self.show()
+        if session_name is None:
+            load_session.triggered.emit(True)
+
+    def set_window_title(self):
+        self.setWindowTitle("%s - Concert GUI" % (self.current_layout))
+
+    def initUI(self, session):
+        if not session is None:
+            self.session = cs.load(str(session))
+            self.device_tree.clear()
+            self.function_tree.clear()
+            self._add_device_tree()
+            self._add_function_tree()
+        self._create_terminal()
 
     def set_current_widget(self):
         self.widget = self.sender()
 
     def _create_reconstruction_widget(self):
-        file_names = None
         self.widget = ReconstructionWidget(
             "reconstruction", self)
         self.widget.close_button.clicked.connect(
@@ -64,23 +121,13 @@ class ConcertGUI(QtGui.QMainWindow):
         self.widget.show()
 
     def _add_function_tree(self):
-        self.function_tree = TreeWidget(self)
-        self.function_tree.setHeaderItem(QtGui.QTreeWidgetItem(["function"]))
         for name in dir(self.session):
             object = getattr(self.session, name)
             if hasattr(object, "_isfunction"):
                 QtGui.QTreeWidgetItem(self.function_tree, [str(name)])
-        self.function_tree.adjustSize()
-        self.function_tree.resizeColumnToContents(0)
-        dock = QtGui.QDockWidget("Functions", self)
-        dock.setWidget(self.function_tree)
-        dock.adjustSize()
-        self.addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)
 
     def _add_device_tree(self):
-        self.device_tree.setMaximumWidth(self._width)
-        self.device_tree.setHeaderItem(QtGui.QTreeWidgetItem(["Devices"]))
-        self.device_tree.header().setStretchLastSection(False)
+
         self._items_list = {}
         """ Adding items to device tree"""
         for name in dir(self.session):
@@ -130,16 +177,13 @@ class ConcertGUI(QtGui.QMainWindow):
         cons.execute_command("from concert.quantities import q")
         cons.execute_lines("""for name in dir(concert):
             object = getattr(concert, name)
-            print hasattr(object,"_isfunction")
             if isinstance(object, Device):
                 globals().update({name:object})
             if hasattr(object,"_isfunction"):
                     globals().update({name:object})
             \n\n""")
         cons.execute_command("cls")
-        console_dock = QtGui.QDockWidget("Console", self)
-        console_dock.setWidget(cons)
-        self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, console_dock)
+        self.console_dock.setWidget(self.console)
 
     def create_function(self, nameOfWidget):
         self.widget = FunctionWidget(str(nameOfWidget), self)
@@ -190,7 +234,7 @@ class ConcertGUI(QtGui.QMainWindow):
     def paintEvent(self, event):
         qp = QtGui.QPainter()
         qp.begin(self)
-        if self.widget.get_shadow_status():
+        if self.widget is not None and self.widget.get_shadow_status():
             qp.setBrush(QtGui.QColor("#ffcccc"))
             qp.setPen(QtCore.Qt.NoPen)
             x, y = self.widget.get_grid_position()
@@ -198,7 +242,7 @@ class ConcertGUI(QtGui.QMainWindow):
             qp.setPen(QtGui.QPen(QtCore.Qt.black, 1, QtCore.Qt.DashDotLine))
             qp.drawLines(self._grid_lines)
         qp.setPen(QtGui.QPen(QtCore.Qt.black, 1))
-        if self.widget.get_draw_line_status():
+        if self.widget is not None and self.widget.get_draw_line_status():
             qp.drawLine(
                 self._start_line_point, self.mapFromGlobal(self._cursor.pos()))
         for line in self.lines_info.itervalues():
@@ -207,12 +251,12 @@ class ConcertGUI(QtGui.QMainWindow):
         qp.end()
 
     def resizeEvent(self, event):
-        for i in xrange(int(self.width() / self.widget.grid_x_step)):
-            x = i * self.widget.grid_x_step
+        for i in xrange(int(self.width() / WidgetPattern.grid_x_step)):
+            x = i * WidgetPattern.grid_x_step
             if x >= 0:
                 self._grid_lines.append(QtCore.QLine(x, 0, x, self.height()))
-        for i in xrange(int(self.height() / self.widget.grid_y_step)):
-            y = i * self.widget.grid_y_step
+        for i in xrange(int(self.height() / WidgetPattern.grid_y_step)):
+            y = i * WidgetPattern.grid_y_step
             self._grid_lines.append(QtCore.QLine(0, y, self.width(), y))
 
     def mouseReleaseEvent(self, event):
@@ -240,6 +284,8 @@ class ConcertGUI(QtGui.QMainWindow):
         if not item == []:
             item[-1].setDisabled(False)
         sender.close()
+        sender.deleteLater()
+        self.save_layout("autosave")
 
     def new_connection(self, start_point):
         self._start_line_point = start_point
@@ -263,6 +309,85 @@ class ConcertGUI(QtGui.QMainWindow):
             port.is_start_point = False
             self.initial_port.dic_index = port.dic_index = self.dic_index
             self.dic_index += 1
+
+    def save_layout(self, file_name=None):
+        if not file_name:
+            file_name = self.current_layout
+        settings = QtCore.QSettings('concert', file_name)
+        settings.clear()
+        for obj in WidgetPattern.get_instances():
+            if not sip.isdeleted(obj):
+                name = obj.name.text()
+                settings.beginGroup(name)
+                settings.setValue('position', obj.pos())
+                settings.endGroup()
+        settings.setValue('session', self.session.__name__)
+
+    def save_layout_as(self):
+        text, ok = QtGui.QInputDialog.getText(self, 'Save layout as',
+                                              'Enter layout name:', False, self.current_layout)
+        if ok:
+            self.current_layout = text
+            self.set_window_title()
+            self.save_layout(file_name=text)
+
+    def open_layout(self, file=None):
+        if not file:
+            path = QtCore.QDir().homePath() + "/.config/concert"
+            file = QtGui.QFileDialog.getOpenFileName(
+                self, "Load layout from file", path, "*.conf")
+            if not file == "":
+                self.current_layout = file.section('/', -1).split('.')[0]
+            else:
+                return
+        else:
+            self.current_layout = file
+        self._remove_all_widgets()
+        self.set_window_title()
+        settings = QtCore.QSettings(
+            'concert', self.current_layout)
+        session = settings.value('session', type=str)
+        if not hasattr(self.session, "__name__") or not self.session.__name__ == session:
+            self.initUI(session)
+        devices = settings.childGroups()
+        for widget_name in devices:
+            item = self.device_tree.findItems(
+                widget_name, QtCore.Qt.MatchExactly | QtCore.Qt.MatchRecursive)[0]
+            tree = item.treeWidget()
+            item.setDisabled(True)
+            if tree.headerItem().text(0) == "function":
+                header_text = "function"
+            else:
+                header = item.parent()
+                if header is not None:
+                    if hasattr(header.parent(), "text"):
+                        header_text = header.parent().text(0)
+                    else:
+                        header_text = header.text(0)
+            self._func = getattr(
+                self,
+                "create_" +
+                str(header_text), None)
+            self._func(widget_name)
+            settings.beginGroup(widget_name)
+            position = settings.value('position', type=QtCore.QPoint)
+            settings.endGroup()
+            self.widget.move(position)
+
+    def load_session(self):
+        session, ok = QtGui.QInputDialog.getItem(self, 'Load session',
+                                                 'Choose session:', cs.get_existing())
+        if ok:
+            self._remove_all_widgets()
+            self.initUI(session)
+
+    def _remove_all_widgets(self):
+        for widget in WidgetPattern.get_instances():
+            if not sip.isdeleted(widget):
+                widget.close_button.clicked.emit(True)
+
+    def open_last_layout(self):
+        self.open_layout("autosave")
 
 
 class TreeWidget(QtGui.QTreeWidget):
@@ -311,8 +436,6 @@ class TreeWidget(QtGui.QTreeWidget):
                         if not self._new_widget_created_flag:
                             self._new_widget_created_flag = True
                             self._func(self.currentItem().text(0))
-                            self.gui.widget.close_button.clicked.connect(
-                                self.gui._close_button_clicked)
                         pos = QtCore.QPoint(
                             int(self.gui.widget.width() / 2), 0)
                         self.gui.widget.move_widget(self.gui.mapFromGlobal(
@@ -353,8 +476,7 @@ def main():
     pal = app.palette()
     pal.setColor(QtGui.QPalette.Window, QtGui.QColor.fromRgb(232, 229, 226))
     app.setPalette(pal)
-    gui = ConcertGUI("new-session")
-    gui.show()
+    ConcertGUI()
     sys.exit(app.exec_())
 
 if __name__ == '__main__':
