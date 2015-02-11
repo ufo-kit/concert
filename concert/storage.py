@@ -15,7 +15,7 @@ def read_image(filename):
     automatically.
     """
     for ext, reader in READERS.items():
-        if filename.endswith(ext):
+        if filename.lower().endswith(ext):
             return reader(filename)
 
     raise ValueError("Unsupported file type")
