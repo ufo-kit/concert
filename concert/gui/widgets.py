@@ -212,7 +212,7 @@ class LightSourceWidget(WidgetPattern):
         self._layout.addWidget(self._port, 0, 0)
         self._layout.addWidget(self._spin_value, 0, 2)
         self._layout.addWidget(self._intensity_units, 0, 3)
-        self.setFixedSize(self.widgetLength, 60)
+        self.resize(self.widgetLength, 60)
         self.layout.addLayout(self._layout)
         self._intensity_units.currentIndexChanged.connect(self._unit_changed)
         self._spin_value.valueChanged.connect(self._number_changed)
@@ -241,6 +241,7 @@ class MotorWidget(WidgetPattern):
         super(MotorWidget, self).__init__(name, parent)
         self._green = "background-color: rgb(230, 255, 230);"
         self._orange = "background-color: rgb(255, 214, 156);"
+        self._red = "background-color: rgb(255, 153, 153);"
         self.object = deviceObject
         self._home_button = QtGui.QToolButton()
         self._home_button.setIcon(QtGui.QIcon.fromTheme("go-home"))
@@ -296,13 +297,9 @@ class MotorWidget(WidgetPattern):
                 parameter_unit.currentIndexChanged.connect(
                     self._get_value_from_concert)
                 self._row_number += 1
-        self.setFixedSize(self.widgetLength, 60 + (self._row_number - 1) * 25)
+        self.resize(self.widgetLength, 60 + (self._row_number - 1) * 25)
         self.layout.addLayout(self._layout)
         self._get_value_from_concert()
-        dispatcher.subscribe(self.object, 'standby', self.callback)
-
-    def callback(self, who):
-        pass
 
     def _value_changed(self):
         sender = self.sender()
@@ -311,14 +308,8 @@ class MotorWidget(WidgetPattern):
                 num = sender.text()
                 unit = value[1].currentText()
                 new_value = q.parse_expression(str(num) + str(unit))
-                try:
-                    f = getattr(
-                        self.object, "set_" + key, None)(new_value)
-                    f.add_done_callback(self.state_switched)
-                except HardLimitError:
-                    pass
-                self._get_value_from_concert()
-        dispatcher.send(self.object, 'standby')
+                f = getattr(self.object, "set_" + key, None)(new_value)
+                f.add_done_callback(self.state_switched)
 
     def state_switched(self, f):
         QtCore.QObject.connect(
@@ -351,6 +342,9 @@ class MotorWidget(WidgetPattern):
         elif (state == 'moving'):
             self._state_label.setStyleSheet(self._orange)
             self._state_label.setText("moving")
+        elif (state == 'hard-limit'):
+            self._state_label.setStyleSheet(self._red)
+            self._state_label.setText("hard-limit")
 
     def _home_button_clicked(self):
         self.object.home
@@ -791,13 +785,28 @@ class FunctionWidget(WidgetPattern):
             print "%s function called" % self.name.text()
 
 
-class ReconstructionWidget(WidgetPattern):
+class VisualizationWidget(QtGui.QGroupBox):
 
     def __init__(self, name, parent=None):
-        super(ReconstructionWidget, self).__init__(name, parent)
+        super(VisualizationWidget, self).__init__(parent=parent)
+        self._line_start_position = QtCore.QPoint()
+        self.layout = QtGui.QVBoxLayout(self)
+        self.layout.setContentsMargins(0, 24, 0, 0)
+        self._offset = 0
+        self._cursor = QtGui.QCursor
+        self.widgetLength = 280
+        self.widgetHeight = 20
+        self.name = QtGui.QLabel(parent=self)
+        self.name.setText(name)
+        self.name.adjustSize()
+        self.close_button = QtGui.QToolButton(parent=self)
+        self.close_button.resize(24, 24)
+        self.close_button.setAutoRaise(True)
+        self.close_button.setIcon(QtGui.QIcon.fromTheme("application-exit"))
+        self.resize(200, 200)
         self.path = "/home"
         self.setupUi()
-        self.rec = Recostruction()
+        self.rec = Visualization()
         self.isolavel_slider.setValue(self.rec.isolevel)
         self.gaussian_slider.setValue(self.rec.gaussian_param)
         self.erosion_iterations_slider.setValue(self.rec.erosion_iterations)
@@ -809,12 +818,21 @@ class ReconstructionWidget(WidgetPattern):
         self.rec.finished.connect(self.thread.quit)
         self.thread.finished.connect(self.update_render)
 
+        self.close_button.clicked.connect(self.close)
+
+    def resizeEvent(self, event):
+        self.name.move(self.width() / 2 - self.name.width() / 2, 5)
+        self.close_button.move(
+            self.width() -
+            self.close_button.width(),
+            0)
+
     def setupUi(self):
         self.vtkWidget = QVTKRenderWindowInteractor(self)
         self.layout.addWidget(self.vtkWidget, 0)
         panel = self.create_panel()
         self.layout.addLayout(panel, 1)
-        self.setFixedSize(500, 500)
+        self.resize(500, 500)
 
     def create_panel(self):
         layout = QtGui.QGridLayout()
@@ -839,7 +857,7 @@ class ReconstructionWidget(WidgetPattern):
             str(self.erosion_iterations_slider.value()))
 
         self.detalization_slider = QtGui.QSlider(QtCore.Qt.Horizontal)
-        self.detalization_slider.setRange(1, 10)
+        self.detalization_slider.setRange(4, 10)
         self.detalization_label = QtGui.QLabel("detalization")
         self.detalization_value = QtGui.QLabel(
             str(self.isolavel_slider.value()))
@@ -884,11 +902,8 @@ class ReconstructionWidget(WidgetPattern):
         self.erosion_iterations_value.setText(str(value))
 
     def detalization_changed(self, value):
-        if value == 1:
-            value = "min"
-        elif value == 10:
-            value = "max"
-        self.detalization_value.setText(str(value))
+        self.detalization_value.setText(
+            "%.0f" % ((10. / (11 - value)) ** 2) + " %")
 
     def set_reconstruction_parameters(self):
         self.rec.isolevel = self .isolavel_slider.value()
@@ -931,7 +946,7 @@ class ReconstructionWidget(WidgetPattern):
         self.pb.hide()
 
 
-class Recostruction(QtCore.QObject):
+class Visualization(QtCore.QObject):
 
     actor = None
     finished = QtCore.pyqtSignal()

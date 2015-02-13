@@ -43,8 +43,8 @@ class ConcertGUI(QtGui.QMainWindow):
         hide_tree_action.setCheckable(True)
         hide_tree_action.setChecked(True)
         reconstruction = QtGui.QAction(
-            '&Reconstruction widget', self)
-        reconstruction.triggered.connect(self._create_reconstruction_widget)
+            '&Visualization widget', self)
+        reconstruction.triggered.connect(self._create_visualization_widget)
         reconstruction.setShortcut('Ctrl+R')
 
         save_layout = QtGui.QAction('&save layout', self)
@@ -112,13 +112,9 @@ class ConcertGUI(QtGui.QMainWindow):
     def set_current_widget(self):
         self.widget = self.sender()
 
-    def _create_reconstruction_widget(self):
-        self.widget = ReconstructionWidget(
-            "reconstruction", self)
-        self.widget.close_button.clicked.connect(
-            self._close_button_clicked)
-        self.widget.move(290, 70)
-        self.widget.show()
+    def _create_visualization_widget(self):
+        self.v_widget = VisualizationWidget("3D Visualization", None)
+        self.v_widget.show()
 
     def _add_function_tree(self):
         for name in dir(self.session):
@@ -476,7 +472,7 @@ def main():
     pal = app.palette()
     pal.setColor(QtGui.QPalette.Window, QtGui.QColor.fromRgb(232, 229, 226))
     app.setPalette(pal)
-    ConcertGUI()
+    ConcertGUI("new-session")
     sys.exit(app.exec_())
 
 if __name__ == '__main__':
