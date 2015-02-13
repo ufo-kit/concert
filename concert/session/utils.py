@@ -1,9 +1,17 @@
+import logging
 import math
+import os
 import inspect
 import subprocess
+import time
 import prettytable
+from concert.async import threaded, wait
 from concert.devices.base import abort as device_abort
 from concert.devices.base import Device
+from concert.quantities import q
+
+
+LOG = logging.getLogger(__name__)
 
 
 def _get_param_description_table(device, max_width):
@@ -139,3 +147,24 @@ def abort():
     from concert.devices.base import Device
 
     return device_abort((device for (name, device) in _current_instances(Device)))
+
+
+@threaded
+def check_emergency_stop(check, poll_interval=0.1*q.s, exit_session=False):
+    """
+    check_emergency_stop(check, poll_interval=0.1*q.s, exit_session=False)
+    If a callable *check* returns True abort is called. Then until it clears to False nothing is
+    done and then the process begins again. *poll_interval* is the interval at which *check* is
+    called. If *exit_session* is True the session exits when the emergency stop occurs.
+    """
+    while True:
+        if check():
+            futures = abort()
+            LOG.error('Emergency stop')
+            wait(futures)
+            if exit_session:
+                os.abort()
+            while check():
+                # Wait until the flag clears
+                time.sleep(poll_interval.to(q.s).magnitude)
+        time.sleep(poll_interval.to(q.s).magnitude)
