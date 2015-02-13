@@ -138,5 +138,4 @@ def abort():
     """Abort all actions related with parameters on all devices and lock the devices."""
     from concert.devices.base import Device
 
-    tuples = _current_instances(Device)
-    return device_abort(zip(*tuples)[1])
+    return device_abort((device for (name, device) in _current_instances(Device)))
