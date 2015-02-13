@@ -143,7 +143,7 @@ def code_of(func):
 
 
 def abort():
-    """Abort all actions related with parameters on all devices and lock the devices."""
+    """Abort all actions related with parameters on all devices."""
     from concert.devices.base import Device
 
     return device_abort((device for (name, device) in _current_instances(Device)))
