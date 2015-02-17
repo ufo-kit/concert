@@ -1,4 +1,4 @@
-from PyQt4 import QtCore, QtGui
+from PyQt4 import QtCore, QtGui, Qwt5
 from concert.quantities import q
 from concert.devices.base import Device
 from concert.base import HardLimitError
@@ -22,11 +22,12 @@ class WidgetPattern(QtGui.QGroupBox):
     shadow_accepted = False
     widget_moved = QtCore.pyqtSignal()
     widget_pressed = QtCore.pyqtSignal()
+    data_changed = QtCore.pyqtSignal()
     instances = weakref.WeakSet()
     grid_x_step = 70
     grid_y_step = 32
 
-    def __init__(self, name, parent=None):
+    def __init__(self, name, parent=None, deviceObject=None):
         super(WidgetPattern, self).__init__(parent=parent)
         WidgetPattern.instances.add(self)
         self._line_start_position = QtCore.QPoint()
@@ -53,7 +54,11 @@ class WidgetPattern(QtGui.QGroupBox):
         self._units_dict['pixel'] = ["pixel"]
         self._units_dict['micrometer'] = ["um", "nm"]
         self._units_dict['1 / second'] = ["1 / second"]
-        self.close_button.clicked.connect(self.parent()._close_button_clicked)
+        if deviceObject is not None:
+            dispatcher.subscribe(deviceObject, "value_changed", self.callback)
+        if self.parent() is not None:
+            self.close_button.clicked.connect(
+                self.parent()._close_button_clicked)
 
     def mousePressEvent(self, event):
         self._offset = event.pos()
@@ -134,27 +139,38 @@ class WidgetPattern(QtGui.QGroupBox):
         # Returns list of all current instances
         return list(WidgetPattern.instances)
 
+    def callback(self, sender):
+        self.data_changed.emit()
+
 
 class PortWidget(QtGui.QCheckBox):
     draw_new_line = False
     __name__ = "PortWidget"
+    port_connected = QtCore.pyqtSignal()
+    port_disconnected = QtCore.pyqtSignal()
 
     def __init__(self, parent, parameter=""):
         super(PortWidget, self).__init__(parameter, parent)
         self.setCheckable(False)
         self.setMouseTracking(True)
+        self.data = 0.
         self.is_start_point = False
         self.connection_point = QtCore.QPoint(8, 8)
-        self.dic_index = None
-        self.index = None
         self.parameter = parameter
         self.gui = self.parent().parent()
         self.parent().close_button.clicked.connect(self.remove_connection)
         self.parent().widget_moved.connect(self.move_connections)
 
+    def get_line_number(self):
+        for number, line in self.gui.lines_info.iteritems():
+            if line.start_port == self or line.finish_port == self:
+                return number
+        return None
+
     def move_connections(self):
-        if self.dic_index is not None:
-            line = self.gui.lines_info[self.dic_index]
+        index = self.get_line_number()
+        if index is not None:
+            line = self.gui.lines_info[index]
             if self.is_start_point:
                 line.setP1(self.mapTo(self.gui, self.connection_point))
             else:
@@ -172,8 +188,11 @@ class PortWidget(QtGui.QCheckBox):
         PortWidget.draw_new_line = True
 
     def remove_connection(self):
-        if self.dic_index is not None:
-            del self.gui.lines_info[self.dic_index]
+        index = self.get_line_number()
+        if index is not None:
+            self.port_disconnected.emit()
+            self.get_another_widget().port_disconnected.emit()
+            del self.gui.lines_info[index]
 
     def mouseReleaseEvent(self, event):
         PortWidget.draw_new_line = False
@@ -185,11 +204,12 @@ class PortWidget(QtGui.QCheckBox):
         self.connection_point = QtCore.QPoint(self.width() - 8, 8)
 
     def get_another_widget(self):
-        if self.dic_index is not None:
+        index = self.get_line_number()
+        if index is not None:
             if self.is_start_point:
-                return self.gui.lines_info[self.dic_index].finish_port.parent()
+                return self.gui.lines_info[index].finish_port
             else:
-                return self.gui.lines_info[self.dic_index].start_port.parent()
+                return self.gui.lines_info[index].start_port
         else:
             return None
 
@@ -238,7 +258,7 @@ class LightSourceWidget(WidgetPattern):
 class MotorWidget(WidgetPattern):
 
     def __init__(self, name, deviceObject, parent=None):
-        super(MotorWidget, self).__init__(name, parent)
+        super(MotorWidget, self).__init__(name, parent, deviceObject)
         self._green = "background-color: rgb(230, 255, 230);"
         self._orange = "background-color: rgb(255, 214, 156);"
         self._red = "background-color: rgb(255, 153, 153);"
@@ -268,7 +288,8 @@ class MotorWidget(WidgetPattern):
 
         """_obj_dict is a dictionary where key is a name of widget,
             value[0] is QtGui.QDoubleSpinBox for this parameter
-            value[1] is QtGui.QComboBox object with units for this parameter"""
+            value[1] is QtGui.QComboBox object with units for this parameter
+            value[2] is PortWidget for this parameter"""
 
         self._obj_dict = {}
         for param in self.object:
@@ -289,7 +310,8 @@ class MotorWidget(WidgetPattern):
                 parameter_unit.setObjectName(_parameter_name)
                 self._obj_dict[_parameter_name] = [
                     parameter_value,
-                    parameter_unit]
+                    parameter_unit,
+                    parameter_label]
                 self._layout.addWidget(parameter_label, self._row_number, 0)
                 self._layout.addWidget(parameter_value, self._row_number, 3)
                 self._layout.addWidget(parameter_unit, self._row_number, 4)
@@ -300,6 +322,7 @@ class MotorWidget(WidgetPattern):
         self.resize(self.widgetLength, 60 + (self._row_number - 1) * 25)
         self.layout.addLayout(self._layout)
         self._get_value_from_concert()
+        self.data_changed.connect(self._get_value_from_concert)
 
     def _value_changed(self):
         sender = self.sender()
@@ -307,6 +330,7 @@ class MotorWidget(WidgetPattern):
             if value[0] == sender:
                 num = sender.text()
                 unit = value[1].currentText()
+                value[2].data = float(num)
                 new_value = q.parse_expression(str(num) + str(unit))
                 f = getattr(self.object, "set_" + key, None)(new_value)
                 f.add_done_callback(self.state_switched)
@@ -332,6 +356,7 @@ class MotorWidget(WidgetPattern):
                 new_value = getattr(self.object, _key)
             parameter_value.setValue(float(new_value.magnitude))
             parameter_value.valueChanged.connect(self._value_changed)
+            self._obj_dict[_key][2].data = float(new_value.magnitude)
         self._check_state()
 
     def _check_state(self):
@@ -390,8 +415,6 @@ class PositionerWidget(WidgetPattern):
         z_label = QtGui.QLabel("z")
         self._rotation_axis = QtGui.QComboBox()
         self._rotation_axis.addItems(["x", "y", "z"])
-#         self._rotation_axis.setMaximumWidth(50)
-#         self._rotation_axis.setMinimumWidth(35)
         self._step_value = QtGui.QDoubleSpinBox()
         self._step_value.setRange(0, 1000000)
         self._step_value.setAccelerated(True)
@@ -544,15 +567,15 @@ class CameraWidget(WidgetPattern):
         self.object = deviceObject
         layout = QtGui.QGridLayout()
         self.imv = pg.ImageView(self)
-        img = self.object.grab()
-        self.imv.setImage(img, autoRange=False)
+        self.frame = self.object.grab()
+        self.imv.setImage(self.frame, autoRange=False)
         self.layout.addWidget(self.imv)
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.update)
         self.timer.start(0)
         self._row_number = 3
         self._port_out = PortWidget(self, "port_out")
-        self.layout.addWidget(self._port_out)
+        self.layout.addWidget(self._port_out, 2, QtCore.Qt.AlignLeft)
         self.widget = QtGui.QWidget()
         self._obj_dict = {}
         for param in self.object:
@@ -590,9 +613,10 @@ class CameraWidget(WidgetPattern):
         self._get_value_from_concert()
 
     def update(self, fps=None):
-        img = self.object.grab()
+        frame = self.object.grab()
+        self._port_out.data = frame
         now = time()
-        self.imv.setImage(img, autoRange=False, autoLevels=False)
+        self.imv.setImage(frame, autoRange=False, autoLevels=False)
 
     def _value_changed(self):
         sender = self.sender()
@@ -721,11 +745,12 @@ class FunctionWidget(WidgetPattern):
             if inspect.isclass(self.func.e_args[i]) and issubclass(
                     self.func.e_args[i], Device):
                 port = getattr(self, self.func.f_args[i])
-                if hasattr(port.get_another_widget(), "object"):
-                    args.append(getattr(port.get_another_widget(), "object"))
+                if port.get_another_widget() is not None:
+                    args.append(
+                        getattr(port.get_another_widget().parent(), "object"))
                 else:
                     print "%s is not defined!" % port.text()
-                    return
+                    return 0
             elif isinstance(self.func.e_args[i], processes.Numeric):
                 spin_box = getattr(self, self.func.f_args[i] + "0")
 
@@ -753,8 +778,9 @@ class FunctionWidget(WidgetPattern):
             if inspect.isclass(self.func.e_keywords[item]) and issubclass(
                     self.func.e_keywords[item], Device):
                 port = getattr(self, item)
-                if hasattr(port.get_another_widget(), "object"):
-                    args.append(getattr(port.get_another_widget(), "object"))
+                if port.get_another_widget() is not None:
+                    args.append(
+                        getattr(port.get_another_widget().parent(), "object"))
                 else:
                     break
 
@@ -1056,3 +1082,61 @@ class Visualization(QtCore.QObject):
         actorBone.SetMapper(geoBoneMapper)
         self.actor = actorBone
         return actorBone
+
+
+class PlotWidget(WidgetPattern):
+
+    def __init__(self, name, parent=None):
+        super(PlotWidget, self).__init__(name, parent)
+        self._layout = QtGui.QGridLayout()
+        self._port = PortWidget(self, "in")
+        self._port.setLayoutDirection(QtCore.Qt.RightToLeft)
+        self._port.adjustSize()
+        self._port.port_connected.connect(self.port_connected)
+        self._port.port_disconnected.connect(self.port_disconnected)
+
+        self._layout.addWidget(self._port, 1, 1, 1, 2, QtCore.Qt.AlignLeft)
+        self.plot = Qwt5.QwtPlot()
+        self.plot.setCanvasBackground(QtCore.Qt.white)
+
+        # Initialize data
+        self.x = np.arange(0.0, 50)
+        self.y = np.zeros(len(self.x))
+        self.plot.setAxisScale(Qwt5.QwtPlot.xBottom, 0, len(self.x))
+
+        self.plot.curveR = Qwt5.QwtPlotCurve("states")
+        self.plot.curveR.attach(self.plot)
+        self.plot.curveR.setPen(QtGui.QPen(QtCore.Qt.red))
+
+        mY = Qwt5.QwtPlotMarker()
+        mY.setLabelAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignTop)
+        mY.setLineStyle(Qwt5.QwtPlotMarker.HLine)
+        mY.setYValue(0.0)
+        mY.attach(self.plot)
+
+        self.plot.setAxisTitle(Qwt5.QwtPlot.xBottom, "States")
+        self.plot.setAxisTitle(Qwt5.QwtPlot.yLeft, "Values")
+        self.data_changed.connect(self.replot)
+        self._layout.addWidget(self.plot)
+        self.layout.addLayout(self._layout)
+        self.points_to_show = 1
+
+    def port_connected(self):
+        self.connected_device = self.sender().get_another_widget().parent().object
+        self.parameter = self.sender().get_another_widget().parameter
+        units = self.connected_device[self.parameter].get().result().units
+        self.plot.setAxisTitle(Qwt5.QwtPlot.yLeft, "%s, %s" % (self.parameter, units))
+        dispatcher.subscribe(self.connected_device, "value_changed", self.callback)
+
+    def port_disconnected(self):
+        dispatcher.unsubscribe(self.connected_device, "value_changed", self.callback)
+        self.points_to_show = 1
+
+    def replot(self):
+        data = self.connected_device[self.parameter].get().result().magnitude
+        self.y = np.concatenate((self.y[:1], self.y[:-1]), 1)
+        self.y[0] = data
+        self.plot.curveR.setData(self.x[:self.points_to_show], self.y[:self.points_to_show])
+        self.plot.replot()
+        if self.points_to_show < len(self.x):
+            self.points_to_show += 1

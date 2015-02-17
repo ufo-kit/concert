@@ -11,7 +11,7 @@ class ConcertGUI(QtGui.QMainWindow):
 
         self._cursor = QtGui.QCursor
         self._start_line_point = QtCore.QPoint()
-        self.dic_index = 0
+        self.line_index = 0
         self._width = 200
         self._grid_lines = []
         self.lines_info = {}
@@ -42,10 +42,14 @@ class ConcertGUI(QtGui.QMainWindow):
         hide_tree_action.triggered.connect(self._hide_widgets_list)
         hide_tree_action.setCheckable(True)
         hide_tree_action.setChecked(True)
-        reconstruction = QtGui.QAction(
+        visualization = QtGui.QAction(
             '&Visualization widget', self)
-        reconstruction.triggered.connect(self._create_visualization_widget)
-        reconstruction.setShortcut('Ctrl+R')
+        visualization.triggered.connect(self._create_visualization_widget)
+        visualization.setShortcut('Ctrl+R')
+
+        plotting = QtGui.QAction('&Plot widget', self)
+        plotting.triggered.connect(self._create_plot_widget)
+        plotting.setShortcut('Ctrl+P')
 
         save_layout = QtGui.QAction('&save layout', self)
         save_layout.triggered.connect(self.save_layout)
@@ -78,14 +82,17 @@ class ConcertGUI(QtGui.QMainWindow):
         file_menu.addAction(exit_action)
         view_menu = self._menubar.addMenu('&View')
         view_menu.addAction(hide_tree_action)
-        view_menu.addAction(reconstruction)
+        view_menu.addAction(visualization)
+        view_menu.addAction(plotting)
 
         self.console_dock = QtGui.QDockWidget("Console", self)
+        self.console_dock.setObjectName("console")
         self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, self.console_dock)
 
         self.initUI(session_name)
 
         dock = QtGui.QDockWidget("Functions", self)
+        dock.setObjectName("functions")
         dock.setWidget(self.function_tree)
         dock.adjustSize()
         self.addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)
@@ -111,6 +118,12 @@ class ConcertGUI(QtGui.QMainWindow):
 
     def set_current_widget(self):
         self.widget = self.sender()
+
+    def _create_plot_widget(self):
+        self.p_widget = PlotWidget("Line plot widget", self)
+        self.p_widget.resize(550, 500)
+        self.p_widget.move(100, 100)
+        self.p_widget.show()
 
     def _create_visualization_widget(self):
         self.v_widget = VisualizationWidget("3D Visualization", None)
@@ -280,7 +293,6 @@ class ConcertGUI(QtGui.QMainWindow):
         if not item == []:
             item[-1].setDisabled(False)
         sender.close()
-        sender.deleteLater()
         self.save_layout("autosave")
 
     def new_connection(self, start_point):
@@ -289,22 +301,24 @@ class ConcertGUI(QtGui.QMainWindow):
 
     def connection_complited(self, port):
         '''Create a connection between widgets'''
-        if port.dic_index is None and self.initial_port.parent(
+        if port.get_line_number() is None and self.initial_port.parent(
         ) is not port.parent():
             new_line = Line(self._start_line_point, self.mapFromGlobal(
                 port.mapToGlobal(port.connection_point)))
             finish_point = self.mapFromGlobal(
                 port.mapToGlobal(
                     port.connection_point))
-            self.lines_info[self.dic_index] = new_line
+            self.lines_info[self.line_index] = new_line
             new_line.start_point = self._start_line_point
             new_line.finish_point = finish_point
             new_line.start_port = self.initial_port
             new_line.finish_port = port
+
             self.initial_port.is_start_point = True
             port.is_start_point = False
-            self.initial_port.dic_index = port.dic_index = self.dic_index
-            self.dic_index += 1
+            new_line.start_port.port_connected.emit()
+            new_line.finish_port.port_connected.emit()
+            self.line_index += 1
 
     def save_layout(self, file_name=None):
         if not file_name:
@@ -312,14 +326,16 @@ class ConcertGUI(QtGui.QMainWindow):
         settings = QtCore.QSettings('concert', file_name)
         settings.clear()
         for obj in WidgetPattern.get_instances():
-            if not sip.isdeleted(obj):
+            if obj.isVisible():
                 name = obj.name.text()
                 settings.beginGroup(name)
                 settings.setValue('position', obj.pos())
                 settings.endGroup()
         settings.setValue('session', self.session.__name__)
+        settings.setValue('state', self.saveState())
 
     def save_layout_as(self):
+
         text, ok = QtGui.QInputDialog.getText(self, 'Save layout as',
                                               'Enter layout name:', False, self.current_layout)
         if ok:
@@ -347,8 +363,21 @@ class ConcertGUI(QtGui.QMainWindow):
             self.initUI(session)
         devices = settings.childGroups()
         for widget_name in devices:
+            if widget_name == "Line plot widget":
+                settings.beginGroup(widget_name)
+                position = settings.value('position', type=QtCore.QPoint)
+                settings.endGroup()
+                self._create_plot_widget()
+                self.p_widget.move(position)
+                continue
             item = self.device_tree.findItems(
-                widget_name, QtCore.Qt.MatchExactly | QtCore.Qt.MatchRecursive)[0]
+                widget_name, QtCore.Qt.MatchExactly | QtCore.Qt.MatchRecursive)
+            if item == []:
+                item = self.function_tree.findItems(
+                    widget_name, QtCore.Qt.MatchExactly | QtCore.Qt.MatchRecursive)
+            if item == []:
+                continue
+            item = item[0]
             tree = item.treeWidget()
             item.setDisabled(True)
             if tree.headerItem().text(0) == "function":
@@ -458,10 +487,6 @@ class Line(QtCore.QLine):
         self.start_port = None
         self.finish_point = QtCore.QPoint()
         self.finish_port = None
-
-    def __del__(self):
-        self.start_port.dic_index = None
-        self.finish_port.dic_index = None
 
 
 def main():
