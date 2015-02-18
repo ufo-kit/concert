@@ -2,6 +2,7 @@
 from concert.base import check, State, AccessorNotImplementedError
 from concert.async import async
 from concert.devices.base import Device
+from concert.async import dispatcher
 
 
 class Shutter(Device):
@@ -20,6 +21,7 @@ class Shutter(Device):
 
         Open the shutter."""
         self._open()
+        dispatcher.send(self, "state_changed")
 
     @async
     @check(source='open', target='closed')
@@ -28,6 +30,7 @@ class Shutter(Device):
 
         Close the shutter."""
         self._close()
+        dispatcher.send(self, "state_changed")
 
     def _open(self):
         raise AccessorNotImplementedError
