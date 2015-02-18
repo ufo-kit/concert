@@ -9,6 +9,7 @@ import threading
 from concert.helpers import memoize
 from concert.async import async, wait, busy_wait
 from concert.quantities import q
+from concert.async import dispatcher
 
 
 LOG = logging.getLogger(__name__)
@@ -315,6 +316,7 @@ class Parameter(object):
             msg = "set {}::{}='{}'"
             name = instance.__class__.__name__
             LOG.info(msg.format(name, self.name, value))
+            dispatcher.send(instance, "value_changed")
         except KeyboardInterrupt:
             cancel_name = '_cancel_' + self.name
             if hasattr(instance, cancel_name):
