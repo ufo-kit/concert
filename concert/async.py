@@ -92,7 +92,7 @@ if concert.config.ENABLE_GEVENT:
         import gevent.monkey
         import gevent.threadpool
 
-        gevent.monkey.patch_all()
+        gevent.monkey.patch_all(thread=False, socket=False)
 
         # XXX: we have to import threading after patching
         import threading

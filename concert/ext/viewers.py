@@ -21,6 +21,7 @@ from concert.async import threaded
 from concert.quantities import q
 from concert.storage import write_tiff
 from concert.coroutines.base import coroutine
+import concert.config
 
 
 LOG = logging.getLogger(__name__)
@@ -627,44 +628,141 @@ class _PyplotImageUpdater(_PyplotUpdaterBase):
         return lower_ratio > 0.1 or upper_ratio > 0.1
 
 
-class PyqtgraphImageViewer(object):
+class Viewer(pg.widgets.RemoteGraphicsView.RemoteGraphicsView):
+    leaving = pg.QtCore.pyqtSignal()
 
-    def __init__(self):
-        pg.mkQApp()
-        self.remote_view = pg.widgets.RemoteGraphicsView.RemoteGraphicsView()
-        self._view_item = self.remote_view.pg.ImageView()
-        self._view_item._setProxyOptions(deferGetattr=True)
-        self.remote_view.setCentralItem(self._view_item.getView())
+    def __init__(self, parent=None, *args, **kwds):
+        super(Viewer, self).__init__(self, *args, **kwds)
+        self.exited = False
 
-        self.image = None
-        self._coro = None
-        self._started = False
-        self.remote_viewtimer = pg.Qt.QtCore.QTimer()
-        self.remote_viewtimer.timeout.connect(self._updateview)
-        self.remote_viewtimer.start(0)
+    def closeEvent(self, event):
+        self.exited = True
+        self.leaving.emit()
+        time.sleep(0.05)
+        event.accept()
+            
+if concert.config.ENABLE_GEVENT:
+    from IPython.lib.inputhook import inputhook_manager
+    from concert.ext.gevent import inputhook_gevent
+    from concert.async import gevent
 
-    def show(self, item):
-        self.image = item
 
-    def __call__(self):
-        if self._coro is None:
-            self._coro = self._coroutine()
+    class PyqtgraphImageViewer(object):
+        app = pg.mkQApp()
+        _viewers_number = 0
 
-        return self._coro
+        def __init__(self):
+            super(PyqtgraphImageViewer, self).__init__()
+            self.idle_period = 0.001
+            self._started = False
+            self._coro = None
+            self.image = None
 
-    @coroutine
-    def _coroutine(self):
-        while True:
-            self.image = yield
+        def _create_viewer(self):
+            self.remote_view = Viewer()
+            self._view_item = self.remote_view.pg.ImageView()
+            self._view_item._setProxyOptions(deferGetattr=True)
+            self.remote_view.setCentralItem(self._view_item.getView())
+            self.image = None
+            self._coro = None
+            self._started = False
+            self.remote_viewtimer = pg.Qt.QtCore.QTimer()
+            self.remote_viewtimer.timeout.connect(self._updateview)
+            self.remote_viewtimer.start(0)
+            self.remote_view.leaving.connect(self.leave)
 
-    def _updateview(self):
-        if self.image is not None:
+            if PyqtgraphImageViewer._viewers_number == 0:
+                gevent.spawn(inputhook_gevent)
+                gevent.spawn(self.app.exec_)
+            PyqtgraphImageViewer._viewers_number += 1
+
+        def show(self, item):
+            if not self._started:
+                self._start()
+            self.image = item
+            gevent.sleep(self.idle_period)
+
+        def __call__(self):
+            if self._coro is None:
+                self._coro = self._coroutine()
+            return self._coro
+
+        @coroutine
+        def _coroutine(self):
             if not self._started:
                 self._start()
 
-            self._view_item.setImage(self.image, autoRange=False, autoLevels=False,
-                                     autoHistogramRange=False)
+            while self._started:
+                self.image = yield
+                gevent.sleep(self.idle_period)
 
-    def _start(self):
-        self.remote_view.show()
-        self._started = True
+        def _updateview(self):
+            if self.image is not None:
+                self._view_item.setImage(self.image, autoRange=False, autoLevels=False,
+                                         autoHistogramRange=False)
+            gevent.sleep(self.idle_period)
+
+        def _start(self):
+            self._create_viewer()
+            self.remote_view.show()
+            self._started = True
+
+        def leave(self):
+            PyqtgraphImageViewer._viewers_number -= 1
+            self._started = False
+            self.remote_viewtimer.stop()
+
+else:
+
+    class PyqtgraphImageViewer(object):
+
+        def __init__(self):
+            pg.mkQApp()
+            self._create_viewer()
+
+        def _create_viewer(self):
+            self.remote_view = Viewer()
+            self._view_item = self.remote_view.pg.ImageView()
+            self._view_item._setProxyOptions(deferGetattr=True)
+            self.remote_view.setCentralItem(self._view_item.getView())
+            self.image = None
+            self._coro = None
+            self._started = False
+            self.remote_viewtimer = pg.Qt.QtCore.QTimer()
+            self.remote_viewtimer.timeout.connect(self._updateview)
+            self.remote_viewtimer.start(0)
+            self.remote_view.leaving.connect(self.leave)
+
+        def show(self, item):
+            if not self._started:
+                self._start()
+            self.image = item
+
+        def __call__(self):
+            if self._coro is None:
+                self._coro = self._coroutine()
+            return self._coro
+
+        @coroutine
+        def _coroutine(self):
+            if not self._started:
+                self._start()
+            while self._started:
+                self.image = yield
+
+        def _updateview(self):
+            if self.image is not None:
+                self._view_item.setImage(self.image, autoRange=False, autoLevels=False,
+                                         autoHistogramRange=False)
+
+        def _start(self):
+            if not hasattr(self, "remote_view"):
+                self._create_viewer()
+
+            self.remote_view.show()
+            self._started = True
+
+        def leave(self):
+            self._started = False
+            self.remote_viewtimer.stop()
+            del self.remote_view
