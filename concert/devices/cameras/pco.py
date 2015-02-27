@@ -137,6 +137,9 @@ class Timestamp(object):
         """Date and time when the image was taken."""
         return self._time
 
+    def __repr__(self):
+        return 'Timestamp(number={}, time={})'.format(self.number, self.time)
+
 
 def _concatenate_ints(sequence):
     """Construct a number from *sequence* of integers, e.g. [1, 2, 3] will be transformed to
