@@ -169,14 +169,20 @@ class Backproject(InjectProcess):
         if axis_pos:
             self.backprojector.props.axis_pos = axis_pos
 
+        super(Backproject, self).__init__(self._connect_nodes(), get_output=True)
+
+        self.output_task.props.num_dims = 2
+
+    def _connect_nodes(self, first=None):
+        """Connect processing nodes. *first* is the node before fft."""
         graph = Ufo.TaskGraph()
+        if first:
+            graph.connect_nodes(first, self.fft)
         graph.connect_nodes(self.fft, self.fltr)
         graph.connect_nodes(self.fltr, self.ifft)
         graph.connect_nodes(self.ifft, self.backprojector)
 
-        super(Backproject, self).__init__(graph, get_output=True)
-
-        self.output_task.props.num_dims = 2
+        return graph
 
     @property
     def axis_position(self):
@@ -186,26 +192,27 @@ class Backproject(InjectProcess):
     def axis_position(self, position):
         self.backprojector.set_properties(axis_pos=position)
 
+    def _process(self, sinogram, consumer):
+        """Process *sinogram* and send the result to *consumer*. Only to be used in __call__."""
+        self.insert(sinogram)
+        consumer.send(self.result())
+
     @coroutine
     def __call__(self, consumer):
         """Get a sinogram, do filtered backprojection and send it to *consumer*."""
-        def process(sino):
-            self.insert(sino)
-            consumer.send(self.result())
-
         if not self._started:
             self.start()
 
         sinogram = yield
         self.ifft.props.crop_width = sinogram.shape[1]
-        process(sinogram)
+        self._process(sinogram, consumer)
 
         while True:
             sinogram = yield
-            process(sinogram)
+            self._process(sinogram, consumer)
 
 
-class FlatCorrectedBackproject(InjectProcess):
+class FlatCorrectedBackproject(Backproject):
 
     """
     Coroutine to reconstruct slices from sinograms using filtered
@@ -221,27 +228,17 @@ class FlatCorrectedBackproject(InjectProcess):
 
     def __init__(self, axis_pos=None, flat_row=None, dark_row=None):
         self.pm = PluginManager()
-        self.sino_correction = self.pm.get_task('flat-field-correction')
-        self.fft = self.pm.get_task('fft', dimensions=1)
-        self.ifft = self.pm.get_task('ifft', dimensions=1)
-        self.fltr = self.pm.get_task('filter')
-        self.backprojector = self.pm.get_task('backproject')
-
-        if axis_pos:
-            self.backprojector.props.axis_pos = axis_pos
-
+        self.sino_correction = self.pm.get_task('flat-field-correct')
         self.sino_correction.props.sinogram_input = True
 
-        graph = Ufo.TaskGraph()
-        graph.connect_nodes(self.sino_correction, self.fft)
-        graph.connect_nodes(self.fft, self.fltr)
-        graph.connect_nodes(self.fltr, self.ifft)
-        graph.connect_nodes(self.ifft, self.backprojector)
-
-        super(FlatCorrectedBackproject, self).__init__(graph, get_output=True)
+        super(FlatCorrectedBackproject, self).__init__(axis_pos=axis_pos)
 
         self.flat_row = flat_row
         self.dark_row = dark_row
+
+    def _connect_nodes(self):
+        """Connect nodes with flat-correction."""
+        return super(FlatCorrectedBackproject, self)._connect_nodes(first=self.sino_correction)
 
     @property
     def axis_position(self):
@@ -274,20 +271,13 @@ class FlatCorrectedBackproject(InjectProcess):
 
         self._flat_row = row
 
-    @coroutine
-    def __call__(self, consumer):
-        """Get a sinogram, do filtered backprojection and send it to *consumer*."""
-        if not self._started:
-            self.start()
-
-        while True:
-            sinogram = yield
-            self.insert(sinogram.astype(np.float32), node=self.sino_correction, index=0)
-            if self.dark_row is None or self.flat_row is None:
-                raise ValueError('Both flat and dark rows must be set')
-            self.insert(self.dark_row, node=self.sino_correction, index=1)
-            self.insert(self.flat_row, node=self.sino_correction, index=2)
-            consumer.send(self.result())
+    def _process(self, sinogram, consumer):
+        self.insert(sinogram.astype(np.float32), node=self.sino_correction, index=0)
+        if self.dark_row is None or self.flat_row is None:
+            raise ValueError('Both flat and dark rows must be set')
+        self.insert(self.dark_row, node=self.sino_correction, index=1)
+        self.insert(self.flat_row, node=self.sino_correction, index=2)
+        consumer.send(self.result())
 
 
 @coroutine
