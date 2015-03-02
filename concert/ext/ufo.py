@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 import threading
+import sys
 import numpy as np
 
 try:
@@ -7,6 +8,12 @@ try:
     import ufo.numpy
 except ImportError as e:
     print(str(e))
+
+try:
+    from tofu.reco import setup_padding
+except ImportError:
+    print >> sys.stderr, "You must install tofu to use Ufo features, see "\
+                         "'https://github.com/ufo-kit/tofu.git'"
 
 from concert.quantities import q
 from concert.coroutines.base import coroutine, inject
@@ -161,6 +168,8 @@ class Backproject(InjectProcess):
 
     def __init__(self, axis_pos=None):
         self.pm = PluginManager()
+        self.pad = self.pm.get_task('pad')
+        self.crop = self.pm.get_task('cut-roi')
         self.fft = self.pm.get_task('fft', dimensions=1)
         self.ifft = self.pm.get_task('ifft', dimensions=1)
         self.fltr = self.pm.get_task('filter')
@@ -177,10 +186,13 @@ class Backproject(InjectProcess):
         """Connect processing nodes. *first* is the node before fft."""
         graph = Ufo.TaskGraph()
         if first:
-            graph.connect_nodes(first, self.fft)
+            graph.connect_nodes(first, self.pad)
+
+        graph.connect_nodes(self.pad, self.fft)
         graph.connect_nodes(self.fft, self.fltr)
         graph.connect_nodes(self.fltr, self.ifft)
-        graph.connect_nodes(self.ifft, self.backprojector)
+        graph.connect_nodes(self.ifft, self.crop)
+        graph.connect_nodes(self.crop, self.backprojector)
 
         return graph
 
@@ -204,7 +216,7 @@ class Backproject(InjectProcess):
             self.start()
 
         sinogram = yield
-        self.ifft.props.crop_width = sinogram.shape[1]
+        setup_padding(self.pad, self.crop, sinogram.shape[1], sinogram.shape[0])
         self._process(sinogram, consumer)
 
         while True:
@@ -256,7 +268,6 @@ class FlatCorrectedBackproject(Backproject):
     def dark_row(self, row):
         if row is not None:
             row = row.astype(np.float32)
-            self.ifft.props.crop_width = row.shape[0]
 
         self._dark_row = row
 
