@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 import threading
+import sys
 import numpy as np
 
 try:
@@ -8,7 +9,17 @@ try:
 except ImportError as e:
     print(str(e))
 
-from concert.coroutines.base import coroutine
+try:
+    from tofu.reco import setup_padding
+except ImportError:
+    print >> sys.stderr, "You must install tofu to use Ufo features, see "\
+                         "'https://github.com/ufo-kit/tofu.git'"
+
+from concert.quantities import q
+from concert.coroutines.base import coroutine, inject
+from concert.coroutines.filters import sinograms, flat_correct
+from concert.coroutines.sinks import Result
+from concert.experiments.imaging import tomo_projections_number, frames
 
 
 class PluginManager(object):
@@ -141,6 +152,7 @@ class InjectProcess(object):
         """Wait until processing has finished."""
         self.stop()
         self.thread.join()
+        self._started = False
 
 
 class Backproject(InjectProcess):
@@ -156,6 +168,8 @@ class Backproject(InjectProcess):
 
     def __init__(self, axis_pos=None):
         self.pm = PluginManager()
+        self.pad = self.pm.get_task('pad')
+        self.crop = self.pm.get_task('cut-roi')
         self.fft = self.pm.get_task('fft', dimensions=1)
         self.ifft = self.pm.get_task('ifft', dimensions=1)
         self.fltr = self.pm.get_task('filter')
@@ -164,14 +178,23 @@ class Backproject(InjectProcess):
         if axis_pos:
             self.backprojector.props.axis_pos = axis_pos
 
-        graph = Ufo.TaskGraph()
-        graph.connect_nodes(self.fft, self.fltr)
-        graph.connect_nodes(self.fltr, self.ifft)
-        graph.connect_nodes(self.ifft, self.backprojector)
-
-        super(Backproject, self).__init__(graph, get_output=True)
+        super(Backproject, self).__init__(self._connect_nodes(), get_output=True)
 
         self.output_task.props.num_dims = 2
+
+    def _connect_nodes(self, first=None):
+        """Connect processing nodes. *first* is the node before fft."""
+        graph = Ufo.TaskGraph()
+        if first:
+            graph.connect_nodes(first, self.pad)
+
+        graph.connect_nodes(self.pad, self.fft)
+        graph.connect_nodes(self.fft, self.fltr)
+        graph.connect_nodes(self.fltr, self.ifft)
+        graph.connect_nodes(self.ifft, self.crop)
+        graph.connect_nodes(self.crop, self.backprojector)
+
+        return graph
 
     @property
     def axis_position(self):
@@ -179,28 +202,29 @@ class Backproject(InjectProcess):
 
     @axis_position.setter
     def axis_position(self, position):
-        self.backprojector.props.axis_pos = position
+        self.backprojector.set_properties(axis_pos=position)
+
+    def _process(self, sinogram, consumer):
+        """Process *sinogram* and send the result to *consumer*. Only to be used in __call__."""
+        self.insert(sinogram)
+        consumer.send(self.result())
 
     @coroutine
     def __call__(self, consumer):
         """Get a sinogram, do filtered backprojection and send it to *consumer*."""
-        def process(sino):
-            self.insert(sino)
-            consumer.send(self.result())
-
         if not self._started:
             self.start()
 
         sinogram = yield
-        self.ifft.props.crop_width = sinogram.shape[1]
-        process(sinogram)
+        setup_padding(self.pad, self.crop, sinogram.shape[1], sinogram.shape[0])
+        self._process(sinogram, consumer)
 
         while True:
             sinogram = yield
-            process(sinogram)
+            self._process(sinogram, consumer)
 
 
-class FlatCorrectedBackproject(InjectProcess):
+class FlatCorrectedBackproject(Backproject):
 
     """
     Coroutine to reconstruct slices from sinograms using filtered
@@ -216,27 +240,17 @@ class FlatCorrectedBackproject(InjectProcess):
 
     def __init__(self, axis_pos=None, flat_row=None, dark_row=None):
         self.pm = PluginManager()
-        self.sino_correction = self.pm.get_task('flat-field-correction')
-        self.fft = self.pm.get_task('fft', dimensions=1)
-        self.ifft = self.pm.get_task('ifft', dimensions=1)
-        self.fltr = self.pm.get_task('filter')
-        self.backprojector = self.pm.get_task('backproject')
-
-        if axis_pos:
-            self.backprojector.props.axis_pos = axis_pos
-
+        self.sino_correction = self.pm.get_task('flat-field-correct')
         self.sino_correction.props.sinogram_input = True
 
-        graph = Ufo.TaskGraph()
-        graph.connect_nodes(self.sino_correction, self.fft)
-        graph.connect_nodes(self.fft, self.fltr)
-        graph.connect_nodes(self.fltr, self.ifft)
-        graph.connect_nodes(self.ifft, self.backprojector)
-
-        super(FlatCorrectedBackproject, self).__init__(graph, get_output=True)
+        super(FlatCorrectedBackproject, self).__init__(axis_pos=axis_pos)
 
         self.flat_row = flat_row
         self.dark_row = dark_row
+
+    def _connect_nodes(self):
+        """Connect nodes with flat-correction."""
+        return super(FlatCorrectedBackproject, self)._connect_nodes(first=self.sino_correction)
 
     @property
     def axis_position(self):
@@ -254,7 +268,6 @@ class FlatCorrectedBackproject(InjectProcess):
     def dark_row(self, row):
         if row is not None:
             row = row.astype(np.float32)
-            self.ifft.props.crop_width = row.shape[0]
 
         self._dark_row = row
 
@@ -269,17 +282,127 @@ class FlatCorrectedBackproject(InjectProcess):
 
         self._flat_row = row
 
-    @coroutine
-    def __call__(self, consumer):
-        """Get a sinogram, do filtered backprojection and send it to *consumer*."""
-        if not self._started:
-            self.start()
+    def _process(self, sinogram, consumer):
+        self.insert(sinogram.astype(np.float32), node=self.sino_correction, index=0)
+        if self.dark_row is None or self.flat_row is None:
+            raise ValueError('Both flat and dark rows must be set')
+        self.insert(self.dark_row, node=self.sino_correction, index=1)
+        self.insert(self.flat_row, node=self.sino_correction, index=2)
+        consumer.send(self.result())
 
-        while True:
-            sinogram = yield
-            self.insert(sinogram.astype(np.float32), node=self.sino_correction, index=0)
-            if self.dark_row is None or self.flat_row is None:
-                raise ValueError('Both flat and dark rows must be set')
-            self.insert(self.dark_row, node=self.sino_correction, index=1)
-            self.insert(self.flat_row, node=self.sino_correction, index=2)
-            consumer.send(self.result())
+
+@coroutine
+def middle_row(consumer):
+    while True:
+        frame = yield
+        row = frame.shape[0] / 2
+        part = frame[row-1:row+1, :]
+        consumer.send(part)
+
+
+def center_rotation_axis(camera, motor, initial_motor_step,
+                         num_iterations=2, num_projections=None, flat=None, dark=None):
+    """
+    Center the rotation axis controlled by *motor*.
+
+    Use an iterative approach to center the rotation axis. Around *motor*s
+    current position, we evaluate five points by running a reconstruction.
+    *rotation_motor* rotates the sample around the tomographic axis.
+    *num_iterations* controls the final resolution of the step size, halving
+    each iteration. *flat* is a flat field frame and *dark* is a dark field
+    frame which will be used for flat correcting the acuired projections.
+    """
+
+    width_2 = camera.roi_width.magnitude / 2.0
+    axis_pos = width_2
+
+    # Use only the middle region of the reconstructed slice for evaluation
+    region = slice(width_2 / 2, width_2 + width_2 / 2)
+
+    # Crop the dark and flat
+    if flat is not None:
+        middle = flat.shape[0] / 2
+        flat = flat[middle, :]
+        if dark is not None:
+            dark = dark[middle, :]
+
+    n = num_projections or tomo_projections_number(camera.roi_width)
+    angle_step = np.pi / n * q.rad
+
+    step = initial_motor_step
+    current = motor.position
+
+    for i in range(num_iterations):
+        frm = current - step
+        to = current + step
+        div = 2.0 * step / 5.0
+
+        positions = (frm, frm + div, current, current + div, to)
+        scores = []
+
+        for position in positions:
+            motor.position = position
+            backproject = Backproject(axis_pos)
+            sino_result = Result()
+            sino_coro = sino_result()
+            if flat is not None:
+                sino_coro = flat_correct(flat, sino_coro, dark=dark)
+
+            inject(frames(n, camera, callback=lambda: rotation_motor.move(angle_step).join()),
+                   middle_row(sinograms(n, sino_coro)))
+
+            sinogram = (sinogram.result[0,:,:], )
+            result = Result()
+            m0 = np.mean(np.sum(sinogram[0], axis=1))
+
+            inject(sinogram, backproject(result()))
+            backproject.wait()
+
+            img = result.result
+
+            # Other possibilities: sum(abs(img)) or sum(img * heaviside(-img))
+            score = np.sum(np.abs(np.gradient(img))) / m0
+            scores.append(score)
+
+        current = positions[scores.index(min(scores))]
+        step /= 2.0
+
+
+def compute_rotation_axis(sinogram, initial_step=None, max_iterations=14,
+                          slice_consumer=None, score_consumer=None):
+
+    width_2 = sinogram.shape[1] / 2.0
+    iteration = 0
+    step = initial_step or width_2 / 2
+    current = width_2
+
+    while step > 1 and iteration < max_iterations:
+        frm = current - step
+        to = current + step
+        div = 2.0 * step / 5.0
+
+        axes = (frm, frm + div, current, current + div, to)
+        scores = []
+
+        for axis in axes:
+            backproject = Backproject(axis)
+            result = Result()
+
+            inject((sinogram, ), backproject(result()))
+            backproject.wait()
+
+            img = result.result
+
+            # Other possibilities: sum(abs(img)) or sum(img * heaviside(-img))
+            score = np.sum(np.abs(np.gradient(img)))
+            scores.append(score)
+            if slice_consumer:
+                slice_consumer.send(img)
+            if score_consumer:
+                score_consumer.send(axis * q.px)
+
+        current = axes[scores.index(min(scores))]
+        step /= 2.0
+        iteration += 1
+
+    return current
