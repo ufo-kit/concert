@@ -420,7 +420,7 @@ class StartCommand(Command):
 
         print("Welcome to Concert {0}".format(concert.__version__))
 
-        if module:
+        if module and module.__doc__:
             print(module.__doc__)
 
         attrs = [attr for attr in dir(module) if not attr.startswith('_')]
