@@ -51,9 +51,9 @@ class InjectProcess(object):
     graph will be created.
     """
 
-    def __init__(self, graph, get_output=False):
-        self.sched = Ufo.Scheduler()
+    def __init__(self, graph, get_output=False, output_dims=2):
         self.output_tasks = {}
+        self.sched = Ufo.Scheduler()
         self._started = False
 
         if isinstance(graph, Ufo.TaskGraph):
@@ -81,6 +81,7 @@ class InjectProcess(object):
         if get_output:
             for i, leave in enumerate(self.graph.get_leaves()):
                 self.output_tasks[leave] = Ufo.OutputTask()
+                self.output_tasks[leave].props.num_dims = output_dims
                 self.graph.connect_nodes(leave, self.output_tasks[leave])
 
     def __enter__(self):
@@ -199,9 +200,7 @@ class Backproject(InjectProcess):
         if axis_pos:
             self.backprojector.props.axis_pos = axis_pos
 
-        super(Backproject, self).__init__(self._connect_nodes(), get_output=True)
-
-        self.output_tasks.values()[0].props.num_dims = 2
+        super(Backproject, self).__init__(self._connect_nodes(), get_output=True, output_dims=2)
 
     def _connect_nodes(self, first=None):
         """Connect processing nodes. *first* is the node before fft."""
