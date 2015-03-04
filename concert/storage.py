@@ -1,8 +1,8 @@
 """Storage implementations."""
 import os
 import logging
+import tifffile
 from logging import FileHandler, Formatter
-from concert.ext import tifffile
 from concert.coroutines.base import coroutine, inject
 
 
