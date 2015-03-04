@@ -52,8 +52,8 @@ class InjectProcess(object):
     """
 
     def __init__(self, graph, get_output=False):
-        self.output_task = None
         self.sched = Ufo.Scheduler()
+        self.output_tasks = {}
         self._started = False
 
         if isinstance(graph, Ufo.TaskGraph):
@@ -79,9 +79,9 @@ class InjectProcess(object):
                 self.graph.connect_nodes_full(self.input_tasks[root][i], root, i)
 
         if get_output:
-            self.output_task = Ufo.OutputTask()
-            leaves = self.graph.get_leaves()
-            self.graph.connect_nodes(leaves[0], self.output_task)
+            for i, leave in enumerate(self.graph.get_leaves()):
+                self.output_tasks[leave] = Ufo.OutputTask()
+                self.graph.connect_nodes(leave, self.output_tasks[leave])
 
     def __enter__(self):
         self.start()
@@ -100,7 +100,7 @@ class InjectProcess(object):
         while True:
             item = yield
             self.insert(item)
-            consumer.send(self.result())
+            consumer.send(self.one_result())
 
     def start(self, arch=None, gpu=None):
         """
@@ -143,12 +143,25 @@ class InjectProcess(object):
         self.ufo_buffers[node][index].copy_host_array(array.__array_interface__['data'][0])
         self.input_tasks[node][index].release_input_buffer(self.ufo_buffers[node][index])
 
-    def result(self):
-        if self.output_task:
-            buf = self.output_task.get_output_buffer()
-            result = np.copy(ufo.numpy.asarray(buf))
-            self.output_task.release_output_buffer(buf)
-            return result
+    def result(self, leaves=None):
+        """Get result from *leaves* if not None, all leaves if None. Returns a dictionay
+        {leave: result}.
+        """
+        if not leaves:
+            leaves = self.output_tasks.keys()
+
+        if self.output_tasks:
+            results = {}
+            for leave in leaves:
+                buf = self.output_tasks[leave].get_output_buffer()
+                results[leave] = np.copy(ufo.numpy.asarray(buf))
+                self.output_tasks[leave].release_output_buffer(buf)
+            return results
+
+    def one_result(self):
+        """Convenience function for graphs with just one leave."""
+        res = self.result().values()[0]
+        return res
 
     def stop(self):
         """Stop input tasks."""
@@ -188,7 +201,7 @@ class Backproject(InjectProcess):
 
         super(Backproject, self).__init__(self._connect_nodes(), get_output=True)
 
-        self.output_task.props.num_dims = 2
+        self.output_tasks.values()[0].props.num_dims = 2
 
     def _connect_nodes(self, first=None):
         """Connect processing nodes. *first* is the node before fft."""
@@ -215,7 +228,7 @@ class Backproject(InjectProcess):
     def _process(self, sinogram, consumer):
         """Process *sinogram* and send the result to *consumer*. Only to be used in __call__."""
         self.insert(sinogram)
-        consumer.send(self.result())
+        consumer.send(self.one_result())
 
     @coroutine
     def __call__(self, consumer, arch=None, gpu=None):
@@ -297,7 +310,7 @@ class FlatCorrectedBackproject(Backproject):
             raise ValueError('Both flat and dark rows must be set')
         self.insert(self.dark_row, node=self.sino_correction, index=1)
         self.insert(self.flat_row, node=self.sino_correction, index=2)
-        consumer.send(self.result())
+        consumer.send(self.one_result())
 
 
 @coroutine
