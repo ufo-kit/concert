@@ -53,6 +53,7 @@ class InjectProcess(object):
 
     def __init__(self, graph, get_output=False):
         self.output_task = None
+        self.sched = Ufo.Scheduler()
         self._started = False
 
         if isinstance(graph, Ufo.TaskGraph):
@@ -108,13 +109,11 @@ class InjectProcess(object):
         Use :meth:`.push` to insert data into the processing chaing and
         :meth:`~InjectProcess.wait` to wait until processing has finished."""
         def run_scheduler():
-            sched = Ufo.Scheduler()
-            sched.run(self.graph)
+            self.sched.run(self.graph)
 
         self.thread = threading.Thread(target=run_scheduler)
         self.thread.start()
-        if not self._started:
-            self._started = True
+        self._started = True
 
     def insert(self, array, node=None, index=0):
         """
