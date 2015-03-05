@@ -3,7 +3,9 @@ from concert.quantities import q
 from concert.devices.base import Device
 from concert.base import HardLimitError
 from concert.async import dispatcher
-import concert.processes.common as processes
+from concert.processes import common, beamline
+# import concert.processes.common as processes
+from concert.helpers import Numeric
 from functools import partial
 from pyqtgraph.ptime import time
 import pyqtgraph as pg
@@ -30,6 +32,9 @@ class WidgetPattern(QtGui.QGroupBox):
     def __init__(self, name, parent=None, deviceObject=None):
         super(WidgetPattern, self).__init__(parent=parent)
         WidgetPattern.instances.add(self)
+        self._green = "background-color: rgb(230, 255, 230);"
+        self._orange = "background-color: rgb(255, 214, 156);"
+        self._red = "background-color: rgb(255, 153, 153);"
         self._line_start_position = QtCore.QPoint()
         self.layout = QtGui.QVBoxLayout(self)
         self.layout.setContentsMargins(0, 24, 0, 0)
@@ -41,9 +46,8 @@ class WidgetPattern(QtGui.QGroupBox):
         self.name.setText(name)
         self.name.adjustSize()
         self.close_button = QtGui.QToolButton(parent=self)
-        self.close_button.resize(24, 24)
-        self.close_button.setAutoRaise(True)
-        self.close_button.setIcon(QtGui.QIcon.fromTheme("application-exit"))
+        self.close_button.resize(16, 16)
+        self.close_button.setIcon(QtGui.QIcon.fromTheme("window-close"))
 
         self._units_dict = {}
         self._units_dict['millimeter'] = ["mm", "um"]
@@ -153,7 +157,6 @@ class PortWidget(QtGui.QCheckBox):
         super(PortWidget, self).__init__(parameter, parent)
         self.setCheckable(False)
         self.setMouseTracking(True)
-        self.data = 0.
         self.is_start_point = False
         self.connection_point = QtCore.QPoint(8, 8)
         self.parameter = parameter
@@ -162,14 +165,15 @@ class PortWidget(QtGui.QCheckBox):
         self.parent().widget_moved.connect(self.move_connections)
 
     def get_line_number(self):
+        line_numbers = []
         for number, line in self.gui.lines_info.iteritems():
             if line.start_port == self or line.finish_port == self:
-                return number
-        return None
+                line_numbers.append(number)
+        return line_numbers
 
     def move_connections(self):
-        index = self.get_line_number()
-        if index is not None:
+        line_numbers = self.get_line_number()
+        for index in line_numbers:
             line = self.gui.lines_info[index]
             if self.is_start_point:
                 line.setP1(self.mapTo(self.gui, self.connection_point))
@@ -177,19 +181,21 @@ class PortWidget(QtGui.QCheckBox):
                 line.setP2(self.mapTo(self.gui, self.connection_point))
 
     def mousePressEvent(self, event):
-        self.pressed.connect(
-            partial(
-                self.parent().parent().new_connection,
-                self.mapTo(
-                    self.gui,
-                    self.connection_point)))
-        self.remove_connection()
-        super(PortWidget, self).mousePressEvent(event)
-        PortWidget.draw_new_line = True
+        if event.button() == QtCore.Qt.LeftButton:
+            self.pressed.connect(
+                partial(
+                    self.parent().parent().new_connection,
+                    self.mapTo(
+                        self.gui,
+                        self.connection_point)))
+            super(PortWidget, self).mousePressEvent(event)
+            PortWidget.draw_new_line = True
+        elif event.button() == QtCore.Qt.RightButton:
+            self.remove_connection()
 
     def remove_connection(self):
-        index = self.get_line_number()
-        if index is not None:
+        line_numbers = self.get_line_number()
+        for index in line_numbers:
             self.port_disconnected.emit()
             self.get_another_widget().port_disconnected.emit()
             del self.gui.lines_info[index]
@@ -204,8 +210,8 @@ class PortWidget(QtGui.QCheckBox):
         self.connection_point = QtCore.QPoint(self.width() - 8, 8)
 
     def get_another_widget(self):
-        index = self.get_line_number()
-        if index is not None:
+        line_numbers = self.get_line_number()
+        for index in line_numbers:
             if self.is_start_point:
                 return self.gui.lines_info[index].finish_port
             else:
@@ -259,9 +265,7 @@ class MotorWidget(WidgetPattern):
 
     def __init__(self, name, deviceObject, parent=None):
         super(MotorWidget, self).__init__(name, parent, deviceObject)
-        self._green = "background-color: rgb(230, 255, 230);"
-        self._orange = "background-color: rgb(255, 214, 156);"
-        self._red = "background-color: rgb(255, 153, 153);"
+
         self.object = deviceObject
         self._home_button = QtGui.QToolButton()
         self._home_button.setIcon(QtGui.QIcon.fromTheme("go-home"))
@@ -528,7 +532,7 @@ class ShutterWidget(WidgetPattern):
     def __init__(self, name, deviceObject, parent=None):
         super(ShutterWidget, self).__init__(name, parent)
         self.object = deviceObject
-        self._label = QtGui.QLabel("State")
+        self._port = PortWidget(self, "State")
         self._slider = QtGui.QSlider(QtCore.Qt.Horizontal)
         self._slider.setMaximumWidth(50)
         self._slider.setMaximum(1)
@@ -537,7 +541,7 @@ class ShutterWidget(WidgetPattern):
         off_label = QtGui.QLabel("Off")
         off_label.adjustSize()
         self._layout = QtGui.QGridLayout()
-        self._layout.addWidget(self._label, 0, 0, QtCore.Qt.AlignLeft)
+        self._layout.addWidget(self._port, 0, 0, QtCore.Qt.AlignLeft)
         self._layout.addWidget(on_label, 0, 3, QtCore.Qt.AlignRight)
         self._layout.addWidget(off_label, 0, 1, QtCore.Qt.AlignLeft)
         self._layout.addWidget(self._slider, 0, 2)
@@ -567,15 +571,24 @@ class CameraWidget(WidgetPattern):
         self.object = deviceObject
         layout = QtGui.QGridLayout()
         self.imv = pg.ImageView(self)
-        self.frame = self.object.grab()
-        self.imv.setImage(self.frame, autoRange=False)
+        frame = self.object.grab()
+        self.imv.setImage(frame, autoRange=False)
         self.layout.addWidget(self.imv)
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.update)
-        self.timer.start(0)
         self._row_number = 3
         self._port_out = PortWidget(self, "port_out")
-        self.layout.addWidget(self._port_out, 2, QtCore.Qt.AlignLeft)
+        self._start_recording_button = QtGui.QToolButton()
+        self._start_recording_button.setIcon(QtGui.QIcon.fromTheme("media-playback-start"))
+        self._start_recording_button.clicked.connect(self.start_recording)
+        self._stop_recording_button = QtGui.QToolButton()
+        self._stop_recording_button.setIcon(QtGui.QIcon.fromTheme("media-playback-stop"))
+        self._stop_recording_button.clicked.connect(self.stop_recording)
+        hlayout = QtGui.QHBoxLayout()
+        hlayout.addWidget(self._port_out, 1, QtCore.Qt.AlignLeft)
+        hlayout.addWidget(self._start_recording_button, 2)
+        hlayout.addWidget(self._stop_recording_button, 3)
+        self.layout.addLayout(hlayout)
         self.widget = QtGui.QWidget()
         self._obj_dict = {}
         for param in self.object:
@@ -647,6 +660,20 @@ class CameraWidget(WidgetPattern):
             parameter_value.setValue(float(new_value.magnitude))
             parameter_value.valueChanged.connect(self._value_changed)
 
+    def start_recording(self):
+        try:
+            self.object.start_recording()
+        except Exception, msg:
+            print msg
+        self.timer.start(0)
+
+    def stop_recording(self):
+        try:
+            self.object.stop_recording()
+        except Exception, msg:
+            print msg
+        self.timer.stop()
+
     def close(self):
         self.timer.stop()
         super(CameraWidget, self).close()
@@ -654,11 +681,21 @@ class CameraWidget(WidgetPattern):
 
 
 class FunctionWidget(WidgetPattern):
+    callback_signal = QtCore.pyqtSignal()
 
     def __init__(self, name, parent=None):
         super(FunctionWidget, self).__init__(name, parent)
         self._layout = QtGui.QGridLayout()
-        self.func = getattr(processes, name)
+        self._state_label = QtGui.QLabel("state")
+        self._state_label.setFrameShape(QtGui.QFrame.WinPanel)
+        self._state_label.setFrameShadow(QtGui.QFrame.Raised)
+        self._layout.addWidget(self._state_label, 0, 1, 1, 2, QtCore.Qt.AlignCenter)
+        if hasattr(common, name):
+            self.func = getattr(common, name)
+        elif hasattr(beamline, name):
+            self.func = getattr(beamline, name)
+        else:
+            return
         for i in xrange(len(self.func.e_args)):
             if inspect.isclass(self.func.e_args[i]) and issubclass(
                     self.func.e_args[i], Device):
@@ -669,16 +706,16 @@ class FunctionWidget(WidgetPattern):
                         self.func.f_args[i]))
                 port = getattr(self, self.func.f_args[i])
                 port.setLayoutDirection(QtCore.Qt.RightToLeft)
-                self._layout.addWidget(port, i, 1, 1, 2, QtCore.Qt.AlignLeft)
+                self._layout.addWidget(port, i+1, 1, 1, 2, QtCore.Qt.AlignLeft)
 
-            elif isinstance(self.func.e_args[i], processes.Numeric):
+            elif isinstance(self.func.e_args[i], Numeric):
                 exec(
                     "self.%s_label = QtGui.QLabel('%s (%s)')" %
                     (str(
                         self.func.f_args[i]), self.func.f_args[i], str(
                         self.func.e_args[i].units or "no unit")))
                 label = getattr(self, str(self.func.f_args[i]) + "_label")
-                self._layout.addWidget(label, i, 0)
+                self._layout.addWidget(label, i+1, 0)
                 for j in xrange(self.func.e_args[i].dimension):
                     exec(
                         "self.%s%i = QtGui.QDoubleSpinBox()" %
@@ -688,7 +725,7 @@ class FunctionWidget(WidgetPattern):
                     spin_box = getattr(self, str(self.func.f_args[i]) + str(j))
                     spin_box.setRange(-1000, 1000)
                     spin_box.setValue(0)
-                    self._layout.addWidget(spin_box, i, j + 1)
+                    self._layout.addWidget(spin_box, i+1, j + 1)
             else:
                 print "Sorry, I didn't finish this part yet"
 
@@ -699,27 +736,24 @@ class FunctionWidget(WidgetPattern):
                 exec("self.%s = PortWidget(self, '%s')" % (str(j), j))
                 port = getattr(self, j)
                 port.setLayoutDirection(QtCore.Qt.RightToLeft)
-                self._layout.addWidget(port, i, 1, 1, 2, QtCore.Qt.AlignLeft)
+                self._layout.addWidget(port, i+1, 1, 1, 2, QtCore.Qt.AlignLeft)
 
         for j in self.func.e_keywords:
-            if isinstance(self.func.e_keywords[j], processes.Numeric) and not j == "output":
+            if isinstance(self.func.e_keywords[j], Numeric) and not j == "output":
                 i += 1
                 exec(
                     "self.%s_label = QtGui.QLabel('%s (%s)')" %
                     (str(j), j, str(
                         self.func.e_keywords[j].units or "no unit")))
                 label = getattr(self, str(j) + "_label")
-                self._layout.addWidget(label, i, 0)
+                self._layout.addWidget(label, i+1, 0)
                 for k in xrange(self.func.e_keywords[j].dimension):
                     exec(
                         "self.%s%i = QtGui.QDoubleSpinBox()" %
                         (str(j), k))
                     spin_box = getattr(self, str(j) + str(k))
                     spin_box.setRange(-1000, 1000)
-                    self._layout.addWidget(spin_box, i, 1 + k)
-        exec("self.output = PortWidget(self, 'output')")
-        port = getattr(self, "output")
-        self._layout.addWidget(port, i + 1, 0, QtCore.Qt.AlignLeft)
+                    self._layout.addWidget(spin_box, i+1, 1 + k)
         self._play_button = QtGui.QToolButton()
         self._play_button.setIcon(
             QtGui.QIcon.fromTheme("media-playback-start"))
@@ -738,6 +772,7 @@ class FunctionWidget(WidgetPattern):
         self.layout.addLayout(self._layout)
         self.adjustSize()
         self.gui = self.parent()
+        self.callback_signal.connect(self._set_done_state)
 
     def play_button_clicked(self):
         args = []
@@ -751,7 +786,7 @@ class FunctionWidget(WidgetPattern):
                 else:
                     print "%s is not defined!" % port.text()
                     return 0
-            elif isinstance(self.func.e_args[i], processes.Numeric):
+            elif isinstance(self.func.e_args[i], Numeric):
                 spin_box = getattr(self, self.func.f_args[i] + "0")
 
                 if self.func.e_args[i].units is None:
@@ -774,7 +809,6 @@ class FunctionWidget(WidgetPattern):
 
         for i in xrange(len(self.func.e_args), len(self.func.f_args)):
             item = self.func.f_args[i]
-
             if inspect.isclass(self.func.e_keywords[item]) and issubclass(
                     self.func.e_keywords[item], Device):
                 port = getattr(self, item)
@@ -784,7 +818,7 @@ class FunctionWidget(WidgetPattern):
                 else:
                     break
 
-            elif isinstance(self.func.e_keywords[item], processes.Numeric):
+            elif isinstance(self.func.e_keywords[item], Numeric):
                 spin_box = getattr(self, item + "0")
                 if self.func.e_keywords[item].units is None:
                     args.append(spin_box.value())
@@ -804,11 +838,22 @@ class FunctionWidget(WidgetPattern):
             else:
                 args.append(self.func.f_defaults[i - len(self.func.e_args)])
         try:
-            self.func(*args)
+            f = self.func(*args)
+            f.add_done_callback(self._callback)
         except Exception as e:
             print "Error: ", str(e)
+            self._state_label.setStyleSheet(self._red)
+            self._state_label.setText("error")
         else:
-            print "%s function called" % self.name.text()
+            self._state_label.setStyleSheet(self._orange)
+            self._state_label.setText("processing")
+        
+    def _callback(self, sender):
+        self.callback_signal.emit()
+        
+    def _set_done_state(self):
+        self._state_label.setStyleSheet(self._green)
+        self._state_label.setText("done")
 
 
 class VisualizationWidget(QtGui.QGroupBox):
@@ -826,9 +871,8 @@ class VisualizationWidget(QtGui.QGroupBox):
         self.name.setText(name)
         self.name.adjustSize()
         self.close_button = QtGui.QToolButton(parent=self)
-        self.close_button.resize(24, 24)
-        self.close_button.setAutoRaise(True)
-        self.close_button.setIcon(QtGui.QIcon.fromTheme("application-exit"))
+        self.close_button.resize(16, 16)
+        self.close_button.setIcon(QtGui.QIcon.fromTheme("window-close"))
         self.resize(200, 200)
         self.path = "/home"
         self.setupUi()
@@ -884,7 +928,7 @@ class VisualizationWidget(QtGui.QGroupBox):
 
         self.detalization_slider = QtGui.QSlider(QtCore.Qt.Horizontal)
         self.detalization_slider.setRange(4, 10)
-        self.detalization_label = QtGui.QLabel("detalization")
+        self.detalization_label = QtGui.QLabel("level of detail")
         self.detalization_value = QtGui.QLabel(
             str(self.isolavel_slider.value()))
         self.detalization_slider.valueChanged.connect(

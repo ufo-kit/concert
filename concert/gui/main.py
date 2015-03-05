@@ -51,19 +51,19 @@ class ConcertGUI(QtGui.QMainWindow):
         plotting.triggered.connect(self._create_plot_widget)
         plotting.setShortcut('Ctrl+P')
 
-        save_layout = QtGui.QAction('&save layout', self)
+        save_layout = QtGui.QAction('&save', self)
         save_layout.triggered.connect(self.save_layout)
         save_layout.setShortcut('Ctrl+S')
 
-        save_layout_as = QtGui.QAction('&save layout as', self)
+        save_layout_as = QtGui.QAction('&save as', self)
         save_layout_as.triggered.connect(self.save_layout_as)
         save_layout_as.setShortcut('Ctrl+Shift+S')
 
-        open_layout = QtGui.QAction('&open layout', self)
+        open_layout = QtGui.QAction('&open', self)
         open_layout.triggered.connect(self.open_layout)
         open_layout.setShortcut('Ctrl+O')
 
-        open_last_layout = QtGui.QAction('&open last layout', self)
+        open_last_layout = QtGui.QAction('&open previous', self)
         open_last_layout.triggered.connect(self.open_last_layout)
         open_last_layout.setShortcut('Ctrl+Shift+L')
 
@@ -74,16 +74,18 @@ class ConcertGUI(QtGui.QMainWindow):
         self._menubar = self.menuBar()
         file_menu = self._menubar.addMenu('&File')
         file_menu.addAction(load_session)
-        file_menu.addAction(open_layout)
-        file_menu.addAction(open_last_layout)
-        file_menu.addAction(save_layout)
-        file_menu.addAction(save_layout_as)
 
         file_menu.addAction(exit_action)
         view_menu = self._menubar.addMenu('&View')
         view_menu.addAction(hide_tree_action)
         view_menu.addAction(visualization)
         view_menu.addAction(plotting)
+
+        layout_menu = self._menubar.addMenu('&Layout')
+        layout_menu.addAction(open_layout)
+        layout_menu.addAction(open_last_layout)
+        layout_menu.addAction(save_layout)
+        layout_menu.addAction(save_layout_as)
 
         self.console_dock = QtGui.QDockWidget("Console", self)
         self.console_dock.setObjectName("console")
@@ -100,7 +102,8 @@ class ConcertGUI(QtGui.QMainWindow):
         self.setCentralWidget(self.device_tree)
         self.set_window_title()
         self.resize(1300, 1000)
-        self.show()
+        self.showMaximized()
+        self.setMinimumSize(self.size())
         if session_name is None:
             load_session.triggered.emit(True)
 
@@ -136,7 +139,6 @@ class ConcertGUI(QtGui.QMainWindow):
                 QtGui.QTreeWidgetItem(self.function_tree, [str(name)])
 
     def _add_device_tree(self):
-
         self._items_list = {}
         """ Adding items to device tree"""
         for name in dir(self.session):
@@ -301,8 +303,7 @@ class ConcertGUI(QtGui.QMainWindow):
 
     def connection_complited(self, port):
         '''Create a connection between widgets'''
-        if port.get_line_number() is None and self.initial_port.parent(
-        ) is not port.parent():
+        if self._is_connection_allowed(port):
             new_line = Line(self._start_line_point, self.mapFromGlobal(
                 port.mapToGlobal(port.connection_point)))
             finish_point = self.mapFromGlobal(
@@ -319,6 +320,23 @@ class ConcertGUI(QtGui.QMainWindow):
             new_line.start_port.port_connected.emit()
             new_line.finish_port.port_connected.emit()
             self.line_index += 1
+
+    def _is_connection_allowed(self, port):
+        if hasattr(port.parent(), "object") and isinstance(port.parent().object, Device):
+            cond1 = True
+        elif len(port.get_line_number()) == 0:
+            cond1 = True
+        else:
+            cond1 = False
+        port_parent = self.initial_port.parent()
+        if hasattr(port_parent, "object") and isinstance(port_parent.object, Device):
+            cond2 = True
+        elif len(self.initial_port.get_line_number()) == 0:
+            cond2 = True
+        else:
+            cond2 = False
+        cond3 = self.initial_port.parent() is not port.parent()
+        return cond1 & cond2 & cond3
 
     def save_layout(self, file_name=None):
         if not file_name:
