@@ -211,11 +211,12 @@ class Backproject(InjectProcess):
     @coroutine
     def __call__(self, consumer):
         """Get a sinogram, do filtered backprojection and send it to *consumer*."""
+        sinogram = yield
+        setup_padding(self.pad, self.crop, sinogram.shape[1], sinogram.shape[0])
+
         if not self._started:
             self.start()
 
-        sinogram = yield
-        setup_padding(self.pad, self.crop, sinogram.shape[1], sinogram.shape[0])
         self._process(sinogram, consumer)
 
         while True:
