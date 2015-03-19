@@ -67,16 +67,17 @@ class TestExpects(TestCase):
 
     def test_find_beam_func_arguments_type_error(self):
         with self.assertRaises(TypeError):
-            find_beam(self.camera, self.rotation_motor, self.linear_motor)
+            f = find_beam(self.camera, self.rotation_motor, self.linear_motor)
+            f.result()
         with self.assertRaises(TypeError):
-            find_beam(
-                self.camera, self.linear_motor, self.linear_motor2, [1, 2])
+            f = find_beam(self.camera, self.linear_motor, self.linear_motor2, [1, 2])
+            f.result()
         with self.assertRaises(TypeError):
-            find_beam(
-                self.camera, self.linear_motor, self.linear_motor2, [1, 2, 3] * q.um)
+            f = find_beam(self.camera, self.linear_motor, self.linear_motor2, [1, 2, 3] * q.um)
+            f.result()
         with self.assertRaises(TypeError):
-            find_beam(
-                self.camera, self.linear_motor, self.linear_motor2, [1, 2] * q.deg)
+            f = find_beam(self.camera, self.linear_motor, self.linear_motor2, [1, 2] * q.deg)
+            f.result()
 
     def test_find_beam_function_arguments(self):
         find_beam(self.camera, self.linear_motor, self.linear_motor2,

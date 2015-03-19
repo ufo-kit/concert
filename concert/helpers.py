@@ -101,7 +101,6 @@ class _Structure(object):
         self.e_args = e_args
         self.f_args = f_args
         self.f_defaults = f_defaults
-        self.outputs = e_keywords['output']
         self.e_keywords = e_keywords
         self._isfunction = True
 
@@ -164,7 +163,10 @@ class _Structure(object):
             magnitude = given.magnitude
         else:
             magnitude = given
-        shape = len(str(magnitude).split())
+        if isinstance(magnitude, (float, int)):
+            shape = 1
+        else:
+            shape = len(magnitude)
         if not shape == expected.dimension:
             raise TypeError(
                 'Argument {} expected to get value with dimension {}, but got dimension {}'.format(
