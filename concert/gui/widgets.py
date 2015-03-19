@@ -4,7 +4,6 @@ from concert.devices.base import Device
 from concert.base import HardLimitError
 from concert.async import dispatcher
 from concert.processes import common, beamline
-# import concert.processes.common as processes
 from concert.helpers import Numeric
 from functools import partial
 from pyqtgraph.ptime import time
@@ -224,7 +223,7 @@ class LightSourceWidget(WidgetPattern):
 
     def __init__(self, name, deviceObject, parent=None):
         super(LightSourceWidget, self).__init__(name, parent)
-        self._port = PortWidget(self, "Intensity")
+        self._port = PortWidget(self, "intensity")
         self.object = deviceObject
         self._spin_value = QtGui.QDoubleSpinBox()
         self._spin_value.setRange(-1000000, 1000000)
@@ -532,7 +531,7 @@ class ShutterWidget(WidgetPattern):
     def __init__(self, name, deviceObject, parent=None):
         super(ShutterWidget, self).__init__(name, parent)
         self.object = deviceObject
-        self._port = PortWidget(self, "State")
+        self._port = PortWidget(self, "state")
         self._slider = QtGui.QSlider(QtCore.Qt.Horizontal)
         self._slider.setMaximumWidth(50)
         self._slider.setMaximum(1)
@@ -549,6 +548,7 @@ class ShutterWidget(WidgetPattern):
         self.setFixedSize(self.widgetLength, 60)
         self.layout.addLayout(self._layout)
         self._get_state_from_concert()
+        dispatcher.subscribe(deviceObject, "state_changed", self._callback)
 
     def _get_state_from_concert(self):
         if self.object.state == 'open':
@@ -562,6 +562,9 @@ class ShutterWidget(WidgetPattern):
             self.object.open()
         elif value == 0:
             self.object.close()
+    
+    def _callback(self,sender):
+        self._get_state_from_concert()
 
 
 class CameraWidget(WidgetPattern):
