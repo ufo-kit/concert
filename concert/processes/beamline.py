@@ -3,9 +3,14 @@ import numpy as np
 from concert.async import async, wait
 from concert.quantities import q
 from concert.imageprocessing import compute_rotation_axis, flat_correct
+from concert.helpers import expects, Numeric
+from concert.devices.motors.base import LinearMotor, RotationMotor
+from concert.devices.cameras.base import Camera
+from concert.devices.shutters.base import Shutter
 
 
 @async
+@expects(Camera, Shutter)
 def acquire_dark(camera, shutter):
     """Use *camera* and *shutter* to acquire a dark field."""
     if shutter.state != 'closed':
@@ -15,6 +20,7 @@ def acquire_dark(camera, shutter):
 
 
 @async
+@expects(Camera, Shutter, LinearMotor, Numeric(1, q.mm))
 def acquire_image_with_beam(camera, shutter, flat_motor, position):
     """Use *camera*, *shutter* and *flat_motor* to move the sample to the *position* and acquire an
     image.
@@ -29,6 +35,7 @@ def acquire_image_with_beam(camera, shutter, flat_motor, position):
 
 
 @async
+@expects(Camera, Shutter, LinearMotor, RotationMotor, Numeric(1, q.mm), Numeric(1, q.mm))
 def determine_rotation_axis(camera, shutter, flat_motor, rotation_motor, flat_position,
                             radio_position):
     """Determine tomographic rotation axis using *camera*, *shutter*, *rotation_motor* and
