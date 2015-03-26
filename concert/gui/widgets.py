@@ -562,8 +562,8 @@ class ShutterWidget(WidgetPattern):
             self.object.open()
         elif value == 0:
             self.object.close()
-    
-    def _callback(self,sender):
+
+    def _callback(self, sender):
         self._get_state_from_concert()
 
 
@@ -850,10 +850,10 @@ class FunctionWidget(WidgetPattern):
         else:
             self._state_label.setStyleSheet(self._orange)
             self._state_label.setText("processing")
-        
+
     def _callback(self, sender):
         self.callback_signal.emit()
-        
+
     def _set_done_state(self):
         self._state_label.setStyleSheet(self._green)
         self._state_label.setText("done")
@@ -879,7 +879,7 @@ class VisualizationWidget(QtGui.QGroupBox):
         self.resize(200, 200)
         self.path = "/home"
         self.setupUi()
-        self.rec = Visualization()
+        self.rec = MeshGenerator()
         self.isolavel_slider.setValue(self.rec.isolevel)
         self.gaussian_slider.setValue(self.rec.gaussian_param)
         self.erosion_iterations_slider.setValue(self.rec.erosion_iterations)
@@ -901,7 +901,7 @@ class VisualizationWidget(QtGui.QGroupBox):
             0)
 
     def setupUi(self):
-        self.vtkWidget = QVTKRenderWindowInteractor(self)
+        self.vtkWidget = VtkRender(self)
         self.layout.addWidget(self.vtkWidget, 0)
         panel = self.create_panel()
         self.layout.addLayout(panel, 1)
@@ -1009,19 +1009,33 @@ class VisualizationWidget(QtGui.QGroupBox):
             self.pb.show()
 
     def update_render(self):
-        self.ren = vtk.vtkRenderer()
-        self.ren.SetBackground(0.329412, 0.34902, 0.427451)
-        self.vtkWidget.GetRenderWindow().AddRenderer(self.ren)
-        self.iren = self.vtkWidget.GetRenderWindow().GetInteractor()
-
-        self.ren.AddActor(self.rec.actor)
-        self.iren.Initialize()
+        self.vtkWidget.show(self.rec.mesh)
         self.pb.hide()
 
 
-class Visualization(QtCore.QObject):
+class VtkRender(QVTKRenderWindowInteractor):
 
-    actor = None
+    def __init__(self, parent):
+        super(VtkRender, self).__init__(parent)
+
+    def show(self, mesh):
+        geoBoneMapper = vtk.vtkPolyDataMapper()
+        geoBoneMapper.SetInputConnection(mesh.GetOutputPort())
+        geoBoneMapper.ScalarVisibilityOff()
+        actorBone = vtk.vtkActor()
+        actorBone.SetMapper(geoBoneMapper)
+        actor = actorBone
+        ren = vtk.vtkRenderer()
+        ren.SetBackground(0.329412, 0.34902, 0.427451)
+        self.GetRenderWindow().AddRenderer(ren)
+        iren = self.GetRenderWindow().GetInteractor()
+        ren.AddActor(actor)
+        iren.Initialize()
+
+
+class MeshGenerator(QtCore.QObject):
+
+    mesh = None
     finished = QtCore.pyqtSignal()
     isolevel = 115
     gaussian_param = 6
@@ -1033,7 +1047,7 @@ class Visualization(QtCore.QObject):
     def reconstruction_from_files(self):
         array = self.array_from_files(self.files)
         data = self.numpy_to_vtk(array)
-        self.actor = self.make_iso(data)
+        self.mesh = self.make_iso(data)
         self.finished.emit()
 
     def reconstruction_from_array(self):
@@ -1041,7 +1055,7 @@ class Visualization(QtCore.QObject):
         if self.array is None:
             self.array = self.make_cube(n, n / 2)
         data = self.numpy_to_vtk(self.array)
-        self.actor = self.make_iso(data)
+        self.mesh = self.make_iso(data)
         self.finished.emit()
 
     def make_sphere(self, n, radius):
@@ -1060,8 +1074,7 @@ class Visualization(QtCore.QObject):
 
     def array_from_files(self, files):
         frame_rate = 11 - self.detalization
-        (x, y) = TIFF.open(files[0]).read_image()[
-            ::frame_rate, ::frame_rate].shape
+        (x, y) = TIFF.open(files[0]).read_image()[::frame_rate, ::frame_rate].shape
         sample = np.zeros((x, y, len(files[::frame_rate])))
         zeros = np.zeros((x, y))
         for i in xrange(0, len(files), frame_rate):
@@ -1086,8 +1099,7 @@ class Visualization(QtCore.QObject):
                 scipy.ndimage.binary_propagation(
                     eroded_tmp,
                     mask=tmp))
-            sample[
-                :, :, int(i / frame_rate)] = reconstruct_final[::frame_rate, ::frame_rate]
+            sample[:, :, int(i / frame_rate)] = reconstruct_final[::frame_rate, ::frame_rate]
         return sample.astype(np.ubyte)
 
     def numpy_to_vtk(self, array):
@@ -1106,7 +1118,7 @@ class Visualization(QtCore.QObject):
         contourBoneHead.SetInput(data.GetOutput())
         contourBoneHead.ComputeNormalsOn()
         contourBoneHead.ComputeScalarsOn()
-        contourBoneHead.SetValue(0, 1)  # Bone isovalue
+        contourBoneHead.SetValue(0, 1)
         contourBoneHead.Update()
 
         poly = vtk.vtkPolyData()
@@ -1118,17 +1130,7 @@ class Visualization(QtCore.QObject):
         smoother.SetNumberOfIterations(50)
         smoother.SetRelaxationFactor(0.05)
         smoother.Update()
-
-        # Take the isosurface data and create geometry
-        geoBoneMapper = vtk.vtkPolyDataMapper()
-        geoBoneMapper.SetInputConnection(smoother.GetOutputPort())
-        geoBoneMapper.ScalarVisibilityOff()
-
-        # Take the isosurface data and create geometry
-        actorBone = vtk.vtkActor()
-        actorBone.SetMapper(geoBoneMapper)
-        self.actor = actorBone
-        return actorBone
+        return smoother
 
 
 class PlotWidget(WidgetPattern):
