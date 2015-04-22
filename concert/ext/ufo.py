@@ -168,7 +168,7 @@ class Backproject(InjectProcess):
     def __init__(self, axis_pos=None):
         self.pm = PluginManager()
         self.pad = self.pm.get_task('pad')
-        self.crop = self.pm.get_task('cut-roi')
+        self.crop = self.pm.get_task('crop')
         self.fft = self.pm.get_task('fft', dimensions=1)
         self.ifft = self.pm.get_task('ifft', dimensions=1)
         self.fltr = self.pm.get_task('filter')
