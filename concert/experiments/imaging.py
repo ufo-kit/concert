@@ -11,8 +11,8 @@ def frames(num_frames, camera, callback=None):
     if camera.state == 'recording':
         camera.stop_recording()
 
-    camera['trigger_mode'].stash().join()
-    camera.trigger_mode = camera.trigger_modes.SOFTWARE
+    camera['trigger_source'].stash().join()
+    camera.trigger_source = camera.trigger_sources.SOFTWARE
 
     try:
         with camera.recording():
@@ -22,7 +22,7 @@ def frames(num_frames, camera, callback=None):
                 if callback:
                     callback()
     finally:
-        camera['trigger_mode'].restore().join()
+        camera['trigger_source'].restore().join()
 
 
 def tomo_angular_step(frame_width):

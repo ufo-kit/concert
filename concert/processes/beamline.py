@@ -49,13 +49,13 @@ def determine_rotation_axis(camera, shutter, flat_motor, rotation_motor, flat_po
 
 
 def _grab_software_trigger(camera):
-    """Switch *camera* to software trigger mode and take an image. The mode is restored afterwards.
+    """Switch *camera* to software trigger source and take an image. The source is restored afterwards.
     """
-    camera['trigger_mode'].stash().join()
-    camera.trigger_mode = camera.trigger_modes.SOFTWARE
+    camera['trigger_source'].stash().join()
+    camera.trigger_source = camera.trigger_sources.SOFTWARE
 
     try:
         camera.trigger()
         return camera.grab()
     finally:
-        camera['trigger_mode'].restore().join()
+        camera['trigger_source'].restore().join()
