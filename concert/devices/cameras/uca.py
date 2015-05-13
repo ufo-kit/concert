@@ -97,7 +97,7 @@ class Camera(base.Camera):
         parameters = {}
 
         for prop in self.uca.props:
-            if prop.name == 'trigger-mode' or prop.name == 'frames-per-second':
+            if prop.name in ('trigger-source', 'trigger-type', 'frames-per-second'):
                 continue
 
             getter, setter, unit = None, None, None
@@ -145,11 +145,11 @@ class Camera(base.Camera):
         self._uca_get_frame_rate = _new_getter_wrapper('frames-per-second')
         self._uca_set_frame_rate = _new_setter_wrapper('frames-per-second')
 
-        # Invert the uca trigger mode dict in order to return concert values
-        trigger_dict = self.uca.enum_values.trigger_mode.__dict__
+        # Invert the uca trigger source dict in order to return concert values
+        trigger_dict = self.uca.enum_values.trigger_source.__dict__
         self._uca_to_concert_trigger = {v: k for k, v in trigger_dict.items()}
-        self._uca_get_trigger = _new_getter_wrapper('trigger-mode')
-        self._uca_set_trigger = _new_setter_wrapper('trigger-mode')
+        self._uca_get_trigger = _new_getter_wrapper('trigger-source')
+        self._uca_set_trigger = _new_setter_wrapper('trigger-source')
 
         self._record_shape = None
         self._record_dtype = None
@@ -160,12 +160,12 @@ class Camera(base.Camera):
     def _set_frame_rate(self, frame_rate):
         self._uca_set_frame_rate(self, frame_rate * q.s)
 
-    def _get_trigger_mode(self):
+    def _get_trigger_source(self):
         uca_trigger = self._uca_get_trigger(self)
         return self._uca_to_concert_trigger[uca_trigger]
 
-    def _set_trigger_mode(self, mode):
-        uca_value = getattr(self.uca.enum_values.trigger_mode, mode)
+    def _set_trigger_source(self, source):
+        uca_value = getattr(self.uca.enum_values.trigger_source, source)
         self._uca_set_trigger(self, uca_value)
 
     @transition(target='recording')

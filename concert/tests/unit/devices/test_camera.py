@@ -21,9 +21,9 @@ class TestDummyCamera(TestCase):
         frame = self.camera.grab_async().result()
         self.assertIsNotNone(frame)
 
-    def test_trigger_mode(self):
-        self.camera.trigger_mode = self.camera.trigger_modes.EXTERNAL
-        self.assertEqual(self.camera.trigger_mode, 'EXTERNAL')
+    def test_trigger_source(self):
+        self.camera.trigger_source = self.camera.trigger_sources.EXTERNAL
+        self.assertEqual(self.camera.trigger_source, 'EXTERNAL')
 
     def test_roi(self):
         self.roi_x0 = self.roi_y0 = self.roi_width = self.roi_height = 10 * q.dimensionless

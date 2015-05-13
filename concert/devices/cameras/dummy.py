@@ -21,7 +21,7 @@ class Base(base.Camera):
     def __init__(self):
         super(Base, self).__init__()
         self._frame_rate = 1000 / q.s
-        self._trigger_mode = self.trigger_modes.AUTO
+        self._trigger_source = self.trigger_sources.AUTO
         self._exposure_time = 1 * q.ms
         self._roi_x0 = 0 * q.pixel
         self._roi_y0 = 0 * q.pixel
@@ -70,11 +70,11 @@ class Base(base.Camera):
     def _set_frame_rate(self, frame_rate):
         self._frame_rate = frame_rate
 
-    def _get_trigger_mode(self):
-        return self._trigger_mode
+    def _get_trigger_source(self):
+        return self._trigger_source
 
-    def _set_trigger_mode(self, mode):
-        self._trigger_mode = mode
+    def _set_trigger_source(self, source):
+        self._trigger_source = source
 
     @transition(target='recording')
     def _record_real(self):

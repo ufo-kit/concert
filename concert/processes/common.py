@@ -212,7 +212,7 @@ def focus(camera, motor, measure=np.std, opt_kwargs=None,
             if plot_consumer:
                 plot_consumer.send(tup[1])
 
-    camera.trigger_mode = camera.trigger_modes.SOFTWARE
+    camera.trigger_source = camera.trigger_sources.SOFTWARE
     camera.start_recording()
     f = optimize_parameter(motor['position'], get_measure, motor.position,
                            halver, alg_kwargs=opt_kwargs,
@@ -271,8 +271,8 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
 
     if camera.state == 'recording':
         camera.stop_recording()
-    camera['trigger_mode'].stash().join()
-    camera.trigger_mode = camera.trigger_modes.SOFTWARE
+    camera['trigger_source'].stash().join()
+    camera.trigger_source = camera.trigger_sources.SOFTWARE
     camera.start_recording()
 
     try:
@@ -331,7 +331,7 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
     finally:
         camera.stop_recording()
         # No side effects
-        camera['trigger_mode'].restore().join()
+        camera['trigger_source'].restore().join()
 
     # Return the last known ellipse fit
     return x_angle, z_angle, center
@@ -585,7 +585,7 @@ def center_to_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
     *max_iterations* are passed to the functions 'find_beam(...)' and
     'center2beam(...)'.
     """
-    cam.trigger_mode = cam.trigger_modes.SOFTWARE
+    cam.trigger_source = cam.trigger_sources.SOFTWARE
     cam.start_recording()
 
     try:

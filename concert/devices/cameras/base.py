@@ -8,27 +8,27 @@ camera provides means to
 * :meth:`~Camera.trigger` a frame capture and
 * :meth:`~Camera.grab` to get the last frame.
 
-Camera triggering is specified by the :attr:`~Camera.trigger_mode` parameter, which
+Camera triggering is specified by the :attr:`~Camera.trigger_source` parameter, which
 can be one of
 
-* :attr:`camera.trigger_modes.AUTO` means the camera triggers itself
+* :attr:`camera.trigger_sources.AUTO` means the camera triggers itself
   automatically, the frames start being recorded right after the
   :meth:`~camera.start_recording` call and stop being recorded by
   :meth:`~camera.stop_recording`
 
-* :attr:`Camera.trigger_modes.SOFTWARE` means the camera needs to be triggered
+* :attr:`Camera.trigger_sources.SOFTWARE` means the camera needs to be triggered
   by the user by :meth:`~Camera.trigger()`. This way you have complete programatic
   control over when is the camera triggered, example usage::
 
-    camera.trigger_mode = camera.trigger_modes.SOFTWARE
+    camera.trigger_source = camera.trigger_sources.SOFTWARE
     camera.start_recording()
     camera.trigger()
     long_operation()
     # Here we get the frame from before the long operation
     camera.grab()
 
-* :attr:`Camera.trigger_modes.EXTERNAL` is a mode when the camera is triggered
-  by an external low-level signal (such as TTL). This mode provides very precise
+* :attr:`Camera.trigger_sources.EXTERNAL` is a source when the camera is triggered
+  by an external low-level signal (such as TTL). This source provides very precise
   triggering in terms of time synchronization with other devices
 
 
@@ -38,7 +38,7 @@ To setup and use a camera in a typical environment, you would do::
     from concert.devices.cameras.uca import UcaCamera
 
     camera = UcaCamera('pco')
-    camera.trigger_mode = camera.trigger_modes.SOFTWARE
+    camera.trigger_source = camera.trigger_sources.SOFTWARE
     camera.exposure_time = 0.2 * q.s
     camera.start_recording()
     camera.trigger()
@@ -83,10 +83,11 @@ class Camera(Device):
         Frame rate of acquisition in q.count per time unit.
     """
 
-    trigger_modes = Bunch(['AUTO', 'SOFTWARE', 'EXTERNAL'])
+    trigger_sources = Bunch(['AUTO', 'SOFTWARE', 'EXTERNAL'])
+    trigger_types = Bunch(['EDGE', 'LEVEL'])
     state = State(default='standby')
     frame_rate = Quantity(1.0 / q.second, help="Frame frequency")
-    trigger_mode = Parameter(help="Trigger mode")
+    trigger_source = Parameter(help="Trigger source")
 
     def __init__(self):
         super(Camera, self).__init__()
@@ -135,16 +136,16 @@ class Camera(Device):
         """Grab frames continuously and send them to *consumer*, which
         is a coroutine.
         """
-        self.trigger_mode = self.trigger_modes.AUTO
+        self.trigger_source = self.trigger_sources.AUTO
         self.start_recording()
 
         while self.state == 'recording':
             consumer.send(self.grab())
 
-    def _get_trigger_mode(self):
+    def _get_trigger_source(self):
         raise AccessorNotImplementedError
 
-    def _set_trigger_mode(self, mode):
+    def _set_trigger_source(self, source):
         raise AccessorNotImplementedError
 
     def _record_real(self):
