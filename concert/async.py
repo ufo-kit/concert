@@ -179,6 +179,8 @@ if concert.config.ENABLE_GEVENT:
                 @functools.wraps(func)
                 def _inner(*args, **kwargs):
                     g = GreenletFuture(func, args, kwargs)
+                    if concert.config.ENABLE_PRINT_ASYNC_EXCEPTION:
+                        g.link(print_exception)
                     g.start()
                     return g
 
@@ -193,6 +195,11 @@ if concert.config.ENABLE_GEVENT:
                 return result
 
             return _inner
+
+        def print_exception(g):
+            if g.saved_exception is not None:
+                print g.saved_exception
+
     except ImportError:
         HAVE_GEVENT = False
         print("Gevent is not available, falling back to threads")
