@@ -5,7 +5,7 @@ _concert()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    opts="edit import init log rm mv cp show start"
+    opts="edit import export init log rm mv cp show start"
 
     case "${prev}" in
         init)
@@ -13,7 +13,7 @@ _concert()
             COMPREPLY=($(compgen -W "${more}" -- ${cur}))
             return 0
             ;;
-        edit|log|rm|start|mv|cp)
+        edit|log|rm|start|mv|cp|export)
             local sessions=$(for x in `concert show | grep "  " - | awk '{ print $1 }'`; do echo ${x}; done)
             COMPREPLY=($(compgen -W "${sessions}" -- ${cur}))
             return 0
