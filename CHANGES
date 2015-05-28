@@ -3,6 +3,24 @@ Changelog
 
 Here you can see the full list of changes between each Concert release.
 
+Version 0.10.1
+--------------
+
+Fixes
+~~~~~
+
+- Change camera trigger-mode to trigger-source
+- Rename cut-roi to crop in ufo
+- Don't set properties after start in ufo
+- Fix #365: use a single scheduler instance
+- Replace bundled tifffile with the one from PyPI
+- Fix wrong input in walker tests
+- Print module docstring only if present
+- Fix filtering
+- Make sure there are devices when calling abort
+- Image reading supports capital letter extensions
+- Don't use upper bound on `measure` test duration
+
 
 Version 0.10
 ------------
