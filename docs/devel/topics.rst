@@ -8,4 +8,5 @@ Development
     tutorial
     async
     helpers
+    extensions
     contrib
