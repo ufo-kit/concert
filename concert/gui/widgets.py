@@ -9,7 +9,7 @@ from functools import partial
 from pyqtgraph.ptime import time
 import pyqtgraph as pg
 from vtk.qt4.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
-from libtiff import TIFF
+# from libtiff import TIFF
 import scipy.ndimage
 import vtk
 import numpy as np
@@ -25,8 +25,8 @@ class WidgetPattern(QtGui.QGroupBox):
     widget_pressed = QtCore.pyqtSignal()
     data_changed = QtCore.pyqtSignal()
     instances = weakref.WeakSet()
-    grid_x_step = 70
-    grid_y_step = 32
+    grid_x_step = 16
+    grid_y_step = 16
 
     def __init__(self, name, parent=None, deviceObject=None):
         super(WidgetPattern, self).__init__(parent=parent)
@@ -71,11 +71,7 @@ class WidgetPattern(QtGui.QGroupBox):
     def mouseMoveEvent(self, event):
         if self._offset is not None:
             try:
-                self.move_widget(
-                    QtGui.QGroupBox.mapToParent(
-                        self,
-                        event.pos() -
-                        self._offset))
+                self.move_widget(QtGui.QGroupBox.mapToParent(self, event.pos() - self._offset))
             except:
                 QtGui.QApplication.restoreOverrideCursor()
             else:
@@ -116,26 +112,17 @@ class WidgetPattern(QtGui.QGroupBox):
         return x, y
 
     def get_shadow_status(self):
-        if WidgetPattern.shadow_accepted:
-            return True
-        else:
-            return False
+        return WidgetPattern.shadow_accepted
 
     def get_draw_line_status(self):
-        if PortWidget.draw_new_line:
-            return True
-        else:
-            return False
+        return PortWidget.draw_new_line
 
     def get_start_line_point(self):
         return self.mapToParent(self._line_start_position)
 
     def resizeEvent(self, event):
         self.name.move(self.width() / 2 - self.name.width() / 2, 5)
-        self.close_button.move(
-            self.width() -
-            self.close_button.width(),
-            0)
+        self.close_button.move(self.width() - self.close_button.width(), 0)
 
     @classmethod
     def get_instances(self):
@@ -757,21 +744,14 @@ class FunctionWidget(WidgetPattern):
                     spin_box = getattr(self, str(j) + str(k))
                     spin_box.setRange(-1000, 1000)
                     self._layout.addWidget(spin_box, i+1, 1 + k)
+
         self._play_button = QtGui.QToolButton()
-        self._play_button.setIcon(
-            QtGui.QIcon.fromTheme("media-playback-start"))
+        self._play_button.setIcon(QtGui.QIcon.fromTheme("media-playback-start"))
         self._play_button.setText("play")
-        self._play_button.setToolButtonStyle(
-            QtCore.Qt.ToolButtonTextBesideIcon)
+        self._play_button.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
         self._play_button.clicked.connect(self.play_button_clicked)
         self._play_button.adjustSize()
-        self._layout.addWidget(
-            self._play_button,
-            99,
-            0,
-            1,
-            3,
-            QtCore.Qt.AlignCenter)
+        self._layout.addWidget(self._play_button, 99, 0, 1, 3, QtCore.Qt.AlignCenter)
         self.layout.addLayout(self._layout)
         self.adjustSize()
         self.gui = self.parent()
@@ -1149,7 +1129,7 @@ class PlotWidget(WidgetPattern):
         self.plot.setCanvasBackground(QtCore.Qt.white)
 
         # Initialize data
-        self.x = np.arange(0.0, 50)
+        self.x = np.arange(0.0, 128)
         self.y = np.zeros(len(self.x))
         self.plot.setAxisScale(Qwt5.QwtPlot.xBottom, 0, len(self.x))
 

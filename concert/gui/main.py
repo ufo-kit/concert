@@ -245,19 +245,26 @@ class ConcertGUI(QtGui.QMainWindow):
     def paintEvent(self, event):
         qp = QtGui.QPainter()
         qp.begin(self)
+
+        color = QtGui.QColor(64, 64, 64)
+
         if self.widget is not None and self.widget.get_shadow_status():
             qp.setBrush(QtGui.QColor("#ffcccc"))
             qp.setPen(QtCore.Qt.NoPen)
             x, y = self.widget.get_grid_position()
             qp.drawRect(x, y, self.widget.width(), self.widget.height())
-            qp.setPen(QtGui.QPen(QtCore.Qt.black, 1, QtCore.Qt.DashDotLine))
+            qp.setPen(QtGui.QPen(color, 1, QtCore.Qt.DotLine))
             qp.drawLines(self._grid_lines)
-        qp.setPen(QtGui.QPen(QtCore.Qt.black, 1))
+
+        qp.setRenderHint(QtGui.QPainter.Antialiasing)
+        qp.setPen(QtGui.QPen(color, 2))
+
         if self.widget is not None and self.widget.get_draw_line_status():
-            qp.drawLine(
-                self._start_line_point, self.mapFromGlobal(self._cursor.pos()))
+            qp.drawLine(self._start_line_point, self.mapFromGlobal(self._cursor.pos()))
+
         for line in self.lines_info.itervalues():
             qp.drawLine(line)
+
         self.update()
         qp.end()
 
