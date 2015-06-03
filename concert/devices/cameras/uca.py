@@ -154,6 +154,14 @@ class Camera(base.Camera):
         self._record_shape = None
         self._record_dtype = None
 
+    @transition(target='readout')
+    def start_readout(self):
+        self.uca.start_readout()
+
+    @transition(target='standby')
+    def stop_readout(self):
+        self.uca.stop_readout()
+
     def _get_frame_rate(self):
         return self._uca_get_frame_rate(self) / q.s
 
@@ -185,9 +193,15 @@ class Camera(base.Camera):
         self.uca.trigger()
 
     @_translate_gerror
-    def _grab_real(self):
+    def _grab_real(self, index=None):
         array = np.empty(self._record_shape, dtype=self._record_dtype)
         data = array.__array_interface__['data'][0]
+
+        if index is not None:
+            if self.uca.readout(data, index):
+                return array
+            else:
+                raise base.CameraError('No frame available')
 
         if self.uca.grab(data):
             return array
