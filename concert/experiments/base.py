@@ -16,11 +16,11 @@ class Acquisition(object):
     """
     An acquisition acquires data, gets it and sends it to consumers.
 
-    .. py:attribute:: generator_caller
+    .. py:attribute:: producer
 
         a callable with no arguments which returns a generator yielding data items once called.
 
-    .. py:attribute:: consumer_callers
+    .. py:attribute:: consumers
 
         a list of callables with no arguments which return a coroutine consuming the data once
         started, can be empty.
@@ -31,10 +31,10 @@ class Acquisition(object):
 
     """
 
-    def __init__(self, name, generator_caller, consumer_callers=None, acquire=None):
+    def __init__(self, name, producer, consumers=None, acquire=None):
         self.name = name
-        self.generator = generator_caller
-        self.consumers = [] if consumer_callers is None else consumer_callers
+        self.producer = producer
+        self.consumers = [] if consumers is None else consumers
         # Don't bother with checking this for None later
         self.acquire = acquire if acquire else lambda: None
 
@@ -44,7 +44,7 @@ class Acquisition(object):
         for not_started in self.consumers:
             started.append(not_started())
 
-        inject(self.generator(), broadcast(*started))
+        inject(self.producer(), broadcast(*started))
 
     def __call__(self):
         """Run the acquisition, i.e. acquire the data and connect the producer and consumers."""

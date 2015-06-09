@@ -54,7 +54,7 @@ class TestAcquisition(TestCase):
     def setUp(self):
         self.acquired = False
         self.item = None
-        self.acquisition = Acquisition('foo', self.produce, consumer_callers=[self.consume],
+        self.acquisition = Acquisition('foo', self.produce, consumers=[self.consume],
                                        acquire=self.acquire)
 
     def test_connect(self):
@@ -95,7 +95,7 @@ class TestExperimentBase(TestCase):
         self.walker = DummyWalker(root=self.root)
         self.name_fmt = 'scan_{:>04}'
         self.visited = 0
-        self.foo = Acquisition("foo", self.produce, consumer_callers=[self.consume],
+        self.foo = Acquisition("foo", self.produce, consumers=[self.consume],
                                acquire=self.acquire)
         self.bar = Acquisition("bar", self.produce, acquire=self.acquire)
         self.acquisitions = [self.foo, self.bar]
