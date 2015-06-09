@@ -49,19 +49,61 @@ def test_frames():
     assert count.i == 5
 
 
+class TestAcquisition(TestCase):
+
+    def setUp(self):
+        self.acquired = False
+        self.item = None
+        self.acquisition = Acquisition('foo', self.produce, consumer_callers=[self.consume],
+                                       acquire=self.acquire)
+
+    def test_connect(self):
+        self.acquisition.connect()
+        self.assertEqual(1, self.item)
+
+    def test_run(self):
+        self.acquisition()
+        self.assertTrue(self.acquired)
+        self.assertEqual(1, self.item)
+
+    def test_split_run(self):
+        """First acquire data, then process."""
+        self.acquisition.acquire()
+        self.assertTrue(self.acquired)
+        self.assertEqual(self.item, None)
+        self.acquisition.connect()
+        self.assertEqual(1, self.item)
+
+    def acquire(self):
+        self.acquired = True
+
+    def produce(self):
+        yield 1
+
+    @coroutine
+    def consume(self):
+        while True:
+            self.item = yield
+
+
 class TestExperimentBase(TestCase):
 
     def setUp(self):
         super(TestExperimentBase, self).setUp()
+        self.acquired = 0
         self.root = ''
         self.walker = DummyWalker(root=self.root)
         self.name_fmt = 'scan_{:>04}'
         self.visited = 0
-        self.foo = Acquisition("foo", self.produce, consumer_callers=[self.consume])
-        self.bar = Acquisition("bar", self.produce)
+        self.foo = Acquisition("foo", self.produce, consumer_callers=[self.consume],
+                               acquire=self.acquire)
+        self.bar = Acquisition("bar", self.produce, acquire=self.acquire)
         self.acquisitions = [self.foo, self.bar]
         self.num_produce = 2
         self.item = None
+
+    def acquire(self):
+        self.acquired += 1
 
     def produce(self):
         self.visited += 1
@@ -84,6 +126,7 @@ class TestExperiment(TestExperimentBase):
     def test_run(self):
         self.experiment.run().join()
         self.assertEqual(self.visited, len(self.experiment.acquisitions))
+        self.assertEqual(self.acquired, len(self.experiment.acquisitions))
 
         self.experiment.run().join()
         self.assertEqual(self.visited, 2 * len(self.experiment.acquisitions))
@@ -93,6 +136,20 @@ class TestExperiment(TestExperimentBase):
 
         # Consumers must be called
         self.assertTrue(self.item is not None)
+
+    def test_split_run(self):
+        for acq in self.acquisitions:
+            acq.acquire()
+
+        self.assertEqual(self.acquired, len(self.experiment.acquisitions))
+        self.assertEqual(self.visited, 0)
+
+        for acq in self.acquisitions:
+            acq.connect()
+
+        # No more acquisitions made
+        self.assertEqual(self.acquired, len(self.experiment.acquisitions))
+        self.assertEqual(self.visited, len(self.experiment.acquisitions))
 
     def test_swap(self):
         self.experiment.swap(self.foo, self.bar)
