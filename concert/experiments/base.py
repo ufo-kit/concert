@@ -14,32 +14,46 @@ LOG = logging.getLogger(__name__)
 class Acquisition(object):
 
     """
-    An acquisition object connects data generator to consumers.
+    An acquisition acquires data, gets it and sends it to consumers.
 
     .. py:attribute:: generator_caller
 
-        a callable which returns a generator once called
+        a callable with no arguments which returns a generator yielding data items once called.
 
     .. py:attribute:: consumer_callers
 
-        a list of callables which return a coroutine once started
+        a list of callables with no arguments which return a coroutine consuming the data once
+        started, can be empty.
+
+    .. py:attribute:: acquire
+
+        a callable which acquires the data, takes no arguments, can be None.
 
     """
 
-    def __init__(self, name, generator_caller, consumer_callers=None):
+    def __init__(self, name, generator_caller, consumer_callers=None, acquire=None):
         self.name = name
         self.generator = generator_caller
         self.consumers = [] if consumer_callers is None else consumer_callers
+        # Don't bother with checking this for None later
+        self.acquire = acquire if acquire else lambda: None
 
-    def __call__(self):
-        """Run the acquisition, i.e. connect the producer and consumer."""
-        LOG.debug("Running acquisition '{}'".format(self))
-
+    def connect(self):
+        """Connect producer with consumers."""
         started = []
         for not_started in self.consumers:
             started.append(not_started())
 
         inject(self.generator(), broadcast(*started))
+
+    def __call__(self):
+        """Run the acquisition, i.e. acquire the data and connect the producer and consumers."""
+        LOG.debug("Running acquisition '{}'".format(self))
+
+        if self.acquire:
+            self.acquire()
+
+        self.connect()
 
     def __repr__(self):
         return "Acquisition({})".format(self.name)
