@@ -162,6 +162,9 @@ class Camera(base.Camera):
     def stop_readout(self):
         self.uca.stop_readout()
 
+    def grab(self, index=None):
+        return self.convert(self._grab_real(index))
+
     def _get_frame_rate(self):
         return self._uca_get_frame_rate(self) / q.s
 

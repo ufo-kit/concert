@@ -123,9 +123,9 @@ class Camera(Device):
         """Trigger a frame if possible."""
         self._trigger_real()
 
-    def grab(self, index=None):
+    def grab(self):
         """Return a NumPy array with data of the current frame."""
-        return self.convert(self._grab_real(index))
+        return self.convert(self._grab_real())
 
     @async
     def grab_async(self):
@@ -157,7 +157,7 @@ class Camera(Device):
     def _trigger_real(self):
         raise AccessorNotImplementedError
 
-    def _grab_real(self, index=None):
+    def _grab_real(self):
         raise AccessorNotImplementedError
 
 
