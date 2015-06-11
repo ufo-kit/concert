@@ -67,10 +67,7 @@ def get_tango_device(uri, peer=None):
     """
     import PyTango
     # TODO: check if there is a way to adjust the host in PyTango.
-    old = os.environ['TANGO_HOST'] if 'TANGO_HOST' in os.environ else None
     if peer is not None:
         os.environ["TANGO_HOST"] = peer
-    if old:
-        os.environ['TANGO_HOST'] = old
 
     return PyTango.DeviceProxy(uri)
