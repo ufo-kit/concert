@@ -5,10 +5,10 @@ _concert()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    opts="edit import export init log rm mv cp show start"
+    opts="edit import export init log rm mv cp show start docs"
 
     case "${prev}" in
-        init)
+        init|docs)
             local more=$(for x in `concert ${prev} --help | grep "  --" - | awk '{ print $1 }'`; do echo ${x}; done)
             COMPREPLY=($(compgen -W "${more}" -- ${cur}))
             return 0

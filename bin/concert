@@ -450,6 +450,35 @@ class StartCommand(Command):
             print(msg.format(exception))
 
 
+class DocsCommand(Command):
+
+    """Create documentation of *session* docstring."""
+
+    def __init__(self):
+        opts = {'session': {'type': str, 'metavar': 'session'}}
+        super(DocsCommand, self).__init__('docs', opts)
+
+    def run(self, session):
+        import subprocess
+        import shlex
+
+        try:
+            subprocess.check_output(['pandoc', '-v'])
+        except OSError:
+            print("Please install pandoc and pdftex to generate docs.")
+            sys.exit(1)
+
+        cs.exit_if_not_exists(session)
+        module = cs.load(session)
+
+        if not module.__doc__:
+            print("No docstring in `{}' found".format(session))
+
+        cmd_line = shlex.split('pandoc -f markdown -t latex -o {}.pdf'.format(session))
+        pandoc = subprocess.Popen(cmd_line, stdin=subprocess.PIPE)
+        pandoc.communicate(module.__doc__)
+
+
 def main():
     parser = argparse.ArgumentParser()
 
@@ -469,7 +498,8 @@ def main():
                 RemoveCommand(),
                 ImportCommand(),
                 ExportCommand(),
-                StartCommand()]
+                StartCommand(),
+                DocsCommand()]
 
     commands.extend(plugins)
 

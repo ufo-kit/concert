@@ -30,6 +30,7 @@ help is shown::
         rm        Remove one or more sessions
         import    Import an existing *session*
         export    Export all sessions as a Zip archive
+        docs      Create documentation of *session* docstring
 
 The tool is command-driven, that means you call it with a command as its first
 argument. To read command-specific help, use::
@@ -236,6 +237,23 @@ The quantities package is already loaded and named ``q``.
     .. cmdoption:: --non-interactive
 
         Run the session as a script and do not launch a shell.
+
+
+docs
+----
+
+.. program:: concert docs
+
+Create a PDF documentation for a session::
+
+    concert docs session-name
+
+Creates a PDF manual named *session-name.zip* with the contents taken from the
+session's docstring. The docstring should be formatted in Markdown markup.
+
+.. note::
+
+    This requires an installation of Pandoc and PDFLaTeX.
 
 
 Remote access
