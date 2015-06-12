@@ -9,7 +9,12 @@ import shutil
 
 _CACHED_PATH = None
 
-_SESSION_TEMPLATE = """\"\"\"This is session {doc}\"\"\"
+_SESSION_TEMPLATE = """\"\"\"# *{doc}* session manual
+
+## Usage
+
+## Notes
+\"\"\"
 
 import logging
 import concert
