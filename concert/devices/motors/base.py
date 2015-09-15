@@ -18,6 +18,8 @@ from concert.quantities import q
 from concert.async import async
 from concert.base import Quantity, State, check, AccessorNotImplementedError
 from concert.devices.base import Device
+from concert.config import MOTOR_VELOCITY_SAMPLING_TIME as dT
+from time import sleep
 
 
 LOG = logging.getLogger(__name__)
@@ -111,7 +113,27 @@ class LinearMotor(_PositionMixin):
                                     target=['hard-limit', 'standby']))
 
 
-class ContinuousLinearMotor(LinearMotor):
+class _VelocityMixin(object):
+
+    """
+    Provides velocity calculation for continuous motors
+    from subsequent position measures.
+
+    Sampling time for velocity measurement can be set in
+    concert.config.MOTOR_VELOCITY_SAMPLING_TIME.
+    """
+
+    def _cancel_velocity(self):
+        self._abort()
+
+    def _get_velocity(self):
+        pos0 = self.position
+        sleep(dT.to(q.s).magnitude)
+        pos1 = self.position
+        return (pos1-pos0)/dT
+
+
+class ContinuousLinearMotor(LinearMotor, _VelocityMixin):
 
     """
     One-dimensional linear motor with adjustable velocity.
@@ -126,9 +148,6 @@ class ContinuousLinearMotor(LinearMotor):
 
     def _get_state(self):
         raise NotImplementedError
-
-    def _cancel_velocity(self):
-        self._abort()
 
     state = State(default='standby')
 
@@ -147,10 +166,10 @@ class RotationMotor(_PositionMixin):
         Position of the motor in angular units.
     """
 
-    state = State(default='standby')
-
     def _get_state(self):
         raise NotImplementedError
+
+    state = State(default='standby')
 
     position = Quantity(q.deg, help="Angular position",
                         check=check(source=['hard-limit', 'standby'],
@@ -160,7 +179,7 @@ class RotationMotor(_PositionMixin):
         super(RotationMotor, self).__init__()
 
 
-class ContinuousRotationMotor(RotationMotor):
+class ContinuousRotationMotor(RotationMotor, _VelocityMixin):
 
     """
     One-dimensional rotational motor with adjustable velocity.
@@ -175,9 +194,6 @@ class ContinuousRotationMotor(RotationMotor):
 
     def _get_state(self):
         raise NotImplementedError
-
-    def _cancel_velocity(self):
-        self._abort()
 
     state = State(default='standby')
 
