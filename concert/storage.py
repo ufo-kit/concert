@@ -218,6 +218,7 @@ class DirectoryWalker(Walker):
         """
         if not root:
             root = os.getcwd()
+        root = os.path.abspath(root)
 
         log_handler = None
 
