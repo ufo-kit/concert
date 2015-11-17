@@ -56,8 +56,8 @@ class Accumulate(object):
     @coroutine
     def _process(self):
         """Stack data into a list."""
-        # Clear results from possible previous execution
-        self.items = []
+        # Clear results from possible previous execution but keep the list in the same place
+        del self.items[:]
 
         while True:
             item = yield

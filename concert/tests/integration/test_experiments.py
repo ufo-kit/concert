@@ -10,7 +10,7 @@ from concert.coroutines.sinks import Accumulate
 from concert.experiments.base import Acquisition, Experiment, ExperimentError
 from concert.experiments.imaging import (tomo_angular_step, tomo_max_speed,
                                          tomo_projections_number, frames)
-from concert.experiments.addons import Consumer, ImageWriter
+from concert.experiments.addons import Consumer, ImageWriter, Accumulator
 from concert.devices.cameras.dummy import Camera
 from concert.tests import TestCase, suppressed_logging, assert_almost_equal, VisitChecker
 from concert.storage import DummyWalker
@@ -144,3 +144,17 @@ class TestExperiment(TestExperimentBase):
 
             self.assertTrue(self.walker.exists(foo))
             self.assertTrue(self.walker.exists(bar))
+
+    def test_accumulation(self):
+        acc = Accumulator(self.acquisitions)
+        self.experiment.run().join()
+
+        for acq in self.acquisitions:
+            self.assertEqual(acc.items[acq], range(self.num_produce))
+
+        # Test detach
+        acc.detach()
+        for acq in self.acquisitions:
+            for consumer in acq.consumers:
+                self.assertFalse(isinstance(consumer, Accumulate))
+        self.assertEquals(acc.items, {})

@@ -1,6 +1,7 @@
 """Add-ons for acquisitions are standalone extensions which can be applied to them. They operate on
 the acquired data, e.g. write images to disk, do tomographic reconstruction etc.
 """
+from concert.coroutines.sinks import Accumulate
 
 
 class Addon(object):
@@ -61,6 +62,48 @@ class Consumer(Addon):
         """Unattach all acquisitions."""
         for acq in self.acquisitions:
             acq.consumers.remove(self.consumer)
+
+
+class Accumulator(Addon):
+
+    """An addon which accumulates data.
+
+    .. py:attribute:: acquisitions
+
+    a list of :class:`~concert.experiments.base.Acquisition` objects
+
+    .. py:attribute:: shapes
+
+    a list of shapes for different acquisitions
+
+    .. py:attribute:: dtype
+
+    the numpy data type
+    """
+
+    def __init__(self, acquisitions, shapes=None, dtype=None):
+        self._accumulators = {}
+        self._shapes = shapes
+        self._dtype = dtype
+        self.items = {}
+        super(Accumulator, self).__init__(acquisitions)
+
+    def attach(self):
+        """attach all acquisitions."""
+        shapes = (None,) * len(self.acquisitions) if self._shapes is None else self._shapes
+
+        for i, acq in enumerate(self.acquisitions):
+            self._accumulators[acq] = Accumulate(shape=shapes[i], dtype=self._dtype)
+            self.items[acq] = self._accumulators[acq].items
+            acq.consumers.append(self._accumulators[acq])
+
+    def detach(self):
+        """Unattach all acquisitions."""
+        self.items = {}
+        for acq in self.acquisitions:
+            acq.consumers.remove(self._accumulators[acq])
+
+        self._accumulators = {}
 
 
 class ImageWriter(Addon):
