@@ -14,6 +14,7 @@ class DisableAsync(nose.plugins.Plugin):
 
     def configure(self, options, conf):
         concert.config.ENABLE_ASYNC = not options.disable_async
+        concert.config.PRINT_NOASYNC_EXCEPTION = False
         super(DisableAsync, self).configure(options, conf)
 
 

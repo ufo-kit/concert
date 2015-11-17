@@ -15,6 +15,7 @@
 """
 import time
 import functools
+import traceback
 import concert.config
 from concurrent.futures import ThreadPoolExecutor, Future
 from concert.quantities import q
@@ -79,6 +80,8 @@ def no_async(func):
             result = func(*args, **kwargs)
             future.set_result(result)
         except Exception as e:
+            if concert.config.PRINT_NOASYNC_EXCEPTION:
+                traceback.print_exc()
             future.set_exception(e)
 
         return future
