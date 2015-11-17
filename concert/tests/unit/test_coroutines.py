@@ -152,9 +152,20 @@ class TestCoroutines(TestCase):
         frame_producer(backproject(1, null()))
 
     def test_accumulate(self):
-        accumulate = Accumulate()
-        inject(generator(), accumulate())
-        self.assertEqual(accumulate.items, range(5))
+        def run_test(data, shape=None, dtype=None):
+            accumulate = Accumulate(shape=shape, dtype=dtype)
+            inject(data, accumulate())
+            np.testing.assert_equal(accumulate.items, data)
+            target_type = np.ndarray if shape else list
+            self.assertTrue(isinstance(accumulate.items, target_type))
+            if shape:
+                self.assertEqual(accumulate.items.dtype, data.dtype)
+
+        shape = (4, 4, 4)
+        dtype = np.ushort
+        data = np.ones(shape, dtype=dtype)
+        run_test(data)
+        run_test(data, shape=shape, dtype=dtype)
 
     def test_process(self):
         result = Result()
