@@ -66,6 +66,32 @@ running the acquisition above and storing log with
     :members:
 
 
+Advanced
+--------
+
+Sometimes we need finer control over when exactly is the data acquired and worry
+about the download later. We can use the *acquire* argument to
+:class:`~.base.Acquisition`. This means that the data acquisition can be invoked
+independently from the processing stage. By default, the
+:class:`~.base.Acquisition` calls its *acquire* and then connects the processing
+immediately. To use the separate acquisition we may e.g. reimplement the
+:meth:`.base.Experiment.acquire` method::
+
+    class SplitExperiment(Experiment):
+
+        def acquire(self):
+            # Here we acquire
+            for acq in self.acquisitions:
+                acq.acquire()
+
+            # Do something in between
+            pass
+
+            # Here we process
+            for acq in self.acquisitions:
+                acq.connect()
+
+
 Imaging
 -------
 
