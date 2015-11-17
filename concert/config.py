@@ -12,3 +12,5 @@
 
 ENABLE_ASYNC = True
 ENABLE_GEVENT = False
+# Prints the exception source by fake futures
+PRINT_NOASYNC_EXCEPTION = True

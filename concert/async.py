@@ -80,7 +80,8 @@ def no_async(func):
             result = func(*args, **kwargs)
             future.set_result(result)
         except Exception as e:
-            traceback.print_exc()
+            if concert.config.PRINT_NOASYNC_EXCEPTION:
+                traceback.print_exc()
             future.set_exception(e)
 
         return future
