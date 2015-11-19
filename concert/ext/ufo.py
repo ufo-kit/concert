@@ -133,7 +133,7 @@ class InjectProcess(object):
         else:
             self.ufo_buffers[node][index] = self.input_tasks[node][index].get_input_buffer()
 
-        self.ufo_buffers[node][index].set_host_array(array.__array_interface__['data'][0], False)
+        self.ufo_buffers[node][index].copy_host_array(array.__array_interface__['data'][0])
         self.input_tasks[node][index].release_input_buffer(self.ufo_buffers[node][index])
 
     def result(self):
