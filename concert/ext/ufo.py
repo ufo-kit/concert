@@ -128,8 +128,7 @@ class InjectProcess(object):
                 node = self.input_tasks.keys()[0]
         if self.ufo_buffers[node][index] is None:
             # reverse shape from rows, cols to x, y
-            shape = array.shape[1], array.shape[0]
-            self.ufo_buffers[node][index] = Ufo.Buffer.new_with_size(shape, None)
+            self.ufo_buffers[node][index] = Ufo.Buffer.new_with_size(array.shape[::-1], None)
         else:
             self.ufo_buffers[node][index] = self.input_tasks[node][index].get_input_buffer()
 
