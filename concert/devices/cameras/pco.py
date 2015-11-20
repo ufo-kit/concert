@@ -5,6 +5,7 @@ from datetime import datetime
 import numpy as np
 from concert.devices.cameras import base
 from concert.devices.cameras.uca import Camera
+from concert.quantities import q
 
 
 class Pco(Camera):
@@ -72,6 +73,12 @@ class Dimax(Pco, base.BufferedMixin):
 
     def __init__(self):
         super(Dimax, self).__init__()
+
+    def start_recording(self):
+        super(Dimax, self).start_recording()
+        # By low frame rates the camera returns status that it is already recording, whereas it is
+        # not. Waiting 1 frame time seems to help.
+        time.sleep((1 / self.frame_rate).to(q.s).magnitude)
 
     def _readout_real(self, num_frames=None):
         """Readout *num_frames* frames."""
