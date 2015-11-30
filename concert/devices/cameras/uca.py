@@ -165,6 +165,11 @@ class Camera(base.Camera):
     def grab(self, index=None):
         return self.convert(self._grab_real(index))
 
+    def write(self, name, data):
+        """Write NumPy array *data* for *name*."""
+        raw = data.__array_interface__['data'][0]
+        self.uca.write(name, raw, data.nbytes)
+
     def _get_frame_rate(self):
         return self._uca_get_frame_rate(self) / q.s
 
