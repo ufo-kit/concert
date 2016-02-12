@@ -49,12 +49,12 @@ class PCO4000(Pco):
         super(PCO4000, self).stop_recording()
 
     def _grab_real(self):
-        # For the PCO.4000 there must be a delay of at least one second
+        # For the PCO.4000 there must be a delay of at least 1.2 second
         # between consecutive grabs, otherwise it crashes. We provide
         # appropriate timeout here.
         current = time.time()
-        if self._last_grab_time and current - self._last_grab_time < 1:
-            time.sleep(1 - current + self._last_grab_time)
+        if self._last_grab_time and current - self._last_grab_time < 1.2:
+            time.sleep(1.2 - current + self._last_grab_time)
         result = super(PCO4000, self)._grab_real()
         self._last_grab_time = time.time()
 
