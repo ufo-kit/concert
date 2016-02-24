@@ -213,7 +213,7 @@ class PyplotViewer(PyplotViewerBase):
 
         Note: if x is not given, the iteration starts at 0.
         """
-        if not self._paused and (self._queue.empty() or force):
+        if not self._paused and (not self._queue.qsize() or force):
             if y is None:
                 if isinstance(x, q.Quantity) and isinstance(x.magnitude, collections.Iterable) or\
                    not isinstance(x, q.Quantity) and isinstance(x, collections.Iterable):
@@ -278,7 +278,7 @@ class PyplotImageViewer(PyplotViewerBase):
         only if the queue is empty in order to guarantee that the newest
         image is drawn or if the *force* is True.
         """
-        if not self._paused and (self._queue.empty() or force):
+        if not self._paused and (not self._queue.qsize() or force):
             self._queue.put((_PyplotImageUpdater.IMAGE, item))
 
     @property
