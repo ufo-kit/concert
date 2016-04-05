@@ -183,6 +183,9 @@ class Experiment(object):
             self.prepare()
             self.acquire()
             self.finish()
+        except:
+            LOG.exception('Error while running experiment')
+            raise
         finally:
             if self.separate_scans and self.walker:
                 self.walker.ascend()
