@@ -1,6 +1,7 @@
 """Add-ons for acquisitions are standalone extensions which can be applied to them. They operate on
 the acquired data, e.g. write images to disk, do tomographic reconstruction etc.
 """
+from concert.coroutines.filters import queue
 from concert.coroutines.sinks import Accumulate
 
 
@@ -117,17 +118,23 @@ class ImageWriter(Addon):
     .. py:attribute:: walker
 
     A :class:`~concert.storage.Walker` instance
+
+    .. py:attribute:: async
+
+    If True write images asynchronously
     """
 
-    def __init__(self, acquisitions, walker):
+    def __init__(self, acquisitions, walker, async=True):
         self.walker = walker
+        self._async = async
         self._writers = {}
         super(ImageWriter, self).__init__(acquisitions)
 
     def attach(self):
         """attach all acquisitions."""
         for acq in self.acquisitions:
-            self._writers[acq] = self._write_sequence(acq)
+            block = True if acq == self.acquisitions[-1] else False
+            self._writers[acq] = self._write_sequence(acq, block)
             acq.consumers.append(self._writers[acq])
 
     def detach(self):
@@ -136,13 +143,16 @@ class ImageWriter(Addon):
             acq.consumers.remove(self._writers[acq])
             del self._writers[acq]
 
-    def _write_sequence(self, acquisition):
+    def _write_sequence(self, acquisition, block):
         """Wrap the walker and write data."""
         def wrapped_writer():
             """Returned wrapper."""
             try:
                 self.walker.descend(acquisition.name)
-                return self.walker.write()
+                coro = self.walker.write()
+                if self._async:
+                    coro = queue(coro, process_all=True, block=block)
+                return coro
             finally:
                 self.walker.ascend()
 
