@@ -33,7 +33,8 @@ class PCO4000(Pco):
 
     _ALLOWED_DURING_RECORDING = ['trigger', '_trigger_real', '_last_grab_time',
                                  'grab', '_grab_real', '_record_shape', '_record_dtype',
-                                 'uca', 'stop_recording']
+                                 'uca', 'stop_recording', 'convert', 'state', '_get_state',
+                                 '_state_value']
 
     def __init__(self):
         self._lock_access = False
@@ -48,14 +49,14 @@ class PCO4000(Pco):
         self._lock_access = False
         super(PCO4000, self).stop_recording()
 
-    def _grab_real(self):
+    def _grab_real(self, index=None):
         # For the PCO.4000 there must be a delay of at least 1.2 second
         # between consecutive grabs, otherwise it crashes. We provide
         # appropriate timeout here.
         current = time.time()
         if self._last_grab_time and current - self._last_grab_time < 1.2:
             time.sleep(1.2 - current + self._last_grab_time)
-        result = super(PCO4000, self)._grab_real()
+        result = super(PCO4000, self)._grab_real(index=index)
         self._last_grab_time = time.time()
 
         return result
@@ -63,7 +64,7 @@ class PCO4000(Pco):
     def __getattribute__(self, name):
         if object.__getattribute__(self, '_lock_access') and name \
            not in PCO4000._ALLOWED_DURING_RECORDING:
-            raise AttributeError('PCO.4000 is inaccessible during recording')
+            raise AttributeError("{} cannot be accessed during recording".format(name))
         return object.__getattribute__(self, name)
 
 
