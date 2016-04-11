@@ -6,6 +6,7 @@ except ImportError:
 import logging
 import time
 import numpy as np
+import concert.config as cfg
 from concert.quantities import q
 from concert.imageprocessing import ramp_filter
 from concert.async import threaded
@@ -50,27 +51,47 @@ def downsize(consumer, x_slice=None, y_slice=None, z_slice=None):
 
 
 @coroutine
-def queue(consumer):
+def queue(consumer, process_all=True, block=False):
     """
-    queue(consumer)
+    queue(consumer, process_all=True, block=False)
 
-    Store the incoming data in a queue and dispatch in a separate
-    thread which prevents the stalling on the "main" data stream.
+    Store the incoming data in a queue and dispatch to the *consumer* in a separate thread which
+    prevents the stalling on the "main" data stream. If *process_all* is True the serve loop may
+    exit only when all items are sent to *consumer*. If *block* is True this coroutine blocks until
+    all items in the serve loop are processed, *process_all* must be True as well for this to take
+    effect.
     """
+    from concert.async import HAVE_GEVENT
+    if cfg.ENABLE_GEVENT and HAVE_GEVENT:
+        from gevent.event import Event
+    else:
+        from threading import Event
+
+    if block and not process_all:
+        raise ValueError('If block is True then process_all must be as well')
     item_queue = queue_module.Queue()
 
     @threaded
     def serve():
-        while True:
+        while serve.run or (process_all and not item_queue.empty()):
             item = item_queue.get()
             consumer.send(item)
             item_queue.task_done()
+        serve.stopped.set()
+        LOG.debug("queue's serve loop stopped")
 
+    serve.run = True
+    serve.stopped = Event()
     serve()
 
-    while True:
-        item = yield
-        item_queue.put(deepcopy(item))
+    try:
+        while True:
+            item = yield
+            item_queue.put(deepcopy(item))
+    except GeneratorExit:
+        serve.run = False
+        if block:
+            serve.stopped.wait()
 
 
 @coroutine
