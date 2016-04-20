@@ -30,8 +30,12 @@ class Connection(SocketConnection):
             LOG.warn(hle_response)
             raise ValueError("Invalid command or parameter")
         if (hle_response[0] == Connection.FAULT_CHAR):
-            raise RuntimeError("Controller task error.")
+            raise ControllerTaskError("Controller task error.")
 
     def recv(self):
         """Return properly interpreted answer from the controller."""
         return self._interpret_response(super(Connection, self).recv())
+
+
+class ControllerTaskError(Exception):
+    pass
