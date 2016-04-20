@@ -8,3 +8,4 @@ docs/_build
 MANIFEST
 .noseids
 .*.swp
+install_manifest.txt
