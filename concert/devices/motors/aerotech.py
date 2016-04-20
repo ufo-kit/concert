@@ -43,6 +43,10 @@ class Aerorot(ContinuousRotationMotor):
         """Reconnect in case the connection fails or is closed by the motor controller."""
         self._connection = Connection(self._host, self._port)
 
+    def faultack(self):
+        """Clear errors."""
+        return self._connection.execute("FAULTACK %s" % (Aerorot.AXIS))
+
     def _query_state(self):
         return int(self._connection.execute("AXISSTATUS(%s)" % (Aerorot.AXIS)))
 
