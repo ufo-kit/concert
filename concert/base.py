@@ -312,9 +312,10 @@ class Parameter(object):
                 except AccessorNotImplementedError:
                     raise WriteAccessError(self.name)
 
-            msg = "set {}::{}='{}'"
-            name = instance.__class__.__name__
-            LOG.info(msg.format(name, self.name, value))
+            msg = "set {}:{}::{}='{}'"
+            cls = instance.__class__.__name__
+            name = _get_instance_variable_name(instance)
+            LOG.info(msg.format(cls, name, self.name, value))
         except KeyboardInterrupt:
             cancel_name = '_cancel_' + self.name
             if hasattr(instance, cancel_name):
@@ -860,3 +861,46 @@ class Parameterizable(object):
         """Unlock all the parameters for writing."""
         for param in self:
             param.unlock()
+
+
+def _get_instance_variable_name(instance):
+    def parse_namespace(namespace, instance_type):
+        # We ignore some very low-level instantiations
+        blacklist = ['self', 'instance']
+        for key, obj in namespace.items():
+            if isinstance(obj, instance_type) and obj == instance and key not in blacklist:
+                return key
+
+    if (_get_instance_variable_name.memo is not None and hasattr(instance, '_name_cache') and
+            instance._name_cache in _get_instance_variable_name.memo):
+        # Only search the cache if allowed, i.e. when the session has started. In this case the memo
+        # variable is a dictionary
+        return _get_instance_variable_name.memo[instance._name_cache]
+    # Tag the instance to prevent ambiguity based on id. If an instance at a later time point
+    # shares the same id it doesn't have this attribute, hence it will invalidate the old
+    # entry
+    instance._name_cache = id(instance)
+
+    try:
+        # The actual lookup
+        frames = zip(*inspect.stack())[0]
+        frame = None
+        instance_type = type(instance)
+        # Search in top-down direction because the user-defined variable names are likely to appear
+        # at the top level
+        for frame in frames[::-1]:
+            name = parse_namespace(frame.f_globals, instance_type)
+            if not name:
+                name = parse_namespace(frame.f_locals, instance_type)
+            if name:
+                if _get_instance_variable_name.memo is not None:
+                    _get_instance_variable_name.memo[instance._name_cache] = name
+                return name
+        return ''
+    finally:
+        # Do not create cyclic references on frames
+        del frame
+        del frames
+
+
+_get_instance_variable_name.memo = None

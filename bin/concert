@@ -411,6 +411,7 @@ class StartCommand(Command):
             self.run_shell(module)
 
     def run_shell(self, module=None):
+        import concert
         from concert.base import (UnitError, LimitError, ParameterError,
                                   ReadAccessError, WriteAccessError, LockError)
 
@@ -435,6 +436,7 @@ class StartCommand(Command):
 
             if not module:
                 from concert.quantities import q
+            concert.base._get_instance_variable_name.memo = {}
 
             try:
                 shell = get_ipython_shell(config=config)
