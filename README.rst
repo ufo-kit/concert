@@ -40,7 +40,7 @@ or from a session and within an integrated `IPython`_ shell::
 
 You can read more about *Concert* in the official `documentation`_.
 
-.. _documentation: https://concert.readthedocs.org
+.. _documentation: https://concert.readthedocs.io
 
 
 Citation
