@@ -1,8 +1,12 @@
 """Add-ons for acquisitions are standalone extensions which can be applied to them. They operate on
 the acquired data, e.g. write images to disk, do tomographic reconstruction etc.
 """
+import logging
 from concert.coroutines.filters import queue
 from concert.coroutines.sinks import Accumulate
+
+
+LOG = logging.getLogger(__name__)
 
 
 class Addon(object):
@@ -19,21 +23,32 @@ class Addon(object):
 
     def __init__(self, acquisitions):
         self.acquisitions = acquisitions
+        self._attached = False
         self.attach()
 
     def attach(self):
-        """attach adds the addon to an experiment. This means all the necessary operations which
-        provide the addon functionality should be implemented in this method. This mostly means
-        appending consumers to acquisitions.
-        """
-        pass
+        """Attach the addon to all acquisitions."""
+        if self._attached:
+            LOG.debug('Cannot attach an already attached Addon')
+        else:
+            self._attach()
+            self._attached = True
 
     def detach(self):
-        """Unattach removes the addon from an experiment. This means all the necessary operations
-        which provide the addon functionality should be undone by this method. This mostly means
-        removing consumers from acquisitions.
-        """
-        pass
+        """Detach the addon from all acquisitions."""
+        if self._attached:
+            self._detach()
+            self._attached = False
+        else:
+            LOG.debug('Cannot detach an unattached Addon')
+
+    def _attach(self):
+        """Attach implementation."""
+        raise NotImplementedError
+
+    def _detach(self):
+        """Detach implementation."""
+        raise NotImplementedError
 
 
 class Consumer(Addon):
@@ -54,13 +69,13 @@ class Consumer(Addon):
         self.consumer = consumer
         super(Consumer, self).__init__(acquisitions)
 
-    def attach(self):
-        """attach all acquisitions."""
+    def _attach(self):
+        """Attach all acquisitions."""
         for acq in self.acquisitions:
             acq.consumers.append(self.consumer)
 
-    def detach(self):
-        """Unattach all acquisitions."""
+    def _detach(self):
+        """Detach all acquisitions."""
         for acq in self.acquisitions:
             acq.consumers.remove(self.consumer)
 
@@ -89,8 +104,8 @@ class Accumulator(Addon):
         self.items = {}
         super(Accumulator, self).__init__(acquisitions)
 
-    def attach(self):
-        """attach all acquisitions."""
+    def _attach(self):
+        """Attach all acquisitions."""
         shapes = (None,) * len(self.acquisitions) if self._shapes is None else self._shapes
 
         for i, acq in enumerate(self.acquisitions):
@@ -98,8 +113,8 @@ class Accumulator(Addon):
             self.items[acq] = self._accumulators[acq].items
             acq.consumers.append(self._accumulators[acq])
 
-    def detach(self):
-        """Unattach all acquisitions."""
+    def _detach(self):
+        """Detach all acquisitions."""
         self.items = {}
         for acq in self.acquisitions:
             acq.consumers.remove(self._accumulators[acq])
@@ -130,15 +145,15 @@ class ImageWriter(Addon):
         self._writers = {}
         super(ImageWriter, self).__init__(acquisitions)
 
-    def attach(self):
-        """attach all acquisitions."""
+    def _attach(self):
+        """Attach all acquisitions."""
         for acq in self.acquisitions:
             block = True if acq == self.acquisitions[-1] else False
             self._writers[acq] = self._write_sequence(acq, block)
             acq.consumers.append(self._writers[acq])
 
-    def detach(self):
-        """Unattach all acquisitions."""
+    def _detach(self):
+        """Detach all acquisitions."""
         for acq in self.acquisitions:
             acq.consumers.remove(self._writers[acq])
             del self._writers[acq]
