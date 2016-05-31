@@ -10,10 +10,22 @@ from concert.coroutines.sinks import Accumulate
 from concert.experiments.base import Acquisition, Experiment, ExperimentError
 from concert.experiments.imaging import (tomo_angular_step, tomo_max_speed,
                                          tomo_projections_number, frames)
-from concert.experiments.addons import Consumer, ImageWriter, Accumulator
+from concert.experiments.addons import Addon, Consumer, ImageWriter, Accumulator
 from concert.devices.cameras.dummy import Camera
 from concert.tests import TestCase, suppressed_logging, assert_almost_equal, VisitChecker
 from concert.storage import DummyWalker
+
+
+class DummyAddon(Addon):
+    def __init__(self):
+        self.attached_num_times = 0
+        super(DummyAddon, self).__init__([])
+
+    def _attach(self):
+        self.attached_num_times += 1
+
+    def _detach(self):
+        self.attached_num_times -= 1
 
 
 @suppressed_logging
@@ -215,3 +227,18 @@ class TestExperiment(TestExperimentBase):
             for consumer in acq.consumers:
                 self.assertFalse(isinstance(consumer, Accumulate))
         self.assertEquals(acc.items, {})
+
+    def test_attach_num_times(self):
+        """An attached addon cannot be attached the second time."""
+        addon = DummyAddon()
+        # Does nothing because it's attached during construction
+        addon.attach()
+        self.assertEqual(1, addon.attached_num_times)
+
+        # Detach
+        addon.detach()
+        self.assertEqual(0, addon.attached_num_times)
+
+        # Second time, cannot be called
+        addon.detach()
+        self.assertEqual(0, addon.attached_num_times)
