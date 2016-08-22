@@ -24,7 +24,7 @@ def _setter_not_implemented(value, *args):
 
 def _is_compatible(unit, value):
     try:
-        unit + value
+        1 * unit + value
         return True
     except ValueError:
         return False
