@@ -20,6 +20,8 @@ LOG = logging.getLogger(__name__)
 def optimize(function, x_0, algorithm, alg_args=(), alg_kwargs=None,
              consumer=None):
     """
+    optimize(function, x_0, algorithm, alg_args=(), alg_kwargs=None, consumer=None)
+
     Optimize y = *function* (x), where *x_0* is the initial guess.
     *algorithm* is the optimization algorithm to be used::
 

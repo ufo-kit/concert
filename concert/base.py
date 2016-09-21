@@ -207,18 +207,12 @@ class Parameter(object):
     trigger state checks. If *fget* or *fset* is not given, you must
     implement the accessor functions named `_set_name` and `_get_name`::
 
-        from concert.base import Parameter, State
+        from concert.base import Parameter, State, check
 
         class SomeClass(object):
 
             state = State(default='standby')
-
-            def actual(self):
-                return 'moving'
-
-            param = Parameter(check=check(source='standby',
-                                                    target=['standby', 'moving'],
-                                                    check=actual))
+            param = Parameter(check=check(source='standby', target=['standby', 'moving']))
 
             def _set_param(self, value):
                 pass
@@ -647,7 +641,7 @@ class QuantityValue(ParameterValue):
         self._limits_locked = False
 
     def lock_limits(self, permanent=False):
-        """Lock limits, if *permanent* is True the limits cannot be unlocker anymore."""
+        """Lock limits, if *permanent* is True the limits cannot be unlocked anymore."""
         def unlock_not_allowed():
             raise LockError('Limits are locked permanently')
 
@@ -754,7 +748,6 @@ class Parameterizable(object):
     To access a single name parameter object, you can use the ``[]`` operator::
 
         param = device['position']
-        print param.is_readable()
 
     If the parameter name does not exist, a :class:`.ParameterError` is raised.
 

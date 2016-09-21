@@ -10,7 +10,7 @@ class Pump(base.Pump):
 
     def __init__(self):
         super(Pump, self).__init__()
-        self._flow_rate = 0 * q.count
+        self._flow_rate = 0 * q.l / q.s
 
     def _start(self):
         self._set_state(Pump.PUMPING)

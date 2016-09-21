@@ -10,7 +10,7 @@ the publish-subscribe analogy. Once a dispatcher object is created, objects can
 :meth:`Dispatcher.subscribe` to messages from other objects and be notified
 when other objects :meth:`Dispatcher.send` a message to the dispatcher::
 
-    from concert.helpers import Dispatcher
+    from concert.async import Dispatcher
 
     def handle_message(sender):
         print("{0} send me a message".format(sender))

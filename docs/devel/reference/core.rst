@@ -98,8 +98,8 @@ TANGO
 -----
 
 .. _Tango: http://www.tango-controls.org/
-.. _PyTango: http://www.tango-controls.org/static/PyTango/latest/doc/html/index.html
-.. _DeviceProxy: http://www.tango-controls.org/static/PyTango/latest/doc/html/client/device_proxy.html
+.. _PyTango: http://www.esrf.eu/computing/cs/tango/tango_doc/kernel_doc/pytango/latest/index.html
+.. _DeviceProxy: http://www.esrf.eu/computing/cs/tango/tango_doc/kernel_doc/pytango/latest/client_api/device_proxy.html
 
 Tango_ devices are interfaced by PyTango_, one can obtain the DeviceProxy_ by
 the :py:func:`get_tango_device` function.

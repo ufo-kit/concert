@@ -6,7 +6,7 @@ Coroutines
 ==========
 
 Coroutines provide a way to process data and yield execution until more data is
-produced. *Generators* represent the source of data and can used as normal
+produced. *Generators* represent the source of data and can be used as normal
 iterators, e.g.  in a ``for`` loop. Coroutines can use the output of a generator
 to either process data and output a new result item in a *filter* fashion or
 process the data without further results in a *sink* fashion.
@@ -89,14 +89,14 @@ the UFO data processing framework. The simplest example could look like this::
     import scipy.misc
 
     pm = Ufo.PluginManager()
-    writer = pm.get_task('writer')
+    writer = pm.get_task('write')
     writer.props.filename = 'foo-%05i.tif'
 
     proc = InjectProcess(writer)
 
-    proc.run()
-    proc.push(scipy.misc.lena())
-    proc.join()
+    proc.start()
+    proc.insert(scipy.misc.lena())
+    proc.wait()
 
 
 To save yourself some time, the :mod:`.ufo` module provides a wrapper around the
@@ -105,7 +105,7 @@ raw ``UfoPluginManager``::
     from concert.ext.ufo import PluginManager
 
     pm = PluginManager()
-    writer = pm.get_task('writer', filename='foo-%05i.tif')
+    writer = pm.get_task('write', filename='foo-%05i.tif')
 
 
 

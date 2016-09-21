@@ -111,7 +111,7 @@ In case you are interested in the implementation of a function, you can use
 
     Because we are actually running an IPython shell, you can _always_
     tab-complete objects and attributes. For example, to change the motor
-    position, you could simply type ``mo<Tab>.po<Tab> = q.me<Tab>``.
+    position to 1 millimeter, you could simply type ``mot<Tab>.p<Tab> = 1 * q.mm``.
 
 .. _pint: https://pint.readthedocs.org/en/latest/
 
@@ -128,7 +128,7 @@ and :ref:`start <edit-command>` the default editor with ::
     $ concert edit new-session
 
 At the top of the file, you can see a string enclosed in three ``"``. This
-should changed to something descriptive as it will be shown each time you start
+should be changed to something descriptive as it will be shown each time you start
 the session.
 
 

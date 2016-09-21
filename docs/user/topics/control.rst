@@ -44,15 +44,13 @@ you shuld check if the device you are using is safe in this manner.
 
 Parameter objects are not only used to communicate with a device but also carry
 meta data information about the parameter. The most important ones are
-:attr:`Parameter.name`, :attr:`Parameter.unit` and
-:attr:`Parameter.in_hard_limit` as well as the doc string describing the
-parameter. Moreover, parameters can be queried for access rights using
-:meth:`Parameter.is_readable` and :meth:`Parameter.is_writable`.
+:attr:`Parameter.name`, :attr:`Parameter.unit` and the doc string describing the
+parameter. Moreover, parameters can be queried for access rights using :attr:`Parameter.writable`.
 
 To get all parameters of an object, you can iterate over the device itself ::
 
     for param in motor:
-        print("{0} => {1}".format(param.unit, param.name))
+        print("{0} => {1}".format(param.unit if hasattr(param,'unit') else None, param.name))
 
 Saving state
 ------------
@@ -87,7 +85,7 @@ one can do::
     motor['position'].lock()
     motor.position = 10 * q.mm
     # Does not work, you will get a LockError
-    motor.position.locked
+    motor['position'].locked
     True
 
     motor['position'].unlock()

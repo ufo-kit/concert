@@ -9,8 +9,9 @@ Scanning
 For instance, to set 10 motor positions between 5 and 12 millimeter and acquire
 the flow rate of a pump could be written like::
 
-    from concert.processes.common import scan
+    import numpy as np
     from concert.helpers import Region
+    from concert.processes.common import scan
 
     # Assume motor and pump are already defined
 
@@ -48,7 +49,7 @@ To continuously plot the values obtained by a 1D scan by a
     from concert.coroutines.base import inject
     from concert.ext.viewers import PyplotViewer
 
-    viewer = Pyplotviewer()
+    viewer = PyplotViewer()
 
     inject(resolve(generator), viewer())
 
@@ -94,7 +95,7 @@ in a similar way as SPEC::
     from concert.processes.common import ascan
 
     def do_something(parameters):
-        for each parameter in parameters:
+        for parameter in parameters:
             print(parameter)
 
     ascan([(motor1['position'], 0 * q.mm, 25 * q.mm),
@@ -108,8 +109,8 @@ Focusing
 To adjust the focal plane of a camera, you use :func:`.focus` like this::
 
     from concert.processes.common import focus
-    from concert.cameras.uca import Camera
-    from concert.motors.dummy import LinearMotor
+    from concert.devices.cameras.uca import Camera
+    from concert.devices.motors.dummy import LinearMotor
 
     motor = LinearMotor()
     camera = Camera('mock')

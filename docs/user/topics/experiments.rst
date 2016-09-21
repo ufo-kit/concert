@@ -19,7 +19,7 @@ consumer. We need to do this because generators cannot be "restarted". An exampl
 an acquisition could look like this::
 
     from concert.coroutines.base import coroutine
-    from concert.experiments import Acquisition
+    from concert.experiments.base import Acquisition
 
     # This is a real generator, num_items is provided somewhere in our session
     def produce():
@@ -33,7 +33,7 @@ an acquisition could look like this::
             item = yield
             print item
 
-    acquisition = Acquisition('foo', produce, consumer_callers=[consumer])
+    acquisition = Acquisition('foo', produce, consumers=[consumer])
     # Now we can run the acquisition
     acquisition()
 
@@ -58,7 +58,7 @@ running the acquisition above and storing log with
 
     walker = DirectoryWalker(log=LOG)
     acquisitions = [Acquisition('foo', produce)]
-    exp = Experiment(acquisitions, walker)
+    experiment = Experiment(acquisitions, walker)
 
     future = experiment.run()
 
@@ -126,11 +126,11 @@ their data acquisition. For example, to save images on disk::
 
     # Let's assume an experiment is already defined
     writer = ImageWriter(experiment.acquisitions, experiment.walker)
-    experiment.attach(writer)
+    writer.attach()
     # Now images are written on disk
     experiment.run()
     # To remove the writing addon
-    experiment.detach(writer)
+    writer.detach()
 
 .. automodule:: concert.experiments.addons
     :members:

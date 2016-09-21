@@ -34,7 +34,11 @@ class TarableScales(Scales):
 
     @async
     def tare(self):
-        """Tare the scales."""
+        """
+        tare()
+
+        Tare the scales.
+        """
         self._tare()
 
     def _tare(self):

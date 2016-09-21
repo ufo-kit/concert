@@ -21,16 +21,18 @@ help is shown::
 
     Concert commands:
 
-        start     Start a session
         init      Create a new session
-        mv        Move session *source* to *target*
+        edit      Edit a session
         log       Show session logs
         show      Show available sessions or details of a given *session*
-        edit      Edit a session
+        mv        Move session *source* to *target*
+        cp        Copy session *source* to *target*
         rm        Remove one or more sessions
         import    Import an existing *session*
         export    Export all sessions as a Zip archive
+        start     Start a session
         docs      Create documentation of *session* docstring
+        spyder    Start session using Spyder
 
 The tool is command-driven, that means you call it with a command as its first
 argument. To read command-specific help, use::
@@ -72,7 +74,7 @@ If such a session already exists, Concert will warn you.
     system-wide our without using a virtual environment, it is installed into
     ``$XDG_DATA_HOME/concert`` or ``$HOME/.local/share/concert`` if the former
     is not set. See the `XDG Base Directory Specification
-    <http://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html>`_
+    <https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html>`_
     for further information. It is probably a *very* good idea to put the
     session directory under version control.
 
@@ -114,11 +116,11 @@ By default, logs are gathered in ``$XDG_DATA_HOME/concert/concert.log``. To
 change this, you can pass the ``--logto`` and ``--logfile`` options to the
 ``start`` command. For example, if you want to output log to ``stderr`` use ::
 
-    concert --logto=stderr start experiment
+    concert start experiment --logto=stderr
 
 or if you want to get rid of any log data use ::
 
-    concert --logto=file --logfile=/dev/null start experiment
+    concert start experiment --logto=file --logfile=/dev/null
 
 show
 ----
@@ -238,6 +240,10 @@ The quantities package is already loaded and named ``q``.
 
         Run the session as a script and do not launch a shell.
 
+    .. option:: --filename=<filename>
+
+        Start a session from a file without initializing.
+
 
 docs
 ----
@@ -253,7 +259,11 @@ session's docstring. The docstring should be formatted in Markdown markup.
 
 .. note::
 
-    This requires an installation of Pandoc and PDFLaTeX.
+    This requires an installation of `Pandoc`_ and `PDFLaTeX`_.
+
+
+.. _Pandoc: http://pandoc.org/
+.. _PDFLaTeX: http://ctan.org/pkg/pdftex
 
 
 Remote access
@@ -272,7 +282,7 @@ a client machine you can connect to the server and tmux session by running::
 
     concert-connect <host address>
 
-.. _tmux: http://tmux.sourceforge.net/
+.. _tmux: https://tmux.github.io/
 
 
 Extensions
