@@ -51,6 +51,8 @@ def _start_command(program, image, writer=write_tiff):
 @threaded
 def imagej(image, path="imagej", writer=write_tiff):
     """
+    imagej(image, path="imagej", writer=write_tiff)
+
     Open *image* in ImageJ found by *path*. *writer* specifies
     the written image file type.
     """

@@ -14,17 +14,29 @@ class Signal(Device):
 
     @check(source='off', target='on')
     def on(self):
-        """Switch the signal on."""
+        """
+        on()
+
+        Switch the signal on.
+        """
         self._on()
 
     @check(source='on', target='off')
     def off(self):
-        """Switch the signal off."""
+        """
+        off()
+
+        Switch the signal off.
+        """
         self._off()
 
     @check(source='off', target='off')
     def trigger(self, duration=10*q.ms):
-        """Generate a trigger signal of *duration*."""
+        """
+        trigger(duration=10*q.ms)
+
+        Generate a trigger signal of *duration*.
+        """
         self.on()
         time.sleep(duration.to(q.s).magnitude)
         self.off()

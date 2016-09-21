@@ -6,7 +6,7 @@ openSUSE packages
 =================
 
 We use the `openSUSE Build Service`__ to provide packages for openSUSE 12.2
-until openSUSE 13.1. Add the repository first, e.g.::
+until openSUSE 13.2. Add the repository first, e.g.::
 
     $ sudo zypper ar http://download.opensuse.org/repositories/home:/ufo-kit/openSUSE_12.2/ concert-repo
 
@@ -28,7 +28,7 @@ it is from PyPI::
     $ sudo pip install concert
 
 This will install the latest stable version. If you prefer an earlier stable
-version, you can fetch a tarball and install with::
+version, you can `fetch a tarball`_ and install with::
 
     $ sudo pip install concert-x.y.z.tar.gz
 
@@ -67,4 +67,5 @@ As long as ``my_new_environment`` is active, you can use Concert.
 
 
 .. _pip: https://pypi.python.org/pypi
+.. _`fetch a tarball`: https://github.com/ufo-kit/concert/releases
 .. _virtualenv: http://virtualenv.org

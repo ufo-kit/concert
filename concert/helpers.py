@@ -189,6 +189,8 @@ class expects(object):
 
     Common use case looks like this::
 
+        from concert.helpers import Numeric
+
         @expects(Camera, LinearMotor, pixelsize = Numeric(2, q.mm))
         def foo(camera, motor, pixelsize = None):
             pass

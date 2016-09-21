@@ -35,9 +35,9 @@ can be one of
 To setup and use a camera in a typical environment, you would do::
 
     import numpy as np
-    from concert.devices.cameras.uca import UcaCamera
+    from concert.devices.cameras.uca import Camera
 
-    camera = UcaCamera('pco')
+    camera = Camera('pco')
     camera.trigger_source = camera.trigger_sources.SOFTWARE
     camera.exposure_time = 0.2 * q.s
     camera.start_recording()
@@ -45,7 +45,7 @@ To setup and use a camera in a typical environment, you would do::
     data = camera.grab()
     camera.stop_recording()
 
-    print("mean=%f, stddev=%f" % (np.mean(data), np.std(data))
+    print("mean=%f, stddev=%f" % (np.mean(data), np.std(data)))
 
 You can apply primitive operations to the frames obtained by :meth:`Camera.grab` by setting up a
 :attr:`Camera.convert` attribute to some callable which takes just one argument which is the grabbed
@@ -95,17 +95,27 @@ class Camera(Device):
 
     @check(source='standby', target='recording')
     def start_recording(self):
-        """Start recording frames."""
+        """
+        start_recording()
+
+        Start recording frames.
+        """
         self._record_real()
 
     @check(source='recording', target='standby')
     def stop_recording(self):
-        """Stop recording frames."""
+        """
+        stop_recording()
+
+        Stop recording frames.
+        """
         self._stop_real()
 
     @contextlib.contextmanager
     def recording(self):
         """
+        recording()
+
         A context manager for starting and stopping the camera.
 
         In general it is used with the ``with`` keyword like this::
@@ -133,7 +143,10 @@ class Camera(Device):
 
     @async
     def stream(self, consumer):
-        """Grab frames continuously and send them to *consumer*, which
+        """
+        stream(consumer)
+
+        Grab frames continuously and send them to *consumer*, which
         is a coroutine.
         """
         self.trigger_source = self.trigger_sources.AUTO

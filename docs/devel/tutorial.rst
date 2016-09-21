@@ -16,11 +16,11 @@ To get started you are encouraged to install the *development* dependencies via
 pip::
 
     $ cd concert
-    $ pip install -r requirements.txt
+    $ sudo pip install -r requirements.txt
 
 After that you can simply install the development source with ::
 
-    $ make install
+    $ sudo make install
 
 .. _Git: http://git-scm.com
 
@@ -120,7 +120,7 @@ make some cleanup action after *ctrl-c* is pressed, you should implement the
 ``_cancel_param`` method in the device class, for the motor above you can write::
 
         def _cancel_position(self):
-            self.send_stop_command()
+            # send stop command
 
 And you are guaranteed that when you interrupt the setter the motor stops
 moving.
@@ -141,7 +141,7 @@ rate, e.g. how many cubic millimeters per second of a medium is desired.
 First, we create a new ``base.py`` into the new ``concert/devices/pumps``
 directory and import everything that we need::
 
-    import quantities as q
+    from concert.quantities import q
     from concert.base import Quantity
     from concert.devices.base import Device
 
@@ -175,8 +175,8 @@ explicit setters and getters in order to hook into the get and set process::
         def _intercept_get_flow_rate(self):
             return self._get_flow_rate() * 10
 
-        flow_rate = Parameter(unit=q.m**3 / q.s,
-                              fget=_intercept_get_flow_rate)
+        flow_rate = Quantity(q.m**3 / q.s,
+                             fget=_intercept_get_flow_rate)
 
 Be aware, that in this case you have to list the parameter *after* the functions
 that you want to refer to.
@@ -185,11 +185,13 @@ In case you want to specify the name of the accessor function yourself and rely
 on implementation by subclasses, you have to raise an
 :exc:`.AccessorNotImplementedError`::
 
+    from concert.base import AccessorNotImplementedError
+
     class Pump(Device):
 
         ...
 
-        def _set_flow_rate(self):
+        def _set_flow_rate(self, flow_rate):
             raise AccessorNotImplementedError
 
 
@@ -199,7 +201,7 @@ State machine
 A formally defined finite state machine is necessary to ensure and reason about
 correct behaviour. Concert provides an implicitly defined, decorator-based state
 machine. The machine can be used to model devices which support hardware state
-reading but also the ones which don't thanks to the possibility to store the
+reading but also the ones which don't, thanks to the possibility to store the
 state in the device itself. To use the state machine you need to declare a
 :class:`.State` object in the base device class and apply the :func:`.check`
 decorator on each method that changes the state of a device.  If you are
@@ -219,7 +221,7 @@ comply with transitioning. Examples of such devices could look as follows::
         """A base motor class."""
 
         state = State()
-        position = Quantity(unit=q.m)
+        position = Quantity(q.m)
 
         @check(source='standby', target='moving')
         def start(self):
@@ -287,11 +289,13 @@ Parameters
 ~~~~~~~~~~
 
 In case changing a parameter value causes a state transition, add a
-:func:`.transition` to the :class:`.Parameter` object::
+:func:`.check` to the :class:`.Quantity` object or to the :class:`.Parameter` object::
 
     class Motor(Device):
 
         state = State(default='standby')
 
-        velocity = Parameter(unit=q.m / q.s,
-                             transition(source='*', target='moving'))
+        velocity = Quantity(q.m / q.s,
+                            check=check(source='*', target='moving'))
+
+        foo = Parameter(check=check(source='*', target='*'))

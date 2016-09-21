@@ -341,7 +341,10 @@ class Timer(object):
 
 @coroutine
 def process(func, consumer, *args, **kwargs):
-    """A generic processing coroutine. It takes items, applies callable *func* and sends the result
+    """
+    process(func, consumer, *args, **kwargs)
+
+    A generic processing coroutine. It takes items, applies callable *func* and sends the result
     to *consumer*. *func*'s first argument is the item obtained from the coroutine pipeline, the
     rest of the arguments are specified by *args* and keyword aruments are specified by *kwargs*.
     """

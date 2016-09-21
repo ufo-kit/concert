@@ -15,7 +15,7 @@ class Gripper(Device):
     @check(source='gripped', target='released')
     def release(self):
         """
-        release(self)
+        release()
 
         Release an object.
         """
@@ -25,7 +25,7 @@ class Gripper(Device):
     @check(source='released', target='gripped')
     def grip(self):
         """
-        grip(self)
+        grip()
 
         Grip an object.
         """
