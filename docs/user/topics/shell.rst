@@ -293,4 +293,11 @@ Spyder
 
 .. program:: concert spyder
 
-If Spyder is installed, start the session within the Spyder GUI.
+If Spyder_ is installed, start the session within the Spyder GUI::
+
+    concert spyder <session-name>
+
+In Spyder you can for example edit the session, check the documentation or run an IPython console or a Python interpreter:
+
+.. image:: spyder.png
+.. _Spyder: https://pythonhosted.org/spyder/index.html
