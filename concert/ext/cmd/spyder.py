@@ -23,7 +23,8 @@ class SpyderCommand(Command):
                 'debug': False,
                 'profile': False,
                 'multithreaded': False,
-                'light': False}
+                'light': False,
+                'new_instance': True}
 
         # The python executable is set explicitly here, because Spyder tends
         # not to pick up the one used in a virtualenv. This should be set in a
