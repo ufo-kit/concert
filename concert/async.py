@@ -296,13 +296,19 @@ class Dispatcher(object):
 dispatcher = Dispatcher()
 
 
-def resolve(result):
+def resolve(result, unit_output=True):
     """
     Generate tuples *[(x_1, y_1, ...), (x_2, y_2, ...)]* from a process that returns a list of
-    futures each resulting in a single tuple *(x_1, y_1, ...)*.
+    futures each resulting in a single tuple *(x_1, y_1, ...)*. Set *unit_output* to ``False``
+    for obtaining values without units.
     """
     for f in result:
-        yield f.result()
+        if unit_output:
+            yield f.result()
+        else:
+            lst = list(f.result())
+            lst = [x.magnitude for x in lst]
+            yield tuple(lst)
 
 
 class WaitError(Exception):
