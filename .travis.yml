@@ -17,10 +17,7 @@ before_install:
 install:
     - pip install . --use-mirrors
     - pip install -r requirements.txt --use-mirrors
-    - pip install coveralls nose-exclude --use-mirrors
+    - pip install nose-exclude --use-mirrors
 
 script:
-    - python runtests.py --attr='!skip-travis' --with-coverage --cover-package=concert $ENABLE_GEVENT concert
-
-after_success:
-    - coveralls
+    - python runtests.py --attr='!skip-travis' --cover-package=concert $ENABLE_GEVENT concert
