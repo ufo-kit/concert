@@ -151,12 +151,13 @@ class _Structure(object):
                     given))
 
         elif expected.units is not None:
-            e_units = expected.units.to_base_units().units
+            dim_units = expected.dimension * expected.units
+            e_units = dim_units.to_base_units().units
             if not e_units == given.to_base_units().units:
                 raise TypeError(
                     'Sorry, argument "{}" expected to get value with unit {}, but got {}'.format(
                         arg_name,
-                        expected.units.units,
+                        expected.units,
                         given.units))
 
         if hasattr(given, 'magnitude'):
