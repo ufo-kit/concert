@@ -427,7 +427,10 @@ class Quantity(Parameter):
         self.lower = lower if lower is not None else -float('Inf') * unit
 
     def convert(self, value):
-        return value.to(self.unit)
+        if self.unit == "delta_degC":
+            return value
+        else:
+            return value.to(self.unit)
 
     def __get__(self, instance, owner):
         # If we would just call self.fset(value) we would call the method
