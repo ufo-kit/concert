@@ -317,9 +317,6 @@ def center_rotation_axis(camera, motor, initial_motor_step,
     width_2 = camera.roi_width.magnitude / 2.0
     axis_pos = width_2
 
-    # Use only the middle region of the reconstructed slice for evaluation
-    region = slice(width_2 / 2, width_2 + width_2 / 2)
-
     # Crop the dark and flat
     if flat is not None:
         middle = flat.shape[0] / 2
@@ -352,7 +349,7 @@ def center_rotation_axis(camera, motor, initial_motor_step,
             inject(frames(n, camera, callback=lambda: rotation_motor.move(angle_step).join()),
                    middle_row(sinograms(n, sino_coro)))
 
-            sinogram = (sinogram.result[0,:,:], )
+            sinogram = (sinogram.result[0, :, :], )
             result = Result()
             m0 = np.mean(np.sum(sinogram[0], axis=1))
 

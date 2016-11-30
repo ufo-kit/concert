@@ -229,7 +229,9 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
                         measure=rotation_axis, num_frames=10, absolute_eps=0.1 * q.deg,
                         max_iterations=5, flat=None, dark=None, frame_consumer=None):
     """
-    align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None, measure=rotation_axis, num_frames=10, absolute_eps=0.1 * q.deg, max_iterations=5, flat=None, dark=None, frame_consumer=None)
+    align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
+    measure=rotation_axis, num_frames=10, absolute_eps=0.1 * q.deg, max_iterations=5,
+    flat=None, dark=None, frame_consumer=None)
 
     Align rotation axis. *camera* is used to obtain frames, *rotation_motor*
     rotates the sample around the tomographic axis of rotation, *x_motor*
@@ -576,7 +578,8 @@ def center_to_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
                    xstep=None, zstep=None, thres=1000, tolerance=5,
                    max_iterations=100):
     """
-    center_to_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder, xstep=None, zstep=None, thres=1000, tolerance=5, max_iterations=100)
+    center_to_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder, xstep=None,
+    zstep=None, thres=1000, tolerance=5, max_iterations=100)
 
     Tries to center the camera *cam* to the beam by moving with the motors
     *xmotor* and *zmotor*. It starts by searching the beam inside the
