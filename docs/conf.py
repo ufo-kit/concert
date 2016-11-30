@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-import sys, os
+import sys
+import os
+from concert import __version__
 
 sys.path.insert(0, os.path.abspath('..'))
-
-from concert import __version__
 
 _authors = [u'Matthias Vogelgesang',
             u'Tomas Farago']
@@ -37,20 +37,20 @@ intersphinx_mapping = {
 
 # -- Options for LaTeX output --------------------------------------------------
 latex_elements = {
-# The paper size ('letterpaper' or 'a4paper').
-#'papersize': 'letterpaper',
+    # The paper size ('letterpaper' or 'a4paper').
+    # 'papersize': 'letterpaper',
 
-# The font size ('10pt', '11pt' or '12pt').
-#'pointsize': '10pt',
+    # The font size ('10pt', '11pt' or '12pt').
+    # 'pointsize': '10pt',
 
-# Additional stuff for the LaTeX preamble.
-#'preamble': '',
+    # Additional stuff for the LaTeX preamble.
+    # 'preamble': '',
 }
 
 latex_documents = [
-  ('index', 'concert.tex', u'Concert Documentation',
-   u', '.join(author.replace(' ', '~') for author in _authors),
-   'manual'),
+    ('index', 'concert.tex', u'Concert Documentation',
+     u', '.join(author.replace(' ', '~') for author in _authors),
+     'manual'),
 ]
 
 man_pages = [

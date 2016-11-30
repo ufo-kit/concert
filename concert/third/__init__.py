@@ -6,4 +6,3 @@ def setup():
 
 setup()
 del setup
-

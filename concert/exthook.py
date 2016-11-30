@@ -5,7 +5,6 @@ Ronacher and licensed under BSD license.
 
 
 import sys
-import os
 
 
 class ExtensionImporter(object):
@@ -17,8 +16,8 @@ class ExtensionImporter(object):
 
     def __eq__(self, other):
         return self.__class__.__module__ == other.__class__.__module__ and \
-               self.__class__.__name__ == other.__class__.__name__ and \
-               self.wrapper_module == other.wrapper_module
+            self.__class__.__name__ == other.__class__.__name__ and \
+            self.wrapper_module == other.wrapper_module
 
     def __ne__(self, other):
         return not self.__eq__(other)
