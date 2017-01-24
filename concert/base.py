@@ -806,9 +806,9 @@ class Parameterizable(object):
             param.name = name
             self._install_parameter(param)
 
-            # Install param as a property, so that it can be accessed via
-            # object-dot notation.
-            setattr(self.__class__, name, param)
+        # Obtain the object-dot notation.
+        merged_dict = dict(self.__class__.__dict__.items() + params.items())
+        self.__class__ = type(self.__class__.__name__, self.__class__.__bases__, merged_dict)
 
     def _install_parameter(self, param):
         if isinstance(param, Quantity):
