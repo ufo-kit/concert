@@ -20,6 +20,8 @@ class _PositionMixin(object):
             raise HardLimitError('hard-limit')
         else:
             self._position = position
+        if position == 0.0 :
+            print ' motor in center '
 
     def _get_position(self):
         return self._position
