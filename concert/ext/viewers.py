@@ -93,6 +93,7 @@ class PyplotViewerBase(object):
         self._updater = None
         self.view_function = view_function
         self._blit = blit
+        self._num_drawn = 0
 
     def __call__(self, size=None):
         """
@@ -100,6 +101,7 @@ class PyplotViewerBase(object):
         stall program execution. If *size* is specified, the redrawing stops
         when *size* images come.
         """
+        self._num_drawn = 0
         if self._coroutine is None:
             self._coroutine = self._update(size=size)
 
@@ -121,9 +123,9 @@ class PyplotViewerBase(object):
             if size is None or i < size:
                 if size is not None and i == size - 1:
                     # Maximum number of items has come, end redrawing
-                    self.view_function(item, force=True)
+                    self._num_drawn += self.view_function(item, force=True)
                 else:
-                    self.view_function(item)
+                    self._num_drawn += self.view_function(item)
                 # This helps with the smoothness of drawing
                 time.sleep(0.001)
 
@@ -138,6 +140,11 @@ class PyplotViewerBase(object):
         self._proc = Process(target=self._run)
         self._proc.start()
         _PYPLOT_VIEWERS.append(self)
+
+    @property
+    def num_drawn(self):
+        """Number of items really passed to the drawing process."""
+        return self._num_drawn
 
     def terminate(self):
         """Close all communication and terminate child process."""
@@ -230,9 +237,13 @@ class PyplotViewer(PyplotViewerBase):
                 y_data = y
             self._queue.put((_PyplotUpdater.PLOT, (x_data, y_data)))
 
+            return 1
+
+        return 0
+
     def _plot_unraveled(self, item):
         """Unravel the *item* for x and y so that it is plotted correctly."""
-        self.plot(item[0], y=item[1], force=self.coroutine_force)
+        return self.plot(item[0], y=item[1], force=self.coroutine_force)
 
     @property
     def style(self):
@@ -282,6 +293,10 @@ class PyplotImageViewer(PyplotViewerBase):
         """
         if not self._paused and (not self._queue.qsize() or force):
             self._queue.put((_PyplotImageUpdater.IMAGE, item))
+
+            return 1
+
+        return 0
 
     @property
     def limits(self):
