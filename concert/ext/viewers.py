@@ -273,10 +273,13 @@ class PyplotViewer(PyplotViewerBase):
 
 class PyplotImageViewer(PyplotViewerBase):
 
-    """Dynamic image viewer using matplotlib."""
+    """Dynamic image viewer using matplotlib. *downsample* specifies image reduction with nearest
+    neighbor interpolation.
+    """
 
-    def __init__(self, imshow_kwargs=None, colorbar=True, title=""):
+    def __init__(self, downsample=1, imshow_kwargs=None, colorbar=True, title=""):
         super(PyplotImageViewer, self).__init__(self.show, blit=True)
+        self.downsample = downsample
         self._has_colorbar = colorbar
         self._imshow_kwargs = {} if imshow_kwargs is None else imshow_kwargs
         self._make_imshow_defaults()
@@ -292,7 +295,8 @@ class PyplotImageViewer(PyplotViewerBase):
         image is drawn or if the *force* is True.
         """
         if not self._paused and (not self._queue.qsize() or force):
-            self._queue.put((_PyplotImageUpdater.IMAGE, item))
+            self._queue.put((_PyplotImageUpdater.IMAGE, item[::self.downsample,
+                                                             ::self.downsample]))
 
             return 1
 
