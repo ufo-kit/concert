@@ -146,9 +146,8 @@ class Experiment(object):
 
         first_index = self._acquisitions.index(first)
         second_index = self._acquisitions.index(second)
-        tmp = first
         self._acquisitions[first_index] = second
-        self._acquisitions[second_index] = tmp
+        self._acquisitions[second_index] = first
 
     def get_acquisition(self, name):
         """
