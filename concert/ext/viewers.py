@@ -80,9 +80,14 @@ class PyplotViewerBase(object):
     .. py:attribute:: blit
 
         True if faster redrawing based on canvas blitting should be used.
+
+    .. py:attribute:: sleep_time
+
+        Sleep time appended after one item has been processed in the coroutine, small value (1 ms)
+        might help with the smoothness of the update but sacrifices performance.
     """
 
-    def __init__(self, view_function, blit=False):
+    def __init__(self, view_function, blit=False, sleep_time=None):
         self._queue = MultiprocessingQueue()
         self._paused = False
         self._terminated = False
@@ -94,6 +99,7 @@ class PyplotViewerBase(object):
         self.view_function = view_function
         self._blit = blit
         self._num_drawn = 0
+        self._sleep_time = 1e-3 if sleep_time is None else sleep_time.to(q.s).magnitude
 
     def __call__(self, size=None):
         """
@@ -121,13 +127,15 @@ class PyplotViewerBase(object):
         while True:
             item = yield
             if size is None or i < size:
+                before = self._num_drawn
                 if size is not None and i == size - 1:
                     # Maximum number of items has come, end redrawing
                     self._num_drawn += self.view_function(item, force=True)
                 else:
                     self._num_drawn += self.view_function(item)
-                # This helps with the smoothness of drawing
-                time.sleep(0.001)
+                if self._sleep_time and before == self._num_drawn:
+                    # This helps with the smoothness of drawing
+                    time.sleep(self._sleep_time)
 
             i += 1
 
@@ -201,8 +209,8 @@ class PyplotViewer(PyplotViewerBase):
     """
 
     def __init__(self, style="o", plot_kwargs=None, autoscale=True, title="",
-                 coroutine_force=False):
-        super(PyplotViewer, self).__init__(self._plot_unraveled)
+                 coroutine_force=False, sleep_time=None):
+        super(PyplotViewer, self).__init__(self._plot_unraveled, sleep_time=sleep_time)
         self._autoscale = autoscale
         self._style = style
         self._iteration = 0
@@ -277,8 +285,8 @@ class PyplotImageViewer(PyplotViewerBase):
     neighbor interpolation.
     """
 
-    def __init__(self, downsample=1, imshow_kwargs=None, colorbar=True, title=""):
-        super(PyplotImageViewer, self).__init__(self.show, blit=True)
+    def __init__(self, downsample=1, imshow_kwargs=None, colorbar=True, title="", sleep_time=None):
+        super(PyplotImageViewer, self).__init__(self.show, sleep_time=sleep_time, blit=True)
         self.downsample = downsample
         self._has_colorbar = colorbar
         self._imshow_kwargs = {} if imshow_kwargs is None else imshow_kwargs
