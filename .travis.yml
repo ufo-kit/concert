@@ -15,9 +15,9 @@ before_install:
     - sudo apt-get install -qq python-numpy python-scipy python3-numpy python3-scipy python-gevent
 
 install:
-    - pip install . --use-mirrors
-    - pip install -r requirements.txt --use-mirrors
-    - pip install nose-exclude --use-mirrors
+    - pip install .
+    - pip install -r requirements.txt
+    - pip install nose-exclude
 
 script:
     - python runtests.py --attr='!skip-travis' --cover-package=concert $ENABLE_GEVENT concert
