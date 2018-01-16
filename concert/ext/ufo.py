@@ -1,5 +1,8 @@
 from __future__ import absolute_import
+import copy
+import logging
 import threading
+import time
 import sys
 import numpy as np
 
@@ -10,16 +13,23 @@ except ImportError as e:
     print(str(e))
 
 try:
-    from tofu.reco import setup_padding
+    from tofu.config import SECTIONS, UNI_RECO_PARAMS
+    from tofu.util import setup_padding, get_reconstruction_regions
+    from tofu.unireco import setup_graph, set_projection_filter_scale, make_runs, DTYPE_CL_SIZE
+    from tofu.tasks import get_task
 except ImportError:
     print >> sys.stderr, "You must install tofu to use Ufo features, see "\
                          "'https://github.com/ufo-kit/tofu.git'"
 
+from multiprocessing.pool import ThreadPool
 from concert.quantities import q
 from concert.coroutines.base import coroutine, inject
 from concert.coroutines.filters import sinograms, flat_correct
-from concert.coroutines.sinks import Result
+from concert.coroutines.sinks import Accumulate, Result
 from concert.experiments.imaging import tomo_projections_number, frames
+
+
+LOG = logging.getLogger(__name__)
 
 
 class PluginManager(object):
@@ -422,3 +432,192 @@ def compute_rotation_axis(sinogram, initial_step=None, max_iterations=14,
         iteration += 1
 
     return current
+
+
+class UniRecoArgs(object):
+    def __init__(self, width, height, center_x, center_z, number, overall_angle=np.pi):
+        for section in UNI_RECO_PARAMS:
+            for arg in SECTIONS[section]:
+                settings = SECTIONS[section][arg]
+                default = settings['default']
+                if default is not None and 'type' in settings:
+                    default = settings['type'](default)
+                setattr(self, arg.replace('-', '_'), default)
+        self.width = width
+        self.height = height
+        self.center_x = center_x
+        self.center_z = center_z
+        self.number = number
+        self.overall_angle = overall_angle
+
+
+class UniReco(InjectProcess):
+    def __init__(self, args, flat=None, dark=None, gpu_index=None, x_region=None, y_region=None, region=None):
+        scheduler = Ufo.FixedScheduler()
+        gpus = scheduler.get_resources().get_gpu_nodes()
+        self.args = copy.deepcopy(args)
+        self.dark = dark
+        self.flat = flat
+        self._optimize_projection_height(region=region)
+        if (gpu_index is not None and x_region is not None and y_region is not None and
+                region is not None):
+            self.regions = [(gpu_index, self.args.region)]
+            gpu = gpus[gpu_index]
+        else:
+            # Setup multi GPU execution
+            gpu = None
+            set_projection_filter_scale(self.args)
+            x_region, y_region, z_region = get_reconstruction_regions(self.args)
+            self.regions = make_runs(gpus, x_region, y_region, z_region,
+                                     DTYPE_CL_SIZE[self.args.store_type],
+                                     slices_per_device=self.args.slices_per_device,
+                                     slice_memory_coeff=self.args.slice_memory_coeff,
+                                     data_splitting_policy=self.args.data_splitting_policy)[0]
+        print self.regions
+        if self.dark is not None and self.flat is not None:
+            self.dark = self.dark[self.y_0:self.y_1]
+            self.flat = self.flat[self.y_0:self.y_1]
+
+        graph = Ufo.TaskGraph()
+        broadcast = None if gpu else Ufo.CopyTask()
+        if dark is not None and flat is not None:
+            ffc = get_task('flat-field-correct', processing_node=gpu)
+            ffc.props.fix_nan_and_inf = self.args.fix_nan_and_inf
+            ffc.props.absorption_correct = self.args.absorptivity
+            if broadcast:
+                graph.connect_nodes(ffc, broadcast)
+            first = ffc
+        else:
+            first = broadcast
+
+        for i, gpu_and_region in enumerate(self.regions):
+            gpu_index, region = gpu_and_region
+            setup_graph(self.args, graph, x_region, y_region, region,
+                        first, gpu=gpus[gpu_index], index=gpu_index, do_output=False,
+                        make_reader=False)
+            LOG.debug('Pass: %d, device: %d, region: %s', gpu_index + 1, gpu_index, region)
+
+        super(UniReco, self).__init__(graph, get_output=True, scheduler=scheduler)
+
+    def _optimize_projection_height(self, region=None):
+        is_parallel = np.all(np.isinf(self.args.source_position_y))
+        is_simple_tomo = (is_parallel and
+                          np.all(self.args.axis_angle_x) == 0 and
+                          np.all(self.args.axis_angle_y) == 0 and
+                          np.all(self.args.axis_angle_z) == 0 and
+                          np.all(self.args.detector_angle_x) == 0 and
+                          np.all(self.args.detector_angle_y) == 0 and
+                          np.all(self.args.detector_angle_z) == 0 and
+                          np.all(self.args.volume_angle_x) == 0 and
+                          np.all(self.args.volume_angle_y) == 0 and
+                          np.all(self.args.volume_angle_z) == 0)
+
+        if np.any(self.args.center_z != self.args.center_z[0]):
+            LOG.debug('Various z center positions, not optimizing projection region')
+            self.y_0 = 0
+            self.y_1 = self.args.height
+        if self.args.z_parameter == 'center-position-x':
+            self.y_0 = self.args.z
+            self.y_1 = 1
+            self.args.z = 0
+            self.args.center_z = [0.5]
+            self.args.height = 1
+        elif is_simple_tomo and self.args.z_parameter == 'z':
+            if region is None:
+                region = self.args.region
+            self.y_0 = int(region[0] + self.args.center_z[0])
+            self.y_1 = int(region[1] + self.args.center_z[0])
+            # Keep the 0.5 of the center if specified
+            decimal = self.args.center_z[0] - int(self.args.center_z[0])
+            self.args.center_z = [decimal]
+            self.args.height = int(np.ceil(self.y_1 - self.y_0))
+            self.args.region = [0.0, float(self.args.height), float(region[2])]
+
+        print 'optimization:', self.y_0, self.y_1, self.args.center_z, self.args.height, self.args.region
+
+    @coroutine
+    def __call__(self, consumer):
+        if not self._started:
+            self.start()
+
+        i = 0
+        st = None
+        while True:
+            projection = yield
+            if projection.dtype != np.float32:
+                projection = projection.astype(np.float32)
+            if not st:
+                st = time.time()
+            if self.dark is not None and self.flat is not None:
+                self.insert(projection[self.y_0:self.y_1], index=0)
+                self.insert(self.dark, index=1)
+                self.insert(self.flat, index=2)
+            else:
+                proj = projection[self.y_0:self.y_1]
+                self.insert(proj)
+            i += 1
+            if i == self.args.number:
+                self.stop()
+                print 'UniReco inputs procced in: {:.2f} s'.format(time.time() - st)
+                for j, region in self.regions:
+                    # print j, region
+                    for k in np.arange(*region):
+                        result = self.result(leave_index=j if len(self.regions) > 1 else 0)
+                        consumer.send(result)
+                    # time.sleep(0.025)
+                print 'UniReco output provided in: {:.2f} s'.format(time.time() - st)
+                self.wait()
+
+
+class UniRecoManager(object):
+    def __init__(self, args, dark=None, flat=None):
+        self.args = args
+        self.reconstructors = []
+        self.accumulators = []
+        self.projections = []
+
+        set_projection_filter_scale(self.args)
+        x_region, y_region, z_region = get_reconstruction_regions(self.args)
+        scheduler = Ufo.FixedScheduler()
+        gpus = scheduler.get_resources().get_gpu_nodes()
+        regions = make_runs(gpus, x_region, y_region, z_region,
+                            DTYPE_CL_SIZE[self.args.store_type],
+                            slices_per_device=self.args.slices_per_device,
+                            slice_memory_coeff=self.args.slice_memory_coeff,
+                            data_splitting_policy=self.args.data_splitting_policy)[0]
+        for i, region in regions:
+            # print i, region
+            reco = UniReco(self.args, dark=dark, flat=flat, gpu_index=i, x_region=x_region,
+                           y_region=y_region, region=region)
+            self.accumulators.append(Accumulate())
+            self.reconstructors.append(reco(self.accumulators[-1]()))
+
+    def start(self):
+        def start_one(index):
+            inject(self.produce(), self.reconstructors[index])
+        self.pool = ThreadPool(processes=len(self.reconstructors))
+        self.result = self.pool.map_async(start_one, range(len(self.reconstructors)))
+        self.pool.close()
+
+    def produce(self):
+        for i in range(self.args.number):
+            while len(self.projections) < i + 1:
+                pass
+            yield self.projections[i]
+
+    @coroutine
+    def __call__(self, consumer=None):
+        st = time.time()
+        self.start()
+        while True:
+            projection = yield
+            self.projections.append(projection)
+            if len(self.projections) == self.args.number:
+                print 'reading done in {:.2f} s'.format(time.time() - st)
+                self.pool.join()
+                print 'reconstruction done in {:.2f} s'.format(time.time() - st)
+                if consumer:
+                    for acc in self.accumulators:
+                        for item in acc.items:
+                            consumer.send(item)
+                    print 'reconstruction written in {:.2f} s'.format(time.time() - st)
