@@ -48,12 +48,13 @@ class InjectProcess(object):
 
     *graph* must either be a Ufo.TaskGraph or a Ufo.TaskNode object.  If it is
     a graph the input tasks will be connected to the roots, otherwise a new
-    graph will be created.
+    graph will be created. *scheduler* is one of the ufo schedulers, e.g.
+    Ufo.Scheduler or Ufo.FixedScheduler.
     """
 
-    def __init__(self, graph, get_output=False, output_dims=2):
+    def __init__(self, graph, get_output=False, output_dims=2, scheduler=None):
         self.output_tasks = []
-        self.sched = Ufo.Scheduler()
+        self.sched = scheduler if scheduler else Ufo.Scheduler()
         self._started = False
 
         if isinstance(graph, Ufo.TaskGraph):
