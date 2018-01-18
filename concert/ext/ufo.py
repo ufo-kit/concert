@@ -538,24 +538,26 @@ class UniReco(InjectProcess):
 
     @coroutine
     def __call__(self, consumer):
+        def process_projection(projection, dark, flat):
+            projection = projection[self.y_0:self.y_1]
+            if projection.dtype != np.float32:
+                projection = projection.astype(np.float32)
+            self.insert(projection, index=0)
+            if self.dark is not None and self.flat is not None:
+                self.insert(dark, index=1)
+                self.insert(flat, index=2)
+
         if not self._started:
             self.start()
 
-        i = 0
-        st = None
+        projection = yield
+        st = time.time()
+        process_projection(projection, self.dark, self.flat)
+
+        i = 1
         while True:
             projection = yield
-            if projection.dtype != np.float32:
-                projection = projection.astype(np.float32)
-            if not st:
-                st = time.time()
-            if self.dark is not None and self.flat is not None:
-                self.insert(projection[self.y_0:self.y_1], index=0)
-                self.insert(self.dark, index=1)
-                self.insert(self.flat, index=2)
-            else:
-                proj = projection[self.y_0:self.y_1]
-                self.insert(proj)
+            process_projection(projection, None, None)
             i += 1
             if i == self.args.number:
                 self.stop()
