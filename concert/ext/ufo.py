@@ -476,8 +476,8 @@ class UniReco(InjectProcess):
                                      data_splitting_policy=self.args.data_splitting_policy)[0]
         print self.regions
         if self.dark is not None and self.flat is not None:
-            self.dark = self.dark[self.y_0:self.y_1]
-            self.flat = self.flat[self.y_0:self.y_1]
+            self.dark = self.dark[self.y_0:self.y_1].astype(np.float32)
+            self.flat = self.flat[self.y_0:self.y_1].astype(np.float32)
 
         graph = Ufo.TaskGraph()
         broadcast = None if gpu else Ufo.CopyTask()
