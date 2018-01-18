@@ -632,6 +632,7 @@ class UniRecoManager(object):
             if len(self.projections) == self.args.number:
                 print 'reading done in {:.2f} s'.format(time.time() - st)
                 thread.join()
+                del self.reconstructors
                 print 'reconstruction done in {:.2f} s'.format(time.time() - st)
                 if consumer:
                     consumer.send(self.volume)
