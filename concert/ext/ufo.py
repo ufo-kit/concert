@@ -573,7 +573,6 @@ class UniRecoManager(object):
     def __init__(self, args, dark=None, flat=None):
         self.args = args
         self.reconstructors = []
-        self.accumulators = []
         self.projections = []
 
         set_projection_filter_scale(self.args)
@@ -585,12 +584,15 @@ class UniRecoManager(object):
                             slices_per_device=self.args.slices_per_device,
                             slice_memory_coeff=self.args.slice_memory_coeff,
                             data_splitting_policy=self.args.data_splitting_policy)[0]
+        offset = 0
         for i, region in regions:
             # print i, region
             reco = UniReco(self.args, dark=dark, flat=flat, gpu_index=i, x_region=x_region,
                            y_region=y_region, region=region)
-            self.accumulators.append(Accumulate())
-            self.reconstructors.append(reco(self.accumulators[-1]()))
+            self.reconstructors.append(reco(self.consume(offset)))
+            offset += len(np.arange(*region))
+        self.volume = np.empty((offset, len(np.arange(*y_region)), len(np.arange(*x_region))),
+                               dtype=np.float32)
 
     def start(self):
         def start_one(index):
@@ -606,6 +608,14 @@ class UniRecoManager(object):
             yield self.projections[i]
 
     @coroutine
+    def consume(self, offset):
+        i = 0
+        while True:
+            item = yield
+            self.volume[offset + i] = item
+            i += 1
+
+    @coroutine
     def __call__(self, consumer=None):
         st = time.time()
         self.start()
@@ -617,7 +627,5 @@ class UniRecoManager(object):
                 self.pool.join()
                 print 'reconstruction done in {:.2f} s'.format(time.time() - st)
                 if consumer:
-                    for acc in self.accumulators:
-                        for item in acc.items:
-                            consumer.send(item)
+                    consumer.send(self.volume)
                     print 'reconstruction written in {:.2f} s'.format(time.time() - st)
