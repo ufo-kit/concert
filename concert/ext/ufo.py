@@ -573,13 +573,18 @@ class UniReco(InjectProcess):
 
 
 class UniRecoManager(object):
-    def __init__(self, args, dark=None, flat=None):
+    def __init__(self, args, dark=None, flat=None, start_immediately=False):
         self.args = args
         self.reconstructors = []
         self.projections = []
         self.dark = dark
         self.flat = flat
         set_projection_filter_scale(self.args)
+        self.thread = threading.Thread(target=self.start)
+        self.started = False
+        if start_immediately:
+            self.started = True
+            self.thread.start()
 
     def start(self):
         x_region, y_region, z_region = get_reconstruction_regions(self.args)
@@ -627,14 +632,14 @@ class UniRecoManager(object):
     @coroutine
     def __call__(self, consumer=None):
         st = time.time()
-        thread = threading.Thread(target=self.start)
-        thread.start()
+        if not self.started:
+            self.thread.start()
         while True:
             projection = yield
             self.projections.append(projection)
             if len(self.projections) == self.args.number:
                 print 'reading done in {:.2f} s'.format(time.time() - st)
-                thread.join()
+                self.thread.join()
                 del self.reconstructors
                 print 'reconstruction done in {:.2f} s'.format(time.time() - st)
                 if consumer:
