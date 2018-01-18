@@ -574,8 +574,11 @@ class UniRecoManager(object):
         self.args = args
         self.reconstructors = []
         self.projections = []
-
+        self.dark = dark
+        self.flat = flat
         set_projection_filter_scale(self.args)
+
+    def start(self):
         x_region, y_region, z_region = get_reconstruction_regions(self.args)
         scheduler = Ufo.FixedScheduler()
         gpus = scheduler.get_resources().get_gpu_nodes()
@@ -585,21 +588,24 @@ class UniRecoManager(object):
                             slice_memory_coeff=self.args.slice_memory_coeff,
                             data_splitting_policy=self.args.data_splitting_policy)[0]
         offset = 0
+        st = time.time()
         for i, region in regions:
             # print i, region
-            reco = UniReco(self.args, dark=dark, flat=flat, gpu_index=i, x_region=x_region,
-                           y_region=y_region, region=region)
+            reco = UniReco(self.args, dark=self.dark, flat=self.flat, gpu_index=i,
+                           x_region=x_region, y_region=y_region, region=region)
             self.reconstructors.append(reco(self.consume(offset)))
             offset += len(np.arange(*region))
         self.volume = np.empty((offset, len(np.arange(*y_region)), len(np.arange(*x_region))),
                                dtype=np.float32)
+        print 'UFO initialization time: {:.2f} s'.format(time.time() - st)
 
-    def start(self):
         def start_one(index):
             inject(self.produce(), self.reconstructors[index])
-        self.pool = ThreadPool(processes=len(self.reconstructors))
-        self.result = self.pool.map_async(start_one, range(len(self.reconstructors)))
-        self.pool.close()
+
+        pool = ThreadPool(processes=len(self.reconstructors))
+        pool.map(start_one, range(len(self.reconstructors)))
+        pool.close()
+        pool.join()
 
     def produce(self):
         for i in range(self.args.number):
@@ -618,13 +624,14 @@ class UniRecoManager(object):
     @coroutine
     def __call__(self, consumer=None):
         st = time.time()
-        self.start()
+        thread = threading.Thread(target=self.start)
+        thread.start()
         while True:
             projection = yield
             self.projections.append(projection)
             if len(self.projections) == self.args.number:
                 print 'reading done in {:.2f} s'.format(time.time() - st)
-                self.pool.join()
+                thread.join()
                 print 'reconstruction done in {:.2f} s'.format(time.time() - st)
                 if consumer:
                     consumer.send(self.volume)
