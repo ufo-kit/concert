@@ -2,8 +2,9 @@
 the acquired data, e.g. write images to disk, do tomographic reconstruction etc.
 """
 import logging
-from concert.coroutines.filters import queue
-from concert.coroutines.sinks import Accumulate
+from concert.coroutines.base import coroutine
+from concert.coroutines.filters import average_images, queue
+from concert.coroutines.sinks import Accumulate, Result
 
 
 LOG = logging.getLogger(__name__)
@@ -172,6 +173,35 @@ class ImageWriter(Addon):
                 self.walker.ascend()
 
         return wrapped_writer
+
+
+class OnlineReconstruction(Addon):
+    def __init__(self, experiment, reco_args, consumer=None, block=False):
+        from concert.ext.ufo import UniversalBackprojectManager
+        self.num_darks = experiment.num_darks
+        self.num_flats = experiment.num_flats
+        self.dark_result = Result()
+        self.flat_result = Result()
+        self.manager = UniversalBackprojectManager(reco_args)
+        self.consumer = consumer
+        self.block = block
+        self.acquisitions_dict = dict([(acq.name, acq) for acq in experiment.acquisitions])
+        super(OnlineReconstruction, self).__init__(experiment.acquisitions)
+
+    def _reconstruct(self):
+        self.manager.projections = []
+        return self.manager(dark=self.dark_result.result, flat=self.flat_result.result,
+                            consumer=self.consumer, block=self.block)
+
+    def _attach(self):
+        self.acquisitions_dict['darks'].consumers.append(self.dark_result)
+        self.acquisitions_dict['flats'].consumers.append(self.flat_result)
+        self.acquisitions_dict['radios'].consumers.append(self._reconstruct)
+
+    def _detach(self):
+        self.acquisitions_dict['darks'].consumers.remove(self.dark_result)
+        self.acquisitions_dict['flats'].consumers.remove(self.flat_result)
+        self.acquisitions_dict['radios'].consumers.remove(self._reconstruct)
 
 
 class AddonError(Exception):
