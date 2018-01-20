@@ -453,8 +453,11 @@ class UniRecoArgs(object):
 
 
 class UniReco(InjectProcess):
-    def __init__(self, args, flat=None, dark=None, gpu_index=None, x_region=None, y_region=None, region=None):
+    def __init__(self, args, flat=None, dark=None, gpu_index=None, x_region=None, y_region=None,
+                 region=None, resources=None):
         scheduler = Ufo.FixedScheduler()
+        if resources:
+            scheduler.set_resources(resources)
         gpus = scheduler.get_resources().get_gpu_nodes()
         self.args = copy.deepcopy(args)
         self.dark = dark
@@ -580,31 +583,38 @@ class UniRecoManager(object):
         self.dark = dark
         self.flat = flat
         set_projection_filter_scale(self.args)
-        self.thread = threading.Thread(target=self.start)
-        self.started = False
-        if start_immediately:
-            self.started = True
-            self.thread.start()
+        self._resources = []
+        self.volume = None
+        self.initialize_reconstructors()
+
+    def initialize_reconstructors(self):
+        self._x_region, self._y_region, z_region = get_reconstruction_regions(self.args)
+        if not self._resources:
+            self._resources = [Ufo.Resources()]
+        gpus = self._resources[0].get_gpu_nodes()
+        self._regions = make_runs(gpus, self._x_region, self._y_region, z_region,
+                                  DTYPE_CL_SIZE[self.args.store_type],
+                                  slices_per_device=self.args.slices_per_device,
+                                  slice_memory_coeff=self.args.slice_memory_coeff,
+                                  data_splitting_policy=self.args.data_splitting_policy)[0]
+        offset = 0
+        for i, region in self._regions:
+            if len(self._resources) < len(self._regions):
+                self._resources.append(Ufo.Resources())
+            offset += len(np.arange(*region))
+        shape = (offset, len(np.arange(*self._y_region)), len(np.arange(*self._x_region)))
+        if self.volume is None or shape != self.volume.shape:
+            self.volume = np.empty(shape, dtype=np.float32)
 
     def start(self):
-        x_region, y_region, z_region = get_reconstruction_regions(self.args)
-        scheduler = Ufo.FixedScheduler()
-        gpus = scheduler.get_resources().get_gpu_nodes()
-        regions = make_runs(gpus, x_region, y_region, z_region,
-                            DTYPE_CL_SIZE[self.args.store_type],
-                            slices_per_device=self.args.slices_per_device,
-                            slice_memory_coeff=self.args.slice_memory_coeff,
-                            data_splitting_policy=self.args.data_splitting_policy)[0]
-        offset = 0
         st = time.time()
-        for i, region in regions:
-            # print i, region
+        offset = 0
+        for i, region in self._regions:
             reco = UniReco(self.args, dark=self.dark, flat=self.flat, gpu_index=i,
-                           x_region=x_region, y_region=y_region, region=region)
+                           x_region=self._x_region, y_region=self._y_region, region=region,
+                           resources=self._resources[i])
             self.reconstructors.append(reco(self.consume(offset)))
             offset += len(np.arange(*region))
-        self.volume = np.empty((offset, len(np.arange(*y_region)), len(np.arange(*x_region))),
-                               dtype=np.float32)
         print 'UFO initialization time: {:.2f} s'.format(time.time() - st)
 
         def start_one(index):
@@ -632,15 +642,20 @@ class UniRecoManager(object):
     @coroutine
     def __call__(self, consumer=None):
         st = time.time()
-        if not self.started:
-            self.thread.start()
+        thread = threading.Thread(target=self.start)
+        thread.start()
+
+        i = 0
         while True:
             projection = yield
-            self.projections.append(projection)
-            if len(self.projections) == self.args.number:
+            i += 1
+            if len(self.projections) < self.args.number:
+                self.projections.append(projection)
+            if i == self.args.number:
                 print 'reading done in {:.2f} s'.format(time.time() - st)
-                self.thread.join()
-                del self.reconstructors
+                thread.join()
+                self.started = False
+                self.reconstructors = []
                 print 'reconstruction done in {:.2f} s'.format(time.time() - st)
                 if consumer:
                     consumer.send(self.volume)
