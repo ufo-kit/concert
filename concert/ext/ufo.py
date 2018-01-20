@@ -7,6 +7,8 @@ import sys
 import numpy as np
 
 try:
+    import gi
+    gi.require_version('Ufo', '0.0')
     from gi.repository import Ufo
     import ufo.numpy
 except ImportError as e:
@@ -435,7 +437,7 @@ def compute_rotation_axis(sinogram, initial_step=None, max_iterations=14,
     return current
 
 
-class UniRecoArgs(object):
+class UniversalBackprojectArgs(object):
     def __init__(self, width, height, center_x, center_z, number, overall_angle=np.pi):
         for section in UNI_RECO_PARAMS:
             for arg in SECTIONS[section]:
@@ -452,58 +454,53 @@ class UniRecoArgs(object):
         self.overall_angle = overall_angle
 
 
-class UniReco(InjectProcess):
-    def __init__(self, args, flat=None, dark=None, gpu_index=None, x_region=None, y_region=None,
-                 region=None, resources=None):
+class UniversalBackproject(InjectProcess):
+    def __init__(self, args, resources=None, gpu_index=None, flat=None, dark=None, region=None):
         scheduler = Ufo.FixedScheduler()
         if resources:
             scheduler.set_resources(resources)
         gpus = scheduler.get_resources().get_gpu_nodes()
+        gpu_index = 0 if gpu_index is None else gpu_index
+        gpu = gpus[gpu_index]
+
         self.args = copy.deepcopy(args)
+        if region is not None:
+            self.args.region = region
+        LOG.debug('Creating reconstructor for gpu %d, region: %s', gpu_index, self.args.region)
+        self._optimize_projection_height()
+        x_region, y_region, z_region = get_reconstruction_regions(self.args)
+        set_projection_filter_scale(self.args)
         self.dark = dark
         self.flat = flat
-        self._optimize_projection_height(region=region)
-        if (gpu_index is not None and x_region is not None and y_region is not None and
-                region is not None):
-            self.regions = [(gpu_index, self.args.region)]
-            gpu = gpus[gpu_index]
-        else:
-            # Setup multi GPU execution
-            gpu = None
-            set_projection_filter_scale(self.args)
-            x_region, y_region, z_region = get_reconstruction_regions(self.args)
-            self.regions = make_runs(gpus, x_region, y_region, z_region,
-                                     DTYPE_CL_SIZE[self.args.store_type],
-                                     slices_per_device=self.args.slices_per_device,
-                                     slice_memory_coeff=self.args.slice_memory_coeff,
-                                     data_splitting_policy=self.args.data_splitting_policy)[0]
-        print self.regions
         if self.dark is not None and self.flat is not None:
+            LOG.debug('Flat correction on')
             self.dark = self.dark[self.y_0:self.y_1].astype(np.float32)
             self.flat = self.flat[self.y_0:self.y_1].astype(np.float32)
 
+        regions = make_runs([gpu], x_region, y_region, z_region,
+                            DTYPE_CL_SIZE[self.args.store_type],
+                            slices_per_device=self.args.slices_per_device,
+                            slice_memory_coeff=self.args.slice_memory_coeff,
+                            data_splitting_policy=self.args.data_splitting_policy)
+        if len(regions) > 1:
+            raise UniversalBackprojectError('Region does not fit to the GPU memory')
+
         graph = Ufo.TaskGraph()
-        broadcast = None if gpu else Ufo.CopyTask()
         if dark is not None and flat is not None:
             ffc = get_task('flat-field-correct', processing_node=gpu)
             ffc.props.fix_nan_and_inf = self.args.fix_nan_and_inf
             ffc.props.absorption_correct = self.args.absorptivity
-            if broadcast:
-                graph.connect_nodes(ffc, broadcast)
             first = ffc
         else:
-            first = broadcast
+            first = None
 
-        for i, gpu_and_region in enumerate(self.regions):
-            gpu_index, region = gpu_and_region
-            setup_graph(self.args, graph, x_region, y_region, region,
-                        first, gpu=gpus[gpu_index], index=gpu_index, do_output=False,
-                        make_reader=False)
-            LOG.debug('Pass: %d, device: %d, region: %s', gpu_index + 1, gpu_index, region)
+        setup_graph(self.args, graph, x_region, y_region, self.args.region,
+                    first, gpu=gpus[gpu_index], index=gpu_index, do_output=False,
+                    make_reader=False)
 
-        super(UniReco, self).__init__(graph, get_output=True, scheduler=scheduler)
+        super(UniversalBackproject, self).__init__(graph, get_output=True, scheduler=scheduler)
 
-    def _optimize_projection_height(self, region=None):
+    def _optimize_projection_height(self):
         is_parallel = np.all(np.isinf(self.args.source_position_y))
         is_simple_tomo = (is_parallel and
                           np.all(self.args.axis_angle_x) == 0 and
@@ -516,28 +513,32 @@ class UniReco(InjectProcess):
                           np.all(self.args.volume_angle_y) == 0 and
                           np.all(self.args.volume_angle_z) == 0)
 
-        if np.any(self.args.center_z != self.args.center_z[0]):
+        if np.any(np.array(self.args.center_z) != self.args.center_z[0]):
             LOG.debug('Various z center positions, not optimizing projection region')
             self.y_0 = 0
             self.y_1 = self.args.height
-        if self.args.z_parameter == 'center-position-x':
+        elif self.args.z_parameter == 'center-position-x':
             self.y_0 = self.args.z
             self.y_1 = 1
+            decimal = self.args.center_z[0] - int(self.args.center_z[0])
             self.args.z = 0
-            self.args.center_z = [0.5]
+            self.args.center_z = [decimal]
             self.args.height = 1
         elif is_simple_tomo and self.args.z_parameter == 'z':
-            if region is None:
-                region = self.args.region
-            self.y_0 = int(region[0] + self.args.center_z[0])
-            self.y_1 = int(region[1] + self.args.center_z[0])
+            self.y_0 = int(self.args.region[0] + self.args.center_z[0])
+            self.y_1 = int(self.args.region[1] + self.args.center_z[0])
             # Keep the 0.5 of the center if specified
             decimal = self.args.center_z[0] - int(self.args.center_z[0])
             self.args.center_z = [decimal]
             self.args.height = int(np.ceil(self.y_1 - self.y_0))
-            self.args.region = [0.0, float(self.args.height), float(region[2])]
+            self.args.region = [0.0, float(self.args.height), float(self.args.region[2])]
+        else:
+            self.y_0 = 0
+            self.y_1 = self.args.height
 
-        print 'optimization:', self.y_0, self.y_1, self.args.center_z, self.args.height, self.args.region
+        LOG.debug('Optimized projection crop: (%d - %d)', self.y_0, self.y_1)
+        LOG.debug('New z center: %g, new height: %d', self.args.center_z[0], self.args.height)
+        LOG.debug('New region: %s', self.args.region)
 
     @coroutine
     def __call__(self, consumer):
@@ -560,39 +561,36 @@ class UniReco(InjectProcess):
         i = 1
         while True:
             projection = yield
-            process_projection(projection, None, None)
             i += 1
             if i == self.args.number:
+                LOG.debug('Last projection came')
+            process_projection(projection, None, None)
+            if i == self.args.number:
                 self.stop()
-                print 'UniReco inputs procced in: {:.2f} s'.format(time.time() - st)
-                for j, region in self.regions:
-                    # print j, region
-                    for k in np.arange(*region):
-                        result = self.result(leave_index=j if len(self.regions) > 1 else 0)
-                        consumer.send(result)
-                    # time.sleep(0.025)
-                print 'UniReco output provided in: {:.2f} s'.format(time.time() - st)
+                LOG.debug('Reconstruction duration: %.2f s', time.time() - st)
+                st = time.time()
+                for k in np.arange(*self.args.region):
+                    result = self.result()[0]
+                    consumer.send(result)
+                LOG.debug('Volume downloaded in: %.2f s', time.time() - st)
                 self.wait()
 
 
-class UniRecoManager(object):
-    def __init__(self, args, dark=None, flat=None, start_immediately=False):
+class UniversalBackprojectManager(object):
+    def __init__(self, args):
         self.args = args
-        self.reconstructors = []
         self.projections = []
-        self.dark = dark
-        self.flat = flat
-        set_projection_filter_scale(self.args)
         self._resources = []
         self.volume = None
+        self._pool = None
         self.initialize_reconstructors()
 
     def initialize_reconstructors(self):
-        self._x_region, self._y_region, z_region = get_reconstruction_regions(self.args)
+        x_region, y_region, z_region = get_reconstruction_regions(self.args)
         if not self._resources:
             self._resources = [Ufo.Resources()]
         gpus = self._resources[0].get_gpu_nodes()
-        self._regions = make_runs(gpus, self._x_region, self._y_region, z_region,
+        self._regions = make_runs(gpus, x_region, y_region, z_region,
                                   DTYPE_CL_SIZE[self.args.store_type],
                                   slices_per_device=self.args.slices_per_device,
                                   slice_memory_coeff=self.args.slice_memory_coeff,
@@ -602,28 +600,9 @@ class UniRecoManager(object):
             if len(self._resources) < len(self._regions):
                 self._resources.append(Ufo.Resources())
             offset += len(np.arange(*region))
-        shape = (offset, len(np.arange(*self._y_region)), len(np.arange(*self._x_region)))
+        shape = (offset, len(np.arange(*y_region)), len(np.arange(*x_region)))
         if self.volume is None or shape != self.volume.shape:
             self.volume = np.empty(shape, dtype=np.float32)
-
-    def start(self):
-        st = time.time()
-        offset = 0
-        for i, region in self._regions:
-            reco = UniReco(self.args, dark=self.dark, flat=self.flat, gpu_index=i,
-                           x_region=self._x_region, y_region=self._y_region, region=region,
-                           resources=self._resources[i])
-            self.reconstructors.append(reco(self.consume(offset)))
-            offset += len(np.arange(*region))
-        print 'UFO initialization time: {:.2f} s'.format(time.time() - st)
-
-        def start_one(index):
-            inject(self.produce(), self.reconstructors[index])
-
-        pool = ThreadPool(processes=len(self.reconstructors))
-        pool.map(start_one, range(len(self.reconstructors)))
-        pool.close()
-        pool.join()
 
     def produce(self):
         for i in range(self.args.number):
@@ -640,23 +619,59 @@ class UniRecoManager(object):
             i += 1
 
     @coroutine
-    def __call__(self, consumer=None):
+    def __call__(self, dark=None, flat=None, consumer=None, block=False):
+        if self._pool:
+            self._pool.join()
+        LOG.debug('Backprojector manager start')
         st = time.time()
-        thread = threading.Thread(target=self.start)
-        thread.start()
+
+        offset = 0
+        reconstructors = []
+        for i, region in self._regions:
+            reco = UniversalBackproject(self.args, resources=self._resources[i], gpu_index=i,
+                                        dark=dark, flat=flat, region=region)
+            reconstructors.append(reco(self.consume(offset)))
+            offset += len(np.arange(*region))
+
+        def start_one(index):
+            inject(self.produce(), reconstructors[index])
+
+        def reco_callback(unused_map_results):
+            duration = time.time() - st
+            LOG.debug('Backprojectors duration: %.2f s', duration)
+            in_size = self.projections[0].nbytes * i / 2. ** 20
+            out_size = self.volume.nbytes / 2. ** 20
+            LOG.debug('Input size: %g GB, output size: %g GB', in_size / 1024, out_size / 1024)
+            LOG.debug('Performance: %.2f GUPS (In: %.2f MB/s, out: %.2f MB/s)',
+                      self.volume.size * i * 1e-9 / duration,
+                      in_size / duration, out_size / duration)
+            if consumer:
+                out_st = time.time()
+                for s in self.volume:
+                    consumer.send(s)
+                out_duration = time.time() - out_st
+                LOG.debug('Volume sending duration: %.2f s, speed: %.2f MB/s',
+                          out_duration, out_size / out_duration)
+
+        self._pool = ThreadPool(processes=len(reconstructors))
+        self._pool.map_async(start_one, range(len(reconstructors)), callback=reco_callback)
+        self._pool.close()
+        LOG.debug('Reconstructors initialization duration: %.2f s', time.time() - st)
 
         i = 0
         while True:
             projection = yield
             i += 1
             if len(self.projections) < self.args.number:
+                # Do not add projections if we are reconstructed for the second time from the
+                # already collected projections
                 self.projections.append(projection)
+            current_time = time.time()
             if i == self.args.number:
-                print 'reading done in {:.2f} s'.format(time.time() - st)
-                thread.join()
-                self.started = False
-                self.reconstructors = []
-                print 'reconstruction done in {:.2f} s'.format(time.time() - st)
-                if consumer:
-                    consumer.send(self.volume)
-                    print 'reconstruction written in {:.2f} s'.format(time.time() - st)
+                LOG.debug('Last projection dispatched by manager')
+                if block:
+                    self._pool.join()
+
+
+class UniversalBackprojectError(Exception):
+    pass
