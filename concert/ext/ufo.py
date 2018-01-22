@@ -578,14 +578,14 @@ class UniversalBackproject(InjectProcess):
 
 class UniversalBackprojectManager(object):
     def __init__(self, args):
-        self.args = args
         self.projections = []
         self._resources = []
         self.volume = None
         self._pool = None
-        self.initialize_reconstructors()
+        self.set_args(args)
 
-    def initialize_reconstructors(self):
+    def set_args(self, args):
+        self.args = args
         x_region, y_region, z_region = get_reconstruction_regions(self.args)
         if not self._resources:
             self._resources = [Ufo.Resources()]
@@ -619,22 +619,30 @@ class UniversalBackprojectManager(object):
             i += 1
 
     @coroutine
-    def __call__(self, dark=None, flat=None, consumer=None, block=False):
+    def __call__(self, dark=None, flat=None, consumer=None, block=False, wait_for_events=None):
         if self._pool:
+            LOG.debug('Waiting for previous run to finish')
             self._pool.join()
+
         LOG.debug('Backprojector manager start')
         st = time.time()
-
-        offset = 0
-        reconstructors = []
-        for i, region in self._regions:
-            reco = UniversalBackproject(self.args, resources=self._resources[i], gpu_index=i,
-                                        dark=dark, flat=flat, region=region)
-            reconstructors.append(reco(self.consume(offset)))
-            offset += len(np.arange(*region))
+        # Make sure the arguments are up-to-date
+        arg_thread = threading.Thread(target=self.set_args, args=(self.args,))
+        arg_thread.start()
 
         def start_one(index):
-            inject(self.produce(), reconstructors[index])
+            arg_thread.join()
+            if wait_for_events is not None:
+                LOG.debug('Waiting for event %d', index)
+                for event in wait_for_events:
+                    event.wait()
+                LOG.debug('Waiting for events done %d (cached projections: %d)',
+                          index, len(self.projections))
+            i, region = self._regions[index]
+            offset = sum([len(np.arange(*reg)) for j, reg in self._regions[:index]])
+            reco = UniversalBackproject(self.args, resources=self._resources[i], gpu_index=i,
+                                        dark=dark, flat=flat, region=region)
+            inject(self.produce(), reco(self.consume(offset)))
 
         def reco_callback(unused_map_results):
             duration = time.time() - st
@@ -653,10 +661,10 @@ class UniversalBackprojectManager(object):
                 LOG.debug('Volume sending duration: %.2f s, speed: %.2f MB/s',
                           out_duration, out_size / out_duration)
 
-        self._pool = ThreadPool(processes=len(reconstructors))
-        self._pool.map_async(start_one, range(len(reconstructors)), callback=reco_callback)
+        self._pool = ThreadPool(processes=len(self._regions))
+        self._pool.map_async(start_one, range(len(self._regions)), callback=reco_callback)
         self._pool.close()
-        LOG.debug('Reconstructors initialization duration: %.2f s', time.time() - st)
+        LOG.debug('Backprojectors initialization duration: %.2f s', time.time() - st)
 
         i = 0
         while True:
