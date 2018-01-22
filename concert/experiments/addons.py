@@ -168,7 +168,7 @@ class ImageWriter(Addon):
                 self.walker.descend(acquisition.name)
                 coro = self.walker.write()
                 if self._async:
-                    coro = queue(coro, process_all=True, block=block)
+                    coro = queue(coro, process_all=True, block=block, make_deepcopy=False)
                 return coro
             finally:
                 self.walker.ascend()
