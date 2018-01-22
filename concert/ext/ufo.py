@@ -519,7 +519,7 @@ class UniversalBackproject(InjectProcess):
             self.y_1 = self.args.height
         elif self.args.z_parameter == 'center-position-x':
             self.y_0 = self.args.z
-            self.y_1 = 1
+            self.y_1 = self.args.z + 1
             decimal = self.args.center_z[0] - int(self.args.center_z[0])
             self.args.z = 0
             self.args.center_z = [decimal]
