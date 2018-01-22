@@ -679,6 +679,7 @@ class UniversalBackprojectManager(object):
             if i == self.args.number:
                 LOG.debug('Last projection dispatched by manager')
                 if block:
+                    arg_thread.join()
                     self._pool.join()
 
 
