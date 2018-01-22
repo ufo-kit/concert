@@ -455,13 +455,11 @@ class UniversalBackprojectArgs(object):
 
 
 class UniversalBackproject(InjectProcess):
-    def __init__(self, args, resources=None, gpu_index=None, flat=None, dark=None, region=None):
+    def __init__(self, args, resources=None, gpu_index=0, flat=None, dark=None, region=None):
         scheduler = Ufo.FixedScheduler()
         if resources:
             scheduler.set_resources(resources)
-        gpus = scheduler.get_resources().get_gpu_nodes()
-        gpu_index = 0 if gpu_index is None else gpu_index
-        gpu = gpus[gpu_index]
+        gpu = scheduler.get_resources().get_gpu_nodes()[gpu_index]
 
         self.args = copy.deepcopy(args)
         if region is not None:
@@ -495,8 +493,7 @@ class UniversalBackproject(InjectProcess):
             first = None
 
         setup_graph(self.args, graph, x_region, y_region, self.args.region,
-                    first, gpu=gpus[gpu_index], index=gpu_index, do_output=False,
-                    make_reader=False)
+                    first, gpu=gpu, index=gpu_index, do_output=False, make_reader=False)
 
         super(UniversalBackproject, self).__init__(graph, get_output=True, scheduler=scheduler)
 
@@ -567,7 +564,7 @@ class UniversalBackproject(InjectProcess):
             process_projection(projection, None, None)
             if i == self.args.number:
                 self.stop()
-                LOG.debug('Reconstruction duration: %.2f s', time.time() - st)
+                LOG.debug('Backprojection duration: %.2f s', time.time() - st)
                 st = time.time()
                 for k in np.arange(*self.args.region):
                     result = self.result()[0]
@@ -674,7 +671,6 @@ class UniversalBackprojectManager(object):
                 # Do not add projections if we are reconstructed for the second time from the
                 # already collected projections
                 self.projections.append(projection)
-            current_time = time.time()
             if i == self.args.number:
                 LOG.debug('Last projection dispatched by manager')
                 if block:
