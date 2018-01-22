@@ -2,8 +2,9 @@
 the acquired data, e.g. write images to disk, do tomographic reconstruction etc.
 """
 import logging
+import numpy as np
 from concert.coroutines.base import coroutine
-from concert.coroutines.filters import average_images, queue
+from concert.coroutines.filters import queue
 from concert.coroutines.sinks import Accumulate, Result
 
 
@@ -176,32 +177,75 @@ class ImageWriter(Addon):
 
 
 class OnlineReconstruction(Addon):
-    def __init__(self, experiment, reco_args, consumer=None, block=False):
+    def __init__(self, experiment, reco_args, process_normalization=False,
+                 process_normalization_func=None, consumer=None, block=False):
+        from multiprocessing.pool import ThreadPool
+        from threading import Event
         from concert.ext.ufo import UniversalBackprojectManager
+
+        self.experiment = experiment
         self.num_darks = experiment.num_darks
         self.num_flats = experiment.num_flats
         self.dark_result = Result()
         self.flat_result = Result()
+        self.reco_args = reco_args
         self.manager = UniversalBackprojectManager(reco_args)
+        self._process_normalization = process_normalization
+        self.process_normalization_func = process_normalization_func
+        self._pool = ThreadPool(processes=2)
+        self._events = {self.dark_result: Event(), self.flat_result: Event()}
         self.consumer = consumer
         self.block = block
-        self.acquisitions_dict = dict([(acq.name, acq) for acq in experiment.acquisitions])
+        self._consumers = {}
         super(OnlineReconstruction, self).__init__(experiment.acquisitions)
+
+    def _average_images(self, result):
+        def compute_average(images):
+            if self.process_normalization_func:
+                return self.process_normalization_func(images)
+            else:
+                return np.mean(images, axis=0)
+
+        def callback(item):
+            result.result = item
+            LOG.debug('Normalization image processing done')
+            self._events[result].set()
+
+        @coroutine
+        def create_averaging_coro():
+            self._events[result].clear()
+            images = []
+            try:
+                while True:
+                    image = yield
+                    images.append(image)
+            except GeneratorExit:
+                self._pool.apply_async(compute_average, args=(images,), callback=callback)
+
+        return create_averaging_coro
 
     def _reconstruct(self):
         self.manager.projections = []
+        events = self._events.values() if self._process_normalization else None
+
         return self.manager(dark=self.dark_result.result, flat=self.flat_result.result,
-                            consumer=self.consumer, block=self.block)
+                            consumer=self.consumer, block=self.block, wait_for_events=events)
 
     def _attach(self):
-        self.acquisitions_dict['darks'].consumers.append(self.dark_result)
-        self.acquisitions_dict['flats'].consumers.append(self.flat_result)
-        self.acquisitions_dict['radios'].consumers.append(self._reconstruct)
+        if self._process_normalization:
+            self._consumers[self.experiment.darks] = self._average_images(self.dark_result)
+            self._consumers[self.experiment.flats] = self._average_images(self.flat_result)
+        else:
+            self._consumers[self.experiment.darks] = self.dark_result
+            self._consumers[self.experiment.flats] = self.flat_result
+        self._consumers[self.experiment.radios] = self._reconstruct
+
+        for acq, consumer in self._consumers.items():
+            acq.consumers.append(consumer)
 
     def _detach(self):
-        self.acquisitions_dict['darks'].consumers.remove(self.dark_result)
-        self.acquisitions_dict['flats'].consumers.remove(self.flat_result)
-        self.acquisitions_dict['radios'].consumers.remove(self._reconstruct)
+        for acq, consumer in self._consumers.items():
+            acq.consumers.remove(consumer)
 
 
 class AddonError(Exception):
