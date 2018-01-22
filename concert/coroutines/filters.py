@@ -51,7 +51,7 @@ def downsize(consumer, x_slice=None, y_slice=None, z_slice=None):
 
 
 @coroutine
-def queue(consumer, process_all=True, block=False):
+def queue(consumer, process_all=True, block=False, make_deepcopy=True):
     """
     queue(consumer, process_all=True, block=False)
 
@@ -59,7 +59,8 @@ def queue(consumer, process_all=True, block=False):
     prevents the stalling on the "main" data stream. If *process_all* is True the serve loop may
     exit only when all items are sent to *consumer*. If *block* is True this coroutine blocks until
     all items in the serve loop are processed, *process_all* must be True as well for this to take
-    effect.
+    effect. If *make_deepcopy* is True, insert a deep copy of an item into the queue, otherwise just
+    a reference.
     """
     from concert.async import HAVE_GEVENT
     if cfg.ENABLE_GEVENT and HAVE_GEVENT:
@@ -87,7 +88,9 @@ def queue(consumer, process_all=True, block=False):
     try:
         while True:
             item = yield
-            item_queue.put(deepcopy(item))
+            if make_deepcopy:
+                item = deepcopy(item)
+            item_queue.put(item)
     except GeneratorExit:
         serve.run = False
         if block:
