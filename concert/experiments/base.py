@@ -4,6 +4,7 @@ care of proper logging structure.
 """
 
 import logging
+import time
 from concert.async import async
 from concert.coroutines.base import broadcast, inject
 
@@ -175,6 +176,8 @@ class Experiment(object):
 
         Compute the next iteration and run the :meth:`~.base.Experiment.acquire`.
         """
+        start_time = time.time()
+        LOG.debug('Experiment iteration %d start', self.iteration)
         if self.separate_scans and self.walker:
             self.walker.descend(self.name_fmt.format(self.iteration))
 
@@ -188,6 +191,8 @@ class Experiment(object):
         finally:
             if self.separate_scans and self.walker:
                 self.walker.ascend()
+            LOG.debug('Experiment iteration %d duration: %.2f s',
+                      self.iteration, time.time() - start_time)
             self.iteration += 1
 
 
