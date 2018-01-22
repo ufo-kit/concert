@@ -635,7 +635,7 @@ class UniversalBackprojectManager(object):
                           index, len(self.projections))
             i, region = self._regions[index]
             offset = sum([len(np.arange(*reg)) for j, reg in self._regions[:index]])
-            reco = UniversalBackproject(self.args, resources=self._resources[i], gpu_index=i,
+            reco = UniversalBackproject(self.args, resources=self._resources[index], gpu_index=i,
                                         dark=dark, flat=flat, region=region)
             inject(self.produce(), reco(self.consume(offset)))
 
