@@ -623,11 +623,9 @@ class UniversalBackprojectManager(object):
 
         LOG.debug('Backprojector manager start')
         st = time.time()
-        # Make sure the arguments are up-to-date
-        arg_thread = threading.Thread(target=self.set_args, args=(self.args,))
-        arg_thread.start()
 
         def start_one(index):
+            """Start one backprojector with a specific GPU ID in a separate thread."""
             arg_thread.join()
             if wait_for_events is not None:
                 LOG.debug('Waiting for event %d', index)
@@ -642,6 +640,7 @@ class UniversalBackprojectManager(object):
             inject(self.produce(), reco(self.consume(offset)))
 
         def reco_callback(unused_map_results):
+            """Callback for finished backprojection."""
             duration = time.time() - st
             LOG.debug('Backprojectors duration: %.2f s', duration)
             in_size = self.projections[0].nbytes * i / 2. ** 20
@@ -658,9 +657,15 @@ class UniversalBackprojectManager(object):
                 LOG.debug('Volume sending duration: %.2f s, speed: %.2f MB/s',
                           out_duration, out_size / out_duration)
 
-        self._pool = ThreadPool(processes=len(self._regions))
-        self._pool.map_async(start_one, range(len(self._regions)), callback=reco_callback)
-        self._pool.close()
+        def prepare_and_start():
+            """Make sure the arguments are up-to-date."""
+            self.set_args(self.args)
+            self._pool = ThreadPool(processes=len(self._regions))
+            self._pool.map_async(start_one, range(len(self._regions)), callback=reco_callback)
+            self._pool.close()
+
+        arg_thread = threading.Thread(target=prepare_and_start)
+        arg_thread.start()
         LOG.debug('Backprojectors initialization duration: %.2f s', time.time() - st)
 
         i = 0
