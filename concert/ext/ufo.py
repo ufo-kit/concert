@@ -616,7 +616,8 @@ class UniversalBackprojectManager(object):
             i += 1
 
     @coroutine
-    def __call__(self, dark=None, flat=None, consumer=None, block=False, wait_for_events=None):
+    def __call__(self, dark=None, flat=None, consumer=None, block=False, wait_for_events=None,
+                 wait_for_projections=False):
         if self._pool:
             LOG.debug('Waiting for previous run to finish')
             self._pool.join()
@@ -664,9 +665,10 @@ class UniversalBackprojectManager(object):
             self._pool.map_async(start_one, range(len(self._regions)), callback=reco_callback)
             self._pool.close()
 
-        arg_thread = threading.Thread(target=prepare_and_start)
-        arg_thread.start()
-        LOG.debug('Backprojectors initialization duration: %.2f s', time.time() - st)
+        if not wait_for_projections:
+            arg_thread = threading.Thread(target=prepare_and_start)
+            arg_thread.start()
+        LOG.debug('Backprojectors initialization duration: %.2f ms', (time.time() - st) * 1000)
 
         i = 0
         while True:
@@ -677,6 +679,9 @@ class UniversalBackprojectManager(object):
                 # already collected projections
                 self.projections.append(projection)
             if i == self.args.number:
+                if wait_for_projections:
+                    arg_thread = threading.Thread(target=prepare_and_start)
+                    arg_thread.start()
                 LOG.debug('Last projection dispatched by manager')
                 if block:
                     arg_thread.join()
