@@ -74,6 +74,9 @@ class Camera(base.Camera):
 
         super(Camera, self).__init__()
 
+        import gi
+        gi.require_version('Uca', '2.0')
+
         from gi.repository import GObject, GLib, Uca
 
         self._manager = Uca.PluginManager()
