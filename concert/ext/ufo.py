@@ -64,10 +64,11 @@ class InjectProcess(object):
     Ufo.Scheduler or Ufo.FixedScheduler.
     """
 
-    def __init__(self, graph, get_output=False, output_dims=2, scheduler=None):
+    def __init__(self, graph, get_output=False, output_dims=2, scheduler=None, copy_inputs=False):
         self.output_tasks = []
         self.sched = scheduler if scheduler else Ufo.Scheduler()
         self._started = False
+        self.copy_inputs = copy_inputs
 
         if isinstance(graph, Ufo.TaskGraph):
             self.graph = graph
@@ -155,6 +156,8 @@ class InjectProcess(object):
             self.ufo_buffers[node][index] = self.input_tasks[node][index].get_input_buffer()
 
         if array is not None:
+            if self.copy_inputs:
+                array = np.copy(array, order='C')
             self.ufo_buffers[node][index].copy_host_array(array.__array_interface__['data'][0])
         self.input_tasks[node][index].release_input_buffer(self.ufo_buffers[node][index])
 
@@ -455,7 +458,8 @@ class UniversalBackprojectArgs(object):
 
 
 class UniversalBackproject(InjectProcess):
-    def __init__(self, args, resources=None, gpu_index=0, flat=None, dark=None, region=None):
+    def __init__(self, args, resources=None, gpu_index=0, flat=None, dark=None, region=None,
+                 copy_inputs=False):
         scheduler = Ufo.FixedScheduler()
         if resources:
             scheduler.set_resources(resources)
@@ -495,7 +499,8 @@ class UniversalBackproject(InjectProcess):
         setup_graph(self.args, graph, x_region, y_region, self.args.region,
                     first, gpu=gpu, index=gpu_index, do_output=False, make_reader=False)
 
-        super(UniversalBackproject, self).__init__(graph, get_output=True, scheduler=scheduler)
+        super(UniversalBackproject, self).__init__(graph, get_output=True, scheduler=scheduler,
+                                                   copy_inputs=copy_inputs)
 
     def _optimize_projection_height(self):
         is_parallel = np.all(np.isinf(self.args.source_position_y))
@@ -574,7 +579,8 @@ class UniversalBackproject(InjectProcess):
 
 
 class UniversalBackprojectManager(object):
-    def __init__(self, args):
+    def __init__(self, args, copy_inputs=False):
+        self.copy_inputs = copy_inputs
         self.projections = []
         self._resources = []
         self.volume = None
@@ -637,7 +643,8 @@ class UniversalBackprojectManager(object):
             i, region = self._regions[index]
             offset = sum([len(np.arange(*reg)) for j, reg in self._regions[:index]])
             reco = UniversalBackproject(self.args, resources=self._resources[index], gpu_index=i,
-                                        dark=dark, flat=flat, region=region)
+                                        dark=dark, flat=flat, region=region,
+                                        copy_inputs=self.copy_inputs)
             inject(self.produce(), reco(self.consume(offset)))
 
         def reco_callback(unused_map_results):
