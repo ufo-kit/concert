@@ -639,22 +639,6 @@ class UniversalBackprojectManager(object):
         LOG.debug('Backprojector manager start')
         st = time.time()
 
-        def start_one(index):
-            """Start one backprojector with a specific GPU ID in a separate thread."""
-            arg_thread.join()
-            if wait_for_events is not None:
-                LOG.debug('Waiting for event %d', index)
-                for event in wait_for_events:
-                    event.wait()
-                LOG.debug('Waiting for events done %d (cached projections: %d)',
-                          index, len(self.projections))
-            i, region = self._regions[index]
-            offset = sum([len(np.arange(*reg)) for j, reg in self._regions[:index]])
-            reco = UniversalBackproject(self.args, resources=self._resources[index], gpu_index=i,
-                                        dark=self.dark, flat=self.flat, region=region,
-                                        copy_inputs=self.copy_inputs)
-            inject(self.produce(), reco(self.consume(offset)))
-
         def reco_callback(unused_map_results):
             """Callback for finished backprojection."""
             duration = time.time() - st
@@ -675,9 +659,48 @@ class UniversalBackprojectManager(object):
 
         def prepare_and_start():
             """Make sure the arguments are up-to-date."""
-            self.set_args(self.args)
-            self._pool = ThreadPool(processes=len(self._regions))
-            self._pool.map_async(start_one, range(len(self._regions)), callback=reco_callback)
+            if wait_for_events is not None:
+                LOG.debug('Waiting for event')
+                for event in wait_for_events:
+                    event.wait()
+                LOG.debug('Waiting for events done (cached projections: %d)',
+                          len(self.projections))
+            x_region, y_region, z_region = get_reconstruction_regions(self.args)
+            if not self._resources:
+                self._resources = [Ufo.Resources()]
+            gpus = self._resources[0].get_gpu_nodes()
+            regions = self.regions
+            if regions is None:
+                regions = make_runs(gpus, x_region, y_region, z_region,
+                                    DTYPE_CL_SIZE[self.args.store_type],
+                                    slices_per_device=self.args.slices_per_device,
+                                    slice_memory_coeff=self.args.slice_memory_coeff,
+                                    data_splitting_policy=self.args.data_splitting_policy)[0]
+            offset = 0
+            backprojectors = []
+            for i, part in enumerate(regions):
+                gpu_index, region = part
+                if len(self._resources) < len(regions):
+                    self._resources.append(Ufo.Resources())
+                offset += len(np.arange(*region))
+                backprojectors.append(UniversalBackproject(self.args,
+                                                           resources=self._resources[i],
+                                                           gpu_index=i,
+                                                           dark=self.dark,
+                                                           flat=self.flat,
+                                                           region=region,
+                                                           copy_inputs=self.copy_inputs))
+            shape = (offset, len(np.arange(*y_region)), len(np.arange(*x_region)))
+            if self.volume is None or shape != self.volume.shape:
+                self.volume = np.empty(shape, dtype=np.float32)
+
+            def start_one(index):
+                """Start one backprojector with a specific GPU ID in a separate thread."""
+                offset = sum([len(np.arange(*reg)) for j, reg in regions[:index]])
+                inject(self.produce(), backprojectors[index](self.consume(offset)))
+
+            self._pool = ThreadPool(processes=len(regions))
+            self._pool.map_async(start_one, range(len(regions)), callback=reco_callback)
             self._pool.close()
 
         if not wait_for_projections:
