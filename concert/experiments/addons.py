@@ -210,6 +210,10 @@ class OnlineReconstruction(Addon):
 
         def callback(item):
             result.result = item
+            if result == self.dark_result:
+                self.manager.dark = item
+            else:
+                self.manager.flat = item
             LOG.debug('Normalization image processing done')
             self._events[result].set()
 
@@ -230,8 +234,7 @@ class OnlineReconstruction(Addon):
         self.manager.projections = []
         events = self._events.values() if self._process_normalization else None
 
-        return self.manager(dark=self.dark_result.result, flat=self.flat_result.result,
-                            consumer=self.consumer, block=self.block, wait_for_events=events,
+        return self.manager(consumer=self.consumer, block=self.block, wait_for_events=events,
                             wait_for_projections=self.wait_for_projections)
 
     def _attach(self):
