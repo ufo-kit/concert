@@ -579,7 +579,8 @@ class UniversalBackproject(InjectProcess):
 
 
 class UniversalBackprojectManager(object):
-    def __init__(self, args, copy_inputs=False, projection_sleep_time=0 * q.s):
+    def __init__(self, args, regions=None, copy_inputs=False, projection_sleep_time=0 * q.s):
+        self.regions = regions
         self.copy_inputs = copy_inputs
         self.projection_sleep_time = projection_sleep_time
         self.projections = []
@@ -594,11 +595,14 @@ class UniversalBackprojectManager(object):
         if not self._resources:
             self._resources = [Ufo.Resources()]
         gpus = self._resources[0].get_gpu_nodes()
-        self._regions = make_runs(gpus, x_region, y_region, z_region,
-                                  DTYPE_CL_SIZE[self.args.store_type],
-                                  slices_per_device=self.args.slices_per_device,
-                                  slice_memory_coeff=self.args.slice_memory_coeff,
-                                  data_splitting_policy=self.args.data_splitting_policy)[0]
+        if self.regions is None:
+            self._regions = make_runs(gpus, x_region, y_region, z_region,
+                                      DTYPE_CL_SIZE[self.args.store_type],
+                                      slices_per_device=self.args.slices_per_device,
+                                      slice_memory_coeff=self.args.slice_memory_coeff,
+                                      data_splitting_policy=self.args.data_splitting_policy)[0]
+        else:
+            self._regions = self.regions
         offset = 0
         for i, region in self._regions:
             if len(self._resources) < len(self._regions):
