@@ -579,7 +579,8 @@ class UniversalBackproject(InjectProcess):
 
 
 class UniversalBackprojectManager(object):
-    def __init__(self, args, regions=None, copy_inputs=False, projection_sleep_time=0 * q.s):
+    def __init__(self, args, dark=None, flat=None, regions=None, copy_inputs=False,
+                 projection_sleep_time=0 * q.s):
         self.regions = regions
         self.copy_inputs = copy_inputs
         self.projection_sleep_time = projection_sleep_time
@@ -587,6 +588,8 @@ class UniversalBackprojectManager(object):
         self._resources = []
         self.volume = None
         self._pool = None
+        self.dark = dark
+        self.flat = flat
         self.set_args(args)
 
     def set_args(self, args):
@@ -628,8 +631,7 @@ class UniversalBackprojectManager(object):
             i += 1
 
     @coroutine
-    def __call__(self, dark=None, flat=None, consumer=None, block=False, wait_for_events=None,
-                 wait_for_projections=False):
+    def __call__(self, consumer=None, block=False, wait_for_events=None, wait_for_projections=False):
         if self._pool:
             LOG.debug('Waiting for previous run to finish')
             self._pool.join()
@@ -649,7 +651,7 @@ class UniversalBackprojectManager(object):
             i, region = self._regions[index]
             offset = sum([len(np.arange(*reg)) for j, reg in self._regions[:index]])
             reco = UniversalBackproject(self.args, resources=self._resources[index], gpu_index=i,
-                                        dark=dark, flat=flat, region=region,
+                                        dark=self.dark, flat=self.flat, region=region,
                                         copy_inputs=self.copy_inputs)
             inject(self.produce(), reco(self.consume(offset)))
 
