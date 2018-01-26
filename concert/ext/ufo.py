@@ -604,7 +604,8 @@ class UniversalBackprojectManager(object):
                                       DTYPE_CL_SIZE[self.args.store_type],
                                       slices_per_device=self.args.slices_per_device,
                                       slice_memory_coeff=self.args.slice_memory_coeff,
-                                      data_splitting_policy=self.args.data_splitting_policy)[0]
+                                      data_splitting_policy=self.args.data_splitting_policy,
+                                      num_gpu_threads=self.args.num_gpu_threads)[0]
         else:
             self._regions = self.regions
         offset = 0
