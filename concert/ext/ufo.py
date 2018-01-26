@@ -579,8 +579,9 @@ class UniversalBackproject(InjectProcess):
 
 
 class UniversalBackprojectManager(object):
-    def __init__(self, args, copy_inputs=False):
+    def __init__(self, args, copy_inputs=False, projection_sleep_time=0 * q.s):
         self.copy_inputs = copy_inputs
+        self.projection_sleep_time = projection_sleep_time
         self.projections = []
         self._resources = []
         self.volume = None
@@ -608,9 +609,10 @@ class UniversalBackprojectManager(object):
             self.volume = np.empty(shape, dtype=np.float32)
 
     def produce(self):
+        sleep_time = self.projection_sleep_time.to(q.s).magnitude
         for i in range(self.args.number):
             while len(self.projections) < i + 1:
-                pass
+                time.sleep(sleep_time)
             yield self.projections[i]
 
     @coroutine
