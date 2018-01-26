@@ -674,7 +674,7 @@ class UniversalBackprojectManager(object):
                 gpu_index, region = part
                 backprojectors.append(UniversalBackproject(self.args,
                                                            resources=self._resources[i],
-                                                           gpu_index=i,
+                                                           gpu_index=gpu_index,
                                                            dark=self.dark,
                                                            flat=self.flat,
                                                            region=region,
