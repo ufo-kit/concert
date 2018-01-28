@@ -74,14 +74,16 @@ def queue(consumer, process_all=True, block=False, make_deepcopy=True):
 
     @threaded
     def serve():
-        while serve.run or (process_all and not item_queue.empty()):
+        while True:
             item = item_queue.get()
-            consumer.send(item)
+            if item is not None:
+                consumer.send(item)
+            elif not process_all or item_queue.empty():
+                break
             item_queue.task_done()
         serve.stopped.set()
         LOG.debug("queue's serve loop stopped")
 
-    serve.run = True
     serve.stopped = Event()
     serve()
 
@@ -92,7 +94,7 @@ def queue(consumer, process_all=True, block=False, make_deepcopy=True):
                 item = deepcopy(item)
             item_queue.put(item)
     except GeneratorExit:
-        serve.run = False
+        item_queue.put(None)
         if block:
             serve.stopped.wait()
 
