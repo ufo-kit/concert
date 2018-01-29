@@ -2,6 +2,7 @@ from __future__ import absolute_import
 import copy
 import logging
 import threading
+import os
 import time
 import sys
 import numpy as np
@@ -25,10 +26,11 @@ except ImportError:
 
 from multiprocessing.pool import ThreadPool
 from concert.quantities import q
-from concert.coroutines.base import coroutine, inject
+from concert.coroutines.base import broadcast, coroutine, inject
 from concert.coroutines.filters import sinograms, flat_correct
 from concert.coroutines.sinks import Accumulate, Result
 from concert.experiments.imaging import tomo_projections_number, frames
+from concert.storage import write_images, write_libtiff, create_directory
 
 
 LOG = logging.getLogger(__name__)
@@ -580,7 +582,7 @@ class UniversalBackproject(InjectProcess):
 
 class UniversalBackprojectManager(object):
     def __init__(self, args, dark=None, flat=None, regions=None, copy_inputs=False,
-                 projection_sleep_time=0 * q.s):
+                 projection_sleep_time=0 * q.s, walker=None):
         self.regions = regions
         self.copy_inputs = copy_inputs
         self.projection_sleep_time = projection_sleep_time
@@ -591,6 +593,7 @@ class UniversalBackprojectManager(object):
         self.dark = dark
         self.flat = flat
         self.args = args
+        self.walker = walker
         self._update()
 
     def _update(self):
@@ -687,8 +690,18 @@ class UniversalBackprojectManager(object):
             def start_one(index):
                 """Start one backprojector with a specific GPU ID in a separate thread."""
                 offset = sum([len(np.arange(*reg)) for j, reg in self._regions[:index]])
-                inject(self.produce(), backprojectors[index](self.consume(offset)))
+                consumers = []
+                consumers.append(self.consume(offset))
+                if self.walker:
+                    fmt = os.path.join(self.walker.current, 'slices',
+                                       'slice_{:>02}_{{:>04}}.tif'.format(index))
+                    consumers.append(write_images(writer=write_libtiff, prefix=fmt))
 
+                inject(self.produce(), backprojectors[index](broadcast(*consumers)))
+
+            if self.walker:
+                directory = os.path.join(self.walker.current, 'slices')
+                create_directory(directory)
             self._pool = ThreadPool(processes=len(self._regions))
             self._pool.map_async(start_one, range(len(self._regions)), callback=reco_callback)
             self._pool.close()
