@@ -185,12 +185,10 @@ class OnlineReconstruction(Addon):
         from concert.ext.ufo import UniversalBackprojectManager
 
         self.experiment = experiment
-        self.num_darks = experiment.num_darks
-        self.num_flats = experiment.num_flats
         self.dark_result = Result()
         self.flat_result = Result()
-        self.reco_args = reco_args
-        self.manager = UniversalBackprojectManager(reco_args)
+        self.darks = np.empty(1)
+        self.flats = np.empty(1)
         self.manager = UniversalBackprojectManager(reco_args, walker=walker)
         self._process_normalization = process_normalization
         self.process_normalization_func = process_normalization_func
@@ -221,18 +219,31 @@ class OnlineReconstruction(Addon):
         @coroutine
         def create_averaging_coro():
             self._events[result].clear()
-            images = []
             try:
+                image = yield
+                shape = (self.manager.args.height, self.manager.args.width)
+                if result == self.dark_result:
+                    images = self.darks
+                    num = self.experiment.num_darks
+                else:
+                    images = self.flats
+                    num = self.experiment.num_flats
+
+                images = self.darks if result == self.dark_result else self.flats
+                if images is None or image.shape != shape or image.dtype != images.dtype:
+                    images = np.empty((num,) + image.shape, dtype=image.dtype)
+
+                i = 1
                 while True:
                     image = yield
-                    images.append(image)
+                    images[i] = image
+                    i += 1
             except GeneratorExit:
                 self._pool.apply_async(compute_average, args=(images,), callback=callback)
 
         return create_averaging_coro
 
     def _reconstruct(self):
-        self.manager.projections = []
         events = self._events.values() if self._process_normalization else None
 
         return self.manager(consumer=self.consumer, block=self.block, wait_for_events=events,
