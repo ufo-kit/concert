@@ -584,7 +584,7 @@ class UniversalBackprojectManager(object):
         self.regions = regions
         self.copy_inputs = copy_inputs
         self.projection_sleep_time = projection_sleep_time
-        self.projections = []
+        self.projections = None
         self._resources = []
         self.volume = None
         self._pool = None
@@ -620,7 +620,7 @@ class UniversalBackprojectManager(object):
     def produce(self):
         sleep_time = self.projection_sleep_time.to(q.s).magnitude
         for i in range(self.args.number):
-            while len(self.projections) < i + 1:
+            while self._in_index < i + 1:
                 time.sleep(sleep_time)
             yield self.projections[i]
 
@@ -632,24 +632,28 @@ class UniversalBackprojectManager(object):
             self.volume[offset + i] = item
             i += 1
 
-    @coroutine
-    def __call__(self, consumer=None, block=False, wait_for_events=None, wait_for_projections=False):
+    def wait(self):
         if self._pool:
             LOG.debug('Waiting for previous run to finish')
             self._pool.join()
 
+    @coroutine
+    def __call__(self, consumer=None, block=False, wait_for_events=None,
+                 wait_for_projections=False):
+        self.wait()
         LOG.debug('Backprojector manager start')
         st = time.time()
+        self._in_index = 0
 
         def reco_callback(unused_map_results):
             """Callback for finished backprojection."""
             duration = time.time() - st
             LOG.debug('Backprojectors duration: %.2f s', duration)
-            in_size = self.projections[0].nbytes * i / 2. ** 20
+            in_size = self.projections.nbytes / 2. ** 20
             out_size = self.volume.nbytes / 2. ** 20
             LOG.debug('Input size: %g GB, output size: %g GB', in_size / 1024, out_size / 1024)
             LOG.debug('Performance: %.2f GUPS (In: %.2f MB/s, out: %.2f MB/s)',
-                      self.volume.size * i * 1e-9 / duration,
+                      self.volume.size * self.projections.shape[0] * 1e-9 / duration,
                       in_size / duration, out_size / duration)
             if consumer:
                 out_st = time.time()
@@ -665,8 +669,7 @@ class UniversalBackprojectManager(object):
                 LOG.debug('Waiting for event')
                 for event in wait_for_events:
                     event.wait()
-                LOG.debug('Waiting for events done (cached projections: %d)',
-                          len(self.projections))
+                LOG.debug('Waiting for events done (cached projections: %d)', self._in_index)
 
             self._update()
 
@@ -695,15 +698,19 @@ class UniversalBackprojectManager(object):
             arg_thread.start()
         LOG.debug('Backprojectors initialization duration: %.2f ms', (time.time() - st) * 1000)
 
-        i = 0
+        projection = yield
+        in_shape = (self.args.number, self.args.height, self.args.width)
+        if (self.projections is None or in_shape != self.projections.shape or projection.dtype !=
+                self.projections.dtype):
+            self.projections = np.empty(in_shape, dtype=projection.dtype)
+        self.projections[0] = projection
+        self._in_index = 1
+
         while True:
             projection = yield
-            i += 1
-            if len(self.projections) < self.args.number:
-                # Do not add projections if we are reconstructed for the second time from the
-                # already collected projections
-                self.projections.append(projection)
-            if i == self.args.number:
+            self.projections[self._in_index] = projection
+            self._in_index += 1
+            if self._in_index == self.args.number:
                 if wait_for_projections:
                     arg_thread = threading.Thread(target=prepare_and_start)
                     arg_thread.start()
