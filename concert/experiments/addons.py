@@ -219,17 +219,16 @@ class OnlineReconstruction(Addon):
         @coroutine
         def create_averaging_coro():
             self._events[result].clear()
+            if result == self.dark_result:
+                images = self.darks
+                num = self.experiment.num_darks
+            else:
+                images = self.flats
+                num = self.experiment.num_flats
+
             try:
                 image = yield
                 shape = (self.manager.args.height, self.manager.args.width)
-                if result == self.dark_result:
-                    images = self.darks
-                    num = self.experiment.num_darks
-                else:
-                    images = self.flats
-                    num = self.experiment.num_flats
-
-                images = self.darks if result == self.dark_result else self.flats
                 if images is None or image.shape != shape or image.dtype != images.dtype:
                     images = np.empty((num,) + image.shape, dtype=image.dtype)
 
