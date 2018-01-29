@@ -179,7 +179,7 @@ class ImageWriter(Addon):
 class OnlineReconstruction(Addon):
     def __init__(self, experiment, reco_args, process_normalization=False,
                  process_normalization_func=None, consumer=None, block=False,
-                 wait_for_projections=False):
+                 wait_for_projections=False, walker=None):
         from multiprocessing.pool import ThreadPool
         from threading import Event
         from concert.ext.ufo import UniversalBackprojectManager
@@ -191,6 +191,7 @@ class OnlineReconstruction(Addon):
         self.flat_result = Result()
         self.reco_args = reco_args
         self.manager = UniversalBackprojectManager(reco_args)
+        self.manager = UniversalBackprojectManager(reco_args, walker=walker)
         self._process_normalization = process_normalization
         self.process_normalization_func = process_normalization_func
         self._pool = ThreadPool(processes=2)
