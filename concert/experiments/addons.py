@@ -187,58 +187,55 @@ class OnlineReconstruction(Addon):
         self.experiment = experiment
         self.dark_result = Result()
         self.flat_result = Result()
-        self.darks = np.empty(1)
-        self.flats = np.empty(1)
         self.manager = UniversalBackprojectManager(reco_args, walker=walker)
         self._process_normalization = process_normalization
         self.process_normalization_func = process_normalization_func
         self._pool = ThreadPool(processes=2)
-        self._events = {self.dark_result: Event(), self.flat_result: Event()}
+        self._events = {'darks': Event(), 'flats': Event()}
+        self._images = {'darks': np.empty(1), 'flats': np.empty(1)}
         self.consumer = consumer
         self.block = block
         self.wait_for_projections = wait_for_projections
         self._consumers = {}
         super(OnlineReconstruction, self).__init__(experiment.acquisitions)
 
-    def _average_images(self, result):
-        def compute_average(images):
+    def _average_images(self, im_type):
+        def compute_average():
             if self.process_normalization_func:
-                return self.process_normalization_func(images)
+                return self.process_normalization_func(self._images[im_type])
             else:
-                return np.mean(images, axis=0)
+                return np.mean(self._images[im_type], axis=0)
 
         def callback(item):
-            result.result = item
-            if result == self.dark_result:
+            if im_type == 'darks':
                 self.manager.dark = item
             else:
                 self.manager.flat = item
             LOG.debug('Normalization image processing done')
-            self._events[result].set()
+            self._events[im_type].set()
 
         @coroutine
         def create_averaging_coro():
-            self._events[result].clear()
-            if result == self.dark_result:
-                images = self.darks
+            self._events[im_type].clear()
+            if im_type == 'darks':
                 num = self.experiment.num_darks
             else:
-                images = self.flats
                 num = self.experiment.num_flats
 
             try:
                 image = yield
                 shape = (self.manager.args.height, self.manager.args.width)
-                if images is None or image.shape != shape or image.dtype != images.dtype:
-                    images = np.empty((num,) + image.shape, dtype=image.dtype)
+                if (self._images[im_type] is None or image.shape != shape or image.dtype !=
+                        self._images[im_type].dtype):
+                    self._images[im_type] = np.empty((num,) + image.shape, dtype=image.dtype)
 
                 i = 1
                 while True:
                     image = yield
-                    images[i] = image
+                    self._images[im_type][i] = image
                     i += 1
             except GeneratorExit:
-                self._pool.apply_async(compute_average, args=(images,), callback=callback)
+                self._pool.apply_async(compute_average, callback=callback)
 
         return create_averaging_coro
 
@@ -250,8 +247,8 @@ class OnlineReconstruction(Addon):
 
     def _attach(self):
         if self._process_normalization:
-            self._consumers[self.experiment.darks] = self._average_images(self.dark_result)
-            self._consumers[self.experiment.flats] = self._average_images(self.flat_result)
+            self._consumers[self.experiment.darks] = self._average_images('darks')
+            self._consumers[self.experiment.flats] = self._average_images('flats')
         else:
             self._consumers[self.experiment.darks] = self.dark_result
             self._consumers[self.experiment.flats] = self.flat_result
