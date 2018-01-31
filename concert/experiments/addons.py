@@ -3,7 +3,7 @@ the acquired data, e.g. write images to disk, do tomographic reconstruction etc.
 """
 import logging
 import numpy as np
-from concert.coroutines.base import coroutine
+from concert.coroutines.base import broadcast, coroutine
 from concert.coroutines.filters import queue
 from concert.coroutines.sinks import Accumulate, Result
 
@@ -187,7 +187,8 @@ class OnlineReconstruction(Addon):
         self.experiment = experiment
         self.dark_result = Result()
         self.flat_result = Result()
-        self.manager = UniversalBackprojectManager(reco_args, walker=walker)
+        self.manager = UniversalBackprojectManager(reco_args)
+        self.walker = walker
         self._process_normalization = process_normalization
         self.process_normalization_func = process_normalization_func
         self._pool = ThreadPool(processes=2)
@@ -241,8 +242,19 @@ class OnlineReconstruction(Addon):
 
     def _reconstruct(self):
         events = self._events.values() if self._process_normalization else None
+        consumers = []
+        write_coro = None
 
-        return self.manager(consumer=self.consumer, block=self.block, wait_for_events=events,
+        if self.consumer:
+            consumers.append(self.consumer)
+        if self.walker:
+            self.walker.descend('slices')
+            write_coro = self.walker.write()
+            self.walker.ascend()
+            consumers.append(write_coro)
+        consumer = broadcast(*consumers)
+
+        return self.manager(consumer=consumer, block=self.block, wait_for_events=events,
                             wait_for_projections=self.wait_for_projections)
 
     def _attach(self):
