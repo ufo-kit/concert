@@ -461,13 +461,14 @@ class UniversalBackprojectArgs(object):
 
 class UniversalBackproject(InjectProcess):
     def __init__(self, args, resources=None, gpu_index=0, flat=None, dark=None, region=None,
-                 copy_inputs=False):
+                 copy_inputs=False, before_download_event=None):
         scheduler = Ufo.FixedScheduler()
         if resources:
             scheduler.set_resources(resources)
         gpu = scheduler.get_resources().get_gpu_nodes()[gpu_index]
 
         self.args = copy.deepcopy(args)
+        self.before_download_event = before_download_event
         if region is not None:
             self.args.region = region
         LOG.debug('Creating reconstructor for gpu %d, region: %s', gpu_index, self.args.region)
@@ -571,6 +572,9 @@ class UniversalBackproject(InjectProcess):
             process_projection(projection, None, None)
             if i == self.args.number:
                 self.stop()
+                if self.before_download_event:
+                    LOG.debug('Waiting for event before download')
+                    self.before_download_event.wait()
                 LOG.debug('Backprojection duration: %.2f s', time.time() - st)
                 st = time.time()
                 for k in np.arange(*self.args.region):
