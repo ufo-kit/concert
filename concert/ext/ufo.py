@@ -2,7 +2,6 @@ from __future__ import absolute_import
 import copy
 import logging
 import threading
-import os
 import time
 import sys
 import numpy as np
@@ -26,11 +25,10 @@ except ImportError:
 
 from multiprocessing.pool import ThreadPool
 from concert.quantities import q
-from concert.coroutines.base import broadcast, coroutine, inject
+from concert.coroutines.base import coroutine, inject
 from concert.coroutines.filters import sinograms, flat_correct
-from concert.coroutines.sinks import Accumulate, Result
+from concert.coroutines.sinks import Result
 from concert.experiments.imaging import tomo_projections_number, frames
-from concert.storage import write_images, write_libtiff, create_directory
 
 
 LOG = logging.getLogger(__name__)
@@ -586,18 +584,20 @@ class UniversalBackproject(InjectProcess):
 
 class UniversalBackprojectManager(object):
     def __init__(self, args, dark=None, flat=None, regions=None, copy_inputs=False,
-                 projection_sleep_time=0 * q.s, walker=None):
+                 projection_sleep_time=0 * q.s):
         self.regions = regions
         self.copy_inputs = copy_inputs
         self.projection_sleep_time = projection_sleep_time
         self.projections = None
         self._resources = []
         self.volume = None
-        self._pool = None
         self.dark = dark
         self.flat = flat
         self.args = args
-        self.walker = walker
+        self._consume_event = threading.Event()
+        self._process_event = threading.Event()
+        self._consume_event.set()
+        self._process_event.set()
         self._update()
 
     def _update(self):
@@ -622,6 +622,7 @@ class UniversalBackprojectManager(object):
             offset += len(np.arange(*region))
         shape = (offset, len(np.arange(*y_region)), len(np.arange(*x_region)))
         if self.volume is None or shape != self.volume.shape:
+            self.join_consuming()
             self.volume = np.empty(shape, dtype=np.float32)
 
     def produce(self):
@@ -639,41 +640,47 @@ class UniversalBackprojectManager(object):
             self.volume[offset + i] = item
             i += 1
 
-    def wait(self):
-        if self._pool:
-            LOG.debug('Waiting for previous run to finish')
-            self._pool.join()
+    def join_processing(self):
+        LOG.debug('Waiting for backprojectors to finish')
+        self._process_event.wait()
+
+    def join_consuming(self):
+        LOG.debug('Waiting for volume processing to finish')
+        self._consume_event.wait()
+
+    def join(self):
+        self.join_processing()
+        self.join_consuming()
+
+    def consume_volume(self, consumer):
+        self.join_consuming()
+        self._consume_event.clear()
+
+        def send_volume():
+            out_st = time.time()
+            for s in self.volume:
+                consumer.send(s)
+            out_duration = time.time() - out_st
+            out_size = self.volume.nbytes / 2. ** 20
+            LOG.debug('Volume sending duration: %.2f s, speed: %.2f MB/s',
+                      out_duration, out_size / out_duration)
+            self._consume_event.set()
+
+        threading.Thread(target=send_volume).start()
 
     @coroutine
     def __call__(self, consumer=None, block=False, wait_for_events=None,
                  wait_for_projections=False):
-        self.wait()
+        self.join_processing()
+        self._process_event.clear()
         LOG.debug('Backprojector manager start')
         st = time.time()
         self._in_index = 0
 
-        def reco_callback(unused_map_results):
-            """Callback for finished backprojection."""
-            duration = time.time() - st
-            LOG.debug('Backprojectors duration: %.2f s', duration)
-            in_size = self.projections.nbytes / 2. ** 20
-            out_size = self.volume.nbytes / 2. ** 20
-            LOG.debug('Input size: %g GB, output size: %g GB', in_size / 1024, out_size / 1024)
-            LOG.debug('Performance: %.2f GUPS (In: %.2f MB/s, out: %.2f MB/s)',
-                      self.volume.size * self.projections.shape[0] * 1e-9 / duration,
-                      in_size / duration, out_size / duration)
-            if consumer:
-                out_st = time.time()
-                for s in self.volume:
-                    consumer.send(s)
-                out_duration = time.time() - out_st
-                LOG.debug('Volume sending duration: %.2f s, speed: %.2f MB/s',
-                          out_duration, out_size / out_duration)
-
         def prepare_and_start():
             """Make sure the arguments are up-to-date."""
             if wait_for_events is not None:
-                LOG.debug('Waiting for event')
+                LOG.debug('Waiting for events')
                 for event in wait_for_events:
                     event.wait()
                 LOG.debug('Waiting for events done (cached projections: %d)', self._in_index)
@@ -689,26 +696,34 @@ class UniversalBackprojectManager(object):
                                                            dark=self.dark,
                                                            flat=self.flat,
                                                            region=region,
-                                                           copy_inputs=self.copy_inputs))
+                                                           copy_inputs=self.copy_inputs,
+                                                           before_download_event=self._consume_event))
 
             def start_one(index):
                 """Start one backprojector with a specific GPU ID in a separate thread."""
                 offset = sum([len(np.arange(*reg)) for j, reg in self._regions[:index]])
-                consumers = []
-                consumers.append(self.consume(offset))
-                if self.walker:
-                    fmt = os.path.join(self.walker.current, 'slices',
-                                       'slice_{:>02}_{{:>04}}.tif'.format(index))
-                    consumers.append(write_images(writer=write_libtiff, prefix=fmt))
+                inject(self.produce(), backprojectors[index](self.consume(offset)))
 
-                inject(self.produce(), backprojectors[index](broadcast(*consumers)))
+            # Distribute work
+            pool = ThreadPool(processes=len(self._regions))
+            pool.map(start_one, range(len(self._regions)))
+            pool.close()
+            pool.join()
 
-            if self.walker:
-                directory = os.path.join(self.walker.current, 'slices')
-                create_directory(directory)
-            self._pool = ThreadPool(processes=len(self._regions))
-            self._pool.map_async(start_one, range(len(self._regions)), callback=reco_callback)
-            self._pool.close()
+            # Process results
+            duration = time.time() - st
+            LOG.debug('Backprojectors duration: %.2f s', duration)
+            in_size = self.projections.nbytes / 2. ** 20
+            out_size = self.volume.nbytes / 2. ** 20
+            LOG.debug('Input size: %g GB, output size: %g GB', in_size / 1024, out_size / 1024)
+            LOG.debug('Performance: %.2f GUPS (In: %.2f MB/s, out: %.2f MB/s)',
+                      self.volume.size * self.projections.shape[0] * 1e-9 / duration,
+                      in_size / duration, out_size / duration)
+            if consumer:
+                self.consume_volume(consumer)
+            # Enable processing only after the consumer starts to make sure self.join()
+            # works as expected
+            self._process_event.set()
 
         if not wait_for_projections:
             arg_thread = threading.Thread(target=prepare_and_start)
@@ -733,8 +748,7 @@ class UniversalBackprojectManager(object):
                     arg_thread.start()
                 LOG.debug('Last projection dispatched by manager')
                 if block:
-                    arg_thread.join()
-                    self._pool.join()
+                    self.join()
 
 
 class UniversalBackprojectError(Exception):
