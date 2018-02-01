@@ -4,6 +4,7 @@ import logging
 import tifffile
 from logging import FileHandler, Formatter
 from concert.coroutines.base import coroutine, inject
+from concert.writers import TiffWriter
 
 
 LOG = logging.getLogger(__name__)
@@ -74,25 +75,35 @@ def create_directory(directory, rights=0o0750):
 
 
 @coroutine
-def write_images(writer=write_tiff, prefix="image_{:>05}.tif"):
+def write_images(writer=TiffWriter, prefix="image_{:>05}.tif", bytes_per_file=0):
     """
-    write_images(writer=write_tiff, prefix="image_{:>05}.tif")
+    write_images(writer=TiffWriter, prefix="image_{:>05}.tif", bytes_per_file=0)
 
-    Write images on disk with specified *writer* and file name *prefix*.
-    *writer* is a callable with the following nomenclature::
-
-        writer(file_name, data)
+    Write images on disk with specified *writer* and file name *prefix*. Write to one file until the
+    *bytes_per_file* bytes has been written. If it is 0, then one file per image is created.
+    *writer* is a subclass of :class:`.writers.ImageWriter`.
     """
-    i = 0
+    im_writer = None
+    file_index = 0
+    written = 0
     dir_name = os.path.dirname(prefix)
 
     if dir_name and not os.path.exists(dir_name):
         create_directory(dir_name)
 
-    while True:
-        data = yield
-        writer(prefix.format(i), data)
-        i += 1
+    try:
+        while True:
+            image = yield
+            if not im_writer or written + image.nbytes > bytes_per_file:
+                if im_writer:
+                    im_writer.close()
+                im_writer = writer(prefix.format(file_index), bytes_per_file)
+                file_index += 1
+                written = 0
+            im_writer.write(image)
+            written += image.nbytes
+    except GeneratorExit:
+        im_writer.close()
 
 
 class Walker(object):
@@ -210,10 +221,10 @@ class DirectoryWalker(Walker):
     specific filename template.
     """
 
-    def __init__(self, write_func=write_tiff, dsetname='frame_{:>06}.tif', root=None,
-                 log=None, log_name='experiment.log'):
+    def __init__(self, writer=TiffWriter, dsetname='frame_{:>06}.tif', bytes_per_file=0,
+                 root=None, log=None, log_name='experiment.log'):
         """
-        Use *write_func* to write data to files with filenames with a template
+        Use *writer* to write data to files with filenames with a template
         from *dsetname*.
         """
         if not root:
@@ -229,7 +240,8 @@ class DirectoryWalker(Walker):
 
         super(DirectoryWalker, self).__init__(root, dsetname=dsetname,
                                               log=log, log_handler=log_handler)
-        self._write_func = write_func
+        self._writer = writer
+        self._bytes_per_file = bytes_per_file
 
     def _descend(self, name):
         self._current = os.path.join(self._current, name)
@@ -254,7 +266,8 @@ class DirectoryWalker(Walker):
             raise StorageError("`{}' is not empty".format(dset_path))
 
         prefix = os.path.join(self._current, dsetname)
-        return write_images(writer=self._write_func, prefix=prefix)
+        return write_images(writer=self._writer, prefix=prefix,
+                            bytes_per_file=self._bytes_per_file)
 
     def _dset_exists(self, dsetname):
         """Check if *dsetname* exists on the current level."""
