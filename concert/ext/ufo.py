@@ -628,7 +628,7 @@ class UniversalBackprojectManager(object):
     def produce(self):
         sleep_time = self.projection_sleep_time.to(q.s).magnitude
         for i in range(self.args.number):
-            while self._in_index < i + 1:
+            while self._num_received_projections < i + 1:
                 time.sleep(sleep_time)
             yield self.projections[i]
 
@@ -675,7 +675,7 @@ class UniversalBackprojectManager(object):
         self._process_event.clear()
         LOG.debug('Backprojector manager start')
         st = time.time()
-        self._in_index = 0
+        self._num_received_projections = 0
         aborted = False
 
         def prepare_and_start():
@@ -684,7 +684,8 @@ class UniversalBackprojectManager(object):
                 LOG.debug('Waiting for events')
                 for event in wait_for_events:
                     event.wait()
-                LOG.debug('Waiting for events done (cached projections: %d)', self._in_index)
+                LOG.debug('Waiting for events done (cached projections: %d)',
+                          self._num_received_projections)
 
             self._update()
 
@@ -739,13 +740,13 @@ class UniversalBackprojectManager(object):
                     self.projections.dtype):
                 self.projections = np.empty(in_shape, dtype=projection.dtype)
             self.projections[0] = projection
-            self._in_index = 1
+            self._num_received_projections = 1
 
             while True:
                 projection = yield
-                self.projections[self._in_index] = projection
-                self._in_index += 1
-                if self._in_index == self.args.number:
+                self.projections[self._num_received_projections] = projection
+                self._num_received_projections += 1
+                if self._num_received_projections == self.args.number:
                     if wait_for_projections:
                         arg_thread = threading.Thread(target=prepare_and_start)
                         arg_thread.start()
@@ -753,11 +754,11 @@ class UniversalBackprojectManager(object):
                     if block:
                         self.join()
         except GeneratorExit:
-            if self._in_index < self.projections.shape[0]:
+            if self._num_received_projections < self.projections.shape[0]:
                 LOG.error('Backprojection manager has not obtained enough projections')
                 aborted = True
                 # Let UFO process fake projections until the graph can be aborted as well
-                self._in_index = self.projections.shape[0]
+                self._num_received_projections = self.projections.shape[0]
                 arg_thread.join()
 
 
