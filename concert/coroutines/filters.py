@@ -51,7 +51,7 @@ def downsize(consumer, x_slice=None, y_slice=None, z_slice=None):
 
 
 @coroutine
-def queue(consumer, process_all=True, block=False):
+def queue(consumer, process_all=True, block=False, timeout=0.1*q.s):
     """
     queue(consumer, process_all=True, block=False)
 
@@ -59,7 +59,8 @@ def queue(consumer, process_all=True, block=False):
     prevents the stalling on the "main" data stream. If *process_all* is True the serve loop may
     exit only when all items are sent to *consumer*. If *block* is True this coroutine blocks until
     all items in the serve loop are processed, *process_all* must be True as well for this to take
-    effect.
+    effect. *timeout* is the time to block and wait for an item in the processing thread before a
+    check is made whether to continue processing or not.
     """
     from concert.async import HAVE_GEVENT
     if cfg.ENABLE_GEVENT and HAVE_GEVENT:
@@ -74,7 +75,10 @@ def queue(consumer, process_all=True, block=False):
     @threaded
     def serve():
         while serve.run or (process_all and not item_queue.empty()):
-            item = item_queue.get()
+            try:
+                item = item_queue.get(block=True, timeout=timeout.to(q.s).magnitude)
+            except queue_module.Empty:
+                continue
             consumer.send(item)
             item_queue.task_done()
         serve.stopped.set()
