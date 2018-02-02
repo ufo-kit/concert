@@ -455,6 +455,7 @@ class UniversalBackprojectArgs(object):
         self.center_z = center_z
         self.number = number
         self.overall_angle = overall_angle
+        self.region_overlap = 0
 
 
 class UniversalBackproject(InjectProcess):
@@ -515,29 +516,31 @@ class UniversalBackproject(InjectProcess):
                           np.all(self.args.volume_angle_x) == 0 and
                           np.all(self.args.volume_angle_y) == 0 and
                           np.all(self.args.volume_angle_z) == 0)
+        self.y_0 = 0
+        self.y_1 = self.args.height
 
         if np.any(np.array(self.args.center_z) != self.args.center_z[0]):
             LOG.debug('Various z center positions, not optimizing projection region')
-            self.y_0 = 0
-            self.y_1 = self.args.height
-        elif self.args.z_parameter == 'center-position-x':
-            self.y_0 = self.args.z
-            self.y_1 = self.args.z + 1
-            decimal = self.args.center_z[0] - int(self.args.center_z[0])
-            self.args.z = 0
-            self.args.center_z = [decimal]
-            self.args.height = 1
-        elif is_simple_tomo and self.args.z_parameter == 'z':
-            self.y_0 = int(self.args.region[0] + self.args.center_z[0])
-            self.y_1 = int(self.args.region[1] + self.args.center_z[0])
+        if is_simple_tomo:
+            if self.args.z_parameter == 'center-position-x':
+                y_0 = self.args.z
+                y_1 = self.args.z + 1
+                self.args.z = 0
+            elif self.args.z_parameter == 'z':
+                y_0 = int(self.args.region[0] + self.args.center_z[0])
+                y_1 = int(self.args.region[1] + self.args.center_z[0])
             # Keep the 0.5 of the center if specified
             decimal = self.args.center_z[0] - int(self.args.center_z[0])
             self.args.center_z = [decimal]
+            self.y_0 = max(0, y_0 - self.args.region_overlap)
+            self.y_1 = min(self.args.height, y_1 + self.args.region_overlap)
             self.args.height = int(np.ceil(self.y_1 - self.y_0))
-            self.args.region = [0.0, float(self.args.height), float(self.args.region[2])]
-        else:
-            self.y_0 = 0
-            self.y_1 = self.args.height
+            offset = y_0 - self.y_0
+            if self.args.z_parameter == 'center-position-x':
+                self.args.center_z[0] += offset
+            elif self.args.z_parameter == 'z':
+                height = np.ceil(y_1 - y_0)
+                self.args.region = [offset, offset + height, float(self.args.region[2])]
 
         LOG.debug('Optimized projection crop: (%d - %d)', self.y_0, self.y_1)
         LOG.debug('New z center: %g, new height: %d', self.args.center_z[0], self.args.height)
