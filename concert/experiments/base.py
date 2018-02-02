@@ -6,7 +6,6 @@ care of proper logging structure.
 import logging
 import time
 from concert.async import async
-from concert.coroutines.base import broadcast, inject
 
 
 LOG = logging.getLogger(__name__)
@@ -38,14 +37,23 @@ class Acquisition(object):
         self.consumers = [] if consumers is None else consumers
         # Don't bother with checking this for None later
         self.acquire = acquire if acquire else lambda: None
+        self._aborted = False
 
     def connect(self):
         """Connect producer with consumers."""
+        self._aborted = False
         started = []
         for not_started in self.consumers:
             started.append(not_started())
 
-        inject(self.producer(), broadcast(*started))
+        for item in self.producer():
+            if self._aborted:
+                break
+            for consumer in started:
+                consumer.send(item)
+
+    def abort(self):
+        self._aborted = True
 
     def __call__(self):
         """Run the acquisition, i.e. acquire the data and connect the producer and consumers."""
@@ -96,6 +104,7 @@ class Experiment(object):
         self.separate_scans = separate_scans
         self.name_fmt = name_fmt
         self.iteration = 1
+        self._aborted = False
 
         if self.separate_scans and self.walker:
             # The data is not supposed to be overwritten, so find an iteration which
@@ -160,6 +169,11 @@ class Experiment(object):
                 return acq
         raise ExperimentError("Acquisition with name `{}' not found".format(name))
 
+    def abort(self):
+        self._aborted = True
+        for acq in self.acquisitions:
+            acq.abort()
+
     def acquire(self):
         """
         Acquire data by running the acquisitions. This is the method which implements
@@ -167,6 +181,8 @@ class Experiment(object):
         unlike :meth:`~.Experiment.run`.
         """
         for acq in self._acquisitions:
+            if self._aborted:
+                break
             acq()
 
     @async
@@ -177,6 +193,7 @@ class Experiment(object):
         Compute the next iteration and run the :meth:`~.base.Experiment.acquire`.
         """
         start_time = time.time()
+        self._aborted = False
         LOG.debug('Experiment iteration %d start', self.iteration)
         if self.separate_scans and self.walker:
             self.walker.descend(self.name_fmt.format(self.iteration))
