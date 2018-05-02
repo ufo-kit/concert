@@ -241,7 +241,10 @@ class OnlineReconstruction(Addon):
         return create_averaging_coro
 
     def _reconstruct(self):
-        events = self._events.values() if self._process_normalization else None
+        if hasattr(self.experiment, 'darks') and hasattr(self.experiment, 'flats'):
+            events = self._events.values() if self._process_normalization else None
+        else:
+            events = None
         consumers = []
         write_coro = None
 
@@ -258,12 +261,13 @@ class OnlineReconstruction(Addon):
                             wait_for_projections=self.wait_for_projections)
 
     def _attach(self):
-        if self._process_normalization:
-            self._consumers[self.experiment.darks] = self._average_images('darks')
-            self._consumers[self.experiment.flats] = self._average_images('flats')
-        else:
-            self._consumers[self.experiment.darks] = self.dark_result
-            self._consumers[self.experiment.flats] = self.flat_result
+        if hasattr(self.experiment, 'darks') and hasattr(self.experiment, 'flats'):
+            if self._process_normalization:
+                self._consumers[self.experiment.darks] = self._average_images('darks')
+                self._consumers[self.experiment.flats] = self._average_images('flats')
+            else:
+                self._consumers[self.experiment.darks] = self.dark_result
+                self._consumers[self.experiment.flats] = self.flat_result
         self._consumers[self.experiment.radios] = self._reconstruct
 
         for acq, consumer in self._consumers.items():
