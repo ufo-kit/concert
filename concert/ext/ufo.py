@@ -578,14 +578,15 @@ class UniversalBackprojectManager(object):
                                       slices_per_device=self.args.slices_per_device,
                                       slice_memory_coeff=self.args.slice_memory_coeff,
                                       data_splitting_policy=self.args.data_splitting_policy,
-                                      num_gpu_threads=self.args.num_gpu_threads)[0]
+                                      num_gpu_threads=self.args.num_gpu_threads)
         else:
             self._regions = self.regions
         offset = 0
-        for i, region in self._regions:
-            if len(self._resources) < len(self._regions):
-                self._resources.append(Ufo.Resources())
-            offset += len(np.arange(*region))
+        for batch in self._regions:
+            for i, region in batch:
+                if len(self._resources) < len(batch):
+                    self._resources.append(Ufo.Resources())
+                offset += len(np.arange(*region))
         shape = (offset, len(np.arange(*y_region)), len(np.arange(*x_region)))
         if self.volume is None or shape != self.volume.shape:
             self.join_consuming()
@@ -655,26 +656,33 @@ class UniversalBackprojectManager(object):
 
             self._update()
 
-            backprojectors = []
-            for i, part in enumerate(self._regions):
-                gpu_index, region = part
-                backprojectors.append(UniversalBackproject(self.args,
-                                                           resources=self._resources[i],
-                                                           gpu_index=gpu_index,
-                                                           dark=self.dark,
-                                                           flat=self.flat,
-                                                           region=region,
-                                                           copy_inputs=self.copy_inputs,
-                                                           before_download_event=self._consume_event))
-
             def start_one(index):
                 """Start one backprojector with a specific GPU ID in a separate thread."""
-                offset = sum([len(np.arange(*reg)) for j, reg in self._regions[:index]])
-                inject(self.produce(), backprojectors[index](self.consume(offset)))
+                offset = 0
+                for i in range(self._batch_index):
+                    for j, region in self._regions[i]:
+                        offset += len(np.arange(*region))
+                batch = self._regions[self._batch_index]
+                offset += sum([len(np.arange(*reg)) for j, reg in batch[:index]])
+
+                gpu_index, region = self._regions[self._batch_index][index]
+                bp = UniversalBackproject(self.args,
+                                          resources=self._resources[index],
+                                          gpu_index=gpu_index,
+                                          dark=self.dark,
+                                          flat=self.flat,
+                                          region=region,
+                                          copy_inputs=self.copy_inputs,
+                                          before_download_event=self._consume_event)
+                inject(self.produce(), bp(self.consume(offset)))
 
             # Distribute work
-            pool = ThreadPool(processes=len(self._regions))
-            pool.map(start_one, range(len(self._regions)))
+            pool = ThreadPool(processes=len(self._resources))
+            for i in range(len(self._regions)):
+                if aborted:
+                    break
+                self._batch_index = i
+                pool.map(start_one, range(len(self._regions[i])))
             pool.close()
             pool.join()
 
