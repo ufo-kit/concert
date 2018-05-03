@@ -17,7 +17,8 @@ except ImportError as e:
 try:
     from tofu.config import SECTIONS, UNI_RECO_PARAMS
     from tofu.util import setup_padding, get_reconstruction_regions
-    from tofu.unireco import setup_graph, set_projection_filter_scale, make_runs, DTYPE_CL_SIZE
+    from tofu.unireco import (CTGeometry, setup_graph, set_projection_filter_scale, make_runs,
+                              DTYPE_CL_SIZE)
     from tofu.tasks import get_task
 except ImportError:
     print >> sys.stderr, "You must install tofu to use Ufo features, see "\
@@ -449,39 +450,41 @@ class UniversalBackprojectArgs(object):
                 if default is not None and 'type' in settings:
                     default = settings['type'](default)
                 setattr(self, arg.replace('-', '_'), default)
+        self.y = 0
         self.width = width
         self.height = height
         self.center_x = center_x
         self.center_z = center_z
         self.number = number
         self.overall_angle = overall_angle
-        self.region_overlap = 0
 
 
 class UniversalBackproject(InjectProcess):
     def __init__(self, args, resources=None, gpu_index=0, flat=None, dark=None, region=None,
                  copy_inputs=False, before_download_event=None):
+        self.before_download_event = before_download_event
         scheduler = Ufo.FixedScheduler()
         if resources:
             scheduler.set_resources(resources)
         gpu = scheduler.get_resources().get_gpu_nodes()[gpu_index]
 
         self.args = copy.deepcopy(args)
-        self.before_download_event = before_download_event
+        x_region, y_region, z_region = get_reconstruction_regions(self.args, store=True)
+        set_projection_filter_scale(self.args)
         if region is not None:
             self.args.region = region
         LOG.debug('Creating reconstructor for gpu %d, region: %s', gpu_index, self.args.region)
-        self._optimize_projection_height()
-        x_region, y_region, z_region = get_reconstruction_regions(self.args)
-        set_projection_filter_scale(self.args)
+        geometry = CTGeometry(self.args)
+        geometry.optimize_args()
+        self.args = geometry.args
         self.dark = dark
         self.flat = flat
         if self.dark is not None and self.flat is not None:
             LOG.debug('Flat correction on')
-            self.dark = self.dark[self.y_0:self.y_1].astype(np.float32)
-            self.flat = self.flat[self.y_0:self.y_1].astype(np.float32)
+            self.dark = self.dark[self.args.y:self.args.y + self.args.height].astype(np.float32)
+            self.flat = self.flat[self.args.y:self.args.y + self.args.height].astype(np.float32)
 
-        regions = make_runs([gpu], x_region, y_region, z_region,
+        regions = make_runs([gpu], x_region, y_region, self.args.region,
                             DTYPE_CL_SIZE[self.args.store_type],
                             slices_per_device=self.args.slices_per_device,
                             slice_memory_coeff=self.args.slice_memory_coeff,
@@ -490,7 +493,7 @@ class UniversalBackproject(InjectProcess):
             raise UniversalBackprojectError('Region does not fit to the GPU memory')
 
         graph = Ufo.TaskGraph()
-        if dark is not None and flat is not None:
+        if not (args.only_bp or dark is None or flat is None):
             ffc = get_task('flat-field-correct', processing_node=gpu)
             ffc.props.fix_nan_and_inf = self.args.fix_nan_and_inf
             ffc.props.absorption_correct = self.args.absorptivity
@@ -498,58 +501,18 @@ class UniversalBackproject(InjectProcess):
         else:
             first = None
 
-        setup_graph(self.args, graph, x_region, y_region, self.args.region,
-                    first, gpu=gpu, index=gpu_index, do_output=False, make_reader=False)
+        first = setup_graph(self.args, graph, x_region, y_region, self.args.region,
+                            first, gpu=gpu, index=gpu_index, do_output=False)
+        if args.only_bp:
+            graph = first
 
         super(UniversalBackproject, self).__init__(graph, get_output=True, scheduler=scheduler,
                                                    copy_inputs=copy_inputs)
 
-    def _optimize_projection_height(self):
-        is_parallel = np.all(np.isinf(self.args.source_position_y))
-        is_simple_tomo = (is_parallel and
-                          np.all(self.args.axis_angle_x) == 0 and
-                          np.all(self.args.axis_angle_y) == 0 and
-                          np.all(self.args.axis_angle_z) == 0 and
-                          np.all(self.args.detector_angle_x) == 0 and
-                          np.all(self.args.detector_angle_y) == 0 and
-                          np.all(self.args.detector_angle_z) == 0 and
-                          np.all(self.args.volume_angle_x) == 0 and
-                          np.all(self.args.volume_angle_y) == 0 and
-                          np.all(self.args.volume_angle_z) == 0)
-        self.y_0 = 0
-        self.y_1 = self.args.height
-
-        if np.any(np.array(self.args.center_z) != self.args.center_z[0]):
-            LOG.debug('Various z center positions, not optimizing projection region')
-        if is_simple_tomo:
-            if self.args.z_parameter == 'center-position-x':
-                y_0 = self.args.z
-                y_1 = self.args.z + 1
-                self.args.z = 0
-            elif self.args.z_parameter == 'z':
-                y_0 = int(self.args.region[0] + self.args.center_z[0])
-                y_1 = int(self.args.region[1] + self.args.center_z[0])
-            # Keep the 0.5 of the center if specified
-            decimal = self.args.center_z[0] - int(self.args.center_z[0])
-            self.args.center_z = [decimal]
-            self.y_0 = max(0, y_0 - self.args.region_overlap)
-            self.y_1 = min(self.args.height, y_1 + self.args.region_overlap)
-            self.args.height = int(np.ceil(self.y_1 - self.y_0))
-            offset = y_0 - self.y_0
-            if self.args.z_parameter == 'center-position-x':
-                self.args.center_z[0] += offset
-            elif self.args.z_parameter == 'z':
-                height = np.ceil(y_1 - y_0)
-                self.args.region = [offset, offset + height, float(self.args.region[2])]
-
-        LOG.debug('Optimized projection crop: (%d - %d)', self.y_0, self.y_1)
-        LOG.debug('New z center: %g, new height: %d', self.args.center_z[0], self.args.height)
-        LOG.debug('New region: %s', self.args.region)
-
     @coroutine
     def __call__(self, consumer):
         def process_projection(projection, dark, flat):
-            projection = projection[self.y_0:self.y_1]
+            projection = projection[self.args.y:self.args.y + self.args.height]
             if projection.dtype != np.float32:
                 projection = projection.astype(np.float32)
             self.insert(projection, index=0)
