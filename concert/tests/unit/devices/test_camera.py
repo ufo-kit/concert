@@ -11,7 +11,8 @@ class TestDummyCamera(TestCase):
 
     def setUp(self):
         super(TestDummyCamera, self).setUp()
-        self.camera = Camera()
+        self.background = np.ones((256, 256), dtype=np.uint16)
+        self.camera = Camera(background=self.background)
 
     def test_grab(self):
         frame = self.camera.grab()
@@ -71,6 +72,11 @@ class TestDummyCamera(TestCase):
         self.camera.convert = np.fliplr
         image = self.camera.grab()
         np.testing.assert_equal(image, grab()[:, ::-1])
+
+    def test_simulate(self):
+        self.assertTrue(np.any(self.background - self.camera.grab()))
+        camera = Camera(background=self.background, simulate=False)
+        np.testing.assert_equal(self.background, camera.grab())
 
 
 class TestPCOTimeStamp(TestCase):
