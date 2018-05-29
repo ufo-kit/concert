@@ -92,13 +92,15 @@ class Camera(Base):
 
     """A simple dummy camera."""
 
-    def __init__(self, background=None):
+    def __init__(self, background=None, simulate=True):
         """
-        *background* can be an array-like that will be used to generate the frame
-        when calling :meth:`.grab`. The final image will be the background +
-        poisson noise depending on the currently set exposure time.
+        *background* can be an array-like that will be used to generate the frame when calling
+        :meth:`.grab`. If *simulate* is True the final image intensity will be scaled based on
+        exposure time and poisson noise will be added. If *simulate* is False, the background will
+        be returned with no modifications to it.
         """
         super(Camera, self).__init__()
+        self.simulate = simulate
 
         if background is not None:
             self.roi_width = background.shape[1] * q.pixel
@@ -110,6 +112,8 @@ class Camera(Base):
             self._background = np.ones(shape[::-1])
 
     def _grab_real(self):
+        if not self.simulate:
+            return self._background
         start = time.time()
         cur_time = self.exposure_time.to(q.s).magnitude
         # 1e5 is a dummy correlation between exposure time and emitted e-.
