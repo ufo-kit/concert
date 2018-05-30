@@ -716,11 +716,14 @@ class UniversalBackprojectManager(object):
             self.projections[0] = projection
             self._num_received_projections = 1
 
+            finalize = True
             while True:
                 projection = yield
-                self.projections[self._num_received_projections] = projection
-                self._num_received_projections += 1
-                if self._num_received_projections == self.args.number:
+                if self._num_received_projections < self.args.number:
+                    self.projections[self._num_received_projections] = projection
+                    self._num_received_projections += 1
+                if finalize and self._num_received_projections == self.args.number:
+                    finalize = False
                     if wait_for_projections:
                         arg_thread = threading.Thread(target=prepare_and_start)
                         arg_thread.start()
