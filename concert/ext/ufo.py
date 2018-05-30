@@ -732,7 +732,8 @@ class UniversalBackprojectManager(object):
                         self.join()
         except GeneratorExit:
             if self._num_received_projections < self.projections.shape[0]:
-                LOG.error('Backprojection manager has not obtained enough projections')
+                LOG.error('Not enough projections received (%d from %d)',
+                          self._num_received_projections, self.args.number)
                 aborted = True
                 # Let UFO process fake projections until the graph can be aborted as well
                 self._num_received_projections = self.projections.shape[0]
