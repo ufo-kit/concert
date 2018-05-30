@@ -457,6 +457,19 @@ class UniversalBackprojectArgs(object):
         self.center_z = center_z
         self.number = number
         self.overall_angle = overall_angle
+        self._slice_metric = None
+
+    @property
+    def slice_metric(self):
+        return self._slice_metric
+
+    @slice_metric.setter
+    def slice_metric(self, metric):
+        if metric not in [None, 'min', 'max', 'sum', 'mean', 'var', 'std',
+                          'skew', 'kurtosis', 'msag']:
+            raise UniversalBackprojectArgsError("Metric '{}' not known".format(metric))
+        self._slice_metric = metric
+
 
 
 class UniversalBackproject(InjectProcess):
@@ -501,13 +514,27 @@ class UniversalBackproject(InjectProcess):
         else:
             first = None
 
-        first = setup_graph(self.args, graph, x_region, y_region, self.args.region,
-                            first, gpu=gpu, index=gpu_index, do_output=False)
-        if args.only_bp:
+        (first, last) = setup_graph(self.args, graph, x_region, y_region, self.args.region,
+                                    first, gpu=gpu, index=gpu_index, do_output=False)
+        output_dims = 2
+        if args.slice_metric:
+            output_dims = 1
+            if args.slice_metric == 'msag':
+                measure_task = get_task('measure', processing_node=gpu, axis=-1, metric='sum')
+                gradient_task = get_task('gradient', processing_node=gpu, direction='both_abs')
+                calculate_task = get_task('calculate', processing_node=gpu, expression='-v')
+                graph.connect_nodes(last, gradient_task)
+                graph.connect_nodes(gradient_task, measure_task)
+                graph.connect_nodes(measure_task, calculate_task)
+            else:
+                measure_task = get_task('measure', processing_node=gpu, axis=-1,
+                                        metric=self.args.slice_metric)
+                graph.connect_nodes(last, measure_task)
+        elif args.only_bp:
             graph = first
 
-        super(UniversalBackproject, self).__init__(graph, get_output=True, scheduler=scheduler,
-                                                   copy_inputs=copy_inputs)
+        super(UniversalBackproject, self).__init__(graph, get_output=True, output_dims=output_dims,
+                                                   scheduler=scheduler, copy_inputs=copy_inputs)
 
     @coroutine
     def __call__(self, consumer):
@@ -587,7 +614,10 @@ class UniversalBackprojectManager(object):
                 if len(self._resources) < len(batch):
                     self._resources.append(Ufo.Resources())
                 offset += len(np.arange(*region))
-        shape = (offset, len(np.arange(*y_region)), len(np.arange(*x_region)))
+        if self.args.slice_metric:
+            shape = (offset,)
+        else:
+            shape = (offset, len(np.arange(*y_region)), len(np.arange(*x_region)))
         if self.volume is None or shape != self.volume.shape:
             self.join_consuming()
             self.volume = np.empty(shape, dtype=np.float32)
@@ -634,6 +664,43 @@ class UniversalBackprojectManager(object):
             self._consume_event.set()
 
         threading.Thread(target=send_volume).start()
+
+    def find_parameter(self, parameter, metric='msag', region=None, z=None,
+                       method='powell', method_options=None, guess=None):
+        orig_args = self.args
+        self.args = copy.deepcopy(self.args)
+        self.args.slice_metric = metric
+        self.args.data_splitting_policy = 'one'
+        self.args.z_parameter = parameter
+        self.args.z = z or 0
+
+        if region is None:
+            from scipy.optimize import minimize
+
+            def score(axis):
+                axis = axis[0]
+                LOG.info('Optimization axis position: %g', axis)
+                self.args.region = [axis, axis + 1, 1.]
+                inject(self.projections, self(block=True))
+                return -self.volume[0]
+
+            if guess is None:
+                if parameter == 'center-position-x':
+                    guess = self.args.width / 2.
+                else:
+                    guess = 0.
+            res = minimize(score, guess, method=method, options=method_options)
+            LOG.info('%s', res.message)
+            result = float(res.x)
+        else:
+            self.args.region = region
+            inject(self.projections, self(block=True))
+            result = np.argmax(self.volume) * region[-1] + region[0]
+
+        orig_args.center_x = [result]
+        self.args = orig_args
+
+        return result
 
     @coroutine
     def __call__(self, consumer=None, block=False, wait_for_events=None,
@@ -741,4 +808,8 @@ class UniversalBackprojectManager(object):
 
 
 class UniversalBackprojectError(Exception):
+    pass
+
+
+class UniversalBackprojectArgsError(Exception):
     pass
