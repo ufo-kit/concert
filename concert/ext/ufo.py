@@ -470,6 +470,15 @@ class UniversalBackprojectArgs(object):
             raise UniversalBackprojectArgsError("Metric '{}' not known".format(metric))
         self._slice_metric = metric
 
+    @property
+    def z_parameter(self):
+        return self._z_parameter
+
+    @z_parameter.setter
+    def z_parameter(self, name):
+        if name not in SECTIONS['universal-reconstruction']['z-parameter']['choices']:
+            raise UniversalBackprojectArgsError("Unknown z parameter '{}'".format(name))
+        self._z_parameter = name
 
 
 class UniversalBackproject(InjectProcess):
