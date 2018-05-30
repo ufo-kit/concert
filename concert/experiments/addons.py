@@ -179,7 +179,7 @@ class ImageWriter(Addon):
 class OnlineReconstruction(Addon):
     def __init__(self, experiment, reco_args, process_normalization=False,
                  process_normalization_func=None, consumer=None, block=False,
-                 wait_for_projections=False, walker=None):
+                 wait_for_projections=False, walker=None, slice_directory='online-slices'):
         from multiprocessing.pool import ThreadPool
         from threading import Event
         from concert.ext.ufo import UniversalBackprojectManager
@@ -189,6 +189,7 @@ class OnlineReconstruction(Addon):
         self.flat_result = Result()
         self.manager = UniversalBackprojectManager(reco_args)
         self.walker = walker
+        self.slice_directory = slice_directory
         self._process_normalization = process_normalization
         self.process_normalization_func = process_normalization_func
         self._pool = ThreadPool(processes=2)
@@ -251,8 +252,8 @@ class OnlineReconstruction(Addon):
         if self.consumer:
             consumers.append(self.consumer)
         if self.walker:
-            self.walker.descend('slices')
-            write_coro = self.walker.write()
+            self.walker.descend(self.slice_directory)
+            write_coro = self.walker.write(dsetname='slice_{:>04}.tif')
             self.walker.ascend()
             consumers.append(write_coro)
         consumer = broadcast(*consumers)
