@@ -674,13 +674,14 @@ class UniversalBackprojectManager(object):
 
         threading.Thread(target=send_volume).start()
 
-    def find_parameter(self, parameter, metric='msag', region=None, z=None,
-                       method='powell', method_options=None, guess=None):
+    def find_parameter(self, parameter, metric='msag', region=None, minimize=True,
+                       z=None, method='powell', method_options=None, guess=None):
         orig_args = self.args
         self.args = copy.deepcopy(self.args)
         self.args.slice_metric = metric
         self.args.z_parameter = parameter
         self.args.z = z or 0
+        sgn = -1 if minimize else 1
 
         if region is None:
             from scipy.optimize import minimize
@@ -690,7 +691,7 @@ class UniversalBackprojectManager(object):
                 LOG.info('Optimization axis position: %g', axis)
                 self.args.region = [axis, axis + 1, 1.]
                 inject(self.projections, self(block=True))
-                return -self.volume[0]
+                return sgn * self.volume[0]
 
             if guess is None:
                 if parameter == 'center-position-x':
@@ -703,7 +704,7 @@ class UniversalBackprojectManager(object):
         else:
             self.args.region = region
             inject(self.projections, self(block=True))
-            result = np.argmax(self.volume) * region[-1] + region[0]
+            result = np.argmin(sgn * self.volume) * region[-1] + region[0]
 
         setattr(orig_args, parameter.replace('-', '_'), [result])
         self.args = orig_args
