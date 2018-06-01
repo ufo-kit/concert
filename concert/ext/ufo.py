@@ -443,6 +443,10 @@ def compute_rotation_axis(sinogram, initial_step=None, max_iterations=14,
 
 class UniversalBackprojectArgs(object):
     def __init__(self, width, height, center_position_x, center_position_z, number, overall_angle=np.pi):
+        self._slice_metric = None
+        self._slice_metrics = ['min', 'max', 'sum', 'mean', 'var', 'std', 'skew',
+                               'kurtosis', 'msag']
+        self._z_parameters = SECTIONS['universal-reconstruction']['z-parameter']['choices']
         for section in UNI_RECO_PARAMS:
             for arg in SECTIONS[section]:
                 settings = SECTIONS[section][arg]
@@ -457,7 +461,14 @@ class UniversalBackprojectArgs(object):
         self.center_position_z = center_position_z
         self.number = number
         self.overall_angle = overall_angle
-        self._slice_metric = None
+
+    @property
+    def z_parameters(self):
+        return self._z_parameters
+
+    @property
+    def slice_metrics(self):
+        return self._slice_metrics
 
     @property
     def slice_metric(self):
@@ -465,8 +476,7 @@ class UniversalBackprojectArgs(object):
 
     @slice_metric.setter
     def slice_metric(self, metric):
-        if metric not in [None, 'min', 'max', 'sum', 'mean', 'var', 'std',
-                          'skew', 'kurtosis', 'msag']:
+        if metric not in [None] + self.slice_metrics:
             raise UniversalBackprojectArgsError("Metric '{}' not known".format(metric))
         self._slice_metric = metric
 
@@ -476,7 +486,7 @@ class UniversalBackprojectArgs(object):
 
     @z_parameter.setter
     def z_parameter(self, name):
-        if name not in SECTIONS['universal-reconstruction']['z-parameter']['choices']:
+        if name not in self.z_parameters:
             raise UniversalBackprojectArgsError("Unknown z parameter '{}'".format(name))
         self._z_parameter = name
 
@@ -676,8 +686,10 @@ class UniversalBackprojectManager(object):
 
     def find_parameter(self, parameter, metric='msag', region=None, minimize=True,
                        z=None, method='powell', method_options=None, guess=None):
-        """Find one of the reconstruction parameters. *parameter* is the parameter name, *metric* is
-        the metric name used for finding the parameter, if *region* is specified, that region is
+        """Find one of the reconstruction parameters. *parameter* (see
+        :attr:`.UniversalBackprojectArgs.z_parameters`) is the parameter name, *metric* is the
+        metric name used for finding the parameter (see
+        :attr:`.UniversalBackprojectArgs.slice_metrics`), if *region* is specified, that region is
         reconstructed and the metric is applied. If it is not specified, scipy.minimize is used to
         find the parameter, where the optimization method is given by the *method* parameter,
         *method_options* are passed as *options* to the minimize function and *guess* is an initial
