@@ -15,9 +15,9 @@ except ImportError as e:
     print(str(e))
 
 try:
-    from tofu.config import SECTIONS, UNI_RECO_PARAMS
+    from tofu.config import SECTIONS, GEN_RECO_PARAMS
     from tofu.util import setup_padding, get_reconstruction_regions
-    from tofu.unireco import (CTGeometry, setup_graph, set_projection_filter_scale, make_runs,
+    from tofu.genreco import (CTGeometry, setup_graph, set_projection_filter_scale, make_runs,
                               DTYPE_CL_SIZE)
     from tofu.tasks import get_task
 except ImportError:
@@ -441,13 +441,13 @@ def compute_rotation_axis(sinogram, initial_step=None, max_iterations=14,
     return current
 
 
-class UniversalBackprojectArgs(object):
+class GeneralBackprojectArgs(object):
     def __init__(self, width, height, center_position_x, center_position_z, number, overall_angle=np.pi):
         self._slice_metric = None
         self._slice_metrics = ['min', 'max', 'sum', 'mean', 'var', 'std', 'skew',
                                'kurtosis', 'msag']
-        self._z_parameters = SECTIONS['universal-reconstruction']['z-parameter']['choices']
-        for section in UNI_RECO_PARAMS:
+        self._z_parameters = SECTIONS['general-reconstruction']['z-parameter']['choices']
+        for section in GEN_RECO_PARAMS:
             for arg in SECTIONS[section]:
                 settings = SECTIONS[section][arg]
                 default = settings['default']
@@ -477,7 +477,7 @@ class UniversalBackprojectArgs(object):
     @slice_metric.setter
     def slice_metric(self, metric):
         if metric not in [None] + self.slice_metrics:
-            raise UniversalBackprojectArgsError("Metric '{}' not known".format(metric))
+            raise GeneralBackprojectArgsError("Metric '{}' not known".format(metric))
         self._slice_metric = metric
 
     @property
@@ -487,11 +487,11 @@ class UniversalBackprojectArgs(object):
     @z_parameter.setter
     def z_parameter(self, name):
         if name not in self.z_parameters:
-            raise UniversalBackprojectArgsError("Unknown z parameter '{}'".format(name))
+            raise GeneralBackprojectArgsError("Unknown z parameter '{}'".format(name))
         self._z_parameter = name
 
 
-class UniversalBackproject(InjectProcess):
+class GeneralBackproject(InjectProcess):
     def __init__(self, args, resources=None, gpu_index=0, flat=None, dark=None, region=None,
                  copy_inputs=False, before_download_event=None):
         self.before_download_event = before_download_event
@@ -522,7 +522,7 @@ class UniversalBackproject(InjectProcess):
                             slice_memory_coeff=self.args.slice_memory_coeff,
                             data_splitting_policy=self.args.data_splitting_policy)
         if len(regions) > 1:
-            raise UniversalBackprojectError('Region does not fit to the GPU memory')
+            raise GeneralBackprojectError('Region does not fit to the GPU memory')
 
         graph = Ufo.TaskGraph()
         if not (args.only_bp or dark is None or flat is None):
@@ -552,7 +552,7 @@ class UniversalBackproject(InjectProcess):
         elif args.only_bp:
             graph = first
 
-        super(UniversalBackproject, self).__init__(graph, get_output=True, output_dims=output_dims,
+        super(GeneralBackproject, self).__init__(graph, get_output=True, output_dims=output_dims,
                                                    scheduler=scheduler, copy_inputs=copy_inputs)
 
     @coroutine
@@ -594,7 +594,7 @@ class UniversalBackproject(InjectProcess):
                 self.wait()
 
 
-class UniversalBackprojectManager(object):
+class GeneralBackprojectManager(object):
     def __init__(self, args, dark=None, flat=None, regions=None, copy_inputs=False,
                  projection_sleep_time=0 * q.s):
         self.regions = regions
@@ -687,9 +687,9 @@ class UniversalBackprojectManager(object):
     def find_parameter(self, parameter, metric='msag', region=None, minimize=True,
                        z=None, method='powell', method_options=None, guess=None):
         """Find one of the reconstruction parameters. *parameter* (see
-        :attr:`.UniversalBackprojectArgs.z_parameters`) is the parameter name, *metric* is the
+        :attr:`.GeneralBackprojectArgs.z_parameters`) is the parameter name, *metric* is the
         metric name used for finding the parameter (see
-        :attr:`.UniversalBackprojectArgs.slice_metrics`), if *region* is specified, that region is
+        :attr:`.GeneralBackprojectArgs.slice_metrics`), if *region* is specified, that region is
         reconstructed and the metric is applied. If it is not specified, scipy.minimize is used to
         find the parameter, where the optimization method is given by the *method* parameter,
         *method_options* are passed as *options* to the minimize function and *guess* is an initial
@@ -761,7 +761,7 @@ class UniversalBackprojectManager(object):
                 offset += sum([len(np.arange(*reg)) for j, reg in batch[:index]])
 
                 gpu_index, region = self._regions[self._batch_index][index]
-                bp = UniversalBackproject(self.args,
+                bp = GeneralBackproject(self.args,
                                           resources=self._resources[index],
                                           gpu_index=gpu_index,
                                           dark=self.dark,
@@ -835,9 +835,9 @@ class UniversalBackprojectManager(object):
                 arg_thread.join()
 
 
-class UniversalBackprojectError(Exception):
+class GeneralBackprojectError(Exception):
     pass
 
 
-class UniversalBackprojectArgsError(Exception):
+class GeneralBackprojectArgsError(Exception):
     pass

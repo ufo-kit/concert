@@ -182,12 +182,12 @@ class OnlineReconstruction(Addon):
                  wait_for_projections=False, walker=None, slice_directory='online-slices'):
         from multiprocessing.pool import ThreadPool
         from threading import Event
-        from concert.ext.ufo import UniversalBackprojectManager
+        from concert.ext.ufo import GeneralBackprojectManager
 
         self.experiment = experiment
         self.dark_result = Result()
         self.flat_result = Result()
-        self.manager = UniversalBackprojectManager(reco_args)
+        self.manager = GeneralBackprojectManager(reco_args)
         self.walker = walker
         self.slice_directory = slice_directory
         self._process_normalization = process_normalization
