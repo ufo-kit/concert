@@ -685,7 +685,7 @@ class GeneralBackprojectManager(object):
         threading.Thread(target=send_volume).start()
 
     def find_parameter(self, parameter, metric='msag', region=None, minimize=True,
-                       z=None, method='powell', method_options=None, guess=None):
+                       z=None, method='powell', method_options=None, guess=None, store=True):
         """Find one of the reconstruction parameters. *parameter* (see
         :attr:`.GeneralBackprojectArgs.z_parameters`) is the parameter name, *metric* is the
         metric name used for finding the parameter (see
@@ -693,7 +693,8 @@ class GeneralBackprojectManager(object):
         reconstructed and the metric is applied. If it is not specified, scipy.minimize is used to
         find the parameter, where the optimization method is given by the *method* parameter,
         *method_options* are passed as *options* to the minimize function and *guess* is an initial
-        guess. *z* specifies the height in which the parameter is looked for.
+        guess. *z* specifies the height in which the parameter is looked for. If *store* is True,
+        the found parameter value is stored in the reconstruction arguments.
         """
         orig_args = self.args
         self.args = copy.deepcopy(self.args)
@@ -725,7 +726,8 @@ class GeneralBackprojectManager(object):
             inject(self.projections, self(block=True))
             result = np.argmin(sgn * self.volume) * region[-1] + region[0]
 
-        setattr(orig_args, parameter.replace('-', '_'), [result])
+        if store:
+            setattr(orig_args, parameter.replace('-', '_'), [result])
         self.args = orig_args
 
         return result
