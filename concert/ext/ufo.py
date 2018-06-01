@@ -676,6 +676,13 @@ class UniversalBackprojectManager(object):
 
     def find_parameter(self, parameter, metric='msag', region=None, minimize=True,
                        z=None, method='powell', method_options=None, guess=None):
+        """Find one of the reconstruction parameters. *parameter* is the parameter name, *metric* is
+        the metric name used for finding the parameter, if *region* is specified, that region is
+        reconstructed and the metric is applied. If it is not specified, scipy.minimize is used to
+        find the parameter, where the optimization method is given by the *method* parameter,
+        *method_options* are passed as *options* to the minimize function and *guess* is an initial
+        guess. *z* specifies the height in which the parameter is looked for.
+        """
         orig_args = self.args
         self.args = copy.deepcopy(self.args)
         self.args.slice_metric = metric
