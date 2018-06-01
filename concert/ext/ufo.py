@@ -705,7 +705,7 @@ class UniversalBackprojectManager(object):
             inject(self.projections, self(block=True))
             result = np.argmax(self.volume) * region[-1] + region[0]
 
-        orig_args.center_position_x = [result]
+        setattr(orig_args, parameter.replace('-', '_'), [result])
         self.args = orig_args
 
         return result
