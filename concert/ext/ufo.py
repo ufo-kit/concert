@@ -442,7 +442,7 @@ def compute_rotation_axis(sinogram, initial_step=None, max_iterations=14,
 
 
 class UniversalBackprojectArgs(object):
-    def __init__(self, width, height, center_x, center_z, number, overall_angle=np.pi):
+    def __init__(self, width, height, center_position_x, center_position_z, number, overall_angle=np.pi):
         for section in UNI_RECO_PARAMS:
             for arg in SECTIONS[section]:
                 settings = SECTIONS[section][arg]
@@ -453,8 +453,8 @@ class UniversalBackprojectArgs(object):
         self.y = 0
         self.width = width
         self.height = height
-        self.center_x = center_x
-        self.center_z = center_z
+        self.center_position_x = center_position_x
+        self.center_position_z = center_position_z
         self.number = number
         self.overall_angle = overall_angle
         self._slice_metric = None
@@ -706,7 +706,7 @@ class UniversalBackprojectManager(object):
             inject(self.projections, self(block=True))
             result = np.argmax(self.volume) * region[-1] + region[0]
 
-        orig_args.center_x = [result]
+        orig_args.center_position_x = [result]
         self.args = orig_args
 
         return result
