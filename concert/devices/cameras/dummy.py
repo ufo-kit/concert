@@ -143,6 +143,7 @@ class FileCamera(Base):
         super(FileCamera, self).__init__()
 
         self.index = 0
+        self._image_index = 0
         self.reset_on_start = reset_on_start
         self.filenames = [os.path.join(directory, file_name) for file_name in
                           sorted(os.listdir(directory))]
@@ -150,27 +151,40 @@ class FileCamera(Base):
         if not self.filenames:
             raise base.CameraError("No files found")
 
-        image = read_image(self.filenames[0])
-        self._roi_width = image.shape[1] * q.pixel
-        self._roi_height = image.shape[0] * q.pixel
+        self._read_next_file()
+        self._roi_width = self._image.shape[-1] * q.pixel
+        self._roi_height = self._image.shape[-2] * q.pixel
 
     @transition(target='recording')
     def _record_real(self):
         if self.reset_on_start:
             self.index = 0
+            self._image_index = 0
+            self._read_next_file()
+
+    def _read_next_file(self):
+        if self.index < len(self.filenames):
+            self._image = read_image(self.filenames[self.index])
+            self._image_index = 0
+            self.index += 1
+            if self._image.ndim == 2:
+                # Make sure the image is 3D so that grab can be simpler
+                self._image = self._image[np.newaxis, :]
+        else:
+            self._image = None
 
     def _grab_real(self):
-        if self.index < len(self.filenames):
-            image = read_image(self.filenames[self.index])
-
+        if self._image is None:
+            result = None
+        else:
             y_region = self.roi_y0 + self.roi_height
             x_region = self.roi_x0 + self.roi_width
-
-            result = image[self.roi_y0.magnitude:y_region.magnitude,
-                           self.roi_x0.magnitude:x_region.magnitude]
-            self.index += 1
-        else:
-            result = None
+            result = self._image[self._image_index,
+                                 self.roi_y0.magnitude:y_region.magnitude,
+                                 self.roi_x0.magnitude:x_region.magnitude]
+            self._image_index += 1
+            if self._image_index == self._image.shape[0]:
+                self._read_next_file()
 
         return result
 
