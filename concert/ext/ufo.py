@@ -679,7 +679,6 @@ class UniversalBackprojectManager(object):
         orig_args = self.args
         self.args = copy.deepcopy(self.args)
         self.args.slice_metric = metric
-        self.args.data_splitting_policy = 'one'
         self.args.z_parameter = parameter
         self.args.z = z or 0
 
