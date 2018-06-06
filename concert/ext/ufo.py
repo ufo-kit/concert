@@ -516,7 +516,7 @@ class GeneralBackproject(InjectProcess):
             self.dark = self.dark[self.args.y:self.args.y + self.args.height].astype(np.float32)
             self.flat = self.flat[self.args.y:self.args.y + self.args.height].astype(np.float32)
 
-        regions = make_runs([gpu], x_region, y_region, self.args.region,
+        regions = make_runs([gpu], [gpu_index], x_region, y_region, self.args.region,
                             DTYPE_CL_SIZE[self.args.store_type],
                             slices_per_device=self.args.slices_per_device,
                             slice_memory_coeff=self.args.slice_memory_coeff,
@@ -617,9 +617,13 @@ class GeneralBackprojectManager(object):
         x_region, y_region, z_region = get_reconstruction_regions(self.args)
         if not self._resources:
             self._resources = [Ufo.Resources()]
-        gpus = self._resources[0].get_gpu_nodes()
+        gpus = np.array(self._resources[0].get_gpu_nodes())
+        gpu_indices = np.array(self.args.gpus or range(len(gpus)))
+        if min(gpu_indices) < 0 or max(gpu_indices) > len(gpus) - 1:
+            raise ValueError('--gpus contains invalid indices')
+        gpus = gpus[gpu_indices]
         if self.regions is None:
-            self._regions = make_runs(gpus, x_region, y_region, z_region,
+            self._regions = make_runs(gpus, gpu_indices, x_region, y_region, z_region,
                                       DTYPE_CL_SIZE[self.args.store_type],
                                       slices_per_device=self.args.slices_per_device,
                                       slice_memory_coeff=self.args.slice_memory_coeff,
