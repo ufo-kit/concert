@@ -25,6 +25,7 @@ except ImportError:
                          "'https://github.com/ufo-kit/tofu.git'"
 
 from multiprocessing.pool import ThreadPool
+from concert.async import async
 from concert.quantities import q
 from concert.coroutines.base import coroutine, inject
 from concert.coroutines.filters import sinograms, flat_correct
@@ -688,50 +689,101 @@ class GeneralBackprojectManager(object):
 
         threading.Thread(target=send_volume).start()
 
-    def find_parameter(self, parameter, metric='msag', region=None, minimize=True,
-                       z=None, method='powell', method_options=None, guess=None, store=True):
-        """Find one of the reconstruction parameters. *parameter* (see
-        :attr:`.GeneralBackprojectArgs.z_parameters`) is the parameter name, *metric* is the
-        metric name used for finding the parameter (see
-        :attr:`.GeneralBackprojectArgs.slice_metrics`), if *region* is specified, that region is
-        reconstructed and the metric is applied. If it is not specified, scipy.minimize is used to
-        find the parameter, where the optimization method is given by the *method* parameter,
-        *method_options* are passed as *options* to the minimize function and *guess* is an initial
-        guess. *z* specifies the height in which the parameter is looked for. If *store* is True,
-        the found parameter value is stored in the reconstruction arguments.
+    @async
+    def find_parameters(self, parameters, metrics=('msag',), regions=None, iterations=1,
+                        minimize=(True,), z=None, method='powell', method_options=None,
+                        guesses=None, bounds=None, store=True):
+        """Find reconstruction parameters. *parameters* (see
+        :attr:`.GeneralBackprojectArgs.z_parameters`) are the names of the parameters which should
+        be found, *z* specifies the height in which the parameter is looked for. If *store* is True,
+        the found parameter values are stored in the reconstruction arguments. Optimization is done
+        either brute-force if *regions* are not specified or one of the scipy minimization
+        methods is used, see below.
+
+        If *regions* are specified, they are reconstructed for the corresponding parameters and a
+        metric from *metrics* list is applied. Thus, first parameter in *parameters* is
+        reconstructed within the first region in *regions* and the first metric (see
+        :attr:`.GeneralBackprojectArgs.slice_metrics`) in *metrics* is applied and so on. If
+        *metrics* is of length 1 then it is applied to all parameters. *minimize* is a tuple
+        specifying whether each parameter in the list should be minimized (True) or maximized
+        (False). After every parameter is processed, the parameter optimization result is stored and
+        the next parameter is optimized in such a way, that the result of the optimization of the
+        previous parameter already takes place. *iterations* specifies how many times are all the
+        parameters reconstructed.
+
+        If *regions* is not specified, :func:`scipy.minimize` is used to find the parameter, where
+        the optimization method is given by the *method* parameter, *method_options* are passed as
+        *options* to the minimize function and *guesses* are initial guesses in the order of the
+        *parameters* list. If *bounds* are given, they represent the domains where to look for
+        parameters, they are (min, max) tuples, also in the order of the *parameters* list. See
+        documentation of :func:`scipy.minimize` for the list of minimization methods which support
+        bounds specification. In this approach only the first in *metrics* is taken into account
+        because the optimization happens on all parameters simultaneously, the same holds for
+        *minimize*.
         """
+        self.join_processing()
         orig_args = self.args
         self.args = copy.deepcopy(self.args)
-        self.args.slice_metric = metric
-        self.args.z_parameter = parameter
-        self.args.z = z or 0
-        sgn = -1 if minimize else 1
 
-        if region is None:
-            from scipy.optimize import minimize
+        if regions is None:
+            # No region specified, do a real optimization on the parameters vector
+            from scipy import optimize
 
-            def score(axis):
-                axis = axis[0]
-                LOG.info('Optimization axis position: %g', axis)
-                self.args.region = [axis, axis + 1, 1.]
+            def score(vector):
+                for (parameter, value) in zip(parameters, vector):
+                    setattr(self.args, parameter.replace('-', '_'), [value])
                 inject(self.projections, self(block=True))
-                return sgn * self.volume[0]
+                result = sgn * self.volume[0]
+                LOG.info('Optimization vector: %s, result: %g', vector, result)
 
-            if guess is None:
-                if parameter == 'center-position-x':
-                    guess = self.args.width / 2.
-                else:
-                    guess = 0.
-            res = minimize(score, guess, method=method, options=method_options)
-            LOG.info('%s', res.message)
-            result = float(res.x)
+                return result
+
+            self.args.z_parameter = 'z'
+            z = z or 0
+            self.args.region = [z, z + 1, 1.]
+            self.args.slice_metric = metrics[0]
+            sgn = -1 if minimize[0] else 1
+            if guesses is None:
+                guesses = []
+                for parameter in parameters:
+                    if parameter == 'center-position-x':
+                        guesses.append(self.args.width / 2.)
+                    else:
+                        guesses.append(0.)
+            LOG.info('Guesses: %s', guesses)
+            result = optimize.minimize(score, guesses, method=method, bounds=bounds,
+                                       options=method_options)
+            LOG.info('%s', result.message)
+            result = result.x
         else:
-            self.args.region = region
-            inject(self.projections, self(block=True))
-            result = np.argmin(sgn * self.volume) * region[-1] + region[0]
+            # Regions specified, reconstruct given regions for given parameters and simply search
+            # for extrema of the given metrics
+            self.args.z = z or 0
+            result = []
+            if len(metrics) == 1:
+                metrics = metrics * len(parameters)
+            if len(minimize) == 1:
+                minimize = minimize * len(parameters)
+            for i in range(iterations):
+                for (parameter, region, metric, minim) in zip(parameters, regions,
+                                                              metrics, minimize):
+                    self.args.slice_metric = metric
+                    self.args.z_parameter = parameter
+                    self.args.region = region
+                    inject(self.projections, self(block=True))
+                    sgn = -1 if minim else 1
+                    param_result = np.argmin(sgn * self.volume) * region[2] + region[0]
+                    setattr(self.args, parameter.replace('-', '_'), [param_result])
+                    if i == iterations - 1:
+                        result.append(param_result)
+                    LOG.info('Optimizing %s, region: %s, metric: %s, minimize: %s, result: %g',
+                             parameter, region, metric, minim, param_result)
+
+        LOG.info('Optimization result: %s', result)
 
         if store:
-            setattr(orig_args, parameter.replace('-', '_'), [result])
+            for (parameter, value) in zip(parameters, result):
+                setattr(orig_args, parameter.replace('-', '_'), [value])
         self.args = orig_args
 
         return result
