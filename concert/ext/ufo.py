@@ -688,15 +688,16 @@ class GeneralBackprojectManager(object):
         threading.Thread(target=send_volume).start()
 
     @async
-    def find_parameters(self, parameters, metrics=('sag',), regions=None, iterations=1, fwhm=0,
-                        minimize=(True,), z=None, method='powell', method_options=None,
-                        guesses=None, bounds=None, store=True):
+    def find_parameters(self, parameters, projections=None, metrics=('sag',), regions=None,
+                        iterations=1, fwhm=0, minimize=(True,), z=None, method='powell',
+                        method_options=None, guesses=None, bounds=None, store=True):
         """Find reconstruction parameters. *parameters* (see
         :attr:`.GeneralBackprojectArgs.z_parameters`) are the names of the parameters which should
-        be found, *z* specifies the height in which the parameter is looked for. If *store* is True,
-        the found parameter values are stored in the reconstruction arguments. Optimization is done
-        either brute-force if *regions* are not specified or one of the scipy minimization
-        methods is used, see below.
+        be found, *projections* are the input data and if not specified, the ones from last
+        reconstruction are used. *z* specifies the height in which the parameter is looked for. If
+        *store* is True, the found parameter values are stored in the reconstruction arguments.
+        Optimization is done either brute-force if *regions* are not specified or one of the scipy
+        minimization methods is used, see below.
 
         If *regions* are specified, they are reconstructed for the corresponding parameters and a
         metric from *metrics* list is applied. Thus, first parameter in *parameters* is
@@ -723,6 +724,11 @@ class GeneralBackprojectManager(object):
         *minimize*.
         """
         self.join_processing()
+        if projections is None:
+            if self.projections is None:
+                raise GeneralBackprojectManagerError('*projections* must be specified if no '
+                                                     ' reconstructions have been done yet')
+            projections = self.projections
         orig_args = self.args
         self.args = copy.deepcopy(self.args)
 
@@ -733,7 +739,7 @@ class GeneralBackprojectManager(object):
             def score(vector):
                 for (parameter, value) in zip(parameters, vector):
                     setattr(self.args, parameter.replace('-', '_'), [value])
-                inject(self.projections, self(block=True))
+                inject(projections, self(block=True))
                 result = sgn * self.volume[0]
                 LOG.info('Optimization vector: %s, result: %g', vector, result)
 
@@ -776,7 +782,7 @@ class GeneralBackprojectManager(object):
                     self.args.slice_metric = metric
                     self.args.z_parameter = parameter
                     self.args.region = region
-                    inject(self.projections, self(block=True))
+                    inject(projections, self(block=True))
                     sgn = 1 if minim else -1
                     values = self.volume
                     if fwhm:
@@ -901,6 +907,10 @@ class GeneralBackprojectManager(object):
                 # Let UFO process fake projections until the graph can be aborted as well
                 self._num_received_projections = self.projections.shape[0]
                 arg_thread.join()
+
+
+class GeneralBackprojectManagerError(Exception):
+    pass
 
 
 class GeneralBackprojectError(Exception):
