@@ -311,3 +311,17 @@ def compute_rotation_axis(first_projection, last_projection):
     center = np.unravel_index(convolved.argmax(), convolved.shape)[1]
 
     return (width / 2.0 + center) / 2 * q.px
+
+
+def filter_low_frequencies(data, fwhm=32.):
+    """Filter low frequencies in 1D *data*. *fwhm* is the FWHM of the gaussian used to filter out
+    low frequencies in real space. The window is then computed as fft(1 - gauss).
+    """
+    mean = np.mean(data)
+    sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+    # We compute the gaussian in Fourier space, so convert sigma first
+    f_sigma = 1. / (2 * np.pi * sigma)
+    x = np.fft.fftfreq(len(data))
+    fltr = 1 - np.exp(- x ** 2 / (2 * f_sigma ** 2))
+
+    return np.fft.ifft(np.fft.fft(data) * fltr).real + mean
