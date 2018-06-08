@@ -446,7 +446,7 @@ class GeneralBackprojectArgs(object):
     def __init__(self, width, height, center_position_x, center_position_z, number, overall_angle=np.pi):
         self._slice_metric = None
         self._slice_metrics = ['min', 'max', 'sum', 'mean', 'var', 'std', 'skew',
-                               'kurtosis', 'msag']
+                               'kurtosis', 'sag']
         self._z_parameters = SECTIONS['general-reconstruction']['z-parameter']['choices']
         for section in GEN_RECO_PARAMS:
             for arg in SECTIONS[section]:
@@ -539,17 +539,14 @@ class GeneralBackproject(InjectProcess):
         output_dims = 2
         if args.slice_metric:
             output_dims = 1
-            if args.slice_metric == 'msag':
-                measure_task = get_task('measure', processing_node=gpu, axis=-1, metric='sum')
+            metric = self.args.slice_metric
+            if args.slice_metric == 'sag':
+                metric = 'sum'
                 gradient_task = get_task('gradient', processing_node=gpu, direction='both_abs')
-                calculate_task = get_task('calculate', processing_node=gpu, expression='-v')
                 graph.connect_nodes(last, gradient_task)
-                graph.connect_nodes(gradient_task, measure_task)
-                graph.connect_nodes(measure_task, calculate_task)
-            else:
-                measure_task = get_task('measure', processing_node=gpu, axis=-1,
-                                        metric=self.args.slice_metric)
-                graph.connect_nodes(last, measure_task)
+                last = gradient_task
+            measure_task = get_task('measure', processing_node=gpu, axis=-1, metric=metric)
+            graph.connect_nodes(last, measure_task)
         elif args.only_bp:
             graph = first
 
@@ -690,7 +687,7 @@ class GeneralBackprojectManager(object):
         threading.Thread(target=send_volume).start()
 
     @async
-    def find_parameters(self, parameters, metrics=('msag',), regions=None, iterations=1,
+    def find_parameters(self, parameters, metrics=('sag',), regions=None, iterations=1,
                         minimize=(True,), z=None, method='powell', method_options=None,
                         guesses=None, bounds=None, store=True):
         """Find reconstruction parameters. *parameters* (see
