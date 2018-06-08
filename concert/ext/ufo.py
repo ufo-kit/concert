@@ -742,7 +742,7 @@ class GeneralBackprojectManager(object):
             z = z or 0
             self.args.region = [z, z + 1, 1.]
             self.args.slice_metric = metrics[0]
-            sgn = -1 if minimize[0] else 1
+            sgn = 1 if minimize[0] else -1
             if guesses is None:
                 guesses = []
                 for parameter in parameters:
@@ -771,7 +771,7 @@ class GeneralBackprojectManager(object):
                     self.args.z_parameter = parameter
                     self.args.region = region
                     inject(self.projections, self(block=True))
-                    sgn = -1 if minim else 1
+                    sgn = 1 if minim else -1
                     param_result = np.argmin(sgn * self.volume) * region[2] + region[0]
                     setattr(self.args, parameter.replace('-', '_'), [param_result])
                     if i == iterations - 1:
