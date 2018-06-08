@@ -26,6 +26,7 @@ except ImportError:
 
 from multiprocessing.pool import ThreadPool
 from concert.async import async
+from concert.imageprocessing import filter_low_frequencies
 from concert.quantities import q
 from concert.coroutines.base import coroutine, inject
 from concert.coroutines.filters import sinograms, flat_correct
@@ -687,7 +688,7 @@ class GeneralBackprojectManager(object):
         threading.Thread(target=send_volume).start()
 
     @async
-    def find_parameters(self, parameters, metrics=('sag',), regions=None, iterations=1,
+    def find_parameters(self, parameters, metrics=('sag',), regions=None, iterations=1, fwhm=0,
                         minimize=(True,), z=None, method='powell', method_options=None,
                         guesses=None, bounds=None, store=True):
         """Find reconstruction parameters. *parameters* (see
@@ -706,7 +707,10 @@ class GeneralBackprojectManager(object):
         (False). After every parameter is processed, the parameter optimization result is stored and
         the next parameter is optimized in such a way, that the result of the optimization of the
         previous parameter already takes place. *iterations* specifies how many times are all the
-        parameters reconstructed.
+        parameters reconstructed. *fwhm* specifies the full width half maximum of the gaussian
+        window used to filter out the low frequencies in the metric, which is useful when the region
+        for a metric is large. If the *fwhm* is specified, the region must be at least 4 * fwhm
+        large. If *fwhm* is 0 no filtering is done.
 
         If *regions* is not specified, :func:`scipy.minimize` is used to find the parameter, where
         the optimization method is given by the *method* parameter, *method_options* are passed as
@@ -756,6 +760,11 @@ class GeneralBackprojectManager(object):
             # Regions specified, reconstruct given regions for given parameters and simply search
             # for extrema of the given metrics
             self.args.z = z or 0
+            if fwhm:
+                for region in regions:
+                    if len(np.arange(*region)) < 4 * fwhm:
+                        raise ValueError('All regions must be at least 4 * fwhm large '
+                                         'when fwhm is specified')
             result = []
             if len(metrics) == 1:
                 metrics = metrics * len(parameters)
@@ -769,7 +778,11 @@ class GeneralBackprojectManager(object):
                     self.args.region = region
                     inject(self.projections, self(block=True))
                     sgn = 1 if minim else -1
-                    param_result = np.argmin(sgn * self.volume) * region[2] + region[0]
+                    values = self.volume
+                    if fwhm:
+                        values = filter_low_frequencies(values, fwhm=fwhm)[2 * int(fwhm):
+                                                                           -2 * int(fwhm)]
+                    param_result = (np.argmin(sgn * values) + 2 * fwhm) * region[2] + region[0]
                     setattr(self.args, parameter.replace('-', '_'), [param_result])
                     if i == iterations - 1:
                         result.append(param_result)
