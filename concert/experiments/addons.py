@@ -194,7 +194,7 @@ class OnlineReconstruction(Addon):
         self.process_normalization_func = process_normalization_func
         self._pool = ThreadPool(processes=2)
         self._events = {'darks': Event(), 'flats': Event()}
-        self._images = {'darks': np.empty(1), 'flats': np.empty(1)}
+        self._images = {'darks': None, 'flats': None}
         self.consumer = consumer
         self.block = block
         self.wait_for_projections = wait_for_projections
@@ -227,9 +227,13 @@ class OnlineReconstruction(Addon):
             try:
                 image = yield
                 shape = (self.manager.args.height, self.manager.args.width)
-                if (self._images[im_type] is None or image.shape != shape or image.dtype !=
-                        self._images[im_type].dtype):
-                    self._images[im_type] = np.empty((num,) + image.shape, dtype=image.dtype)
+                if (image.shape != shape):
+                    raise OnlineReconstructionError("Wrong normalization image shape")
+                if self._images[im_type] is None or self._images[im_type].shape[0] != num:
+                    shape = (num,) + image.shape
+                    LOG.debug("Creating array for '%s' with shape %s", im_type, shape)
+                    self._images[im_type] = np.empty(shape, dtype=image.dtype)
+                self._images[im_type][0] = image
 
                 i = 1
                 while True:
@@ -283,4 +287,8 @@ class AddonError(Exception):
 
     """Addon errors."""
 
+    pass
+
+
+class OnlineReconstructionError(Exception):
     pass
