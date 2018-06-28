@@ -173,6 +173,8 @@ class InjectProcess(object):
             results = []
             for index in indices:
                 buf = self.output_tasks[index].get_output_buffer()
+                if not buf:
+                    return [None]
                 results.append(np.copy(ufo.numpy.asarray(buf)))
                 self.output_tasks[index].release_output_buffer(buf)
 
