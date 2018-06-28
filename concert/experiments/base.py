@@ -48,6 +48,7 @@ class Acquisition(object):
 
         for item in self.producer():
             if self._aborted:
+                LOG.info("Acquisition '%s' aborted", self.name)
                 break
             for consumer in started:
                 consumer.send(item)
@@ -172,6 +173,7 @@ class Experiment(object):
 
     @async
     def abort(self):
+        LOG.info('Experiment aborted')
         self._aborted = True
         for acq in self.acquisitions:
             acq.abort().join()
