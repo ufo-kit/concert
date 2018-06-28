@@ -559,6 +559,10 @@ class GeneralBackproject(InjectProcess):
     @coroutine
     def __call__(self, consumer):
         def process_projection(projection, dark, flat):
+            if projection is None:
+                return False
+            elif not self._started:
+                self.start()
             projection = projection[self.args.y:self.args.y + self.args.height]
             if projection.dtype != np.float32:
                 projection = projection.astype(np.float32)
@@ -567,12 +571,31 @@ class GeneralBackproject(InjectProcess):
                 self.insert(dark, index=1)
                 self.insert(flat, index=2)
 
-        if not self._started:
-            self.start()
+            return True
+
+        def consume_volume():
+            if not self._started:
+                consumer.send(None)
+                return
+            self.stop()
+            if self.before_download_event:
+                LOG.debug('Waiting for event before download')
+                self.before_download_event.wait()
+            st = time.time()
+            for k in np.arange(*self.args.region):
+                result = self.result()[0]
+                if result is None:
+                    LOG.warn('Not all slices received (last: %g)', k)
+                    break
+                consumer.send(result)
+            LOG.debug('Volume downloaded in: %.2f s', time.time() - st)
+            self.wait()
 
         projection = yield
         st = time.time()
-        process_projection(projection, self.dark, self.flat)
+        processed = process_projection(projection, self.dark, self.flat)
+        if not processed:
+            consume_volume()
 
         i = 1
         while True:
@@ -580,24 +603,16 @@ class GeneralBackproject(InjectProcess):
             i += 1
             if i == self.args.number:
                 LOG.debug('Last projection came')
-            process_projection(projection, None, None)
-            if i == self.args.number:
-                self.stop()
-                if self.before_download_event:
-                    LOG.debug('Waiting for event before download')
-                    self.before_download_event.wait()
-                LOG.debug('Backprojection duration: %.2f s', time.time() - st)
-                st = time.time()
-                for k in np.arange(*self.args.region):
-                    result = self.result()[0]
-                    consumer.send(result)
-                LOG.debug('Volume downloaded in: %.2f s', time.time() - st)
-                self.wait()
+            processed = process_projection(projection, None, None)
+            if not processed or i == self.args.number:
+                LOG.debug('Backprojected %d projections, duration: %.2f s', i, time.time() - st)
+                consume_volume()
 
 
 class GeneralBackprojectManager(object):
     def __init__(self, args, dark=None, flat=None, regions=None, copy_inputs=False,
                  projection_sleep_time=0 * q.s):
+        self._aborted = False
         self.regions = regions
         self.copy_inputs = copy_inputs
         self.projection_sleep_time = projection_sleep_time
@@ -650,7 +665,12 @@ class GeneralBackprojectManager(object):
         sleep_time = self.projection_sleep_time.to(q.s).magnitude
         for i in range(self.args.number):
             while self._num_received_projections < i + 1:
+                if self._aborted:
+                    break
                 time.sleep(sleep_time)
+            if self._aborted:
+                yield None
+                break
             yield self.projections[i]
 
     @coroutine
@@ -658,6 +678,8 @@ class GeneralBackprojectManager(object):
         i = 0
         while True:
             item = yield
+            if item is None:
+                self.abort()
             self.volume[offset + i] = item
             i += 1
 
@@ -814,7 +836,7 @@ class GeneralBackprojectManager(object):
         LOG.debug('Backprojector manager start')
         st = time.time()
         self._num_received_projections = 0
-        aborted = False
+        self._aborted = False
 
         def prepare_and_start():
             """Make sure the arguments are up-to-date."""
@@ -850,14 +872,14 @@ class GeneralBackprojectManager(object):
             # Distribute work
             pool = ThreadPool(processes=len(self._resources))
             for i in range(len(self._regions)):
-                if aborted:
+                if self._aborted:
                     break
                 self._batch_index = i
                 pool.map(start_one, range(len(self._regions[i])))
             pool.close()
             pool.join()
 
-            if not aborted:
+            if not self._aborted:
                 # Process results
                 duration = time.time() - st
                 LOG.debug('Backprojectors duration: %.2f s', duration)
@@ -902,13 +924,15 @@ class GeneralBackprojectManager(object):
                     if block:
                         self.join()
         except GeneratorExit:
-            if self._num_received_projections < self.projections.shape[0]:
+            if (self.projections is None or
+                self._num_received_projections < self.projections.shape[0]):
+                self._aborted = True
                 LOG.error('Not enough projections received (%d from %d)',
                           self._num_received_projections, self.args.number)
-                aborted = True
-                # Let UFO process fake projections until the graph can be aborted as well
-                self._num_received_projections = self.projections.shape[0]
                 arg_thread.join()
+
+    def abort(self):
+        self._aborted = True
 
 
 class GeneralBackprojectManagerError(Exception):
