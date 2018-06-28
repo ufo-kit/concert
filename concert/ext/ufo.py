@@ -446,7 +446,8 @@ def compute_rotation_axis(sinogram, initial_step=None, max_iterations=14,
 
 
 class GeneralBackprojectArgs(object):
-    def __init__(self, width, height, center_position_x, center_position_z, number, overall_angle=np.pi):
+    def __init__(self, width, height, center_position_x, center_position_z, number,
+                 overall_angle=np.pi):
         self._slice_metric = None
         self._slice_metrics = ['min', 'max', 'sum', 'mean', 'var', 'std', 'skew',
                                'kurtosis', 'sag']
@@ -554,7 +555,7 @@ class GeneralBackproject(InjectProcess):
             graph = first
 
         super(GeneralBackproject, self).__init__(graph, get_output=True, output_dims=output_dims,
-                                                   scheduler=scheduler, copy_inputs=copy_inputs)
+                                                 scheduler=scheduler, copy_inputs=copy_inputs)
 
     @coroutine
     def __call__(self, consumer):
@@ -860,13 +861,13 @@ class GeneralBackprojectManager(object):
 
                 gpu_index, region = self._regions[self._batch_index][index]
                 bp = GeneralBackproject(self.args,
-                                          resources=self._resources[index],
-                                          gpu_index=gpu_index,
-                                          dark=self.dark,
-                                          flat=self.flat,
-                                          region=region,
-                                          copy_inputs=self.copy_inputs,
-                                          before_download_event=self._consume_event)
+                                        resources=self._resources[index],
+                                        gpu_index=gpu_index,
+                                        dark=self.dark,
+                                        flat=self.flat,
+                                        region=region,
+                                        copy_inputs=self.copy_inputs,
+                                        before_download_event=self._consume_event)
                 inject(self.produce(), bp(self.consume(offset)))
 
             # Distribute work
@@ -903,8 +904,8 @@ class GeneralBackprojectManager(object):
         try:
             projection = yield
             in_shape = (self.args.number, self.args.height, self.args.width)
-            if (self.projections is None or in_shape != self.projections.shape or projection.dtype !=
-                    self.projections.dtype):
+            if (self.projections is None or in_shape != self.projections.shape or
+                    projection.dtype != self.projections.dtype):
                 self.projections = np.empty(in_shape, dtype=projection.dtype)
             self.projections[0] = projection
             self._num_received_projections = 1
@@ -925,7 +926,7 @@ class GeneralBackprojectManager(object):
                         self.join()
         except GeneratorExit:
             if (self.projections is None or
-                self._num_received_projections < self.projections.shape[0]):
+                    self._num_received_projections < self.projections.shape[0]):
                 self._aborted = True
                 LOG.error('Not enough projections received (%d from %d)',
                           self._num_received_projections, self.args.number)
