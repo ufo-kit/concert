@@ -7,6 +7,7 @@ import os
 import re
 import sys
 import shutil
+import signal
 import subprocess
 import tempfile
 import traceback
@@ -372,6 +373,8 @@ class StartCommand(Command):
     def run(self, session=None, filename=None,
             non_interactive=False,
             logto='file', logfile=None, loglevel=None):
+        from concert.session.utils import abort
+
         if session:
             cs.exit_if_not_exists(session)
 
@@ -394,6 +397,15 @@ class StartCommand(Command):
 
         # Add session path, so that sessions can import other sessions
         sys.path.append(cs.path())
+
+        # ctrl-c handling
+        orig_sigint_handler = signal.getsignal(signal.SIGINT)
+
+        def concert_sigint_handler(sig, frame):
+            abort()
+            orig_sigint_handler(sig, frame)
+
+        signal.signal(signal.SIGINT, concert_sigint_handler)
 
         if non_interactive:
             if session:
