@@ -3,6 +3,7 @@
 import os
 from concert.experiments.base import Acquisition, Experiment
 from concert.devices.cameras.dummy import FileCamera
+from concert.progressbar import wrap_iterable
 
 
 class ImagingFileExperiment(Experiment):
@@ -57,7 +58,7 @@ class ImagingFileExperiment(Experiment):
 
     def _produce_images(self, subdirectory, num):
         camera = FileCamera(os.path.join(self.directory, subdirectory))
-        for i in range(num):
+        for i in wrap_iterable(range(num)):
             yield camera.grab()
 
     def take_darks(self):

@@ -11,6 +11,7 @@ from concert.coroutines.base import coroutine
 from concert.helpers import expects, Numeric
 from concert.devices.motors.base import LinearMotor, RotationMotor
 from concert.devices.cameras.base import Camera
+from concert.progressbar import wrap_iterable
 
 
 LOG = logging.getLogger(__name__)
@@ -103,7 +104,7 @@ def scan(feedback, regions, callbacks=None):
 
     future = None
 
-    for i, tup in enumerate(product(*regions)):
+    for i, tup in wrap_iterable(enumerate(product(*regions))):
         future = get_value(i, tup, future)
         yield future
 

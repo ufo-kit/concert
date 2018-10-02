@@ -6,6 +6,7 @@ care of proper logging structure.
 import logging
 import time
 from concert.async import async
+from concert.progressbar import wrap_iterable
 
 
 LOG = logging.getLogger(__name__)
@@ -184,7 +185,7 @@ class Experiment(object):
         the data acquisition and should be overriden if more functionality is required,
         unlike :meth:`~.Experiment.run`.
         """
-        for acq in self._acquisitions:
+        for acq in wrap_iterable(self._acquisitions):
             if self._aborted:
                 break
             acq()
