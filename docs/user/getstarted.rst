@@ -172,9 +172,13 @@ Aborting
 
 In case the devices in the session support aborting (stopping whatever they are
 currently doing) you can abort all of them at once by :func:`.abort`. This may
-be useful for emergency aborts. If you want to abort all devices automatically
-you can use :func:`.check_emergency_stop`, which takes a callable as its first
-argument and aborts all the devices if the callable evaluates to ``True``. You
-can even exit the session afterwards to make sure there are no more actions,
-like pending device movements, to make sure nothing can be damaged after the
-emergency stop occurs.
+be useful for emergency aborts. Experiments and acquisisions within them also
+support aborting and are included if you call :func:`.abort`. You can either
+call this function directly or press ctrl-c, which has the same effect.
+
+If you want to abort all devices automatically you can use
+:func:`.check_emergency_stop`, which takes a callable as its first argument and
+aborts all the devices if the callable evaluates to ``True``. You can even exit
+the session afterwards to make sure there are no more actions, like pending
+device movements, to make sure nothing can be damaged after the emergency stop
+occurs.
