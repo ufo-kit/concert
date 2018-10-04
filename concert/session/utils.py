@@ -145,8 +145,15 @@ def code_of(func):
 def abort():
     """Abort all actions related with parameters on all devices."""
     from concert.devices.base import Device
+    from concert.experiments.base import Acquisition, Experiment
 
-    return device_abort((device for (name, device) in _current_instances(Device)))
+    # First abort experiments
+    futures = [ex.abort() for (name, ex) in _current_instances(Experiment)]
+    # Then acquisitions, in case there are some standalone ones
+    futures += [acq.abort() for (name, acq) in _current_instances(Acquisition)]
+    futures += device_abort((device for (name, device) in _current_instances(Device)))
+
+    return futures
 
 
 @threaded
