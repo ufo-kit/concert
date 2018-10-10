@@ -48,4 +48,7 @@ Citation
 
 If you want to use Concert, we kindly ask you to acknowledge the respective
 authorship not only by respecting the LGPL software license but also by linking
-to one of our project websites at http://ufo.kit.edu and http://anka.kit.edu.
+to our project website at http://ufo.kit.edu and citing the following article:
+Vogelgesang, M., Farago, T., Morgeneyer, T. F., Helfen, L., dos Santos Rolo, T.,
+Myagotin, A. & Baumbach, T. (2016). J. Synchrotron Rad. 23, 1254-1263,
+https://doi.org/10.1107/S1600577516010195.
