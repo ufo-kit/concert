@@ -196,6 +196,41 @@ class InjectProcess(object):
         self._started = False
 
 
+class FlatCorrect(InjectProcess):
+    """
+    Flat-field correction.
+    """
+    def __init__(self, dark, flat, absorptivity=True, fix_nan_and_inf=True, copy_inputs=False):
+        self.dark = dark
+        self.flat = flat
+        self.ffc = get_task('flat-field-correct')
+        self.ffc.props.fix_nan_and_inf = fix_nan_and_inf
+        self.ffc.props.absorption_correct = absorptivity
+        super(FlatCorrect, self).__init__(self.ffc, get_output=True, output_dims=2,
+                                          copy_inputs=copy_inputs)
+
+    @coroutine
+    def __call__(self, consumer):
+        """Co-routine compatible consumer."""
+        def process_one(projection, dark, flat):
+            if projection.dtype != np.float32:
+                projection = projection.astype(np.float32)
+            self.insert(projection, index=0)
+            self.insert(dark, index=1)
+            self.insert(flat, index=2)
+            consumer.send(self.result(leave_index=0))
+
+        if not self._started:
+            self.start()
+
+        projection = yield
+        process_one(projection, self.dark.astype(np.float32), self.flat.astype(np.float32))
+
+        while True:
+            projection = yield
+            process_one(projection, None, None)
+
+
 class Backproject(InjectProcess):
 
     """
