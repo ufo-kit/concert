@@ -248,8 +248,9 @@ class DirectoryWalker(Walker):
         self._start_index = start_index
 
     def _descend(self, name):
-        self._current = os.path.join(self._current, name)
-        create_directory(self._current)
+        new = os.path.join(self._current, name)
+        create_directory(new)
+        self._current = new
 
     def _ascend(self):
         if self._current == self._root:
