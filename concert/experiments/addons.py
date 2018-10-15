@@ -3,6 +3,7 @@ the acquired data, e.g. write images to disk, do tomographic reconstruction etc.
 """
 import logging
 import numpy as np
+from concert.async import threaded
 from concert.coroutines.base import broadcast, coroutine
 from concert.coroutines.filters import queue
 from concert.coroutines.sinks import Accumulate, Result
@@ -178,8 +179,8 @@ class ImageWriter(Addon):
 
 class OnlineReconstruction(Addon):
     def __init__(self, experiment, reco_args, process_normalization=False,
-                 process_normalization_func=None, consumer=None, block=False,
-                 wait_for_projections=False, walker=None, slice_directory='online-slices'):
+                 consumer=None, block=False, wait_for_projections=False,
+                 walker=None, slice_directory='online-slices'):
         from multiprocessing.pool import ThreadPool
         from threading import Event
         from concert.ext.ufo import GeneralBackprojectManager
@@ -190,64 +191,61 @@ class OnlineReconstruction(Addon):
         self.manager = GeneralBackprojectManager(reco_args)
         self.walker = walker
         self.slice_directory = slice_directory
-        self._process_normalization = process_normalization
-        self.process_normalization_func = process_normalization_func
+        self.process_normalization = process_normalization
         self._pool = ThreadPool(processes=2)
         self._events = {'darks': Event(), 'flats': Event()}
-        self._images = {'darks': None, 'flats': None}
         self.consumer = consumer
         self.block = block
         self.wait_for_projections = wait_for_projections
         self._consumers = {}
         super(OnlineReconstruction, self).__init__(experiment.acquisitions)
 
-    def _average_images(self, im_type):
-        def compute_average():
-            if self.process_normalization_func:
-                return self.process_normalization_func(self._images[im_type])
-            else:
-                return np.mean(self._images[im_type], axis=0)
+    @threaded
+    def _average_images(self, queue, im_type):
+        average = None
+        i = 0
+        while True:
+            image = queue.get()
+            if image is None:
+                if im_type == 'darks':
+                    self.manager.dark = average
+                else:
+                    self.manager.flat = average
+                self._events[im_type].set()
+                LOG.debug('%s pre-processing done', im_type)
+                break
 
-        def callback(item):
-            if im_type == 'darks':
-                self.manager.dark = item
+            if self.process_normalization:
+                if average is None:
+                    average = np.zeros_like(image, dtype=np.float32)
+                average = (average * i + image) / (i + 1)
+                i += 1
             else:
-                self.manager.flat = item
-            LOG.debug('Normalization image processing done')
-            self._events[im_type].set()
+                average = image
 
+    def _create_averaging(self, im_type):
         @coroutine
         def create_averaging_coro():
-            self._events[im_type].clear()
-            if im_type == 'darks':
-                num = self.experiment.num_darks
-            else:
-                num = self.experiment.num_flats
-
             try:
-                image = yield
-                shape = (self.manager.args.height, self.manager.args.width)
-                if (image.shape != shape):
-                    raise OnlineReconstructionError("Wrong normalization image shape")
-                if self._images[im_type] is None or self._images[im_type].shape[0] != num:
-                    shape = (num,) + image.shape
-                    LOG.debug("Creating array for '%s' with shape %s", im_type, shape)
-                    self._images[im_type] = np.empty(shape, dtype=image.dtype)
-                self._images[im_type][0] = image
+                import Queue as queue_module
+            except ImportError:
+                import queue as queue_module
 
-                i = 1
+            self._events[im_type].clear()
+            queue = queue_module.Queue()
+            self._average_images(queue, im_type)
+            try:
                 while True:
                     image = yield
-                    self._images[im_type][i] = image
-                    i += 1
+                    queue.put(image)
             except GeneratorExit:
-                self._pool.apply_async(compute_average, callback=callback)
+                queue.put(None)
 
         return create_averaging_coro
 
     def _reconstruct(self):
         if hasattr(self.experiment, 'darks') and hasattr(self.experiment, 'flats'):
-            events = self._events.values() if self._process_normalization else None
+            events = self._events.values() if self.process_normalization else None
         else:
             events = None
         consumers = []
@@ -267,12 +265,8 @@ class OnlineReconstruction(Addon):
 
     def _attach(self):
         if hasattr(self.experiment, 'darks') and hasattr(self.experiment, 'flats'):
-            if self._process_normalization:
-                self._consumers[self.experiment.darks] = self._average_images('darks')
-                self._consumers[self.experiment.flats] = self._average_images('flats')
-            else:
-                self._consumers[self.experiment.darks] = self.dark_result
-                self._consumers[self.experiment.flats] = self.flat_result
+            self._consumers[self.experiment.darks] = self._create_averaging('darks')
+            self._consumers[self.experiment.flats] = self._create_averaging('flats')
         self._consumers[self.experiment.radios] = self._reconstruct
 
         for acq, consumer in self._consumers.items():
