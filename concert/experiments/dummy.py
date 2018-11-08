@@ -39,10 +39,27 @@ class ImagingFileExperiment(Experiment):
     .. py:attribute:: radio_dir
 
         Subdirectory name with radiographic images
+
+    .. py:attribute:: roi_x0
+
+        First read column
+
+    .. py:attribute:: roi_width
+
+        Number of read columns
+
+    .. py:attribute:: roi_y0
+
+        First read row
+
+    .. py:attribute:: roi_height
+
+        Number of read rows
     """
 
     def __init__(self, directory, num_darks, num_flats, num_radios, darks_dir='darks',
-                 flats_dir='flats', radios_dir='projections', walker=None, separate_scans=True,
+                 flats_dir='flats', radios_dir='projections', roi_x0=None, roi_width=None,
+                 roi_y0=None, roi_height=None, walker=None, separate_scans=True,
                  name_fmt='scan_{:>04}'):
         self.directory = directory
         self.num_darks = num_darks
@@ -51,6 +68,10 @@ class ImagingFileExperiment(Experiment):
         self.darks_dir = darks_dir
         self.flats_dir = flats_dir
         self.radios_dir = radios_dir
+        self.roi_x0 = roi_x0
+        self.roi_width = roi_width
+        self.roi_y0 = roi_y0
+        self.roi_height = roi_height
         darks = Acquisition('darks', self.take_darks)
         flats = Acquisition('flats', self.take_flats)
         radios = Acquisition('radios', self.take_radios)
@@ -58,6 +79,15 @@ class ImagingFileExperiment(Experiment):
 
     def _produce_images(self, subdirectory, num):
         camera = FileCamera(os.path.join(self.directory, subdirectory))
+        if self.roi_x0 is not None:
+            camera.roi_x0 = self.roi_x0
+        if self.roi_width is not None:
+            camera.roi_width = self.roi_width
+        if self.roi_y0 is not None:
+            camera.roi_y0 = self.roi_y0
+        if self.roi_height is not None:
+            camera.roi_height = self.roi_height
+
         for i in wrap_iterable(range(num)):
             yield camera.grab()
 
