@@ -24,7 +24,8 @@ def read_image(filename):
 
 def read_tiff(file_name):
     """Read tiff file from disk by :py:mod:`tifffile` module."""
-    return tifffile.imread(file_name)
+    with tifffile.TiffFile(file_name) as f:
+        return f.asarray(out='memmap')
 
 
 READERS = {".tif": read_tiff,
