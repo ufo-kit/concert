@@ -258,7 +258,7 @@ class OnlineReconstruction(Addon):
             write_coro = self.walker.write(dsetname='slice_{:>04}.tif')
             self.walker.ascend()
             consumers.append(write_coro)
-        consumer = broadcast(*consumers)
+        consumer = broadcast(*consumers) if consumers else None
 
         return self.manager(consumer=consumer, block=self.block, wait_for_events=events,
                             wait_for_projections=self.wait_for_projections)
