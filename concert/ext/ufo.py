@@ -481,7 +481,7 @@ def compute_rotation_axis(sinogram, initial_step=None, max_iterations=14,
 
 
 class GeneralBackprojectArgs(object):
-    def __init__(self, width, height, center_position_x, center_position_z, number,
+    def __init__(self, center_position_x, center_position_z, number,
                  overall_angle=np.pi):
         self._slice_metric = None
         self._slice_metrics = ['min', 'max', 'sum', 'mean', 'var', 'std', 'skew',
@@ -495,8 +495,8 @@ class GeneralBackprojectArgs(object):
                     default = settings['type'](default)
                 setattr(self, arg.replace('-', '_'), default)
         self.y = 0
-        self.width = width
-        self.height = height
+        self.height = None
+        self.width = None
         self.center_position_x = center_position_x
         self.center_position_z = center_position_z
         self.number = number
@@ -534,6 +534,8 @@ class GeneralBackprojectArgs(object):
 class GeneralBackproject(InjectProcess):
     def __init__(self, args, resources=None, gpu_index=0, flat=None, dark=None, region=None,
                  copy_inputs=False, before_download_event=None):
+        if args.width is None or args.height is None:
+            raise GeneralBackprojectError('width and height must be set in GeneralBackprojectArgs')
         self.before_download_event = before_download_event
         scheduler = Ufo.FixedScheduler()
         if resources:
@@ -662,10 +664,10 @@ class GeneralBackprojectManager(object):
         self._process_event = threading.Event()
         self._consume_event.set()
         self._process_event.set()
-        self._update()
 
     def _update(self):
         """Update the regions and volume sizes based on changed args or region."""
+        st = time.time()
         x_region, y_region, z_region = get_reconstruction_regions(self.args)
         if not self._resources:
             self._resources = [Ufo.Resources()]
@@ -696,6 +698,7 @@ class GeneralBackprojectManager(object):
         if self.volume is None or shape != self.volume.shape:
             self.join_consuming()
             self.volume = np.empty(shape, dtype=np.float32)
+        LOG.debug('Backprojector manager update duration: %g s', time.time() - st)
 
     def produce(self):
         sleep_time = self.projection_sleep_time.to(q.s).magnitude
@@ -931,14 +934,15 @@ class GeneralBackprojectManager(object):
             # works as expected
             self._process_event.set()
 
-        if not wait_for_projections:
-            arg_thread = threading.Thread(target=prepare_and_start)
-            arg_thread.start()
-        LOG.debug('Backprojectors initialization duration: %.2f ms', (time.time() - st) * 1000)
-
+        arg_thread = None
         try:
             projection = yield
-            in_shape = (self.args.number, self.args.height, self.args.width)
+            (self.args.height, self.args.width) = projection.shape
+            if not wait_for_projections:
+                arg_thread = threading.Thread(target=prepare_and_start)
+                arg_thread.start()
+            LOG.debug('Backprojectors initialization duration: %.2f ms', (time.time() - st) * 1000)
+            in_shape = (self.args.number,) + projection.shape
             if (self.projections is None or in_shape != self.projections.shape or
                     projection.dtype != self.projections.dtype):
                 self.projections = np.empty(in_shape, dtype=projection.dtype)
@@ -965,7 +969,8 @@ class GeneralBackprojectManager(object):
                 self._aborted = True
                 LOG.error('Not enough projections received (%d from %d)',
                           self._num_received_projections, self.args.number)
-                arg_thread.join()
+                if arg_thread:
+                    arg_thread.join()
 
     def abort(self):
         self._aborted = True
