@@ -549,7 +549,8 @@ class GeneralBackproject(InjectProcess):
             self.args.region = region
         LOG.debug('Creating reconstructor for gpu %d, region: %s', gpu_index, self.args.region)
         geometry = CTGeometry(self.args)
-        geometry.optimize_args()
+        if not self.args.disable_projection_crop:
+            geometry.optimize_args()
         self.args = geometry.args
         self.dark = dark
         self.flat = flat
