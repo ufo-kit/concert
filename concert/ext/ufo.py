@@ -665,6 +665,16 @@ class GeneralBackprojectManager(object):
         self._process_event = threading.Event()
         self._consume_event.set()
         self._process_event.set()
+        self._num_received_projections = 0
+        self._num_processed_projections = 0
+
+    @property
+    def num_received_projections(self):
+        return self._num_received_projections
+
+    @property
+    def num_processed_projections(self):
+        return self._num_processed_projections
 
     def _update(self):
         """Update the regions and volume sizes based on changed args or region."""
@@ -712,6 +722,7 @@ class GeneralBackprojectManager(object):
                 yield None
                 break
             yield self.projections[i]
+            self._num_processed_projections = i + 1
 
     @coroutine
     def consume(self, offset):
@@ -876,6 +887,7 @@ class GeneralBackprojectManager(object):
         LOG.debug('Backprojector manager start')
         st = time.time()
         self._num_received_projections = 0
+        self._num_processed_projections = 0
         self._aborted = False
 
         def prepare_and_start():
