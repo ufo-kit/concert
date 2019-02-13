@@ -134,14 +134,16 @@ class Camera(Base):
 class FileCamera(Base):
 
     """A camera that reads files in a *directory*. If *reset_on_start* is True the files are read
-    from the beginning when the recording starts.
+    from the beginning when the recording starts. *start_index* specifies the index of the first
+    read image (not file index, in case the files are multi-page).
     """
 
-    def __init__(self, directory, reset_on_start=True):
+    def __init__(self, directory, reset_on_start=True, start_index=0):
         # Let users change the directory
         self.directory = directory
         super(FileCamera, self).__init__()
 
+        self._start_index = start_index
         self.index = 0
         self._image_index = 0
         self.reset_on_start = reset_on_start
@@ -152,6 +154,7 @@ class FileCamera(Base):
             raise base.CameraError("No files found")
 
         self._read_next_file()
+        self._fastforward()
         self._roi_width = self._image.shape[-1] * q.pixel
         self._roi_height = self._image.shape[-2] * q.pixel
 
@@ -161,6 +164,7 @@ class FileCamera(Base):
             self.index = 0
             self._image_index = 0
             self._read_next_file()
+            self._fastforward()
 
     def _read_next_file(self):
         if self.index < len(self.filenames):
@@ -172,6 +176,16 @@ class FileCamera(Base):
                 self._image = self._image[np.newaxis, :]
         else:
             self._image = None
+
+    def _fastforward(self):
+        image_index = self._image.shape[0]
+        while image_index <= self._start_index:
+            self._read_next_file()
+            if self._image is None:
+                raise base.CameraError('Not enough files for specified start index')
+            image_index += self._image.shape[0]
+
+        self._image_index = self._start_index - image_index + self._image.shape[0]
 
     def _grab_real(self):
         if self._image is None:
