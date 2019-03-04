@@ -568,7 +568,7 @@ class GeneralBackproject(InjectProcess):
             raise GeneralBackprojectError('Region does not fit to the GPU memory')
 
         graph = Ufo.TaskGraph()
-        if not (args.only_bp or dark is None or flat is None):
+        if dark is not None and flat is not None:
             ffc = get_task('flat-field-correct', processing_node=gpu)
             ffc.props.fix_nan_and_inf = self.args.fix_nan_and_inf
             ffc.props.absorption_correct = self.args.absorptivity
@@ -577,7 +577,8 @@ class GeneralBackproject(InjectProcess):
             first = None
 
         (first, last) = setup_graph(self.args, graph, x_region, y_region, self.args.region,
-                                    first, gpu=gpu, index=gpu_index, do_output=False)
+                                    source=first, gpu=gpu, index=gpu_index, do_output=False,
+                                    make_reader=False)
         output_dims = 2
         if args.slice_metric:
             output_dims = 1
@@ -589,7 +590,9 @@ class GeneralBackproject(InjectProcess):
                 last = gradient_task
             measure_task = get_task('measure', processing_node=gpu, axis=-1, metric=metric)
             graph.connect_nodes(last, measure_task)
-        elif args.only_bp:
+        elif first == last:
+            # There are no other processing steps other than back projection
+            LOG.debug('Only back projection, no other processing')
             graph = first
 
         super(GeneralBackproject, self).__init__(graph, get_output=True, output_dims=output_dims,
