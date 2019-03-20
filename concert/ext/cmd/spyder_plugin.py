@@ -31,9 +31,4 @@ class SpyderCommand(Command):
         # profile in order to not mess with the user's settings.
         CONF.set('console', 'pythonexecutable', sys.executable)
 
-        main = spyder.MainWindow(Bunch(opts))
-        main.setup()
-        main.show()
-        main.open_file(cs.path(session))
-
-        app.exec_()
+        spyder.run_spyder(app, Bunch(opts), [cs.path(session)])
