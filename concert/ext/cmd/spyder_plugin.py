@@ -10,8 +10,15 @@ class SpyderCommand(Command):
         super(SpyderCommand, self).__init__('spyder', opts)
 
     def run(self, session):
-        from spyderlib import spyder
-        from spyderlib.config import CONF
+        try:
+            from spyderlib import spyder
+            from spyderlib.config import CONF
+            spyder_version = 2
+        except ImportError:
+            # Spyder 3
+            import spyder.app.mainwindow as spyder
+            from spyder.config.main import CONF
+            spyder_version = 3
 
         cs.exit_if_not_exists(session)
         app = spyder.initialize()
@@ -25,6 +32,9 @@ class SpyderCommand(Command):
                 'multithreaded': False,
                 'light': False,
                 'new_instance': True}
+        if spyder_version == 3:
+            opts['project'] = None
+            opts['window_title'] = 'Concert'
 
         # The python executable is set explicitly here, because Spyder tends
         # not to pick up the one used in a virtualenv. This should be set in a
