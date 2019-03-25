@@ -1,4 +1,5 @@
 """This module provides a simple dummy camera."""
+import glob
 import os
 import time
 import numpy as np
@@ -133,22 +134,27 @@ class Camera(Base):
 
 class FileCamera(Base):
 
-    """A camera that reads files in a *directory*. If *reset_on_start* is True the files are read
-    from the beginning when the recording starts. *start_index* specifies the index of the first
-    read image (not file index, in case the files are multi-page).
+    """A camera that reads files specified by *pattern*. It can be a directory, in which case all
+    the files inside are read, or it can be a pattern and only the matching files will be read. If
+    *reset_on_start* is True the files are read from the beginning when the recording starts.
+    *start_index* specifies the index of the first read image (not file index, in case the files are
+    multi-page).
     """
 
-    def __init__(self, directory, reset_on_start=True, start_index=0):
+    def __init__(self, pattern, reset_on_start=True, start_index=0):
         # Let users change the directory
-        self.directory = directory
+        self.pattern = pattern
         super(FileCamera, self).__init__()
 
         self._start_index = start_index
         self.index = 0
         self._image_index = 0
         self.reset_on_start = reset_on_start
-        self.filenames = [os.path.join(directory, file_name) for file_name in
-                          sorted(os.listdir(directory))]
+        if os.path.isdir(pattern):
+            self.filenames = [os.path.join(pattern, file_name) for file_name in
+                              sorted(os.listdir(pattern))]
+        else:
+            self.filenames = sorted(glob.glob(pattern))
 
         if not self.filenames:
             raise base.CameraError("No files found")
