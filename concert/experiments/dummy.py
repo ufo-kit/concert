@@ -57,17 +57,17 @@ class ImagingFileExperiment(Experiment):
         Number of read rows
     """
 
-    def __init__(self, directory, num_darks, num_flats, num_radios, darks_dir='darks',
-                 flats_dir='flats', radios_dir='projections', roi_x0=None, roi_width=None,
+    def __init__(self, directory, num_darks, num_flats, num_radios, darks_pattern='darks',
+                 flats_pattern='flats', radios_pattern='projections', roi_x0=None, roi_width=None,
                  roi_y0=None, roi_height=None, walker=None, separate_scans=True,
                  name_fmt='scan_{:>04}'):
         self.directory = directory
         self.num_darks = num_darks
         self.num_flats = num_flats
         self.num_radios = num_radios
-        self.darks_dir = darks_dir
-        self.flats_dir = flats_dir
-        self.radios_dir = radios_dir
+        self.darks_pattern = darks_pattern
+        self.flats_pattern = flats_pattern
+        self.radios_pattern = radios_pattern
         self.roi_x0 = roi_x0
         self.roi_width = roi_width
         self.roi_y0 = roi_y0
@@ -77,8 +77,8 @@ class ImagingFileExperiment(Experiment):
         radios = Acquisition('radios', self.take_radios)
         super(ImagingFileExperiment, self).__init__([darks, flats, radios], walker=walker)
 
-    def _produce_images(self, subdirectory, num):
-        camera = FileCamera(os.path.join(self.directory, subdirectory))
+    def _produce_images(self, pattern, num):
+        camera = FileCamera(os.path.join(self.directory, pattern))
         if self.roi_x0 is not None:
             camera.roi_x0 = self.roi_x0
         if self.roi_width is not None:
@@ -92,10 +92,10 @@ class ImagingFileExperiment(Experiment):
             yield camera.grab()
 
     def take_darks(self):
-        return self._produce_images(self.darks_dir, self.num_darks)
+        return self._produce_images(self.darks_pattern, self.num_darks)
 
     def take_flats(self):
-        return self._produce_images(self.flats_dir, self.num_flats)
+        return self._produce_images(self.flats_pattern, self.num_flats)
 
     def take_radios(self):
-        return self._produce_images(self.radios_dir, self.num_radios)
+        return self._produce_images(self.radios_pattern, self.num_radios)
