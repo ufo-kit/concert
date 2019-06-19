@@ -6,7 +6,7 @@ import functools
 import inspect
 import types
 import threading
-from concert.helpers import memoize
+from concert.helpers import hasattr_raise_exceptions, memoize
 from concert.async import async, wait, busy_wait
 from concert.quantities import q
 
@@ -140,7 +140,7 @@ def transition(immediate=None, target=None):
     def wrapped(func):
         @functools.wraps(func)
         def call_func(instance, *args, **kwargs):
-            if not hasattr(instance, 'state'):
+            if not hasattr_raise_exceptions(instance, 'state'):
                 raise FSMError('Changing state requires state parameter')
 
             # Store the original in case target is None
@@ -178,7 +178,7 @@ def check(source='*', target=None):
 
         @functools.wraps(func)
         def call_func(instance, *args, **kwargs):
-            if not hasattr(instance, 'state'):
+            if not hasattr_raise_exceptions(instance, 'state'):
                 raise FSMError('Transitioning requires state parameter')
 
             if instance.state not in sources and '*' not in sources:

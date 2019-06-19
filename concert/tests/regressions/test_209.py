@@ -35,7 +35,7 @@ class TestIssue209(TestCase):
         """
         fancy = ImproperlyImplemented()
 
-        with self.assertRaises(FSMError):
+        with self.assertRaises(NotImplementedError):
             fancy.position = 20 * q.deg
 
     def test_shared_parameters(self):

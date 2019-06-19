@@ -18,7 +18,12 @@ class SomeDevice(Device):
     def __init__(self):
         super(SomeDevice, self).__init__()
         self.velocity = STOP_VELOCITY
+        self.faulty = False
         self._error = False
+
+    @transition(target='standby')
+    def make_transition(self):
+        pass
 
     @check(source='standby', target='moving')
     @transition(target='moving')
@@ -44,6 +49,8 @@ class SomeDevice(Device):
         self.velocity = STOP_VELOCITY
 
     def _get_state(self):
+        if self.faulty:
+            raise RuntimeError()
         if self._error:
             return 'error'
         return 'standby' if not self.velocity else 'moving'
@@ -193,3 +200,15 @@ class TestStateMachine(TestCase):
         dev = StatelessDevice()
         with self.assertRaises(FSMError):
             dev.change()
+
+    def test_transition_exception(self):
+        dev = SomeDevice()
+        dev.faulty = True
+        with self.assertRaises(RuntimeError):
+            dev.make_transition()
+
+    def test_check_exception(self):
+        dev = SomeDevice()
+        dev.faulty = True
+        with self.assertRaises(RuntimeError):
+            dev.start_moving()
