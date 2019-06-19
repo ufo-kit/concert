@@ -245,3 +245,15 @@ class Region(object):
 
     def __str__(self):
         return '{}: {}'.format(self.parameter.name, self.values)
+
+
+def hasattr_raise_exceptions(obj, name):
+    """Check whether object *obj* has attribute *name*. Unlike Python's implementation, return False
+    only if AttributeError is raised during getattr call, other exceptions are raised.
+    """
+    try:
+        getattr(obj, name)
+    except AttributeError:
+        return False
+
+    return True
