@@ -20,7 +20,7 @@ class BlurringCamera(DummyCameraBase):
 
     def __init__(self, motor):
         super(BlurringCamera, self).__init__()
-        self._original = scipy.misc.lena()
+        self._original = scipy.misc.ascent()
         self.motor = motor
 
     def _grab_real(self):
