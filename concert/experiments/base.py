@@ -7,6 +7,7 @@ import logging
 import time
 from concert.async import async
 from concert.progressbar import wrap_iterable
+from concert.base import Parameterizable, Parameter
 
 
 LOG = logging.getLogger(__name__)
@@ -71,7 +72,7 @@ class Acquisition(object):
         return "Acquisition({})".format(self.name)
 
 
-class Experiment(object):
+class Experiment(Parameterizable):
 
     """
     Experiment base class. An experiment can be run multiple times with the output data and log
@@ -99,21 +100,44 @@ class Experiment(object):
 
     """
 
+    iteration = Parameter()
+    separate_scans = Parameter()
+    name_fmt = Parameter()
+    
     def __init__(self, acquisitions, walker=None, separate_scans=True, name_fmt='scan_{:>04}'):
         self._acquisitions = []
         for acquisition in acquisitions:
             self.add(acquisition)
         self.walker = walker
-        self.separate_scans = separate_scans
-        self.name_fmt = name_fmt
-        self.iteration = 1
+        self._separate_scans = separate_scans
+        self._name_fmt = name_fmt
+        self._iteration = 1
         self._aborted = False
+        super(Experiment, self).__init__()
 
         if self.separate_scans and self.walker:
             # The data is not supposed to be overwritten, so find an iteration which
             # hasn't been used yet
             while self.walker.exists(self.name_fmt.format(self.iteration)):
                 self.iteration += 1
+
+    def _get_iteration(self):
+        return self._iteration
+
+    def _set_iteration(self, iteration):
+        self._iteration = iteration
+
+    def _get_separate_scans(self):
+        return self._separate_scans
+
+    def _set_separate_scans(self, separate_scans):
+        self._separate_scans = separate_scans
+
+    def _get_name_fmt(self):
+        return self._name_fmt
+
+    def _set_name_fms(self, fmt):
+        self._name_fmt = fmt
 
     def prepare(self):
         """Gets executed before every experiment run."""
