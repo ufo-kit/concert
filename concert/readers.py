@@ -36,6 +36,8 @@ class FileSequenceReader(object):
     def read(self, index):
         file_index = 0
         while index >= 0:
+            if file_index >= len(self._filenames):
+                raise SequenceReaderError('image index greater than sequence length')
             index -= self._get_num_images_in_file(self._filenames[file_index])
             file_index += 1
 
