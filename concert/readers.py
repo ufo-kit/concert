@@ -15,6 +15,8 @@ class FileSequenceReader(object):
         if os.path.isdir(file_prefix):
             file_prefix = os.path.join(file_prefix, '*' + ext)
         self._filenames = sorted(glob.glob(file_prefix))
+        if not self._filenames:
+            raise SequenceReaderError("No files matching `{}' found".format(file_prefix))
         self._lengths = {}
         self._file = None
         self._filename = None
