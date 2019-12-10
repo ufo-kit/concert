@@ -19,6 +19,12 @@ class FileSequenceReader(object):
         self._file = None
         self._filename = None
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
     @property
     def num_images(self):
         num = 0
