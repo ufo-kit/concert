@@ -36,6 +36,9 @@ class FileSequenceReader(object):
         return num
 
     def read(self, index):
+        if index < 0:
+            # Enables negative indexing
+            index += self.num_images
         file_index = 0
         while index >= 0:
             if file_index >= len(self._filenames):
