@@ -17,6 +17,7 @@ class FileSequenceReader(object):
         self._filenames = sorted(glob.glob(file_prefix))
         self._lengths = {}
         self._file = None
+        self._filename = None
 
     @property
     def num_images(self):
@@ -34,18 +35,22 @@ class FileSequenceReader(object):
 
         file_index -= 1
         index += self._lengths[self._filenames[file_index]]
+        self._open(self._filenames[file_index])
 
         return self._read_real(index)
 
     def _open(self, filename):
-        if self._file:
-            self.close()
-        self._open_real(filename)
+        if self._filename != filename:
+            if self._filename:
+                self.close()
+            self._file = self._open_real(filename)
+            self._filename = filename
 
     def close(self):
-        if self._file:
+        if self._filename:
             self._close_real()
             self._file = None
+            self._filename = None
 
     def _get_num_images_in_file(self, filename):
         if filename not in self._lengths:
@@ -55,6 +60,7 @@ class FileSequenceReader(object):
         return self._lengths[filename]
 
     def _open_real(self, filename):
+        """Returns an open file."""
         raise NotImplementedError
 
     def _close_real(self, filename):
@@ -73,7 +79,7 @@ class TiffSequenceReader(FileSequenceReader):
 
     def _open_real(self, filename):
         import tifffile
-        self._file = tifffile.TiffFile(filename)
+        return tifffile.TiffFile(filename)
 
     def _close_real(self):
         self._file.close()
