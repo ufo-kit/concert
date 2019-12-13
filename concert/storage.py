@@ -84,7 +84,9 @@ def write_images(writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0, by
     *bytes_per_file* bytes has been written. If it is 0, then one file per image is created.
     *writer* is a subclass of :class:`.writers.ImageWriter`. *start_index* specifies the number in
     the first file name, e.g. for the default *prefix* and *start_index* 100, the first file name
-    will be image_00100.tif.
+    will be image_00100.tif. If *prefix* is not formattable images are appended to the filename
+    specified by *prefix*. Make sure you call close() on this coroutine to make sure GeneratorExit
+    is called and files are closed.
     """
     im_writer = None
     file_index = 0
