@@ -90,6 +90,10 @@ def write_images(writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0, by
     file_index = 0
     written = 0
     dir_name = os.path.dirname(prefix)
+    # If there is no formatting user wants just one file, in which case we append
+    append = prefix.format(0) == prefix
+    if append:
+        im_writer = writer(prefix, bytes_per_file, append=True)
 
     if dir_name and not os.path.exists(dir_name):
         create_directory(dir_name)
@@ -97,7 +101,7 @@ def write_images(writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0, by
     try:
         while True:
             image = yield
-            if not im_writer or written + image.nbytes > bytes_per_file:
+            if not append and (not im_writer or written + image.nbytes > bytes_per_file):
                 if im_writer:
                     im_writer.close()
                 im_writer = writer(prefix.format(start_index + file_index), bytes_per_file)
