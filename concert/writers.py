@@ -24,7 +24,7 @@ class TiffWriter(ImageWriter):
 class LibTiffWriter(ImageWriter):
     def __init__(self, filename, bytes_per_file):
         from libtiff import TIFF
-        self._writer = TIFF.open(filename, 'w')
+        self._writer = TIFF.open(filename, 'w8' if bytes_per_file >= 2 ** 31 else 'w')
 
     def write(self, image):
         self._writer.write_image(image)
