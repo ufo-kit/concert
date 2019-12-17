@@ -7,7 +7,7 @@ import logging
 import time
 from concert.async import async
 from concert.progressbar import wrap_iterable
-from concert.base import Parameterizable, Parameter
+from concert.base import Parameterizable, Parameter, State, check
 
 
 LOG = logging.getLogger(__name__)
@@ -103,7 +103,8 @@ class Experiment(Parameterizable):
     iteration = Parameter()
     separate_scans = Parameter()
     name_fmt = Parameter()
-    
+    state = State(default='standby')
+
     def __init__(self, acquisitions, walker=None, separate_scans=True, name_fmt='scan_{:>04}'):
         self._acquisitions = []
         for acquisition in acquisitions:
@@ -112,7 +113,6 @@ class Experiment(Parameterizable):
         self._separate_scans = separate_scans
         self._name_fmt = name_fmt
         self._iteration = 1
-        self._aborted = False
         super(Experiment, self).__init__()
 
         if self.separate_scans and self.walker:
@@ -197,11 +197,13 @@ class Experiment(Parameterizable):
         raise ExperimentError("Acquisition with name `{}' not found".format(name))
 
     @async
+    @check(source=['running'], target=['standby'])
     def abort(self):
+        self._state_value = 'aborting'
         LOG.info('Experiment aborted')
-        self._aborted = True
         for acq in self.acquisitions:
             acq.abort().join()
+        self._state_value = 'standby'
 
     def acquire(self):
         """
@@ -210,19 +212,20 @@ class Experiment(Parameterizable):
         unlike :meth:`~.Experiment.run`.
         """
         for acq in wrap_iterable(self._acquisitions):
-            if self._aborted:
+            if self.state != 'running':
                 break
             acq()
 
     @async
+    @check(source=['standby', 'error'], target='standby')
     def run(self):
         """
         run()
 
         Compute the next iteration and run the :meth:`~.base.Experiment.acquire`.
         """
+        self._state_value = 'running'
         start_time = time.time()
-        self._aborted = False
         LOG.debug('Experiment iteration %d start', self.iteration)
         if self.separate_scans and self.walker:
             self.walker.descend(self.name_fmt.format(self.iteration))
@@ -232,6 +235,7 @@ class Experiment(Parameterizable):
             self.acquire()
             self.finish()
         except:
+            self._state_value = 'error'
             LOG.exception('Error while running experiment')
             raise
         finally:
@@ -240,6 +244,8 @@ class Experiment(Parameterizable):
             LOG.debug('Experiment iteration %d duration: %.2f s',
                       self.iteration, time.time() - start_time)
             self.iteration += 1
+
+        self._state_value = 'standby'
 
 
 class ExperimentError(Exception):
