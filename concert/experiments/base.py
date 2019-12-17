@@ -136,7 +136,7 @@ class Experiment(Parameterizable):
     def _get_name_fmt(self):
         return self._name_fmt
 
-    def _set_name_fms(self, fmt):
+    def _set_name_fmt(self, fmt):
         self._name_fmt = fmt
 
     def prepare(self):
