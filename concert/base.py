@@ -499,6 +499,29 @@ def quantity(unit=None, lower=None, upper=None, data=None, check=None, help=None
     return wrapper
 
 
+class ExternalLimitQuantity(Quantity):
+    """
+    A :class:`.Quantity` that reads external limits (e.g. given from a physical device, that knows  its current limits).
+    """
+    def __init__(self, unit, fget=None, fset=None, lower=None, upper=None, data=None, check=None, help=None,
+                 limit_min_get=None, limit_max_get=None):
+        """
+        *unit*, *fget*, *fset*, *lower*, *upper*, *data*, *check* and *help* are identical to the
+        :class:`.Quantity` constructor arguments.
+
+        *limit_min_get* and *limit_max_get* are callable that return the external limits in units of *unit*.
+        *limit_min_get* must always return a smaller value that *limit_max_get*.
+
+        The current values for the limits are [max(lower, limit_min_get()), min(upper, limit_max_get())], allowing the
+        user to decrease the range of the external limits.
+
+        """
+        super(ExternalLimitQuantity, self).__init__(unit=unit, fget=fget, fset=fset, lower=lower, upper=upper,
+                                                    data=data, check=check, help=help)
+        self.limit_min_get = limit_min_get if limit_min_get is not None else lambda: -float('Inf') * unit
+        self.limit_max_get = limit_max_get if limit_max_get is not None else lambda: float('Inf') * unit
+
+
 class ParameterValue(object):
 
     """Value object of a :class:`.Parameter`."""
@@ -711,6 +734,34 @@ class QuantityValue(ParameterValue):
                             format(self._parameter.unit))
 
 
+class ExternalLimitQuantityValue(QuantityValue):
+    def __init__(self, instance, quantitiy):
+        super(ExternalLimitQuantityValue, self).__init__(instance, quantitiy)
+        self._limit_min_get = quantitiy.limit_min_get
+        self._limit_max_get = quantitiy.limit_max_get
+
+    @property
+    def lower(self):
+        return max(self._lower, self._limit_min_get())
+
+    @property
+    def upper(self):
+        return min(self._upper, self._limit_max_get())
+
+    @lower.setter
+    def lower(self, value):
+        self._check_limit(value)
+        if value >= self._upper:
+            raise ValueError('Lower limit must be lower than upper')
+        self._lower = value
+
+    @upper.setter
+    def upper(self, value):
+        self._check_limit(value)
+        if value <= self._lower:
+            raise ValueError('Upper limit must be greater than lower')
+        self._upper = value
+
 class SelectionValue(ParameterValue):
 
     """Descriptor for :class:`.Selection` class."""
@@ -811,10 +862,12 @@ class Parameterizable(object):
         self.__class__ = type(self.__class__.__name__, self.__class__.__bases__, merged_dict)
 
     def _install_parameter(self, param):
-        if isinstance(param, Quantity):
-            value = QuantityValue(self, param)
+        if isinstance(param, ExternalLimitQuantity):
+            value = ExternalLimitQuantityValue(self, param)
         elif isinstance(param, Selection):
             value = SelectionValue(self, param)
+        elif isinstance(param, Quantity):
+            value = QuantityValue(self, param)
         else:
             value = ParameterValue(self, param)
 
