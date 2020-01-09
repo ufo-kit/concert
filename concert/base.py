@@ -735,10 +735,10 @@ class QuantityValue(ParameterValue):
 
 
 class ExternalLimitQuantityValue(QuantityValue):
-    def __init__(self, instance, quantitiy):
-        super(ExternalLimitQuantityValue, self).__init__(instance, quantitiy)
-        self._limit_min_get = quantitiy.limit_min_get
-        self._limit_max_get = quantitiy.limit_max_get
+    def __init__(self, instance, quantity):
+        super(ExternalLimitQuantityValue, self).__init__(instance, quantity)
+        self._limit_min_get = quantity.limit_min_get
+        self._limit_max_get = quantity.limit_max_get
 
     @property
     def lower(self):
@@ -747,6 +747,22 @@ class ExternalLimitQuantityValue(QuantityValue):
     @property
     def upper(self):
         return min(self._upper, self._limit_max_get())
+
+    @property
+    def upper_user(self):
+        return self._upper
+
+    @property
+    def lower_user(self):
+        return self._lower
+
+    @property
+    def lower_external(self):
+        return self._limit_min_get()
+
+    @property
+    def upper_external(self):
+        return self._limit_max_get()
 
     @lower.setter
     def lower(self, value):
@@ -761,6 +777,16 @@ class ExternalLimitQuantityValue(QuantityValue):
         if value <= self._lower:
             raise ValueError('Upper limit must be greater than lower')
         self._upper = value
+
+    @property
+    def info_table(self):
+        table = super(ExternalLimitQuantityValue, self).info_table
+        table.add_row(["lower_user", self.lower_user])
+        table.add_row(["upper_user", self.upper_user])
+        table.add_row(["lower_external", self.lower_external])
+        table.add_row(["upper_external", self.upper_external])
+        return table
+
 
 class SelectionValue(ParameterValue):
 
