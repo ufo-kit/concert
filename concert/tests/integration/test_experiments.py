@@ -4,6 +4,9 @@ files creation.
 """
 import numpy as np
 import os.path as op
+import tempfile
+import shutil
+from time import sleep
 from concert.quantities import q
 from concert.coroutines.base import coroutine, inject
 from concert.coroutines.sinks import Accumulate
@@ -13,7 +16,7 @@ from concert.experiments.imaging import (tomo_angular_step, tomo_max_speed,
 from concert.experiments.addons import Addon, Consumer, ImageWriter, Accumulator
 from concert.devices.cameras.dummy import Camera
 from concert.tests import TestCase, suppressed_logging, assert_almost_equal, VisitChecker
-from concert.storage import DummyWalker
+from concert.storage import DummyWalker, DirectoryWalker
 
 
 class DummyAddon(Addon):
@@ -27,6 +30,25 @@ class DummyAddon(Addon):
     def _detach(self):
         self.attached_num_times -= 1
 
+
+class ExperimentSimple(Experiment):
+    def __init__(self, walker):
+        acq = Acquisition("test", self._run_test_acq)
+        super(ExperimentSimple, self).__init__([acq], walker)
+
+    def _run_test_acq(self):
+        for i in range(10):
+            sleep(0.1)
+            yield np.random.random((100, 100))
+
+
+class ExperimentException(Experiment):
+    def __init__(self, walker):
+        acq = Acquisition("test", self._run_test_acq)
+        super(ExperimentException, self).__init__([acq], walker)
+
+    def _run_test_acq(self):
+        raise Exception("Run test acq")
 
 @suppressed_logging
 def test_tomo_angular_step():
@@ -242,3 +264,35 @@ class TestExperiment(TestExperimentBase):
         # Second time, cannot be called
         addon.detach()
         self.assertEqual(0, addon.attached_num_times)
+
+
+class TestExperimentStates(TestCase):
+    def tearDown(self):
+        shutil.rmtree(self.data_dir)
+
+    def setUp(self):
+        super(TestExperimentStates, self).setUp()
+        self.data_dir = tempfile.mkdtemp()
+        self.walker = DirectoryWalker(root=self.data_dir)
+
+    def test_experiment_state_normal(self):
+        exp = ExperimentSimple(self.walker)
+        self.assertEqual(exp.state, "standby")
+        exp_handle = exp.run()
+        sleep(0.1)
+        self.assertEqual(exp.state, "running")
+        exp_handle.join()
+        self.assertEqual(exp.state, "standby")
+        exp_handle = exp.run()
+        sleep(0.1)
+        self.assertEqual(exp.state, "running")
+        exp.abort().join()
+        self.assertEqual(exp.state, "standby")
+        exp_handle.join()
+
+    def test_experiment_exception(self):
+        exp = ExperimentException(self.walker)
+        self.assertEqual(exp.state, "standby")
+        exp_handle = exp.run()
+        sleep(0.1)
+        self.assertEqual(exp.state, "error")
