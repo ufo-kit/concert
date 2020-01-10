@@ -411,7 +411,7 @@ class Quantity(Parameter):
     """A :class:`.Parameter` associated with a unit."""
 
     def __init__(self, unit, fget=None, fset=None, lower=None, upper=None,
-                 data=None, check=None, help=None):
+                 data=None, check=None, help=None, limit_min_get=None, limit_max_get=None):
         """
         *fget*, *fset*, *data*, *check* and *help* are identical to the
         :class:`.Parameter` constructor arguments.
@@ -425,6 +425,13 @@ class Quantity(Parameter):
 
         self.upper = upper if upper is not None else float('Inf') * unit
         self.lower = lower if lower is not None else -float('Inf') * unit
+        if len(self.upper) == 1:
+            self.limit_min_get = limit_min_get if limit_min_get is not None else lambda: -float('Inf') * unit
+            self.limit_max_get = limit_max_get if limit_max_get is not None else lambda: float('Inf') * unit
+        else:
+            self.limit_min_get = limit_min_get if limit_min_get is not None else lambda: np.rep(-float('Inf'), len(self.upper)) * unit
+            self.limit_max_get = limit_max_get if limit_max_get is not None else lambda: np.rep(float('Inf'), len(self.upper)) * unit
+
 
     def convert(self, value):
         if self.unit == "delta_degC":
@@ -497,29 +504,6 @@ def quantity(unit=None, lower=None, upper=None, data=None, check=None, help=None
                         data=data, check=check, help=doc)
 
     return wrapper
-
-
-class ExternalLimitQuantity(Quantity):
-    """
-    A :class:`.Quantity` that reads external limits (e.g. given from a physical device, that knows  its current limits).
-    """
-    def __init__(self, unit, fget=None, fset=None, lower=None, upper=None, data=None, check=None, help=None,
-                 limit_min_get=None, limit_max_get=None):
-        """
-        *unit*, *fget*, *fset*, *lower*, *upper*, *data*, *check* and *help* are identical to the
-        :class:`.Quantity` constructor arguments.
-
-        *limit_min_get* and *limit_max_get* are callable that return the external limits in units of *unit*.
-        *limit_min_get* must always return a smaller value that *limit_max_get*.
-
-        The current values for the limits are [max(lower, limit_min_get()), min(upper, limit_max_get())], allowing the
-        user to decrease the range of the external limits.
-
-        """
-        super(ExternalLimitQuantity, self).__init__(unit=unit, fget=fget, fset=fset, lower=lower, upper=upper,
-                                                    data=data, check=check, help=help)
-        self.limit_min_get = limit_min_get if limit_min_get is not None else lambda: -float('Inf') * unit
-        self.limit_max_get = limit_max_get if limit_max_get is not None else lambda: float('Inf') * unit
 
 
 class ParameterValue(object):
@@ -664,6 +648,8 @@ class QuantityValue(ParameterValue):
         super(QuantityValue, self).__init__(instance, quantity)
         self._lower = quantity.lower
         self._upper = quantity.upper
+        self._limit_min_get = quantity.limit_min_get
+        self._limit_max_get = quantity.limit_max_get
         self._limits_locked = False
 
     def lock_limits(self, permanent=False):
@@ -681,7 +667,7 @@ class QuantityValue(ParameterValue):
 
     @property
     def lower(self):
-        return self._lower
+        return np.max((self._lower, self._limit_min_get()), axis=0)
 
     @lower.setter
     def lower(self, value):
@@ -692,7 +678,7 @@ class QuantityValue(ParameterValue):
 
     @property
     def upper(self):
-        return self._upper
+        return np.min((self._upper, self._limit_max_get()), axis=0)
 
     @upper.setter
     def upper(self, value):
@@ -706,7 +692,27 @@ class QuantityValue(ParameterValue):
         table = super(QuantityValue, self).info_table
         table.add_row(["lower", self.lower])
         table.add_row(["upper", self.upper])
+        table.add_row(["lower_user", self.lower_user])
+        table.add_row(["upper_user", self.upper_user])
+        table.add_row(["lower_external", self.lower_external])
+        table.add_row(["upper_external", self.upper_external])
         return table
+
+    @property
+    def upper_user(self):
+        return self._upper
+
+    @property
+    def lower_user(self):
+        return self._lower
+
+    @property
+    def lower_external(self):
+        return self._limit_min_get()
+
+    @property
+    def upper_external(self):
+        return self._limit_max_get()
 
     @property
     def unit(self):
@@ -732,60 +738,6 @@ class QuantityValue(ParameterValue):
         if not _is_compatible(self._parameter.unit, value):
             raise UnitError("limit units must be compatible with `{}'".
                             format(self._parameter.unit))
-
-
-class ExternalLimitQuantityValue(QuantityValue):
-    def __init__(self, instance, quantity):
-        super(ExternalLimitQuantityValue, self).__init__(instance, quantity)
-        self._limit_min_get = quantity.limit_min_get
-        self._limit_max_get = quantity.limit_max_get
-
-    @property
-    def lower(self):
-        return max(self._lower, self._limit_min_get())
-
-    @property
-    def upper(self):
-        return min(self._upper, self._limit_max_get())
-
-    @property
-    def upper_user(self):
-        return self._upper
-
-    @property
-    def lower_user(self):
-        return self._lower
-
-    @property
-    def lower_external(self):
-        return self._limit_min_get()
-
-    @property
-    def upper_external(self):
-        return self._limit_max_get()
-
-    @lower.setter
-    def lower(self, value):
-        self._check_limit(value)
-        if value >= self._upper:
-            raise ValueError('Lower limit must be lower than upper')
-        self._lower = value
-
-    @upper.setter
-    def upper(self, value):
-        self._check_limit(value)
-        if value <= self._lower:
-            raise ValueError('Upper limit must be greater than lower')
-        self._upper = value
-
-    @property
-    def info_table(self):
-        table = super(ExternalLimitQuantityValue, self).info_table
-        table.add_row(["lower_user", self.lower_user])
-        table.add_row(["upper_user", self.upper_user])
-        table.add_row(["lower_external", self.lower_external])
-        table.add_row(["upper_external", self.upper_external])
-        return table
 
 
 class SelectionValue(ParameterValue):
@@ -888,9 +840,7 @@ class Parameterizable(object):
         self.__class__ = type(self.__class__.__name__, self.__class__.__bases__, merged_dict)
 
     def _install_parameter(self, param):
-        if isinstance(param, ExternalLimitQuantity):
-            value = ExternalLimitQuantityValue(self, param)
-        elif isinstance(param, Selection):
+        if isinstance(param, Selection):
             value = SelectionValue(self, param)
         elif isinstance(param, Quantity):
             value = QuantityValue(self, param)
