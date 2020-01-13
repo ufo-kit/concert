@@ -1,7 +1,7 @@
 from concert.quantities import q
 from concert.devices.motors.dummy import LinearMotor, ContinuousLinearMotor
 from concert.devices.motors.dummy import RotationMotor, ContinuousRotationMotor
-from concert.tests import TestCase
+from concert.tests import TestCase, assert_almost_equal
 
 
 class TestMotor(TestCase):
@@ -38,8 +38,9 @@ class TestContinuousLinearMotor(TestCase):
     def test_set_velocity(self):
         velocity = 1 * q.mm / q.s
         self.motor.velocity = velocity
-        self.assertEqual(velocity, self.motor.velocity)
+        assert_almost_equal(velocity, self.motor.velocity, 0.05)
         self.assertEqual(self.motor.state, 'moving')
+        self.motor.stop().join()
 
 
 class TestRotationMotor(TestCase):
@@ -77,4 +78,5 @@ class TestContinuousRotationMotor(TestCase):
     def test_set_velocity(self):
         velocity = 1 * q.deg / q.s
         self.motor.velocity = velocity
-        self.assertEqual(velocity, self.motor.velocity)
+        assert_almost_equal(velocity, self.motor.velocity, 0.05)
+        self.motor.stop().join()

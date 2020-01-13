@@ -1,3 +1,4 @@
+import numpy as np
 from concert import optimization
 from concert.base import HardLimitError
 from concert.quantities import q
@@ -38,7 +39,7 @@ class TestDummyFocusing(TestCase):
 
     def setUp(self):
         super(TestDummyFocusing, self).setUp()
-        self.motor = LinearMotor()
+        self.motor = LinearMotor(upper_hard_limit=2000*q.mm, lower_hard_limit=-2000*q.mm)
         self.motor.position = 0 * q.mm
         self.feedback = DummyGradientMeasure(self.motor['position'],
                                              18.75 * q.mm)
@@ -49,6 +50,8 @@ class TestDummyFocusing(TestCase):
                               "max_iterations": 3000}
 
     def run_optimization(self, initial_position=1 * q.mm):
+        # Reset position of DummyMotor
+        self.motor._position = 0 * q.mm
         optimize_parameter(self.motor["position"], lambda: - self.feedback(),
                            initial_position, optimization.halver,
                            alg_kwargs=self.halver_kwargs).join()
@@ -58,26 +61,35 @@ class TestDummyFocusing(TestCase):
 
     @slow
     def test_maximum_in_limits(self):
+        # Disable Hard Limits of DummyMotor
+        self.motor._upper_hard_limit = np.inf * q.mm
+        self.motor._lower_hard_limit = -np.inf * q.mm
+
         self.run_optimization()
         self.check(self.feedback.max_position)
 
     @slow
     def test_huge_step_in_limits(self):
         self.halver_kwargs["initial_step"] = 1000 * q.mm
+        # Enable Hard Limits of DummyMotor
+        self.motor._upper_hard_limit = 200 * q.mm
+        self.motor._lower_hard_limit = -200 * q.mm
 
         with self.assertRaises(HardLimitError):
             self.run_optimization()
 
     @slow
     def test_maximum_out_of_limits_right(self):
-        self.feedback.max_position = (self.motor.upper + 50 * q.mm)
+        self.motor['position'].upper = 100 * q.mm
+        self.feedback.max_position = (self.motor['position'].upper + 50 * q.mm)
 
         with self.assertRaises(HardLimitError):
             self.run_optimization()
 
     @slow
     def test_maximum_out_of_limits_left(self):
-        self.feedback.max_position = (self.motor.lower - 50 * q.mm)
+        self.motor['position'].lower = -100 * q.mm
+        self.feedback.max_position = (self.motor['position'].lower - 50 * q.mm)
 
         with self.assertRaises(HardLimitError):
             self.run_optimization()
@@ -87,6 +99,11 @@ class TestDummyFocusing(TestCase):
         # Some gradient level reached and then by moving to another position
         # the same level is reached again, but global gradient maximum
         # is not at this motor position.
+
+        #Disable Hard Limits of DummyMotor
+        self.motor._upper_hard_limit = np.inf * q.mm
+        self.motor._lower_hard_limit = -np.inf * q.mm
+
         self.halver_kwargs["initial_step"] = 10 * q.mm
         self.run_optimization(initial_position=-0.00001 * q.mm)
         self.check(self.feedback.max_position)
