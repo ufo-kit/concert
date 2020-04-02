@@ -285,6 +285,8 @@ class TestParameter(TestCase):
         with self.assertRaises(ParameterError):
             device['no_write'].restore().join()
 
+        table = device['foo'].info_table
+
     def test_saving_with_target_value(self):
         device = FooDeviceTargetValue(0 * q.mm)
         device['foo'].upper = None
@@ -335,6 +337,7 @@ class TestQuantity(TestCase):
         limited = RestrictedFooDevice(-2 * q.mm, 2 * q.mm)
         self.assertEqual(limited['foo'].lower, -2 * q.mm)
         self.assertEqual(limited['foo'].upper, +2 * q.mm)
+        table = limited['foo'].info_table
 
     def test_setting_soft_limits_to_none(self):
         limited = RestrictedFooDevice(-2 * q.mm, 2 * q.mm)
