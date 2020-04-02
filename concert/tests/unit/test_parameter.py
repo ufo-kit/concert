@@ -110,6 +110,17 @@ class RestrictedFooDevice(FooDevice):
         self['foo'].upper = upper
 
 
+class ExternalLimitDevice(BaseDevice):
+
+    foo = Quantity(q.mm,
+                   external_lower_getter=lambda: -5*q.mm,
+                   external_upper_getter=lambda: 5*q.mm)
+
+    def __init__(self, value):
+        super(ExternalLimitDevice, self).__init__()
+        self._value = value
+
+
 class AccessorCheckDevice(Parameterizable):
 
     foo = Quantity(q.m)
@@ -337,6 +348,27 @@ class TestQuantity(TestCase):
 
         with self.assertRaises(ValueError):
             dev['foo'].upper = -2 * q.m
+
+    def test_external_limits(self):
+        dev = ExternalLimitDevice(0*q.mm)
+        self.assertEqual(dev['foo'].lower, -5*q.mm)
+        self.assertEqual(dev['foo'].upper, 5 * q.mm)
+
+        table = dev['foo'].info_table
+
+        dev['foo'].upper = 2 * q.mm
+        self.assertEqual(dev['foo'].upper, 2 * q.mm)
+
+        dev['foo'].upper = 10 * q.mm
+        self.assertEqual(dev['foo'].upper, 5 * q.mm)
+
+        dev['foo'].lower = -2 * q.mm
+        self.assertEqual(dev['foo'].lower, -2 * q.mm)
+
+        dev['foo'].lower = -10 * q.mm
+        self.assertEqual(dev['foo'].lower, -5 * q.mm)
+
+        table = dev['foo'].info_table
 
 
 class TestSelection(TestCase):

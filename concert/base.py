@@ -425,7 +425,8 @@ class Quantity(Parameter):
     """A :class:`.Parameter` associated with a unit."""
 
     def __init__(self, unit, fget=None, fset=None, fget_target=None, lower=None, upper=None,
-                 data=None, check=None, help=None):
+                 data=None, check=None, external_lower_getter=None, external_upper_getter=None,
+                 help=None):
         """
         *fget*, *fset*, *data*, *check* and *help* are identical to the
         :class:`.Parameter` constructor arguments.
@@ -439,6 +440,8 @@ class Quantity(Parameter):
 
         self.upper = upper
         self.lower = lower
+        self.external_lower_getter = external_lower_getter
+        self.external_upper_getter = external_upper_getter
 
     def convert(self, value):
         if self.unit == "delta_degC":
@@ -690,6 +693,8 @@ class QuantityValue(ParameterValue):
         super(QuantityValue, self).__init__(instance, quantity)
         self._lower = quantity.lower
         self._upper = quantity.upper
+        self._external_upper_getter = quantity.external_upper_getter
+        self._external_lower_getter = quantity.external_lower_getter
         self._limits_locked = False
 
     def lock_limits(self, permanent=False):
@@ -707,7 +712,16 @@ class QuantityValue(ParameterValue):
 
     @property
     def lower(self):
-        return self._lower
+        if self.lower_user is None and self.lower_external is None:
+            return None
+        elif self.lower_user is None and self.lower_external is not None:
+            return self.lower_external
+        elif self.lower_user is not None and self.lower_external is None:
+            return self.lower_user
+        else:
+            return np.max((self.lower_user.to(self._parameter.unit).magnitude,
+                           self.lower_external.to(self._parameter.unit).magnitude),
+                          axis=0) * self._parameter.unit
 
     @lower.setter
     def lower(self, value):
@@ -721,7 +735,16 @@ class QuantityValue(ParameterValue):
 
     @property
     def upper(self):
-        return self._upper
+        if self.upper_user is None and self.upper_external is None:
+            return None
+        elif self.upper_user is None and self.upper_external is not None:
+            return self.upper_external
+        elif self.upper_user is not None and self.upper_external is None:
+            return self.upper_user
+        else:
+            return np.min((self.upper_user.to(self._parameter.unit).magnitude,
+                           self.upper_external.to(self._parameter.unit).magnitude),
+                          axis=0) * self._parameter.unit
 
     @upper.setter
     def upper(self, value):
@@ -734,10 +757,39 @@ class QuantityValue(ParameterValue):
         self._upper = value
 
     @property
+    def upper_user(self):
+        return self._upper
+
+    @property
+    def lower_user(self):
+        return self._lower
+
+    @property
+    def lower_external(self):
+        if self._external_lower_getter is None:
+            return None
+        else:
+            return self._external_lower_getter()
+
+    @property
+    def upper_external(self):
+        if self._external_upper_getter is None:
+            return None
+        else:
+            return self._external_upper_getter()
+
+    @property
     def info_table(self):
         table = super(QuantityValue, self).info_table
         table.add_row(["lower", self.lower])
         table.add_row(["upper", self.upper])
+
+        if self._external_lower_getter is not None:
+            table.add_row(["lower_user", self.lower_user])
+            table.add_row(["lower_external", self.lower_external])
+        if self._external_upper_getter is not None:
+            table.add_row(["upper_user", self.upper_user])
+            table.add_row(["upper_external", self.upper_external])
         return table
 
     @property
