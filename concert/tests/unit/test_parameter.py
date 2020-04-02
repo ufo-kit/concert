@@ -23,6 +23,10 @@ def test_getter(device):
     return device._test_value
 
 
+def test_target(device):
+    return 10*q.mm
+
+
 class FooDevice(BaseDevice):
 
     state = State(default='standby')
@@ -48,6 +52,55 @@ class FooDevice(BaseDevice):
         return 5 * q.m
 
     param = Parameter(fget=_get_foo, fset=_set_foo)
+
+
+class FooDeviceTargetValue(BaseDevice):
+    foo = Quantity(q.mm)
+
+    def __init__(self, value):
+        super(BaseDevice, self).__init__()
+        self._value = value
+        self._test_value = value
+
+    def _get_foo(self):
+        delta = 1 * q.mm
+        return self._value + delta
+
+    def _set_foo(self, value):
+        self._value = value
+
+    def _get_target_foo(self):
+        return self._value
+
+    def test_setter(self, value):
+        self._test_value = value
+
+    def test_getter(self):
+        return self._test_value
+
+    def test_target(self):
+        return 10 * q.mm
+
+    test = Quantity(q.mm, fset=test_setter, fget=test_getter, fget_target=test_target)
+
+
+class FooDeviceTagetValue(BaseDevice):
+    foo = Quantity(q.mm)
+    test = Quantity(q.mm, fset=test_setter, fget=test_getter, fget_target=test_target)
+
+    def __init__(self, value):
+        super(BaseDevice, self).__init__()
+        self._value = value
+
+    def _get_foo(self):
+        delta = np.random.randint(low=1, high=100) * q.mm
+        return self._value + delta
+
+    def _set_foo(self, value):
+        self._value = value
+
+    def _get_target_foo(self):
+        return self._value
 
 
 class RestrictedFooDevice(FooDevice):
@@ -207,6 +260,18 @@ class TestParameter(TestCase):
 
         with self.assertRaises(ParameterError):
             device['no_write'].restore().join()
+
+    def test_saving_with_target_value(self):
+        device = FooDeviceTargetValue(0 * q.mm)
+        device['foo'].upper = None
+        device['foo'].lower = None
+        device['foo'].stash().join()
+        self.assertEqual(device['foo'].target_readable, True)
+        device.foo = 1 * q.mm
+        self.assertEqual(device._value, 1 * q.mm)
+        device['foo'].restore().join()
+        self.assertEqual(device._value, 0 * q.mm)
+        table = device['foo'].info_table
 
 
 class TestQuantity(TestCase):

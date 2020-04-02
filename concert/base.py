@@ -34,6 +34,10 @@ def _getter_not_implemented(*args):
     raise AccessorNotImplementedError
 
 
+def _getter_target_not_implemented(*args):
+    raise AccessorNotImplementedError
+
+
 def _execute_func(func, instance, *args, **kwargs):
     """Execute *func* irrespective of whether it is a function or a method. *instance*
     is discarded if *func* is a function, otherwise it is used as a first real argument.
@@ -228,10 +232,12 @@ class Parameter(object):
         print(obj['param'])
     """
 
-    def __init__(self, fget=None, fset=None, data=None, check=None, help=None):
+    def __init__(self, fget=None, fset=None, fget_target=None, data=None, check=None, help=None):
         """
         *fget* is a callable that is called when reading the parameter. *fset*
-        is called when the parameter is written to.
+        is called when the parameter is written to. *fget_target* is a getter for the target value.
+        *fget*, *fset*, *fget_target* must be member functions of the corresponding Parameterizable
+        object.
 
         *data* is passed to the state check function.
 
@@ -243,6 +249,7 @@ class Parameter(object):
         self.name = None
         self.fget = fget
         self.fset = fset
+        self.fget_target = fget_target
         self.data_args = (data,) if data is not None else ()
         self.check = check
         self.decorated = None
@@ -261,6 +268,13 @@ class Parameter(object):
             return self.fget.__name__
 
         return '_get_' + self.name
+
+    @memoize
+    def getter_name_target(self):
+        if self.fget_target:
+            return self.fget_target.__name__
+
+        return '_get_target_' + self.name
 
     def __repr__(self):
         return str(self.help)
@@ -410,7 +424,7 @@ class Quantity(Parameter):
 
     """A :class:`.Parameter` associated with a unit."""
 
-    def __init__(self, unit, fget=None, fset=None, lower=None, upper=None,
+    def __init__(self, unit, fget=None, fset=None, fget_target=None, lower=None, upper=None,
                  data=None, check=None, help=None):
         """
         *fget*, *fset*, *data*, *check* and *help* are identical to the
@@ -419,7 +433,7 @@ class Quantity(Parameter):
         *unit* is a Pint quantity. *lower* and *upper* denote soft limits
         between the :class:`.Quantity` values can lie.
         """
-        super(Quantity, self).__init__(fget=fget, fset=fset, data=data,
+        super(Quantity, self).__init__(fget=fget, fset=fset, fget_target=fget_target, data=data,
                                        check=check, help=help)
         self.unit = unit
 
@@ -537,6 +551,9 @@ class ParameterValue(object):
         table.border = False
         table.add_row(["info", self._parameter.help])
         table.add_row(["locked", locked])
+        table.add_row(["target_readable", self.target_readable])
+        if self.target_readable:
+            table.add_row(["target_value", self.get_target().join().result])
         return table
 
     @property
@@ -552,6 +569,15 @@ class ParameterValue(object):
         """Return True if the parameter is writable."""
         return getattr(self._instance, '_set_' + self.name) is not _setter_not_implemented
 
+    @property
+    def target_readable(self):
+        return (getattr(self._instance, '_get_target_' + self.name)
+                is not _getter_target_not_implemented or self._parameter.fget_target is not None)
+
+    @property
+    def target(self):
+        return self.get_target().join().result()
+
     @async
     def get(self, wait_on=None):
         """
@@ -564,6 +590,21 @@ class ParameterValue(object):
             wait_on.join()
 
         return getattr(self._instance, self.name)
+
+    @async
+    def get_target(self, wait_on=None):
+        """
+        Get target value of this object
+        :param wait_on: If not None, this must be a future which joins before reading value.
+        :return:
+        """
+        if wait_on:
+            wait_on.join()
+
+        if self._parameter.fget_target is not None:
+            return self._parameter.fget_target(self._instance)
+        else:
+            return getattr(self._instance, '_get_target_' + self.name)()
 
     def set(self, value, wait_on=None):
         """
@@ -597,7 +638,10 @@ class ParameterValue(object):
         if not self.writable:
             raise ParameterError("Parameter `{}' is not writable".format(self.name))
 
-        self._saved.append(self.get().result())
+        if self.target_readable:
+            self._saved.append(self.get_target().result())
+        else:
+            self._saved.append(self.get().result())
 
     def restore(self):
         """Restore the last value saved with :meth:`.ParameterValue.stash`.
@@ -839,6 +883,9 @@ class Parameterizable(object):
 
         if not hasattr(self, '_get_' + param.name):
             setattr(self, '_get_' + param.name, _getter_not_implemented)
+
+        if not hasattr(self, '_get_target_' + param.name):
+            setattr(self, '_get_target_' + param.name, _getter_target_not_implemented)
 
     @async
     def stash(self):
