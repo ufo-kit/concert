@@ -570,7 +570,8 @@ class ParameterValue(object):
     @property
     def writable(self):
         """Return True if the parameter is writable."""
-        return getattr(self._instance, '_set_' + self.name) is not _setter_not_implemented
+        return (getattr(self._instance, '_set_' + self.name) is not _setter_not_implemented or
+                self._parameter.fset is not None)
 
     @property
     def target_readable(self):

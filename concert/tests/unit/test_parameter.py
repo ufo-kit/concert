@@ -39,6 +39,7 @@ class FooDevice(BaseDevice):
     def __init__(self, default):
         super(FooDevice, self).__init__()
         self._value = default
+        self._param_value = 0 * q.mm
         self._test_value = 0 * q.mm
 
     def _get_foo(self):
@@ -52,6 +53,17 @@ class FooDevice(BaseDevice):
         return 5 * q.m
 
     param = Parameter(fget=_get_foo, fset=_set_foo)
+
+    def _get_bar(self):
+        return 5 * q.m
+
+    def _get_param(self):
+        return self._param_value
+
+    def _set_param(self, value):
+        self._param_value = value
+
+    param = Parameter(fget=_get_param, fset=_set_param)
 
 
 class FooDeviceTargetValue(BaseDevice):
@@ -181,6 +193,7 @@ class TestParameterizable(TestCase):
     def test_is_writable(self):
         self.assertTrue(self.device['foo'].writable)
         self.assertFalse(self.device['no_write'].writable)
+        self.assertTrue(self.device['param'].writable)
 
         with self.assertRaises(WriteAccessError):
             self.device.no_write = 42
@@ -283,6 +296,26 @@ class TestParameter(TestCase):
         device['foo'].restore().join()
         self.assertEqual(device._value, 0 * q.mm)
         table = device['foo'].info_table
+
+    def test_readonly_value(self):
+        device = FooDevice(0*q.mm)
+        self.assertEqual(device.bar, 5 * q.m)
+        self.assertEqual(device['bar'].writable, False)
+        with self.assertRaises(WriteAccessError):
+            device.bar = 1 * q.m
+
+    def test_setter_getter_from_constructor(self):
+        device = FooDevice(0 * q.mm)
+        device.test = 1 * q.mm
+        self.assertEqual(device['test'].writable, True)
+        self.assertEqual(device.test, 1 * q.mm)
+
+    def test_setter_getter_from_constructor_target(self):
+        device = FooDeviceTargetValue(0 * q.mm)
+        device.test = 1 * q.mm
+        self.assertEqual(device.test, 1 * q.mm)
+        self.assertEqual(device['test'].target_readable, True)
+        self.assertEqual(device['test'].target, 10*q.mm)
 
 
 class TestQuantity(TestCase):
