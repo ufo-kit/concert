@@ -15,16 +15,27 @@ class BaseDevice(Parameterizable):
         super(BaseDevice, self).__init__()
 
 
+def test_setter(device, value):
+    device._test_value = value
+
+
+def test_getter(device):
+    return device._test_value
+
+
 class FooDevice(BaseDevice):
 
     state = State(default='standby')
 
     no_write = Parameter()
     foo = Quantity(q.m, check=check(source='*', target='moved'))
+    bar = Quantity(q.m)
+    test = Quantity(q.m, fset=test_setter, fget=test_getter)
 
     def __init__(self, default):
         super(FooDevice, self).__init__()
         self._value = default
+        self._test_value = 0 * q.mm
 
     def _get_foo(self):
         return self._value
@@ -32,6 +43,9 @@ class FooDevice(BaseDevice):
     @transition(target='moved')
     def _set_foo(self, value):
         self._value = value
+
+    def _get_bar(self):
+        return 5 * q.m
 
     param = Parameter(fget=_get_foo, fset=_set_foo)
 
@@ -212,6 +226,13 @@ class TestQuantity(TestCase):
         limited = RestrictedFooDevice(-2 * q.mm, 2 * q.mm)
         self.assertEqual(limited['foo'].lower, -2 * q.mm)
         self.assertEqual(limited['foo'].upper, +2 * q.mm)
+
+    def test_setting_soft_limits_to_none(self):
+        limited = RestrictedFooDevice(-2 * q.mm, 2 * q.mm)
+        limited['foo'].upper = None
+        limited.foo = 3 * q.mm
+        limited['foo'].lower = None
+        limited.foo = -3 * q.mm
 
     def test_parameter_property(self):
         device = FooDevice(42 * q.m)

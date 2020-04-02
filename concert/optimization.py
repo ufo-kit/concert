@@ -64,10 +64,12 @@ def optimize_parameter(parameter, feedback, x_0, algorithm, alg_args=(),
         Create a function from setting a parameter and getting a feedback.
         """
         # Do not go out of the limits
-        if x_val < parameter.lower:
-            x_val = parameter.lower
-        if x_val > parameter.upper:
-            x_val = parameter.upper
+        if parameter.lower is not None:
+            if parameter.lower is not None and x_val < parameter.lower:
+                x_val = parameter.lower
+        if parameter.upper is not None:
+            if parameter.upper is not None and x_val > parameter.upper:
+                x_val = parameter.upper
         parameter.set(x_val).join()
 
         return feedback()

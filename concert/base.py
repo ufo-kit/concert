@@ -423,8 +423,8 @@ class Quantity(Parameter):
                                        check=check, help=help)
         self.unit = unit
 
-        self.upper = upper if upper is not None else float('Inf') * unit
-        self.lower = lower if lower is not None else -float('Inf') * unit
+        self.upper = upper
+        self.lower = lower
 
     def convert(self, value):
         if self.unit == "delta_degC":
@@ -466,9 +466,14 @@ class Quantity(Parameter):
                 test_b = b[valid]
                 return np.all(test_a.to_base_units().magnitude <= test_b.to_base_units().magnitude)
 
-        if not leq(lower, value) or not leq(value, upper):
-            msg = "{} is out of range [{}, {}]"
-            raise SoftLimitError(msg.format(value, lower, upper))
+        if lower is not None:
+            if not leq(lower, value):
+                msg = "{} is out of range [{}, {}]"
+                raise SoftLimitError(msg.format(value, lower, upper))
+        if upper is not None:
+            if not leq(value, upper):
+                msg = "{} is out of range [{}, {}]"
+                raise SoftLimitError(msg.format(value, lower, upper))
 
         converted = self.convert(value)
         super(Quantity, self).__set__(instance, converted)
@@ -662,8 +667,11 @@ class QuantityValue(ParameterValue):
 
     @lower.setter
     def lower(self, value):
+        if value is None:
+            self._lower = None
+            return
         self._check_limit(value)
-        if value >= self._upper:
+        if self._upper is not None and value >= self._upper:
             raise ValueError('Lower limit must be lower than upper')
         self._lower = value
 
@@ -673,8 +681,11 @@ class QuantityValue(ParameterValue):
 
     @upper.setter
     def upper(self, value):
+        if value is None:
+            self._upper = None
+            return
         self._check_limit(value)
-        if value <= self._lower:
+        if self._lower is not None and value <= self._lower:
             raise ValueError('Upper limit must be greater than lower')
         self._upper = value
 
