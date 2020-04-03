@@ -15,16 +15,32 @@ class BaseDevice(Parameterizable):
         super(BaseDevice, self).__init__()
 
 
+def test_setter(device, value):
+    device._test_value = value
+
+
+def test_getter(device):
+    return device._test_value
+
+
+def test_target(device):
+    return 10*q.mm
+
+
 class FooDevice(BaseDevice):
 
     state = State(default='standby')
 
     no_write = Parameter()
     foo = Quantity(q.m, check=check(source='*', target='moved'))
+    bar = Quantity(q.m)
+    test = Quantity(q.m, fset=test_setter, fget=test_getter)
 
     def __init__(self, default):
         super(FooDevice, self).__init__()
         self._value = default
+        self._param_value = 0 * q.mm
+        self._test_value = 0 * q.mm
 
     def _get_foo(self):
         return self._value
@@ -33,7 +49,70 @@ class FooDevice(BaseDevice):
     def _set_foo(self, value):
         self._value = value
 
+    def _get_bar(self):
+        return 5 * q.m
+
     param = Parameter(fget=_get_foo, fset=_set_foo)
+
+    def _get_bar(self):
+        return 5 * q.m
+
+    def _get_param(self):
+        return self._param_value
+
+    def _set_param(self, value):
+        self._param_value = value
+
+    param = Parameter(fget=_get_param, fset=_set_param)
+
+
+class FooDeviceTargetValue(BaseDevice):
+    foo = Quantity(q.mm)
+
+    def __init__(self, value):
+        super(BaseDevice, self).__init__()
+        self._value = value
+        self._test_value = value
+
+    def _get_foo(self):
+        delta = 1 * q.mm
+        return self._value + delta
+
+    def _set_foo(self, value):
+        self._value = value
+
+    def _get_target_foo(self):
+        return self._value
+
+    def test_setter(self, value):
+        self._test_value = value
+
+    def test_getter(self):
+        return self._test_value
+
+    def test_target(self):
+        return 10 * q.mm
+
+    test = Quantity(q.mm, fset=test_setter, fget=test_getter, fget_target=test_target)
+
+
+class FooDeviceTagetValue(BaseDevice):
+    foo = Quantity(q.mm)
+    test = Quantity(q.mm, fset=test_setter, fget=test_getter, fget_target=test_target)
+
+    def __init__(self, value):
+        super(BaseDevice, self).__init__()
+        self._value = value
+
+    def _get_foo(self):
+        delta = np.random.randint(low=1, high=100) * q.mm
+        return self._value + delta
+
+    def _set_foo(self, value):
+        self._value = value
+
+    def _get_target_foo(self):
+        return self._value
 
 
 class RestrictedFooDevice(FooDevice):
@@ -41,6 +120,17 @@ class RestrictedFooDevice(FooDevice):
         super(RestrictedFooDevice, self).__init__(0 * q.mm)
         self['foo'].lower = lower
         self['foo'].upper = upper
+
+
+class ExternalLimitDevice(BaseDevice):
+
+    foo = Quantity(q.mm,
+                   external_lower_getter=lambda: -5*q.mm,
+                   external_upper_getter=lambda: 5*q.mm)
+
+    def __init__(self, value):
+        super(ExternalLimitDevice, self).__init__()
+        self._value = value
 
 
 class AccessorCheckDevice(Parameterizable):
@@ -103,6 +193,7 @@ class TestParameterizable(TestCase):
     def test_is_writable(self):
         self.assertTrue(self.device['foo'].writable)
         self.assertFalse(self.device['no_write'].writable)
+        self.assertTrue(self.device['param'].writable)
 
         with self.assertRaises(WriteAccessError):
             self.device.no_write = 42
@@ -194,6 +285,40 @@ class TestParameter(TestCase):
         with self.assertRaises(ParameterError):
             device['no_write'].restore().join()
 
+        table = device['foo'].info_table
+
+    def test_saving_with_target_value(self):
+        device = FooDeviceTargetValue(0 * q.mm)
+        device['foo'].upper = None
+        device['foo'].lower = None
+        device['foo'].stash().join()
+        self.assertEqual(device['foo'].target_readable, True)
+        device.foo = 1 * q.mm
+        self.assertEqual(device._value, 1 * q.mm)
+        device['foo'].restore().join()
+        self.assertEqual(device._value, 0 * q.mm)
+        table = device['foo'].info_table
+
+    def test_readonly_value(self):
+        device = FooDevice(0*q.mm)
+        self.assertEqual(device.bar, 5 * q.m)
+        self.assertEqual(device['bar'].writable, False)
+        with self.assertRaises(WriteAccessError):
+            device.bar = 1 * q.m
+
+    def test_setter_getter_from_constructor(self):
+        device = FooDevice(0 * q.mm)
+        device.test = 1 * q.mm
+        self.assertEqual(device['test'].writable, True)
+        self.assertEqual(device.test, 1 * q.mm)
+
+    def test_setter_getter_from_constructor_target(self):
+        device = FooDeviceTargetValue(0 * q.mm)
+        device.test = 1 * q.mm
+        self.assertEqual(device.test, 1 * q.mm)
+        self.assertEqual(device['test'].target_readable, True)
+        self.assertEqual(device['test'].target, 10*q.mm)
+
 
 class TestQuantity(TestCase):
 
@@ -212,6 +337,14 @@ class TestQuantity(TestCase):
         limited = RestrictedFooDevice(-2 * q.mm, 2 * q.mm)
         self.assertEqual(limited['foo'].lower, -2 * q.mm)
         self.assertEqual(limited['foo'].upper, +2 * q.mm)
+        table = limited['foo'].info_table
+
+    def test_setting_soft_limits_to_none(self):
+        limited = RestrictedFooDevice(-2 * q.mm, 2 * q.mm)
+        limited['foo'].upper = None
+        limited.foo = 3 * q.mm
+        limited['foo'].lower = None
+        limited.foo = -3 * q.mm
 
     def test_parameter_property(self):
         device = FooDevice(42 * q.m)
@@ -251,6 +384,27 @@ class TestQuantity(TestCase):
 
         with self.assertRaises(ValueError):
             dev['foo'].upper = -2 * q.m
+
+    def test_external_limits(self):
+        dev = ExternalLimitDevice(0*q.mm)
+        self.assertEqual(dev['foo'].lower, -5*q.mm)
+        self.assertEqual(dev['foo'].upper, 5 * q.mm)
+
+        table = dev['foo'].info_table
+
+        dev['foo'].upper = 2 * q.mm
+        self.assertEqual(dev['foo'].upper, 2 * q.mm)
+
+        dev['foo'].upper = 10 * q.mm
+        self.assertEqual(dev['foo'].upper, 5 * q.mm)
+
+        dev['foo'].lower = -2 * q.mm
+        self.assertEqual(dev['foo'].lower, -2 * q.mm)
+
+        dev['foo'].lower = -10 * q.mm
+        self.assertEqual(dev['foo'].lower, -5 * q.mm)
+
+        table = dev['foo'].info_table
 
 
 class TestSelection(TestCase):
