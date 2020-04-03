@@ -5,3 +5,4 @@ pyxdg==0.26
 pint==0.5.2
 numpy==1.16.5
 scipy==1.2.2
+tifffile==2018.11.6
