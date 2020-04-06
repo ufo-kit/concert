@@ -33,9 +33,10 @@ class Acquisition(object):
 
     """
 
-    def __init__(self, name, producer, consumers=None, acquire=None):
+    def __init__(self, name, producer, abort_handler=None, consumers=None, acquire=None):
         self.name = name
-        self.producer = producer
+        self._frame_producer = producer
+        self._abort_handler = abort_handler
         self.consumers = [] if consumers is None else consumers
         # Don't bother with checking this for None later
         self.acquire = acquire if acquire else lambda: None
@@ -54,6 +55,14 @@ class Acquisition(object):
                 break
             for consumer in started:
                 consumer.send(item)
+
+    def producer(self):
+        try:
+            for item in self._frame_producer():
+                yield item
+        finally:
+            if self._abort_handler is not None:
+                self._abort_handler()
 
     @async
     def abort(self):
