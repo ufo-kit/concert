@@ -15,23 +15,35 @@ and consumers for a particular experiment part (dark fields, radiographs, ...). 
 way the experiments can be broken up into smaller logical pieces. A single acquisition
 object needs to be reproducible in order to repeat an experiment more times, thus we
 specify its generator and consumers as callables which return the actual generator or
-consumer. We need to do this because generators cannot be "restarted". An example of
-an acquisition could look like this::
+consumer. We need to do this because generators cannot be "restarted".
+
+It is very important that you enclose the executive part of the production and
+consumption code in `try-finally` to ensure proper clean up. E.g. if a producer
+starts rotating a motor, then in the `finally` clause there should be the call
+`motor.stop().join()`.
+
+An example of an acquisition could look like this::
 
     from concert.coroutines.base import coroutine
     from concert.experiments.base import Acquisition
 
     # This is a real generator, num_items is provided somewhere in our session
     def produce():
-        for i in range(num_items):
-            yield i
+        try:
+            for i in range(num_items):
+                yield i
+        finally:
+            # Clean up here
 
     # A simple coroutine sink which prints items
     @coroutine
     def consumer():
-        while True:
-            item = yield
-            print item
+        try:
+            while True:
+                item = yield
+                print item
+        finally:
+            # Clean up here
 
     acquisition = Acquisition('foo', produce, consumers=[consumer])
     # Now we can run the acquisition
