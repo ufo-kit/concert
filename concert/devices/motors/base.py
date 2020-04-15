@@ -57,6 +57,20 @@ class _PositionMixin(Device):
         """
         self._home()
 
+    @check(source='disabled', target='standby')
+    def enable(self):
+        self._enable()
+
+    @check(source='standby', target='disabled')
+    def disable(self):
+        self._disable()
+
+    def _enable(self):
+        raise AccessorNotImplementedError
+
+    def _disable(self):
+        raise AccessorNotImplementedError
+
     def _home(self):
         raise AccessorNotImplementedError
 
