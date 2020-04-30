@@ -233,17 +233,23 @@ class Experiment(Parameterizable):
         try:
             self.prepare()
             self.acquire()
-            self.finish()
         except:
             self._state_value = 'error'
             LOG.exception('Error while running experiment')
             raise
         finally:
-            if self.separate_scans and self.walker:
-                self.walker.ascend()
-            LOG.debug('Experiment iteration %d duration: %.2f s',
-                      self.iteration, time.time() - start_time)
-            self.iteration += 1
+            try:
+                self.finish()
+            except:
+                self._state_value = 'error'
+                LOG.exception('Error while running experiment')
+                raise
+            finally:
+                if self.separate_scans and self.walker:
+                    self.walker.ascend()
+                LOG.debug('Experiment iteration %d duration: %.2f s',
+                          self.iteration, time.time() - start_time)
+                self.iteration += 1
 
         self._state_value = 'standby'
 
