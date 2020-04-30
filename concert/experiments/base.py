@@ -7,7 +7,7 @@ import logging
 import time
 from concert.async import async
 from concert.progressbar import wrap_iterable
-from concert.base import Parameterizable, Parameter, State, check
+from concert.base import Parameterizable, Parameter, State, check, Selection
 
 
 LOG = logging.getLogger(__name__)
@@ -104,6 +104,7 @@ class Experiment(Parameterizable):
     separate_scans = Parameter()
     name_fmt = Parameter()
     state = State(default='standby')
+    log_level = Selection(['critical', 'error', 'warning', 'info', 'debug'])
 
     def __init__(self, acquisitions, walker=None, separate_scans=True, name_fmt='scan_{:>04}'):
         self._acquisitions = []
@@ -113,7 +114,10 @@ class Experiment(Parameterizable):
         self._separate_scans = separate_scans
         self._name_fmt = name_fmt
         self._iteration = 1
+        self._log_level = None
+        self.logger = None
         super(Experiment, self).__init__()
+        self.log_level = 'info'
 
         if self.separate_scans and self.walker:
             # The data is not supposed to be overwritten, so find an iteration which
@@ -138,6 +142,34 @@ class Experiment(Parameterizable):
 
     def _set_name_fmt(self, fmt):
         self._name_fmt = fmt
+
+    def _get_log_level(self):
+        if self._log_level == 50:
+            return "critical"
+        elif self._log_level == 40:
+            return "error"
+        elif self._log_level == 30:
+            return "warning"
+        elif self._log_level == 20:
+            return "info"
+        elif self._log_level == 10:
+            return "debug"
+        else:
+            raise Exception("Unimplemented log level")
+
+    def _set_log_level(self, level):
+        if level == "critical":
+            self._log_level = logging.CRITICAL
+        elif level == "error":
+            self._log_level = logging.ERROR
+        elif level == "warning":
+            self._log_level = logging.WARNING
+        elif level == "info":
+            self._log_level = logging.INFO
+        elif level == "debug":
+            self._log_level = logging.DEBUG
+        if self.logger:
+            self.logger.setLevel(self._log_level)
 
     def prepare(self):
         """Gets executed before every experiment run."""
@@ -200,7 +232,7 @@ class Experiment(Parameterizable):
     @check(source=['running'], target=['standby'])
     def abort(self):
         self._state_value = 'aborting'
-        LOG.info('Experiment aborted')
+        self.logger.info('Experiment aborted')
         for acq in self.acquisitions:
             acq.abort().join()
         self._state_value = 'standby'
@@ -226,29 +258,37 @@ class Experiment(Parameterizable):
         """
         self._state_value = 'running'
         start_time = time.time()
-        LOG.debug('Experiment iteration %d start', self.iteration)
         if self.separate_scans and self.walker:
             self.walker.descend(self.name_fmt.format(self.iteration))
+
+        self.logger = logging.getLogger("Experiment")
+        handler = logging.FileHandler(self.walker.current + "/experiment.log")
+        self.logger.handlers = []
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        self.logger.addHandler(handler)
+        self.logger.setLevel(self._log_level)
+        self.logger.debug('Experiment iteration %d start', self.iteration)
 
         try:
             self.prepare()
             self.acquire()
         except:
             self._state_value = 'error'
-            LOG.exception('Error while running experiment')
+            self.logger.exception('Error while running experiment')
             raise
         finally:
             try:
                 self.finish()
             except:
                 self._state_value = 'error'
-                LOG.exception('Error while running experiment')
+                self.logger.exception('Error while running experiment')
                 raise
             finally:
                 if self.separate_scans and self.walker:
                     self.walker.ascend()
-                LOG.debug('Experiment iteration %d duration: %.2f s',
-                          self.iteration, time.time() - start_time)
+                self.logger.debug('Experiment iteration %d duration: %.2f s',
+                                  self.iteration, time.time() - start_time)
                 self.iteration += 1
 
         self._state_value = 'standby'
