@@ -4,10 +4,11 @@ care of proper logging structure.
 """
 
 import logging
+import os
 import time
 from concert.async import async
 from concert.progressbar import wrap_iterable
-from concert.base import Parameterizable, Parameter, State, check
+from concert.base import Parameterizable, Parameter, Selection, State, check
 
 
 LOG = logging.getLogger(__name__)
@@ -104,6 +105,7 @@ class Experiment(Parameterizable):
     separate_scans = Parameter()
     name_fmt = Parameter()
     state = State(default='standby')
+    log_level = Selection(['critical', 'error', 'warning', 'info', 'debug'])
 
     def __init__(self, acquisitions, walker=None, separate_scans=True, name_fmt='scan_{:>04}'):
         self._acquisitions = []
@@ -113,6 +115,7 @@ class Experiment(Parameterizable):
         self._separate_scans = separate_scans
         self._name_fmt = name_fmt
         self._iteration = 1
+        self.log = LOG
         super(Experiment, self).__init__()
 
         if self.separate_scans and self.walker:
@@ -138,6 +141,12 @@ class Experiment(Parameterizable):
 
     def _set_name_fmt(self, fmt):
         self._name_fmt = fmt
+
+    def _get_log_level(self):
+        return logging.getLevelName(self.log.getEffectiveLevel()).lower()
+
+    def _set_log_level(self, level):
+        self.log.setLevel(level.upper())
 
     def prepare(self):
         """Gets executed before every experiment run."""
@@ -226,9 +235,14 @@ class Experiment(Parameterizable):
         """
         self._state_value = 'running'
         start_time = time.time()
-        LOG.debug('Experiment iteration %d start', self.iteration)
         if self.separate_scans and self.walker:
             self.walker.descend(self.name_fmt.format(self.iteration))
+        handler = logging.FileHandler(os.path.join(self.walker.current, 'experiment.log'))
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        self.log.addHandler(handler)
+        self.log.info(self)
+        LOG.debug('Experiment iteration %d start', self.iteration)
 
         try:
             self.prepare()
@@ -249,6 +263,8 @@ class Experiment(Parameterizable):
                     self.walker.ascend()
                 LOG.debug('Experiment iteration %d duration: %.2f s',
                           self.iteration, time.time() - start_time)
+                handler.close()
+                self.log.removeHandler(handler)
                 self.iteration += 1
 
         self._state_value = 'standby'
