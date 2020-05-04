@@ -77,6 +77,10 @@ running the acquisition above and storing log with
 .. autoclass:: concert.experiments.base.Experiment
     :members:
 
+Experiments also have a :py:attr:`.base.Experiment.log` attribute, which gets a
+new handler on every experiment run and this handler stores the output in the
+current experiment working directory defined by it's
+:class:`concert.storage.Walker`.
 
 Advanced
 --------
