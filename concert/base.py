@@ -50,6 +50,39 @@ def _execute_func(func, instance, *args, **kwargs):
     return result
 
 
+def _find_object_by_name(instance):
+    """Find variable name by *instance*. This is supposed to be used only in the
+    :meth:`.Parameter.__set__`.
+    """
+    def _find_in_dict(dictionary):
+        for (obj_name, obj) in dictionary.items():
+            if obj == instance:
+                return obj_name
+
+    instance_name = None
+
+    frames = inspect.stack()
+    try:
+        # Skip us and Parameter.__set__
+        for i in range(2, len(frames)):
+            # First look in the globals
+            instance_name = _find_in_dict(frames[i][0].f_globals)
+            if not instance_name:
+                # If not found, look in the locals (e.g. devices instantiated in funcions)
+                instance_name = _find_in_dict(frames[i][0].f_locals)
+            # We can't know at which index of the stack is the correct name, e.g. if a device sets a
+            # parameter in a constructor we need to bump index by one. Thus, use blacklist names
+            # which won't be picked up because they are most probably used by concert or it's
+            # extensions internally.
+            if instance_name and instance_name not in ['instance', 'self']:
+                break
+    finally:
+        # Cleanup as python docs suggest
+        del frames
+
+    return instance_name
+
+
 class FSMError(Exception):
     """All errors connected with the finite state machine"""
 
@@ -320,9 +353,19 @@ class Parameter(object):
                 except AccessorNotImplementedError:
                     raise WriteAccessError(self.name)
 
-            msg = "set {}::{}='{}'"
             name = instance.__class__.__name__
-            LOG.info(msg.format(name, self.name, value))
+            if hasattr(instance, 'name_for_log'):
+                instance_name = getattr(instance, 'name_for_log')
+            else:
+                instance_name = _find_object_by_name(instance)
+                if instance_name:
+                    setattr(instance, 'name_for_log', instance_name)
+            if instance_name:
+                msg = "set {}::{}.{}='{}'"
+                LOG.info(msg.format(name, instance_name, self.name, value))
+            else:
+                msg = "set {}::{}='{}'"
+                LOG.info(msg.format(name, self.name, value))
         except KeyboardInterrupt:
             cancel_name = '_cancel_' + self.name
             if hasattr(instance, cancel_name):
