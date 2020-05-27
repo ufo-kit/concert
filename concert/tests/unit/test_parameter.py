@@ -319,6 +319,11 @@ class TestParameter(TestCase):
         self.assertEqual(device['test'].target_readable, True)
         self.assertEqual(device['test'].target, 10*q.mm)
 
+    def test_name_for_log(self):
+        device = FooDevice(0 * q.mm)
+        device.foo = 1 * q.mm
+        self.assertEqual(device.name_for_log, 'device')
+
 
 class TestQuantity(TestCase):
 
