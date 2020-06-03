@@ -1,3 +1,4 @@
+import concert.config as cfg
 import logging
 import unittest
 import numpy as np
@@ -43,6 +44,7 @@ class TestCase(unittest.TestCase):
 
     def setUp(self):
         suppress_logging()
+        cfg.PROGRESS_BAR = False
 
 
 class VisitChecker(object):
