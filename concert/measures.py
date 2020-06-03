@@ -2,9 +2,12 @@
 Measures operate on some data and provide information about how \"good\"
 the data is.
 """
+import logging
 import numpy as np
 from concert.quantities import q
-from concert.imageprocessing import center_of_points, needle_tips
+
+
+LOG = logging.getLogger(__name__)
 
 
 class DummyGradientMeasure(object):
@@ -112,7 +115,7 @@ class SimpleArea(Area):
         self.flat_avg = (self._flat_1 + self._flat_2) / 2.0
 
 
-def rotation_axis(images):
+def rotation_axis(tips):
     """
     Determine a 3D circle normal inclination angles towards the
     :math:`y`-axis (0,1,0) and the center of the circle.
@@ -165,99 +168,56 @@ def rotation_axis(images):
 
     The measure returns a tuple (:math:`\phi`, :math:`\psi`, center).
     """
-    if len(images) < 5:
-        raise ValueError("At least 5 images are needed")
-    params, tips = _fit_ellipse(images)
-    phi, psi = _get_ellipse_angles(params, tips)
-    center = _get_ellipse_center(params, tips)
+    if len(tips) < 5:
+        raise ValueError("At least 5 coordinate pairs are needed")
 
-    return phi, psi, center
-
-
-def _get_ellipse_center(params, tips):
-    """Determine the center of the ellipse from its parameters."""
-    a_33 = _get_conic_submatrix(params)
-    if np.linalg.det(a_33) > 1e-3:
-        x_pos = (params[1] * params[4] -
-                 2 * params[3] * params[2]) /\
-            (4 * params[0] * params[2] - params[1] ** 2)
-        y_pos = (params[3] * params[1] -
-                 2 * params[0] * params[4]) /\
-            (4 * params[0] * params[2] - params[1] ** 2)
-    else:
-        # We are not dealing with an ellipse, use center of mass.
-        y_pos, x_pos = center_of_points(tips)
-
-    # +1 for image edge-clipping compensation.
-    return y_pos + 1, x_pos + 1
-
-
-def _get_ellipse_angles(params, tips):
-    """
-    Determine the :math:`xy` :math:`(\phi)` and :math:`zy` angle
-    :math:`(\psi)` of the normal of the circle defined by the axis
-    of rotation. The axis is determined by fitting an ellipse
-    to the sample rotation visible by different tips positions
-    in images. Return a tuple :math:`(\phi`, :math:`\psi)`.
-    """
     y_ind, x_ind = zip(*tips)
+    if max(x_ind) - min(x_ind) < 10:
+        raise ValueError("Sample off-centering too small, enlarge rotation radius.")
+
+    a_matrix = np.empty((len(x_ind), 6), dtype=np.float)
+    for i in range(len(x_ind)):
+        a_matrix[i] = np.array([x_ind[i] ** 2, x_ind[i] * y_ind[i],
+                                y_ind[i] ** 2, x_ind[i], y_ind[i], 1])
+
+    v_mat = np.linalg.svd(a_matrix)[2]
+    params = v_mat.T[:, -1]
+    a_33 = np.array([[params[0], params[1] / 2], [params[1] / 2, params[2]]])
     x_ind = np.array(x_ind)
     y_ind = np.array(y_ind)
     d_x = x_ind.max() - x_ind.min()
-    if d_x < 10:
-        raise ValueError("Sample off-centering too small, " +
-                         "enlarge rotation radius.")
-
-    a_33 = _get_conic_submatrix(params)
-
     usv = np.linalg.svd(a_33)
     s_vec = usv[1]
     v_mat = usv[2]
+    det = np.linalg.det(a_33)
+    LOG.debug('Conic determinant: %g', det)
 
-    if np.linalg.det(a_33) <= 0:
+    if det <= 0:
         # Not an ellipse
         d_y = float(y_ind.max() - y_ind.min())
         angle = np.arctan(d_y / d_x) * q.rad
         if x_ind[y_ind.argmax()] <= x_ind[y_ind.argmin()]:
             # More than pi/4.
             angle = -angle
-        phi, psi = angle, 0.0 * q.rad
+        phi, psi = (angle, 0.0 * q.rad)
+        center = np.mean(tips, axis=0)
     else:
-        phi, psi = \
-            np.arctan(v_mat[1][1] / v_mat[1][0]) * q.rad, \
-            np.arcsin(np.sqrt(s_vec[1]) / np.sqrt(s_vec[0])) * q.rad
+        x_pos = ((params[1] * params[4] - 2 * params[3] * params[2])
+                 / (4 * params[0] * params[2] - params[1] ** 2))
+        y_pos = ((params[3] * params[1] - 2 * params[0] * params[4])
+                 / (4 * params[0] * params[2] - params[1] ** 2))
+        center = np.array((y_pos, x_pos))
+        # Determine rotation direction needed for the pitch angle
+        v_0 = np.array(tips[0]) - center
+        v_1 = np.array(tips[1]) - center
+        pitch_d_angle = np.arctan2(np.cross(v_0, v_1), np.dot(v_0, v_1))
+        sgn = int(np.sign(pitch_d_angle))
+        phi, psi = (np.arctan(v_mat[1][1] / v_mat[1][0]) * q.rad,
+                    sgn * np.arcsin(np.sqrt(s_vec[1]) / np.sqrt(s_vec[0])) * q.rad)
 
-    return phi, psi
+    phi = phi.to(q.deg)
+    psi = psi.to(q.deg)
 
+    LOG.debug('Found z angle: %s, x angle: %s, center: %s', phi, psi, center)
 
-def _get_conic_submatrix(params):
-    """
-    Get the conic section submatrix for determining the conic section
-    type. *params* are the conic section parameters A, B, C, D, E, F,
-    where the conic section is :math:`Ax^2 + Bxy + Cy^2 + Dx + Ey + F = 0`.
-    """
-    return np.array([[params[0], params[1] / 2], [params[1] / 2, params[2]]])
-
-
-def _fit_ellipse(images):
-    """Ellipse fitting based on *points* and singular value
-    decomposition.
-    """
-    tips = needle_tips(images)
-
-    a_matrix = _construct_matrix(tips)
-    v_mat = np.linalg.svd(a_matrix)[2]
-    params = v_mat.T[:, -1]
-
-    return params, tips
-
-
-def _construct_matrix(points):
-    """Construct a conical section matrix from data *points*."""
-    y_ind, x_ind = zip(*points)
-    matrix = np.empty((len(x_ind), 6), dtype=np.int)
-    for i in range(len(x_ind)):
-        matrix[i] = np.array([x_ind[i] ** 2, x_ind[i] * y_ind[i],
-                              y_ind[i] ** 2, x_ind[i], y_ind[i], 1])
-
-    return matrix
+    return (phi, psi, center)

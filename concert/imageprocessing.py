@@ -5,7 +5,6 @@ backprojection, flat field correction and other operations on images.
 
 import numpy as np
 import logging
-from scipy import ndimage
 from scipy.signal import fftconvolve
 from concert.quantities import q
 
@@ -35,14 +34,16 @@ def ramp_filter(width):
     return np.fft.fftshift(np.abs(base)) * 2.0 / width
 
 
-def needle_tips(images):
+def find_needle_tips(images):
     """Get sample tips from images."""
     tips = []
 
     for image in images:
-        tip = _get_ellipse_point(image)
+        tip = find_needle_tip(image)
         if tip is not None:
             tips.append(tip)
+
+    LOG.debug('Needle tips: %s', np.array(tips).tolist())
 
     if len(tips) == 0:
         raise ValueError("No sample tip points found.")
@@ -50,23 +51,103 @@ def needle_tips(images):
     return tips
 
 
-def _segment(image):
-    """
-    Segment a flat corrected *image* into a sample and a background.
+def find_needle_tip(image):
+    """Extract needle tip from *image*."""
+    mask = segment_convex_object(image)
+    if mask is None:
+        return None
+    coords = np.array(list(zip(*np.where(mask))))
+    min_y = np.min(coords[:, 0])
+    indices = np.where(coords[:, 0] == min_y)[0]
+    coords = coords[indices]
+    if coords[:, 1].max() - coords[:, 1].min() > image.shape[1] // 4:
+        # Needle tip cannot be width / 4 broad, we have probably segmented just noise
+        return None
+    coords = [_find_peak_subpix(pos, image) for pos in coords]
 
-    Assume normally distributed noise, take the full width at
-    1/1000 of the maximum and make it a threshold for finding
-    the sample. The sample must be highly absorbing. The baseline
-    for the background is taken from the top row of the image.
-    """
-    thr = 0.5
-    image[image < thr] = 0
-    image[image >= thr] = 1
-    image = 1 - image
-    image = ndimage.binary_fill_holes(np.cast[np.bool](image))
+    return np.mean(coords, axis=0) if coords else None
 
-    # Close the image to get rid of noise-caused fuzzy segmentation.
-    return ndimage.binary_closing(image) + image
+
+def segment_convex_object(image):
+    """
+    Extract convex object from *image* (e.g. needle or sphere). It doesn't matter if object is
+    brigher or darker than the background (e.g. non flat corrected radiograph on input).
+    """
+    try:
+        from skimage.filters import threshold_otsu
+        from skimage.morphology import convex_hull_image, label
+    except ImportError as e:
+        print "You need to install scikit-image in order to use this function"
+        LOG.error(e)
+
+    def _segment(threshold, greater=True):
+        mask = np.zeros_like(image, dtype=np.int8)
+        if greater:
+            mask[image > threshold] = 1
+        else:
+            mask[image < threshold] = 1
+        labels, num = label(mask, return_num=True)
+        bins = np.arange(num + 1) + 0.5
+        hist, bins = np.histogram(labels, bins=bins)
+        largest_label = int(bins[np.argmax(hist)] + 0.5)
+        mask[labels != largest_label] = 0
+
+        return mask
+
+    try:
+        thr_otsu = threshold_otsu(image)
+    except Exception as e:
+        LOG.error(e)
+        return None
+
+    sgn = 1
+    mask = _segment(thr_otsu)
+
+    # Compute convex hull of the mask and inverted mask. Object is that mask which has smaller
+    # amount of pixels added by the convex hull (convex hull of a convex polygon has the same size
+    # as the polygon itself, whereas for concave polygons we'd need to add some pixels to the hull).
+    # Since the object segmentation can be jagged, convex hull might still add some pixels, so don't
+    # test for 0 but for the difference between added pixels for mask and inverted mask.
+    imask = 1 - mask
+    hull = convex_hull_image(mask)
+    ihull = convex_hull_image(imask)
+    hull_diff = np.count_nonzero(hull) - float(np.count_nonzero(mask))
+    ihull_diff = np.count_nonzero(ihull) - float(np.count_nonzero(imask))
+    if hull_diff > ihull_diff:
+        mask = imask
+        sgn = -1
+
+    # Refine the segmentation, set the threshold to roughly FWTM of the background standard
+    # deviation.
+    indices = np.where(1 - mask)
+    mean_bg = image[indices].mean()
+    std_bg = image[indices].std()
+    thr = mean_bg + sgn * 5 * std_bg
+    if sgn == 1 and thr < thr_otsu or sgn == -1 and thr > thr_otsu:
+        mask = _segment(thr, greater=sgn == 1)
+
+    return mask
+
+
+def _find_peak_subpix(peak, image, supersampling=16):
+    """Supersample vertical line at the *peak* (y, x) position by *supersampling* and look for the
+    steepest gradient in the region (peak[0] - 1, peak[0] + 1) in the high resolution line.
+    """
+    from scipy.ndimage import gaussian_filter1d
+    dy = 8
+    y_start = max(peak[0] - dy, 0)
+    line = image[y_start:min(peak[0] + dy, image.shape[0]), peak[1]]
+    x = np.arange(len(line))
+    x_hd = np.arange(0, len(line) - 1 + 1. / supersampling, 1. / supersampling)
+    line_hd = np.interp(x_hd, x, line)
+    # FWHM of the low resolution pixel
+    sigma = supersampling / (2. * np.sqrt(2 * np.log(2)))
+    blurred = gaussian_filter1d(line_hd, sigma)
+    middle = len(x) * supersampling // 2
+    g = np.abs(np.gradient(blurred))[middle - supersampling:middle + supersampling + 1]
+    y = (np.argmax(g) + middle - supersampling) / float(supersampling) + y_start
+
+    return (y, peak[1])
 
 
 def _get_boundary_coordinates(coordinates, max_val):
@@ -144,127 +225,6 @@ def _get_axis_intersection(p_1, p_2, shape):
     res = [x for x in res if 0 <= x[0] <= height and 0 <= x[1] <= width]
 
     return res
-
-
-def _get_sample_tip(image):
-    """Extract sample tip from the labeled *image*."""
-    # First check if the sample tip is in the FOV. If not, there are no
-    # objects or the sample splits the image in half.
-    if ndimage.label(image.max() - image)[1] != 1:
-        # No sample found in this image. It is either completely out of the
-        # FOV or it splits the image in half, thus the tip is out of the FOV.
-        return None
-
-    p_1, p_2 = _get_intersection_points(image)
-    intersections = _get_axis_intersection(p_1, p_2, image.shape)
-
-    if len(intersections) == 0:
-        return None
-
-    p_inter = None
-
-    # Get the intersection where a sample is present.
-    for intersection in intersections:
-        if image[intersection] > 0:
-            p_inter = intersection
-            break
-
-    if p_inter is None:
-        return None
-
-    y_ind, x_ind = np.where(image > 0)
-
-    # Calculate distances from the intersection point.
-    distances = np.sqrt((y_ind - p_inter[0]) ** 2 + (x_ind - p_inter[1]) ** 2)
-
-    # Most distant points are candidates for the sample tip.
-    indices = np.where(distances == distances.max())[0]
-
-    tips = [(y_ind[i], x_ind[i]) for i in indices]
-    tip_center = center_of_points(tips)
-
-    # Now find the intersection of the object and line going through it
-    # in the direction to the tip.
-    x_direction = tip_center[1] - p_inter[1]
-    if x_direction == 0:
-        # The line is parallel with y_ind axis
-        x_ind = np.ones(image.shape[1], dtype=np.int64) * p_inter[1]
-        y_ind = np.arange(image.shape[0])
-    else:
-        y_direction = tip_center[0] - p_inter[0]
-        x_ind = np.arange(image.shape[1])
-        y_ind = np.cast[np.int](np.round(p_inter[0] + y_direction * (
-                                         x_ind - p_inter[1]) / x_direction))
-
-    # Cut values going beyond image boundaries.
-    below = np.where(y_ind < image.shape[0])[0]
-    y_ind = y_ind[below]
-    x_ind = x_ind[below]
-    above = np.where(0 <= y_ind)[0]
-    y_ind = y_ind[above].astype(np.int)
-    x_ind = x_ind[above].astype(np.int)
-
-    # Drop indices at which there is no object in the image.
-    nonzero = np.where(image[y_ind, x_ind] > 0)[0]
-    x_ind = x_ind[nonzero]
-    y_ind = y_ind[nonzero]
-
-    distances = np.sqrt((y_ind - p_inter[0]) ** 2 + (x_ind - p_inter[1]) ** 2)
-    i = distances.argmax()
-
-    return y_ind[i], x_ind[i]
-
-
-def _get_sample(image):
-    """Segment the *image* to a sample and a background."""
-    labels = _get_regions(image)
-    labels = _get_boundary_regions(labels)
-    # Cut the edges by one pixel because hole filling does not affect them.
-    return _get_biggest_region(labels)[1:-1, 1:-1]
-
-
-def _get_ellipse_point(image):
-    """Extract ellipse points from the sample in *image*."""
-    labels = _get_sample(_segment(image))
-
-    return _get_sample_tip(labels)
-
-
-def _get_biggest_region(image):
-    """Get the region with the biggest area in the *image*."""
-    labels, features = ndimage.label(image)
-    sizes = ndimage.sum(image, labels, range(features + 1))
-    max_feature = np.argmax(sizes)
-    labels[labels != max_feature] = 0
-
-    return labels
-
-
-def _get_boundary_regions(labels):
-    """Extract regions from *labels* which appear on image boundaries only."""
-    features = np.max(labels)
-
-    for i in range(features + 1):
-        y_ind, x_ind = np.where(labels == i)
-        if len(x_ind) != 0 and len(y_ind) != 0 and x_ind.min() != 0 and\
-                x_ind.max() != labels.shape[1] - 1 and y_ind.min() != 0 and\
-                y_ind.max() != labels.shape[0] - 1:
-            labels[labels == i] = 0
-
-    return labels
-
-
-def _get_regions(image):
-    """Extract regions from the binary *image* which are not too small."""
-    labels, features = ndimage.label(image)
-    sizes = ndimage.sum(image, labels, range(features + 1))
-
-    # Remove small regions.
-    mask = sizes < 100
-    remove_indices = mask[labels]
-    labels[remove_indices] = 0
-
-    return labels
 
 
 def center_of_points(points):
