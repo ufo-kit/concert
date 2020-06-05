@@ -289,21 +289,21 @@ def acquire_frames_360(camera, rotation_motor, num_frames, shutter=None, flat_mo
          shutter=Shutter, flat_motor=LinearMotor, flat_position=Numeric(1, q.m),
          y_0=Numeric(1), y_1=Numeric(1), get_ellipse_points_kwargs=None, frame_consumer=None)
 def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
-                        get_ellipse_points=find_needle_tips, num_frames=10, metric_eps=0.1 * q.deg,
+                        get_ellipse_points=find_needle_tips, num_frames=10, metric_eps=None,
                         position_eps=0.1 * q.deg, max_iterations=5,
                         initial_x_coeff=1 * q.dimensionless, initial_z_coeff=1 * q.dimensionless,
                         shutter=None, flat_motor=None, flat_position=None, y_0=0, y_1=None,
                         get_ellipse_points_kwargs=None, frame_consumer=None):
     """
     align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
-    get_ellipse_points=find_needle_tips, num_frames=10, metric_eps=0.1 * q.deg,
+    get_ellipse_points=find_needle_tips, num_frames=10, metric_eps=None,
     position_eps=0.1 * q.deg, max_iterations=5, initial_x_coeff=1 * q.dimensionless,
     initial_z_coeff=1 * q.dimensionless, shutter=None, flat_motor=None, flat_position=None,
     y_0=0, y_1=None, get_ellipse_points_kwargs=None, frame_consumer=None)
 
-    Align rotation axis. *camera* is used to obtain frames, *rotation_motor*
-    rotates the sample around the tomographic axis of rotation, *x_motor*
-    turns the sample around x-axis, *z_motor* turns the sample around z-axis.
+    Align rotation axis. *camera* is used to obtain frames, *rotation_motor* rotates the sample
+    around the tomographic axis of rotation, *x_motor* turns the sample around x-axis, *z_motor*
+    turns the sample around z-axis.
 
     *get_ellipse_points* is a function with one positional argument, a set of images. It computes
     the ellipse points from the sample positions as it rotates around the tomographic axis.  You can
@@ -312,25 +312,22 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
     tips or sphere centers. You can pass additional keyword arguments to the *get_ellipse_points*
     function in the *get_ellipse_points_kwargs* dictionary.
 
-    *num_frames* defines how many frames are acquired and passed to the *measure*.
-    *metric_eps* is the metric threshold for stopping the procedure. If *max_iterations*
-    is reached the procedure stops as well. *initial_[x|z]_coeff* is the coefficient applied`
-    to the motor motion for the first iteration. If we move the camera instead of the
-    rotation stage, it is often necessary to acquire fresh flat fields. In order to make
-    an up-to-date flat correction, specify *shutter* if you want fresh dark fields and
-    specify *flat_motor* and *flat_position* to acquire flat fields. Crop acquired images
-    to *y_0* and *y_1*. *frame_consumer* is a coroutine which will receive the frames
-    acquired at different sample positions.
+    *num_frames* defines how many frames are acquired and passed to the *measure*. *metric_eps* is
+    the metric threshold for stopping the procedure. If not specified, it is calculated
+    automatically to not exceed 0.5 pixels vertically. If *max_iterations* is reached the procedure
+    stops as well. *initial_[x|z]_coeff* is the coefficient applied` to the motor motion for the
+    first iteration. If we move the camera instead of the rotation stage, it is often necessary to
+    acquire fresh flat fields. In order to make an up-to-date flat correction, specify *shutter* if
+    you want fresh dark fields and specify *flat_motor* and *flat_position* to acquire flat fields.
+    Crop acquired images to *y_0* and *y_1*. *frame_consumer* is a coroutine which will receive the
+    frames acquired at different sample positions.
 
-    The procedure finishes when it finds the minimum angle between an
-    ellipse extracted from the sample movement and respective axes or the
-    found angle drops below *metric_eps*. The axis of rotation after
-    the procedure is (0,1,0), which is the direction perpendicular
-    to the beam direction and the lateral direction. *x_motor* and *z_motor*
-    do not have to move exactly by the computed angles but their relative
-    motion must be linear with respect to computed angles (e.g. if the motors
-    operate with steps it is fine, also rotation direction does not need
-    to be known).
+    The procedure finishes when it finds the minimum angle between an ellipse extracted from the
+    sample movement and respective axes or the found angle drops below *metric_eps*. The axis of
+    rotation after the procedure is (0,1,0), which is the direction perpendicular to the beam
+    direction and the lateral direction. *x_motor* and *z_motor* do not have to move exactly by the
+    computed angles but their relative motion must be linear with respect to computed angles (e.g.
+    if the motors operate with steps it is fine, also rotation direction does not need to be known).
     """
     if get_ellipse_points_kwargs is None:
         get_ellipse_points_kwargs = {}
@@ -386,6 +383,9 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
         tips = get_ellipse_points(frames, **get_ellipse_points_kwargs)
         roll_angle_current, pitch_angle_current, center = rotation_axis(tips)
         futures = []
+        if metric_eps is None:
+            metric_eps = np.rad2deg(np.arctan(1. / frames[0].shape[1])) * q.deg
+            LOG.debug('Automatically computed metric epsilon: %s', metric_eps)
 
         if z_motor and roll_continue:
             roll_history.append((z_motor.position, roll_angle_current))
