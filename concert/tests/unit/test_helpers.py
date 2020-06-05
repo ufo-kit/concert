@@ -36,7 +36,6 @@ class TestExpects(TestCase):
                 self.rotation_motor,
                 self.rotation_motor,
                 self.rotation_motor,
-                measure=rotation_axis,
                 num_frames=[
                     10,
                     20]).result()
@@ -46,20 +45,8 @@ class TestExpects(TestCase):
                 self.rotation_motor,
                 self.rotation_motor,
                 self.rotation_motor,
-                measure=rotation_axis,
                 num_frames=10 *
                 q.mm).result()
-        with self.assertRaises(TypeError):
-            align_rotation_axis(
-                self.camera,
-                self.rotation_motor,
-                self.rotation_motor,
-                self.rotation_motor,
-                measure=rotation_axis,
-                num_frames=10,
-                absolute_eps=[
-                    1,
-                    2] * q.deg).result()
 
     def test_align_rotation_axis_function(self):
         align_rotation_axis(
