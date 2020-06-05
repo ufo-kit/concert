@@ -283,28 +283,35 @@ def acquire_frames_360(camera, rotation_motor, num_frames, shutter=None, flat_mo
 
 @async
 @expects(Camera, RotationMotor, x_motor=RotationMotor, z_motor=RotationMotor,
-         measure=rotation_axis, num_frames=Numeric(1), metric_eps=Numeric(1, q.deg),
+         get_ellipse_points=find_needle_tips, num_frames=Numeric(1), metric_eps=Numeric(1, q.deg),
          position_eps=Numeric(1, q.deg), max_iterations=Numeric(1),
          initial_x_coeff=Numeric(1, q.dimensionless), initial_z_coeff=Numeric(1, q.dimensionless),
          shutter=Shutter, flat_motor=LinearMotor, flat_position=Numeric(1, q.m),
-         y_0=Numeric(1), y_1=Numeric(1), frame_consumer=None)
+         y_0=Numeric(1), y_1=Numeric(1), get_ellipse_points_kwargs=None, frame_consumer=None)
 def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
-                        measure=rotation_axis, num_frames=10, metric_eps=0.1 * q.deg,
+                        get_ellipse_points=find_needle_tips, num_frames=10, metric_eps=0.1 * q.deg,
                         position_eps=0.1 * q.deg, max_iterations=5,
                         initial_x_coeff=1 * q.dimensionless, initial_z_coeff=1 * q.dimensionless,
                         shutter=None, flat_motor=None, flat_position=None, y_0=0, y_1=None,
-                        frame_consumer=None):
+                        get_ellipse_points_kwargs=None, frame_consumer=None):
     """
     align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
-    measure=rotation_axis, num_frames=10, metric_eps=0.1 * q.deg,
+    get_ellipse_points=find_needle_tips, num_frames=10, metric_eps=0.1 * q.deg,
     position_eps=0.1 * q.deg, max_iterations=5, initial_x_coeff=1 * q.dimensionless,
     initial_z_coeff=1 * q.dimensionless, shutter=None, flat_motor=None, flat_position=None,
-    y_0=0, y_1=None, frame_consumer=None)
+    y_0=0, y_1=None, get_ellipse_points_kwargs=None, frame_consumer=None)
 
     Align rotation axis. *camera* is used to obtain frames, *rotation_motor*
     rotates the sample around the tomographic axis of rotation, *x_motor*
     turns the sample around x-axis, *z_motor* turns the sample around z-axis.
-    *measure* provides axis of rotation angular misalignment data (a callable),
+
+    *get_ellipse_points* is a function with one positional argument, a set of images. It computes
+    the ellipse points from the sample positions as it rotates around the tomographic axis.  You can
+    use e.g. :func:`concert.imageprocessing.find_needle_tips` and
+    :func:`concert.imageprocessing.find_sphere_centers` to extract the ellipse points from needle
+    tips or sphere centers. You can pass additional keyword arguments to the *get_ellipse_points*
+    function in the *get_ellipse_points_kwargs* dictionary.
+
     *num_frames* defines how many frames are acquired and passed to the *measure*.
     *metric_eps* is the metric threshold for stopping the procedure. If *max_iterations*
     is reached the procedure stops as well. *initial_[x|z]_coeff* is the coefficient applied`
@@ -325,6 +332,9 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
     operate with steps it is fine, also rotation direction does not need
     to be known).
     """
+    if get_ellipse_points_kwargs is None:
+        get_ellipse_points_kwargs = {}
+
     if not x_motor and not z_motor:
         raise ValueError("At least one of the x, z motors must be given")
 
@@ -373,8 +383,8 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
         frames = acquire_frames_360(camera, rotation_motor, num_frames, shutter=shutter,
                                     flat_motor=flat_motor, flat_position=flat_position,
                                     y_0=y_0, y_1=y_1, frame_consumer=frame_consumer).result()
-        tips = find_needle_tips(frames)
-        roll_angle_current, pitch_angle_current, center = measure(tips)
+        tips = get_ellipse_points(frames, **get_ellipse_points_kwargs)
+        roll_angle_current, pitch_angle_current, center = rotation_axis(tips)
         futures = []
 
         if z_motor and roll_continue:
