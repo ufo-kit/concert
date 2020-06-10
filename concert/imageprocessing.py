@@ -312,8 +312,11 @@ def center_of_mass(frame):
         return np.array([y, x])
 
 
-def correlate(first, second, supersampling=1):
-    """Correlate *first* and *second* image, use *supersampling* for sub-pixel precision."""
+def correlate(first, second, first_y=0, second_y=0, overlap_height=None, supersampling=1):
+    """Correlate *first* and *second* image, use *supersampling* for sub-pixel precision. Crop first
+    image vertically to (*first_y*, *first_y* + *overlap_height*) and second to (*second_y*,
+    *second_y* + *overlap_height*).
+    """
     from numpy.fft import fft2, ifft2, fftshift
 
     try:
@@ -325,13 +328,27 @@ def correlate(first, second, supersampling=1):
 
     height, width = first.shape
     hd_shape = (supersampling * height, supersampling * width)
-    first = resize(first, hd_shape, order=1)
-    second = resize(second, hd_shape, order=1)
+    first = resize(first, hd_shape, order=1, mode='reflect')
+    second = resize(second, hd_shape, order=1, mode='reflect')
+    if supersampling > 1:
+        ssh = supersampling // 2
+        first = first[ssh:-ssh, ssh:-ssh]
+        second = second[ssh:-ssh, ssh:-ssh]
+    first_y = supersampling * first_y
+    if overlap_height:
+        overlap_height = supersampling * overlap_height
+    else:
+        overlap_height = second.shape[0]
+    if second_y:
+        second_y = supersampling * second_y
+    else:
+        second_y = second.shape[0] - overlap_height
 
-    first_sobel = sobel(first)
-    second_sobel = sobel(second)
+    first_sobel = sobel(first)[first_y:first_y + overlap_height]
+    second_sobel = sobel(second)[second_y:second_y + overlap_height]
     c = fftshift(ifft2(fft2(first_sobel) * np.conjugate(fft2(second_sobel))).real)
     dy, dx = np.unravel_index(c.argmax(), c.shape) - np.array(c.shape) / 2.
+    dy += second_y - first_y
 
     return (dy / supersampling, dx / supersampling, c)
 
