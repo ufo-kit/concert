@@ -235,12 +235,14 @@ class Experiment(Parameterizable):
         """
         self._state_value = 'running'
         start_time = time.time()
-        if self.separate_scans and self.walker:
-            self.walker.descend(self.name_fmt.format(self.iteration))
-        handler = logging.FileHandler(os.path.join(self.walker.current, 'experiment.log'))
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        handler.setFormatter(formatter)
-        self.log.addHandler(handler)
+        handler = None
+        if self.walker:
+            if self.separate_scans:
+                self.walker.descend(self.name_fmt.format(self.iteration))
+            handler = logging.FileHandler(os.path.join(self.walker.current, 'experiment.log'))
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            handler.setFormatter(formatter)
+            self.log.addHandler(handler)
         self.log.info(self)
         LOG.debug('Experiment iteration %d start', self.iteration)
 
@@ -263,8 +265,9 @@ class Experiment(Parameterizable):
                     self.walker.ascend()
                 LOG.debug('Experiment iteration %d duration: %.2f s',
                           self.iteration, time.time() - start_time)
-                handler.close()
-                self.log.removeHandler(handler)
+                if handler:
+                    handler.close()
+                    self.log.removeHandler(handler)
                 self.iteration += 1
 
         self._state_value = 'standby'
