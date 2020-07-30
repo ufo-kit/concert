@@ -581,6 +581,11 @@ class _PyplotImageUpdater(_PyplotUpdaterBase):
 
     def update_colorbar(self):
         """Update the colorbar (rescale and redraw)."""
+        shape = self.mpl_image.get_size()
+        if (shape[1] > shape[0] and self.colorbar.orientation == 'vertical' or
+                shape[0] >= shape[1] and self.colorbar.orientation == 'horizontal'):
+            self.colorbar.remove()
+            self.make_colorbar()
         self.colorbar.set_clim(self.mpl_image.get_clim())
         self.colorbar.draw_all()
 
@@ -593,8 +598,9 @@ class _PyplotImageUpdater(_PyplotUpdaterBase):
             colormap = self.colormap
         elif "cmap" in self.imshow_kwargs:
             colormap = self.imshow_kwargs["cmap"]
-
-        self.colorbar = plt.colorbar(cmap=colormap)
+        shape = self.mpl_image.get_size()
+        orientation = 'horizontal' if shape[1] > shape[0] else 'vertical'
+        self.colorbar = plt.colorbar(cmap=colormap, orientation=orientation)
 
     def make_image(self, image):
         """Create an image with colorbar"""
