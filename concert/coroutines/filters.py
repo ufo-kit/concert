@@ -81,6 +81,7 @@ def queue(consumer, process_all=True, block=False, make_deepcopy=True):
             elif not process_all or item_queue.empty():
                 break
             item_queue.task_done()
+        consumer.close()
         serve.stopped.set()
         LOG.debug("queue's serve loop stopped")
 
