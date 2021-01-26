@@ -106,6 +106,8 @@ def write_images(writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0, by
             if not append and (not im_writer or written + image.nbytes > bytes_per_file):
                 if im_writer:
                     im_writer.close()
+                    LOG.debug('Writer "{}" closed'.format(prefix.format(start_index +
+                                                                        file_index - 1)))
                 im_writer = writer(prefix.format(start_index + file_index), bytes_per_file)
                 file_index += 1
                 written = 0
@@ -114,6 +116,7 @@ def write_images(writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0, by
     except GeneratorExit:
         if im_writer:
             im_writer.close()
+            LOG.debug('Writer "{}" closed'.format(prefix.format(start_index + file_index - 1)))
 
 
 class Walker(object):
