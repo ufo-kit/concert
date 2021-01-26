@@ -56,8 +56,12 @@ def _find_object_by_name(instance):
     """
     def _find_in_dict(dictionary):
         for (obj_name, obj) in dictionary.items():
-            if obj == instance:
-                return obj_name
+            try:
+                if obj == instance:
+                    return obj_name
+            except:
+                # This is not so crucial, just debug level
+                LOG.debug('Error trying to find object {} of type {}'.format(obj_name, type(obj)))
 
     instance_name = None
 
