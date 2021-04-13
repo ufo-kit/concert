@@ -366,6 +366,39 @@ class FlatCorrectedBackproject(Backproject):
         consumer.send(self.result(leave_index=0))
 
 
+class FlatCorrect(InjectProcess):
+
+    """
+    Coroutine to flat-field correct projections.
+
+    *dark* is the dark image and *flat* is the flat image, if *fix_nan_and_inf* is True all NAN and
+    infinity values will be converted to 0. Use *absorptivity* if it's True.
+    """
+
+    def __init__(self, dark, flat, fix_nan_and_inf=True, absorptivity=True):
+        self.pm = PluginManager()
+        self.flat_correction = self.pm.get_task('flat-field-correct')
+        self.flat_correction.props.fix_nan_and_inf = fix_nan_and_inf
+        self.flat_correction.props.absorption_correct = absorptivity
+        self.dark = dark.astype(np.float32)
+        self.flat = flat.astype(np.float32)
+
+        super(FlatCorrect, self).__init__(self.flat_correction, get_output=True)
+
+    @coroutine
+    def __call__(self, consumer):
+        """Get a sinogram, do filtered backprojection and send it to *consumer*."""
+        if not self._started:
+            self.start()
+
+        while True:
+            image = yield
+            self.insert(image.astype(np.float32), node=self.flat_correction, index=0)
+            self.insert(self.dark, node=self.flat_correction, index=1)
+            self.insert(self.flat, node=self.flat_correction, index=2)
+            consumer.send(self.result())
+
+
 @coroutine
 def middle_row(consumer):
     while True:
