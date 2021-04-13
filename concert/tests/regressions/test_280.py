@@ -7,7 +7,7 @@ from concert.devices.motors.dummy import LinearMotor
 class TestIssue280(TestCase):
 
     def test_hard_limit_throws_off_fsm(self):
-        m = LinearMotor()
+        m = LinearMotor(upper_hard_limit=3*q.mm)
 
         with self.assertRaises(HardLimitError):
             m.position = 5 * q.m
