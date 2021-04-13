@@ -63,7 +63,7 @@ def sphere(size, radius, mat):
     """Create a sphere with radius *radius* in an image with size *size* and
     use transformation matrix *mat* to adjust the sphere position and size.
     """
-    y_0, x_0 = np.mgrid[-size / 2:size / 2, -size / 2:size / 2]
+    y_0, x_0 = np.mgrid[-size / 2:size / 2, -size / 2:size / 2][:, ::-1]
 
     k_x = x_0 * mat[0, 0] + y_0 * mat[0, 1] + mat[0, 3]
     k_y = x_0 * mat[1, 0] + y_0 * mat[1, 1] + mat[1, 3]
@@ -80,11 +80,10 @@ def sphere(size, radius, mat):
 
 
 def transfer(thickness, ref_index, lam):
-    """Beer-Lambert law."""
     lam = lam.to(thickness.units)
     mju = 4 * q.dimensionless * np.pi * ref_index.imag / lam
 
-    return np.exp(- mju * thickness)
+    return (mju * thickness).to_base_units().magnitude
 
 
 def get_projection(thickness):
@@ -117,6 +116,7 @@ class SimulationCamera(DummyBaseCamera):
         self.z_axis_param = z_param
         self.size = im_width
         self._center = None
+        self._ellipsoid_center = None
         self.radius = needle_radius
         if self.radius is None:
             self.radius = self.size / 8
@@ -137,6 +137,11 @@ class SimulationCamera(DummyBaseCamera):
         """Ellipse center."""
         return self._center
 
+    @property
+    def ellipsoid_center(self):
+        """Ellipsoid center."""
+        return self._ellipsoid_center
+
     def create_needle(self):
         """Create sample rotated about axis of rotation."""
         matrix = np.identity(4, np.float)
@@ -147,15 +152,17 @@ class SimulationCamera(DummyBaseCamera):
         matrix = rot_x(self.x_axis_param.get().result(), matrix)
 
         center = np.dot(np.linalg.inv(matrix),
-                        (0, self.size / 8 / self.scale[1], 0, 1)) + \
+                (0, self.size / 8 / self.scale[1], 0, 1)) + \
             self.size / 2
         # Ellipse center.
-        self._center = center[1], center[0]
+        self._center = self.size - center[1], center[0]
 
         matrix = rot_y(self.y_axis_param.get().result(), matrix)
         matrix = translate((self.rotation_radius, 0, 0), matrix)
 
         matrix = scale(self.scale, matrix)
+        x, y = np.dot(np.linalg.inv(matrix), (0, 0, 0, 1))[:-2] + self.size / 2
+        self._ellipsoid_center = (x, self.size - y - 1)
 
         return sphere(self.size, self.radius, matrix)
 

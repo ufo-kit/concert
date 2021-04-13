@@ -1,6 +1,7 @@
 import numpy as np
 from concert.quantities import q
 from concert.devices.motors.dummy import ContinuousRotationMotor
+from concert.imageprocessing import find_needle_tips, find_sphere_centers
 from concert.processes.common import align_rotation_axis
 from concert.tests import slow, TestCase
 from concert.tests.util.rotationaxis import SimulationCamera
@@ -25,8 +26,8 @@ class TestDummyAlignment(TestCase):
         # Allow 1 px misalignment in y-direction.
         self.eps = np.arctan(2.0 / self.camera.rotation_radius) * q.rad
 
-    def align_check(self, x_angle, z_angle, has_x_motor=True,
-                    has_z_motor=True, flat=None, dark=None):
+    def align_check(self, x_angle, z_angle, has_x_motor=True, has_z_motor=True,
+                    get_ellipse_points=find_needle_tips, get_ellipse_points_kwargs=None):
         """"Align and check the results."""
         self.x_motor.position = z_angle
         self.z_motor.position = x_angle
@@ -34,8 +35,9 @@ class TestDummyAlignment(TestCase):
         x_motor = self.x_motor if has_x_motor else None
         z_motor = self.z_motor if has_z_motor else None
 
-        align_rotation_axis(self.camera, self.y_motor, x_motor=x_motor, z_motor=z_motor, flat=flat,
-                            dark=dark).join()
+        align_rotation_axis(self.camera, self.y_motor, x_motor=x_motor, z_motor=z_motor,
+                            get_ellipse_points=get_ellipse_points,
+                            get_ellipse_points_kwargs=get_ellipse_points_kwargs).join()
 
         # In our case the best perfectly aligned position is when both
         # motors are in 0.
@@ -127,8 +129,22 @@ class TestDummyAlignment(TestCase):
         self.align_check(-17 * q.deg, -11 * q.deg)
 
     @slow
-    def test_flat_corrected(self):
-        shape = (self.camera.size, self.camera.size)
-        dark = np.zeros(shape, dtype=np.float)
-        flat = np.ones(shape, dtype=np.float)
-        self.align_check(-17 * q.deg, -11 * q.deg, flat=flat, dark=dark)
+    def test_sphere(self):
+        """Test sphere instead of needle."""
+        self.camera.rotation_radius = self.camera.size / 2
+        self.camera.scale = (.5, .5, .5)
+        self.camera.y_position = 0
+        self.eps = np.arctan(2.0 / self.camera.rotation_radius) * q.rad
+        self.align_check(-17 * q.deg, 11 * q.deg,
+                         get_ellipse_points=find_sphere_centers)
+
+    @slow
+    def test_kwargs(self):
+        """Test keyword arguments passing. Use sphere simulation and segmentation for that."""
+        self.camera.rotation_radius = self.camera.size / 2
+        self.camera.scale = (.25, .25, .25)
+        self.camera.y_position = 0
+        self.eps = np.arctan(2.0 / self.camera.rotation_radius) * q.rad
+        self.align_check(-17 * q.deg, 11 * q.deg,
+                         get_ellipse_points=find_sphere_centers,
+                         get_ellipse_points_kwargs={'correlation_threshold': 0.9})

@@ -1,9 +1,10 @@
 import numpy as np
 from concert.quantities import q
 from concert.devices.motors.dummy import ContinuousRotationMotor
+from concert.imageprocessing import find_needle_tips
 from concert.tests import slow, TestCase
 from concert.tests.util.rotationaxis import SimulationCamera
-from concert.processes.common import scan
+from concert.processes.common import scan, align_rotation_axis
 from concert.measures import rotation_axis
 from concert.helpers import Region
 
@@ -36,23 +37,25 @@ class TestRotationAxisMeasure(TestCase):
 
     def align_check(self, x_angle, z_angle):
         images = self.make_images(x_angle, z_angle)
-        phi, psi = rotation_axis(images)[:2]
+        tips = find_needle_tips(images)
+        phi, psi = rotation_axis(tips)[:2]
 
-        assert phi + x_angle < self.eps
+        assert phi - x_angle < self.eps
         assert np.abs(psi) - np.abs(z_angle) < self.eps
 
     def center_check(self, images):
-        center = rotation_axis(images)[2]
+        tips = find_needle_tips(images)
+        center = rotation_axis(tips)[2]
 
         assert np.abs(center[1] - self.image_source.ellipse_center[1]) < 2
         assert np.abs(center[0] - self.image_source.ellipse_center[0]) < 2
 
     @slow
     def test_out_of_fov(self):
-        images = np.ones((10, self.image_source.size,
-                          self.image_source.size))
+        images = np.random.normal(size=(10, self.image_source.size, self.image_source.size))
         with self.assertRaises(ValueError) as ctx:
-            rotation_axis(images)
+            tips = find_needle_tips(images)
+            rotation_axis(tips)
 
         self.assertEqual("No sample tip points found.", str(ctx.exception))
 
@@ -126,3 +129,17 @@ class TestRotationAxisMeasure(TestCase):
     @slow
     def test_negative(self):
         self.align_check(-17 * q.deg, -11 * q.deg)
+
+    @slow
+    def test_pitch_sgn(self):
+        self.image_source.size = 512
+        # Image acquisition inverts the contrast, so invert it here to get it right there
+        self.x_motor.position = 10 * q.deg
+        self.y_motor.position = 0 * q.deg
+        self.z_motor.position = 0 * q.deg
+        eps = 0.1 * q.deg
+        align_rotation_axis(self.image_source, self.y_motor, x_motor=self.x_motor,
+                            z_motor=self.z_motor, initial_x_coeff=2*q.dimensionless,
+                            metric_eps=eps).join()
+
+        assert np.abs(self.x_motor.position) < eps
