@@ -4,6 +4,98 @@ Changelog
 Here you can see the full list of changes between each Concert release.
 
 
+Version 0.11
+------------
+
+Released on April 14th 2021, which is the last release for Python 2.
+
+Features
+~~~~~~~~
+
+- 345c2e7 Add stack-based name resolution
+- f8e9ec5 experiments: add per-run log handler
+- 41bfa5e Add State to Experiment
+- 253d4d5 Add external limits to parameter
+- 40debd7 Added target value to parameter
+- 6eb07fd Added LensChanger
+- dc0b395 Add readers
+- ec90dcd ufo: Add FlatCorrect class
+- e7326bd Add dummy ImagingExperiment
+- f90379d Add fwhm to find_parameters
+- a8c705b imageprocessing: add filter_low_frequencies
+- e181587 Add a simple online reconstruction addon
+- 51d6ec2 Add ROI selection support to ImagingFileExperiment
+- 2ba2fe1 add fraction and percent to quantities
+- e59697b Add progress bar
+- 43c4e98 Add ImagingFileExperiment
+- e823b52 base and dummy attenuatorbox added
+- ece80dd Add flat field correction task
+- 1ec03be addons: Enable async I/O by ImageWriter
+- 6535790 Add `docs` command to Concert program
+- 0f91277 Add Flask-like extension system
+- 6c02a84 abort on ctrl-c
+- align axis: auto-compute metric_eps by default (better rotation axis alignment)
+
+Pull Requests
+~~~~~~~~~~~~~
+
+- #374 from ufo-kit/calculate_motor_velocity
+- #389 from ufo-kit/add-flatcorrect
+- #396 from ufo-kit/fix-388
+- #419 from ufo-kit/add-percent-quantity
+- #436 from ufo-kit/align-rotation-axis
+- #450 from ufo-kit/experiment-state
+- #447 from ufo-kit/device-names
+- #445 from ufo-kit/experiment-logs
+- #437 from ufo-kit/add-lens-selector
+- #442 from ufo-kit/always-execute-finish-in-experiment
+- #443 from ufo-kit/add_enable_disable_to_motors
+- #434 from ufo-kit/add-state-to-experiment
+- #435 from ufo-kit/add-external-softlimits
+- #439 from ufo-kit/add-state-to-monochromator
+- #339 from ufo-kit/ufo-multi-gpus
+- #432 from ufo-kit/fix-requirements-python2.7
+- #433 from ufo-kit/fix-typo-in-experiment
+- #430 from ufo-kit/cleanup-writers
+- #429 from ufo-kit/add-readers
+- #425 from ufo-kit/add_parameters_to_experiments
+- #428 from ufo-kit/dependabot/pip/pyxdg-0.26
+- #427 from ufo-kit/fix-fsm-transitioning-error
+- #417 from ufo-kit/add-progressbar
+- #412 from ufo-kit/enable-writer-offset
+- #411 from ufo-kit/multipage-file-camera
+- #410 from ufo-kit/faster-dummy-camera
+- #408 from ufo-kit/write_multi
+- #405 from ufo-kit/add-attenuator
+- #401 from ufo-kit/fix-400
+- #399 from ufo-kit/Flake8
+- #397 from ufo-kit/fix-367
+- #395 from ufo-kit/fix-385
+- #394 from ufo-kit/docs
+- #393 from ufo-kit/docs
+- #391 from ufo-kit/forbid-addon-reattachment
+- #387 from ufo-kit/extend-queue
+- #379 from ufo-kit/fix-flatcorrectedbackproject
+- #383 from ufo-kit/fix-dimax-start-recording
+- #381 from ufo-kit/fix-ufo-segfault
+- #370 from ufo-kit/generalize-acquisitions
+- #378 from ufo-kit/print-noasync-traceback
+- #377 from ufo-kit/accumulate-addon
+- #376 from ufo-kit/numpy-accumulate
+- #375 from ufo-kit/fix-DirectoryWalker-relative-paths
+- #369 from ufo-kit/extensions
+
+Fixes
+~~~~~
+
+- #400: Fix properties mixup of uca-cameras
+- #392 and support for current Pint versions'
+- #388: Fixed units checking of Numeric
+- #385: Optional output of resolve without units
+- #371: override grab only in uca cameras
+- #301: don't print traceback for DISABLE_ASYNC
+
+
 Version 0.10
 ------------
 
