@@ -21,7 +21,7 @@ from concurrent.futures import ThreadPoolExecutor, Future
 from concert.quantities import q
 
 try:
-    import Queue as queue
+    import queue as queue
 except ImportError:
     import queue
 

@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+
 import copy
 import logging
 import threading
@@ -21,8 +21,8 @@ try:
                               DTYPE_CL_SIZE)
     from tofu.tasks import get_task
 except ImportError:
-    print >> sys.stderr, "You must install tofu to use Ufo features, see "\
-                         "'https://github.com/ufo-kit/tofu.git'"
+    print("You must install tofu to use Ufo features, see "\
+                         "'https://github.com/ufo-kit/tofu.git'", file=sys.stderr)
 
 from multiprocessing.pool import ThreadPool
 from concert.async import async
@@ -151,7 +151,7 @@ class InjectProcess(object):
             if len(self.input_tasks) > 1:
                 raise ValueError('input_node cannot be None for graphs with more inputs')
             else:
-                node = self.input_tasks.keys()[0]
+                node = list(self.input_tasks.keys())[0]
         if self.ufo_buffers[node][index] is None:
             # reverse shape from rows, cols to x, y
             self.ufo_buffers[node][index] = Ufo.Buffer.new_with_size(array.shape[::-1], None)
@@ -169,7 +169,7 @@ class InjectProcess(object):
         in case *leave_index* is None or one result for the specified leave_index.
         """
         if self.output_tasks:
-            indices = range(len(self.output_tasks)) if leave_index is None else [leave_index]
+            indices = list(range(len(self.output_tasks))) if leave_index is None else [leave_index]
             results = []
             for index in indices:
                 buf = self.output_tasks[index].get_output_buffer()
@@ -185,7 +185,7 @@ class InjectProcess(object):
 
     def stop(self):
         """Stop input tasks."""
-        for input_tasks in self.input_tasks.values():
+        for input_tasks in list(self.input_tasks.values()):
             for input_task in input_tasks:
                 input_task.stop()
 
@@ -719,7 +719,7 @@ class GeneralBackprojectManager(object):
         if not self._resources:
             self._resources = [Ufo.Resources()]
         gpus = np.array(self._resources[0].get_gpu_nodes())
-        gpu_indices = np.array(self.args.gpus or range(len(gpus)))
+        gpu_indices = np.array(self.args.gpus or list(range(len(gpus))))
         if min(gpu_indices) < 0 or max(gpu_indices) > len(gpus) - 1:
             raise ValueError('--gpus contains invalid indices')
         gpus = gpus[gpu_indices]
@@ -963,7 +963,7 @@ class GeneralBackprojectManager(object):
                 if self._aborted:
                     break
                 self._batch_index = i
-                pool.map(start_one, range(len(self._regions[i])))
+                pool.map(start_one, list(range(len(self._regions[i]))))
             pool.close()
             pool.join()
 

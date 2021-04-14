@@ -4,7 +4,7 @@ from concert.devices.io import base
 
 
 def _make_ids(index, num_items):
-    return zip([index] * num_items, range(num_items))
+    return list(zip([index] * num_items, list(range(num_items))))
 
 
 class HLe(base.IO):

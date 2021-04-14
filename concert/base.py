@@ -55,7 +55,7 @@ def _find_object_by_name(instance):
     :meth:`.Parameter.__set__`.
     """
     def _find_in_dict(dictionary):
-        for (obj_name, obj) in dictionary.items():
+        for (obj_name, obj) in list(dictionary.items()):
             try:
                 if obj == instance:
                     return obj_name
@@ -918,7 +918,7 @@ class Parameterizable(object):
             self._params = {}
 
         for base in self.__class__.__mro__:
-            for attr_name, attr_type in base.__dict__.items():
+            for attr_name, attr_type in list(base.__dict__.items()):
                 if isinstance(attr_type, Parameter):
                     attr_type.name = attr_name
                     self._install_parameter(attr_type)
@@ -954,12 +954,12 @@ class Parameterizable(object):
         *params* is a dictionary mapping parameter names to :class:`.Parameter`
         objects.
         """
-        for name, param in params.items():
+        for name, param in list(params.items()):
             param.name = name
             self._install_parameter(param)
 
         # Obtain the object-dot notation.
-        merged_dict = dict(self.__class__.__dict__.items() + params.items())
+        merged_dict = dict(list(self.__class__.__dict__.items()) + list(params.items()))
         self.__class__ = type(self.__class__.__name__, self.__class__.__bases__, merged_dict)
 
     def _install_parameter(self, param):

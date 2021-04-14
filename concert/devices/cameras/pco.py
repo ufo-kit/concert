@@ -94,7 +94,7 @@ class Dimax(Pco, base.BufferedMixin):
         try:
             self.uca.start_readout()
 
-            for i in xrange(num_frames):
+            for i in range(num_frames):
                 yield self.grab()
         except base.CameraError:
             raise StopIteration

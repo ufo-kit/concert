@@ -5,7 +5,7 @@ import os
 import tempfile
 import time
 try:
-    from Queue import Empty
+    from queue import Empty
 except ImportError:
     from queue import Empty
 import logging

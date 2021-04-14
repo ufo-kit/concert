@@ -221,7 +221,7 @@ class TestExperiment(TestExperimentBase):
         accumulate = Accumulate()
         Consumer([self.acquisitions[0]], accumulate)
         self.experiment.run().join()
-        self.assertEqual(accumulate.items, range(self.num_produce))
+        self.assertEqual(accumulate.items, list(range(self.num_produce)))
 
     def test_image_writing(self):
         ImageWriter(self.acquisitions, self.walker, async=False)
@@ -241,14 +241,14 @@ class TestExperiment(TestExperimentBase):
         self.experiment.run().join()
 
         for acq in self.acquisitions:
-            self.assertEqual(acc.items[acq], range(self.num_produce))
+            self.assertEqual(acc.items[acq], list(range(self.num_produce)))
 
         # Test detach
         acc.detach()
         for acq in self.acquisitions:
             for consumer in acq.consumers:
                 self.assertFalse(isinstance(consumer, Accumulate))
-        self.assertEquals(acc.items, {})
+        self.assertEqual(acc.items, {})
 
     def test_attach_num_times(self):
         """An attached addon cannot be attached the second time."""

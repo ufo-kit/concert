@@ -15,7 +15,7 @@ def read_image(filename):
     Read image from file with *filename*. The file type is detected
     automatically.
     """
-    for ext, reader in READERS.items():
+    for ext, reader in list(READERS.items()):
         if filename.lower().endswith(ext):
             return reader(filename)
 

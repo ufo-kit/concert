@@ -1,7 +1,7 @@
 plugins = []
 
 try:
-    import spyder
+    from . import spyder
 
     plugins.append(spyder.SpyderCommand())
 except ImportError:

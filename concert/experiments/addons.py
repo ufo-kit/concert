@@ -227,7 +227,7 @@ class OnlineReconstruction(Addon):
         @coroutine
         def create_averaging_coro():
             try:
-                import Queue as queue_module
+                import queue as queue_module
             except ImportError:
                 import queue as queue_module
 
@@ -245,7 +245,7 @@ class OnlineReconstruction(Addon):
 
     def _reconstruct(self):
         if hasattr(self.experiment, 'darks') and hasattr(self.experiment, 'flats'):
-            events = self._events.values() if self.process_normalization else None
+            events = list(self._events.values()) if self.process_normalization else None
         else:
             events = None
         consumers = []
@@ -269,11 +269,11 @@ class OnlineReconstruction(Addon):
             self._consumers[self.experiment.flats] = self._create_averaging('flats')
         self._consumers[self.experiment.radios] = self._reconstruct
 
-        for acq, consumer in self._consumers.items():
+        for acq, consumer in list(self._consumers.items()):
             acq.consumers.append(consumer)
 
     def _detach(self):
-        for acq, consumer in self._consumers.items():
+        for acq, consumer in list(self._consumers.items()):
             acq.consumers.remove(consumer)
 
 

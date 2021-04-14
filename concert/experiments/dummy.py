@@ -58,7 +58,7 @@ class ImagingExperiment(Experiment):
             image = np.zeros(self.shape)
 
         image = image.astype(self.dtype)
-        for i in wrap_iterable(range(num)):
+        for i in wrap_iterable(list(range(num))):
             yield image
 
     def take_darks(self):
@@ -153,7 +153,7 @@ class ImagingFileExperiment(Experiment):
         if self.roi_height is not None:
             camera.roi_height = self.roi_height
 
-        for i in wrap_iterable(range(num)):
+        for i in wrap_iterable(list(range(num))):
             yield camera.grab()
 
     def take_darks(self):

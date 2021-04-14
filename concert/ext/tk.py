@@ -1,6 +1,6 @@
 """Tk Widget."""
-import Queue
-import Tkinter as tk
+import queue
+import tkinter as tk
 from concert.async import dispatcher
 
 
@@ -36,7 +36,7 @@ class DeviceWidget(tk.Toplevel):
                 entry = tk.Entry(self, textvariable=value, state=state)
                 entry.grid(row=i, column=1, **grid_opts)
 
-                self.queues[param] = Queue.Queue()
+                self.queues[param] = queue.Queue()
                 self.values[param] = value
 
                 dispatcher.subscribe(param, 'changed', self._update_value)
@@ -54,7 +54,7 @@ class DeviceWidget(tk.Toplevel):
         try:
             result = self.queues[param].get(False)
             self.values[param].set(result)
-        except Queue.Empty:
+        except queue.Empty:
             pass
 
         self.after(self.timeout, self._poll, param)

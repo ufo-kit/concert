@@ -426,4 +426,4 @@ class TestSelection(TestCase):
             self.device.selection = 4
 
     def test_iterable_access(self):
-        np.testing.assert_equal(self.device['selection'].values, range(3))
+        np.testing.assert_equal(self.device['selection'].values, list(range(3)))

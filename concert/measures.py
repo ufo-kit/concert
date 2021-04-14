@@ -171,7 +171,7 @@ def rotation_axis(tips):
     if len(tips) < 5:
         raise ValueError("At least 5 coordinate pairs are needed")
 
-    y_ind, x_ind = zip(*tips)
+    y_ind, x_ind = list(zip(*tips))
     if max(x_ind) - min(x_ind) < 10:
         raise ValueError("Sample off-centering too small, enlarge rotation radius.")
 

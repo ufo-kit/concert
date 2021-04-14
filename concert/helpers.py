@@ -43,7 +43,7 @@ class Bunch(object):
 
     def __init__(self, values):
         if isinstance(values, list):
-            values = dict(zip(values, values))
+            values = dict(list(zip(values, values)))
         self.__dict__.update(values)
 
 

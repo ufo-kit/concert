@@ -136,7 +136,7 @@ def segment_convex_object(image):
         from skimage.filters import threshold_otsu
         from skimage.morphology import convex_hull_image, label
     except ImportError as e:
-        print "You need to install scikit-image in order to use this function"
+        print("You need to install scikit-image in order to use this function")
         LOG.error(e)
 
     def _segment(threshold, greater=True):
@@ -291,7 +291,7 @@ def center_of_points(points):
     Find a simplified center of mass withouth point-weighing
     from a set of *points*.
     """
-    y_ind, x_ind = zip(*points)
+    y_ind, x_ind = list(zip(*points))
 
     c_y = float(np.sum(y_ind)) / len(points)
     c_x = float(np.sum(x_ind)) / len(points)
@@ -323,7 +323,7 @@ def correlate(first, second, first_y=0, second_y=0, overlap_height=None, supersa
         from skimage.filters import sobel
         from skimage.transform import resize
     except ImportError as e:
-        print "You need to install scikit-image in order to use this function"
+        print("You need to install scikit-image in order to use this function")
         LOG.error(e)
 
     height, width = first.shape

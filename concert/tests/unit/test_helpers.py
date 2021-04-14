@@ -11,7 +11,7 @@ from concert.devices.cameras.dummy import Camera
 class TestExpects(TestCase):
 
     def setUp(self):
-        self.seq = range(10)
+        self.seq = list(range(10))
         self.camera = Camera()
         self.linear_motor = LinearMotor()
         self.linear_motor2 = LinearMotor()

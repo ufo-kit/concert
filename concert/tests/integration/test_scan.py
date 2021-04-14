@@ -50,7 +50,7 @@ class TestScan(TestCase):
         values = np.linspace(1, 10, 12) * q.mm
         param_range = Region(self.motor['position'], values)
 
-        x, y = zip(*list(resolve(scan(feedback, param_range))))
+        x, y = list(zip(*list(resolve(scan(feedback, param_range)))))
         compare_sequences(x, y, self.assertEqual)
 
     def test_scan_param_feedback(self):
@@ -58,7 +58,7 @@ class TestScan(TestCase):
         values = np.linspace(1, 10, 10) * q.mm
         scan_param = Region(p, values)
 
-        x, y = zip(*resolve(scan_param_feedback(scan_param, p)))
+        x, y = list(zip(*resolve(scan_param_feedback(scan_param, p))))
         compare_sequences(x, y, self.assertEqual)
 
     def test_multiscan(self):
@@ -73,13 +73,13 @@ class TestScan(TestCase):
             return self.motor.position, other.position
 
         gen = resolve(scan(feedback, [range_0, range_1]))
-        p_0, p_1, result = zip(*gen)
-        result_x, result_y = zip(*result)
+        p_0, p_1, result = list(zip(*gen))
+        result_x, result_y = list(zip(*result))
 
         first_expected = [0 * q.mm, 10 * q.mm]
         second_expected = [5 * q.mm, 7.5 * q.mm, 10 * q.mm]
         combined = list(product(first_expected, second_expected))
-        p_0_exp, p_1_exp = zip(*combined)
+        p_0_exp, p_1_exp = list(zip(*combined))
 
         # test parameter values
         compare_sequences(p_0, p_0_exp, assert_almost_equal)
@@ -99,4 +99,4 @@ class TestScan(TestCase):
 
         list(resolve(scan(lambda: None, qrange, callbacks={qrange: callback})))
 
-        np.testing.assert_almost_equal(called, range(3))
+        np.testing.assert_almost_equal(called, list(range(3)))

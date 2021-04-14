@@ -12,7 +12,7 @@ class IO(base.IO):
         super(IO, self).__init__()
         self._host = host
         self._port = port
-        self._ports = range(256)
+        self._ports = list(range(256))
 
     def _write_port(self, port, value):
         """Set input value"""

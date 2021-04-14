@@ -66,10 +66,10 @@ class TestAsync(TestCase):
             self.assertTrue(d['killed'])
 
     def test_resolve(self):
-        result = (identity(x) for x in xrange(10))
+        result = (identity(x) for x in range(10))
         tuples = list(zip(*resolve(result)))
         self.assertEqual(len(tuples), 2)
-        self.assertSequenceEqual(tuples[0], range(10))
+        self.assertSequenceEqual(tuples[0], list(range(10)))
         self.assertSequenceEqual(tuples[1], [x**2 for x in range(10)])
 
     def test_cancel_operation(self):

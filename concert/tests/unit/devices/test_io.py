@@ -11,12 +11,12 @@ class TestIO(TestCase):
         self.port = 0
 
     def test_read(self):
-        self.assertEquals(0, self.io.read_port(self.port))
+        self.assertEqual(0, self.io.read_port(self.port))
 
     def test_write(self):
         value = 1
         self.io.write_port(self.port, value)
-        self.assertEquals(value, self.io.read_port(self.port))
+        self.assertEqual(value, self.io.read_port(self.port))
 
     def test_non_existent_read(self):
         self.assertRaises(IODeviceError, self.io.read_port, 1)

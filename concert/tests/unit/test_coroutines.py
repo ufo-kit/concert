@@ -69,7 +69,7 @@ class TestCoroutines(TestCase):
 
     def test_null(self):
         self.producer(null())
-        self.assertEquals(5, self.iteration)
+        self.assertEqual(5, self.iteration)
 
     def test_averager(self):
         frame_producer(average_images(self.consume()))

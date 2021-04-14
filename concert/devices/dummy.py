@@ -32,7 +32,7 @@ class SelectionDevice(Device):
 
     """A dummy device with a selection."""
 
-    selection = Selection(range(3))
+    selection = Selection(list(range(3)))
 
     def __init__(self):
         super(SelectionDevice, self).__init__()

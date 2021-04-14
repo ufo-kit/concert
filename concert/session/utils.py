@@ -50,7 +50,7 @@ def _current_instances(instance_type):
     instances = frame[0].f_globals
 
     return ((name, obj) for (name, obj)
-            in instances.items()
+            in list(instances.items())
             if isinstance(obj, instance_type))
 
 
@@ -120,7 +120,7 @@ def pdoc(hide_blacklisted=True):
     frame = inspect.stack()[1]
     instances = frame[0].f_globals
 
-    for name, obj in instances.items():
+    for name, obj in list(instances.items()):
         if not name.startswith('_') and inspect.isfunction(obj):
             if hide_blacklisted and name not in black_listed:
                 table.add_row([name, inspect.getdoc(obj)])

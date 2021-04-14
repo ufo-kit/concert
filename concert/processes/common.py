@@ -150,8 +150,7 @@ def ascan(param_list, n_intervals, handler, initial_values=None):
             else:
                 initial_values.append(0)
 
-    initialized_params = list(map(lambda x: x[0] + (x[1],),
-                                  zip(param_list, initial_values)))
+    initialized_params = list([x[0] + (x[1],) for x in zip(param_list, initial_values)])
 
     for i in range(n_intervals + 1):
         futures = []
@@ -357,7 +356,7 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
         return (future, position_last, angle_last)
 
     def go_to_best_index(motor, history):
-        positions, angles = zip(*history)
+        positions, angles = list(zip(*history))
         best_index = np.argmin(np.abs(angles))
         LOG.debug("Best iteration: %d, position: %s, angle: %s",
                   best_index, positions[best_index].to(q.deg), angles[best_index].to(q.deg))
@@ -522,7 +521,7 @@ def find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
             """
             Picks a direction to go and updates direction of search-rotation.
             """
-            dr = np.array(map(trydir, range(4))) == 2
+            dr = np.array(list(map(trydir, list(range(4))))) == 2
             r = np.arange(4)[dr][0]
             w0 = sp_pos-[nz0, nx0]
             w1 = w0 + dir2rpos[r]

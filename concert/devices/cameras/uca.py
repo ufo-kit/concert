@@ -134,7 +134,7 @@ class Camera(base.Camera):
         def get_enum_bunch(enum):
             enum_map = {}
 
-            for key, value in enum.__enum_values__.items():
+            for key, value in list(enum.__enum_values__.items()):
                 name = value.value_nick.upper().replace('-', '_')
                 enum_map[name] = key
 
@@ -150,7 +150,7 @@ class Camera(base.Camera):
 
         # Invert the uca trigger source dict in order to return concert values
         trigger_dict = self.uca.enum_values.trigger_source.__dict__
-        self._uca_to_concert_trigger = {v: k for k, v in trigger_dict.items()}
+        self._uca_to_concert_trigger = {v: k for k, v in list(trigger_dict.items())}
         self._uca_get_trigger = _new_getter_wrapper('trigger-source')
         self._uca_set_trigger = _new_setter_wrapper('trigger-source')
 
