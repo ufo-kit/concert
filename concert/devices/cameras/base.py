@@ -86,7 +86,7 @@ class Camera(Device):
     trigger_sources = Bunch(['AUTO', 'SOFTWARE', 'EXTERNAL'])
     trigger_types = Bunch(['EDGE', 'LEVEL'])
     state = State(default='standby')
-    frame_rate = Quantity(1.0 / q.second, help="Frame frequency")
+    frame_rate = Quantity(1 / q.second, help="Frame frequency")
     trigger_source = Parameter(help="Trigger source")
 
     def __init__(self):

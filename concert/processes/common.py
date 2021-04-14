@@ -383,7 +383,7 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
         roll_angle_current, pitch_angle_current, center = rotation_axis(tips)
         futures = []
         if metric_eps is None:
-            metric_eps = np.rad2deg(np.arctan(1. / frames[0].shape[1])) * q.deg
+            metric_eps = np.rad2deg(np.arctan(1 / frames[0].shape[1])) * q.deg
             LOG.debug('Automatically computed metric epsilon: %s', metric_eps)
 
         if z_motor and roll_continue:
@@ -539,13 +539,13 @@ def find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
         step[0] = step[0] if zstep is None else zstep.to(q.um.units).magnitude
         step[1] = step[1] if xstep is None else xstep.to(q.um.units).magnitude
         nz0 = int((zpos-zborder[0])/step[0]) + \
-            ((zpos-zborder[0]) % step[0] > step[0]/2.)
+            ((zpos-zborder[0]) % step[0] > step[0]/2)
         nz1 = int((zborder[1]-zpos)/step[0]) + \
-            ((zborder[1]-zpos) % step[0] > step[0]/2.)
+            ((zborder[1]-zpos) % step[0] > step[0]/2)
         nx0 = int((xpos-xborder[0])/step[1]) + \
-            ((xpos-xborder[0]) % step[1] > step[1]/2.)
+            ((xpos-xborder[0]) % step[1] > step[1]/2)
         nx1 = int((xborder[1]-xpos)/step[1]) + \
-            ((xborder[1]-xpos) % step[1] > step[1]/2.)
+            ((xborder[1]-xpos) % step[1] > step[1]/2)
         sp_shape = np.array([nz0+nz1+1, nx0+nx1+1])
         scanned_points = np.zeros(sp_shape, np.bool_)
         sp_pos = np.array([nz0, nx0])
@@ -636,7 +636,7 @@ def drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance=5,
     ps = np.tile(pixelsize.magnitude, 2)[:2] * units
 
     img = take_frame()
-    frm_center = (np.array(img.shape)-1)/2
+    frm_center = (np.array(img.shape)-1)//2
     d = center_of_mass(img-img.min()) - frm_center
 
     iter_ = 0

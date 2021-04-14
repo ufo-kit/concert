@@ -24,7 +24,7 @@ class TestRotationAxisMeasure(TestCase):
                                              self.z_motor["position"])
 
         # Allow 1 px misalignment in y-direction.
-        self.eps = np.arctan(2.0 / self.image_source.rotation_radius) * q.rad
+        self.eps = np.arctan(2 / self.image_source.rotation_radius) * q.rad
 
     def make_images(self, x_angle, z_angle, intervals=10):
         self.x_motor.position = z_angle

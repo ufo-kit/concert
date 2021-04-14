@@ -24,7 +24,7 @@ class TestDummyAlignment(TestCase):
                                        self.z_motor["position"])
 
         # Allow 1 px misalignment in y-direction.
-        self.eps = np.arctan(2.0 / self.camera.rotation_radius) * q.rad
+        self.eps = np.arctan(2 / self.camera.rotation_radius) * q.rad
 
     def align_check(self, x_angle, z_angle, has_x_motor=True, has_z_motor=True,
                     get_ellipse_points=find_needle_tips, get_ellipse_points_kwargs=None):
@@ -134,7 +134,7 @@ class TestDummyAlignment(TestCase):
         self.camera.rotation_radius = self.camera.size / 2
         self.camera.scale = (.5, .5, .5)
         self.camera.y_position = 0
-        self.eps = np.arctan(2.0 / self.camera.rotation_radius) * q.rad
+        self.eps = np.arctan(2 / self.camera.rotation_radius) * q.rad
         self.align_check(-17 * q.deg, 11 * q.deg,
                          get_ellipse_points=find_sphere_centers)
 
@@ -144,7 +144,7 @@ class TestDummyAlignment(TestCase):
         self.camera.rotation_radius = self.camera.size / 2
         self.camera.scale = (.25, .25, .25)
         self.camera.y_position = 0
-        self.eps = np.arctan(2.0 / self.camera.rotation_radius) * q.rad
+        self.eps = np.arctan(2 / self.camera.rotation_radius) * q.rad
         self.align_check(-17 * q.deg, 11 * q.deg,
                          get_ellipse_points=find_sphere_centers,
                          get_ellipse_points_kwargs={'correlation_threshold': 0.9})

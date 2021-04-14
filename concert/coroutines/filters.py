@@ -266,7 +266,7 @@ def backproject(center, consumer):
             angle_step = np.pi / sinogram.shape[0]
             # We need to store the position where we crop the sinogram, that is
             # based on the old center
-            start = center - width / 2
+            start = center - width // 2
             # Since we crop the indices the new center is always in the middle
             center = width / 2
 

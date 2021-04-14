@@ -31,7 +31,7 @@ def tomo_angular_step(frame_width):
     rotates no more than one pixel per rotation step. *frame_width* is frame size in
     the direction perpendicular to the axis of rotation.
     """
-    return np.arctan(2.0 / frame_width.magnitude) * q.rad
+    return np.arctan(2 / frame_width.magnitude) * q.rad
 
 
 def tomo_projections_number(frame_width):

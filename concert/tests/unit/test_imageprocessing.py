@@ -22,7 +22,7 @@ def test_rotation_axis():
         tr[indices] = 1
         if not left:
             tr = tr[:, ::-1]
-        extended[n / 2 - width / 2: n / 2 + width / 2, position:position + width] = tr
+        extended[n // 2 - width // 2: n // 2 + width // 2, position:position + width] = tr
 
         return extended
 
@@ -31,17 +31,17 @@ def test_rotation_axis():
         right = triangle(n, width, right_position, left=False)
 
         center = compute_rotation_axis(left, right)
-        truth = (left_position + right_position + width) / 2.0 * q.px
+        truth = (left_position + right_position + width) / 2 * q.px
         assert_almost_equal(center, truth)
 
     n = 128
     width = 32
 
     # Axis is exactly in the middle
-    test_axis(n, width, n / 2 - width, n / 2)
+    test_axis(n, width, n // 2 - width, n // 2)
 
     # Axis is to the left from the center
-    test_axis(n, width, 8, n / 2 + width / 4)
+    test_axis(n, width, 8, n // 2 + width // 4)
 
     # Axis is to the right from the center
     test_axis(n, width, 8, n - width)
@@ -52,7 +52,7 @@ def test_rescale():
     array = np.array([-2.5, -1, 14, 100])
 
     def run_test(minimum, maximum):
-        conversion = float(array.max() - array.min()) / (maximum - minimum)
+        conversion = (array.max() - array.min()) / (maximum - minimum)
         normed = normalize(array, minimum=minimum, maximum=maximum)
 
         np.testing.assert_almost_equal(np.gradient(array), np.gradient(normed) * conversion)
@@ -103,14 +103,14 @@ class TestSphereSegmentation(TestCase):
         self.check(gt, centers)
 
     def test_sphere_some_partially_outside(self):
-        self.camera.rotation_radius = self.camera.size / 2
+        self.camera.rotation_radius = self.camera.size // 2
         (frames, gt) = self.acquire_frames()
         centers = find_sphere_centers(frames)
         self.check(gt, centers)
 
     def test_sphere_all_partially_outside(self):
         self.camera.size = 128
-        self.camera.rotation_radius = self.camera.size / 2
+        self.camera.rotation_radius = self.camera.size // 2
         self.camera.scale = (.25, .25, .25)
         frames = self.acquire_frames()[0]
         centers = find_sphere_centers(frames, correlation_threshold=0.9)

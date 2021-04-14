@@ -63,7 +63,7 @@ def sphere(size, radius, mat):
     """Create a sphere with radius *radius* in an image with size *size* and
     use transformation matrix *mat* to adjust the sphere position and size.
     """
-    y_0, x_0 = np.mgrid[-size / 2:size / 2, -size / 2:size / 2][:, ::-1]
+    y_0, x_0 = np.mgrid[-size // 2:size // 2, -size // 2:size // 2][:, ::-1]
 
     k_x = x_0 * mat[0, 0] + y_0 * mat[0, 1] + mat[0, 3]
     k_y = x_0 * mat[1, 0] + y_0 * mat[1, 1] + mat[1, 3]

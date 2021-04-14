@@ -14,7 +14,7 @@ LOG = logging.getLogger(__name__)
 
 def normalize(image, minimum=0.0, maximum=1.0):
     """Normalize *image* intensities to start at *minimum* and end at *maximum*."""
-    mul = (float(maximum) - minimum) / (image.max() - image.min())
+    mul = (maximum - minimum) / (image.max() - image.min())
 
     return mul * (image - image.min()) + minimum
 
@@ -29,7 +29,7 @@ def flat_correct(radio, flat, dark=None):
 
 def ramp_filter(width):
     """Get a 1D ramp filter for filtering sinogram rows."""
-    base = np.arange(-width / 2, width / 2)
+    base = np.arange(-width // 2, width // 2)
 
     return np.fft.fftshift(np.abs(base)) * 2.0 / width
 
@@ -204,7 +204,7 @@ def _find_peak_subpix(peak, image, supersampling=16):
     blurred = gaussian_filter1d(line_hd, sigma)
     middle = len(x) * supersampling // 2
     g = np.abs(np.gradient(blurred))[middle - supersampling:middle + supersampling + 1]
-    y = (np.argmax(g) + middle - supersampling) / float(supersampling) + y_start
+    y = (np.argmax(g) + middle - supersampling) / supersampling + y_start
 
     return (y, peak[1])
 
@@ -266,10 +266,10 @@ def _get_axis_intersection(p_1, p_2, shape):
     if p_1[0] == p_2[0]:
         return [(p_1[0], (p_1[1] + p_2[1]) / 2)]
     elif p_1[1] == p_2[1]:
-        return [((p_1[0] + p_2[0]) / 2.0, p_1[1])]
+        return [((p_1[0] + p_2[0]) / 2, p_1[1])]
 
-    p_x = (p_1[1] + p_2[1]) / 2.0
-    p_y = (p_1[0] + p_2[0]) / 2.0
+    p_x = (p_1[1] + p_2[1]) / 2
+    p_y = (p_1[0] + p_2[0]) / 2
     v_y = p_1[0] - p_2[0]
     v_x = p_2[1] - p_1[1]
     height, width = shape[0] - 1, shape[1] - 1
@@ -293,8 +293,8 @@ def center_of_points(points):
     """
     y_ind, x_ind = list(zip(*points))
 
-    c_y = float(np.sum(y_ind)) / len(points)
-    c_x = float(np.sum(x_ind)) / len(points)
+    c_y = np.sum(y_ind) / len(points)
+    c_x = np.sum(x_ind) / len(points)
 
     return c_y, c_x
 
@@ -347,7 +347,7 @@ def correlate(first, second, first_y=0, second_y=0, overlap_height=None, supersa
     first_sobel = sobel(first)[first_y:first_y + overlap_height]
     second_sobel = sobel(second)[second_y:second_y + overlap_height]
     c = fftshift(ifft2(fft2(first_sobel) * np.conjugate(fft2(second_sobel))).real)
-    dy, dx = np.unravel_index(c.argmax(), c.shape) - np.array(c.shape) / 2.
+    dy, dx = np.unravel_index(c.argmax(), c.shape) - np.array(c.shape) / 2
     dy += second_y - first_y
 
     return (dy / supersampling, dx / supersampling, c)
@@ -402,7 +402,7 @@ def compute_rotation_axis(first_projection, last_projection):
     convolved = fftconvolve(first_projection, last_projection[::-1, :], mode='same')
     center = np.unravel_index(convolved.argmax(), convolved.shape)[1]
 
-    return (width / 2.0 + center) / 2 * q.px
+    return (width / 2 + center) / 2 * q.px
 
 
 def filter_low_frequencies(data, fwhm=32.):

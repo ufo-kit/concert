@@ -102,7 +102,7 @@ def halver(function, x_0, initial_step=None, epsilon=None,
 
     def turn(direction, step):
         """Turn to opposite direction and reduce the step by half."""
-        return -direction, step / 2.0
+        return -direction, step / 2
 
     def move(x_0, direction, step):
         """Move to a *direction* by a *step*."""

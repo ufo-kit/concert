@@ -62,7 +62,7 @@ class Area(object):
     def __call__(self, radio):
         object_pixels = self.func(radio, *self.args, **self.kwargs)
 
-        return float(object_pixels) / (radio.shape[0] * radio.shape[1])
+        return object_pixels / (radio.shape[0] * radio.shape[1])
 
 
 class SimpleArea(Area):
@@ -112,7 +112,7 @@ class SimpleArea(Area):
         # Threshold
         self.threshold = np.min(self._flat_1 - self._flat_2)
         # Average the two flats to suppress the noise a little
-        self.flat_avg = (self._flat_1 + self._flat_2) / 2.0
+        self.flat_avg = (self._flat_1 + self._flat_2) / 2
 
 
 def rotation_axis(tips):

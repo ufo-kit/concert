@@ -124,7 +124,7 @@ class Camera(Base):
         # Cut values beyond the bit-depth.
         tmp[tmp > max_value] = max_value
         duration = time.time() - start
-        to_sleep = 1.0 / self.frame_rate
+        to_sleep = 1 / self.frame_rate
         to_sleep = to_sleep.to_base_units() - duration * q.s
         if to_sleep > 0 * q.s:
             time.sleep(to_sleep.magnitude)

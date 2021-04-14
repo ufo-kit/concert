@@ -52,14 +52,14 @@ class ExperimentException(Experiment):
 
 @suppressed_logging
 def test_tomo_angular_step():
-    truth = np.arctan(2.0 / 100) * q.rad
+    truth = np.arctan(2 / 100) * q.rad
     assert_almost_equal(truth, tomo_angular_step(100 * q.px))
 
 
 @suppressed_logging
 def test_projections_number():
     width = 100
-    truth = int(np.ceil(np.pi / np.arctan(2.0 / width) * q.rad))
+    truth = int(np.ceil(np.pi / np.arctan(2 / width) * q.rad))
     assert truth == tomo_projections_number(width * q.px)
 
 
@@ -67,7 +67,7 @@ def test_projections_number():
 def test_tomo_max_speed():
     width = 100
     frame_rate = 100 / q.s
-    truth = np.arctan(2.0 / width) * q.rad * frame_rate
+    truth = np.arctan(2 / width) * q.rad * frame_rate
     assert_almost_equal(truth, tomo_max_speed(width * q.px, frame_rate))
 
 

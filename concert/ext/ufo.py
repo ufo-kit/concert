@@ -403,7 +403,7 @@ class FlatCorrect(InjectProcess):
 def middle_row(consumer):
     while True:
         frame = yield
-        row = frame.shape[0] / 2
+        row = frame.shape[0] // 2
         part = frame[row-1:row+1, :]
         consumer.send(part)
 
@@ -421,12 +421,12 @@ def center_rotation_axis(camera, motor, initial_motor_step,
     frame which will be used for flat correcting the acuired projections.
     """
 
-    width_2 = camera.roi_width.magnitude / 2.0
+    width_2 = camera.roi_width.magnitude / 2
     axis_pos = width_2
 
     # Crop the dark and flat
     if flat is not None:
-        middle = flat.shape[0] / 2
+        middle = flat.shape[0] // 2
         flat = flat[middle, :]
         if dark is not None:
             dark = dark[middle, :]
@@ -440,7 +440,7 @@ def center_rotation_axis(camera, motor, initial_motor_step,
     for i in range(num_iterations):
         frm = current - step
         to = current + step
-        div = 2.0 * step / 5.0
+        div = 2 * step / 5
 
         positions = (frm, frm + div, current, current + div, to)
         scores = []
@@ -470,7 +470,7 @@ def center_rotation_axis(camera, motor, initial_motor_step,
             scores.append(score)
 
         current = positions[scores.index(min(scores))]
-        step /= 2.0
+        step /= 2
 
 
 def compute_rotation_axis(sinogram, initial_step=None, max_iterations=14,
@@ -791,7 +791,7 @@ class GeneralBackprojectManager(object):
             for s in self.volume:
                 consumer.send(s)
             out_duration = time.time() - out_st
-            out_size = self.volume.nbytes / 2. ** 20
+            out_size = self.volume.nbytes / 2 ** 20
             LOG.debug('Volume sending duration: %.2f s, speed: %.2f MB/s',
                       out_duration, out_size / out_duration)
             self._consume_event.set()
@@ -865,7 +865,7 @@ class GeneralBackprojectManager(object):
                 guesses = []
                 for parameter in parameters:
                     if parameter == 'center-position-x':
-                        guesses.append(self.args.width / 2.)
+                        guesses.append(self.args.width / 2)
                     else:
                         guesses.append(0.)
             LOG.info('Guesses: %s', guesses)
@@ -971,8 +971,8 @@ class GeneralBackprojectManager(object):
                 # Process results
                 duration = time.time() - st
                 LOG.debug('Backprojectors duration: %.2f s', duration)
-                in_size = self.projections.nbytes / 2. ** 20
-                out_size = self.volume.nbytes / 2. ** 20
+                in_size = self.projections.nbytes / 2 ** 20
+                out_size = self.volume.nbytes / 2 ** 20
                 LOG.debug('Input size: %g GB, output size: %g GB', in_size / 1024, out_size / 1024)
                 LOG.debug('Performance: %.2f GUPS (In: %.2f MB/s, out: %.2f MB/s)',
                           self.volume.size * self.projections.shape[0] * 1e-9 / duration,

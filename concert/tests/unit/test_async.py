@@ -30,7 +30,7 @@ class TestAsync(TestCase):
     def test_wait(self):
         @casync
         def long_func():
-            time.sleep(random.random() / 50.)
+            time.sleep(random.random() / 50)
 
         futs = []
         for i in range(10):
