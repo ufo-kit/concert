@@ -19,11 +19,3 @@ class TestIssue367(TestCase):
         val = camera.degree_value.magnitude
         camera.degree_value = camera.degree_value + camera.degree_value
         self.assertEqual(camera.degree_value.magnitude, val + val)
-
-        val = camera.degree_value.magnitude
-        camera.degree_value = camera.degree_value + 4 * q.celsius + 3 * q.delta_degC
-        self.assertEqual(camera.degree_value.magnitude, val + 7)
-
-        val = camera.degree_value.magnitude
-        camera.degree_value = camera.degree_value + 5 * q.delta_degC + 10 * q.delta_degC
-        self.assertEqual(camera.degree_value.magnitude, val + 15)
