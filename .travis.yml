@@ -3,10 +3,6 @@ language: python
 python:
     - 2.7
 
-env:
-    - ENABLE_GEVENT=--enable-gevent
-    - ENABLE_GEVENT=
-
 virtualenv:
     system_site_packages: true
 
@@ -21,4 +17,4 @@ install:
     - pip install scikit-image
 
 script:
-    - python runtests.py --attr='!skip-travis' --cover-package=concert $ENABLE_GEVENT concert
+    - python runtests.py --attr='!skip-travis' --cover-package=concert concert
