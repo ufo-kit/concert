@@ -241,11 +241,14 @@ class Experiment(Parameterizable):
             if self.walker:
                 if self.separate_scans:
                     self.walker.descend(self.name_fmt.format(self.iteration))
-                handler = logging.FileHandler(os.path.join(self.walker.current, 'experiment.log'))
-                formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s '
-                                              '- %(message)s')
-                handler.setFormatter(formatter)
-                self.log.addHandler(handler)
+                if os.path.exists(self.walker.current):
+                    # We might have a dummy walker which doesn't create the directory
+                    handler = logging.FileHandler(os.path.join(self.walker.current,
+                                                               'experiment.log'))
+                    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s '
+                                                  '- %(message)s')
+                    handler.setFormatter(formatter)
+                    self.log.addHandler(handler)
             self.log.info(self)
             LOG.debug('Experiment iteration %d start', self.iteration)
             self.prepare()
