@@ -15,15 +15,15 @@ class BaseDevice(Parameterizable):
         super(BaseDevice, self).__init__()
 
 
-def test_setter(device, value):
+def _test_setter(device, value):
     device._test_value = value
 
 
-def test_getter(device):
+def _test_getter(device):
     return device._test_value
 
 
-def test_target(device):
+def _test_target(device):
     return 10*q.mm
 
 
@@ -34,7 +34,7 @@ class FooDevice(BaseDevice):
     no_write = Parameter()
     foo = Quantity(q.m, check=check(source='*', target='moved'))
     bar = Quantity(q.m)
-    test = Quantity(q.m, fset=test_setter, fget=test_getter)
+    test = Quantity(q.m, fset=_test_setter, fget=_test_getter)
 
     def __init__(self, default):
         super(FooDevice, self).__init__()
@@ -93,12 +93,12 @@ class FooDeviceTargetValue(BaseDevice):
     def test_target(self):
         return 10 * q.mm
 
-    test = Quantity(q.mm, fset=test_setter, fget=test_getter, fget_target=test_target)
+    test = Quantity(q.mm, fset=_test_setter, fget=_test_getter, fget_target=_test_target)
 
 
 class FooDeviceTagetValue(BaseDevice):
     foo = Quantity(q.mm)
-    test = Quantity(q.mm, fset=test_setter, fget=test_getter, fget_target=test_target)
+    test = Quantity(q.mm, fset=_test_setter, fget=_test_getter, fget_target=_test_target)
 
     def __init__(self, value):
         super(BaseDevice, self).__init__()
