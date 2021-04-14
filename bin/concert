@@ -305,7 +305,7 @@ class ImportCommand(Command):
         shutil.rmtree(path)
 
     def _import_file(self, url, force):
-        import urllib2
+        import urllib.request, urllib.error, urllib.parse
 
         if not url.endswith('.py'):
             sys.exit("`{0}' is not a Python module".format(url))
@@ -318,14 +318,14 @@ class ImportCommand(Command):
         print("Add session {0} ...".format(session_name))
         local_url = self._get_url(url)
 
-        with contextlib.closing(urllib2.urlopen(local_url)) as data:
+        with contextlib.closing(urllib.request.urlopen(local_url)) as data:
             with open(cs.path(session_name), 'w') as output:
                 output.write(data.read())
 
     def _get_url(self, path_or_url):
-        import urlparse
+        import urllib.parse
 
-        result = urlparse.urlsplit(path_or_url)
+        result = urllib.parse.urlsplit(path_or_url)
 
         if result.scheme:
             return path_or_url
@@ -334,7 +334,7 @@ class ImportCommand(Command):
             sys.exit("Cannot find module `{0}'.".format(path_or_url))
 
         result = ('file', '', os.path.abspath(path_or_url), '', '')
-        return urlparse.urlunsplit(result)
+        return urllib.parse.urlunsplit(result)
 
 
 class ExportCommand(Command):
@@ -409,7 +409,7 @@ class StartCommand(Command):
 
         if non_interactive:
             if session:
-                execfile(cs.path(session), globals())
+                exec(compile(open(cs.path(session), "rb").read(), cs.path(session), 'exec'), globals())
         else:
             try:
                 if filename:
@@ -520,7 +520,7 @@ def main():
         cmd_parser = subparsers.add_parser(command.name, help=summary)
         cmd_parser.set_defaults(func=command.run)
 
-        for arg in command.opts.keys():
+        for arg in list(command.opts.keys()):
             cmd_parser.add_argument(arg, **command.opts[arg])
 
     if len(sys.argv) == 1:
