@@ -491,10 +491,7 @@ class Quantity(Parameter):
         self.external_upper_getter = external_upper_getter
 
     def convert(self, value):
-        if self.unit == "delta_degC":
-            return value
-        else:
-            return value.to(self.unit)
+        return value.to(self.unit)
 
     def __get__(self, instance, owner):
         # If we would just call self.fset(value) we would call the method

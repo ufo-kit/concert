@@ -11,7 +11,6 @@ from concert.devices.cameras import base
 
 
 LOG = logging.getLogger(__name__)
-q.autoconvert_offset_to_baseunit = True
 
 
 def _new_setter_wrapper(name, unit=None):
@@ -19,7 +18,7 @@ def _new_setter_wrapper(name, unit=None):
         if instance.state == 'recording':
             raise base.CameraError('Changing parameters is not allowed while recording')
 
-        if unit and str(unit) != "delta_degC":
+        if unit:
             value = value.to(unit)
 
         try:
@@ -93,7 +92,7 @@ class Camera(base.Camera):
         units = {
             Uca.Unit.METER: q.m,
             Uca.Unit.SECOND: q.s,
-            Uca.Unit.DEGREE_CELSIUS: q.delta_degC,
+            Uca.Unit.DEGREE_CELSIUS: q.celsius,
             Uca.Unit.COUNT: q.dimensionless,
             Uca.Unit.PIXEL: q.pixel,
         }
@@ -140,6 +139,7 @@ class Camera(base.Camera):
                 enum_map[name] = key
 
             return Bunch(enum_map)
+
         for prop in self.uca.props:
             if hasattr(prop, 'enum_class'):
                 setattr(self.uca.enum_values, prop.name.replace('-', '_'),
