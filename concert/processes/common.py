@@ -2,7 +2,7 @@ from itertools import product
 import numpy as np
 import logging
 from scipy.ndimage.filters import gaussian_filter
-from concert.async import async, wait
+from concert.casync import casync, wait
 from concert.quantities import q
 from concert.measures import rotation_axis
 from concert.optimization import halver, optimize_parameter
@@ -33,7 +33,7 @@ def scan(feedback, regions, callbacks=None):
     this::
 
         import numpy as np
-        from concert.async import resolve
+        from concert.casync import resolve
         from concert.helpers import Region
 
         def take_flat_field():
@@ -54,7 +54,7 @@ def scan(feedback, regions, callbacks=None):
             print result
 
     From the execution order it is equivalent to (in reality there is more for making the code
-    asynchronous)::
+    casynchronous)::
 
         for exp_time in np.linspace(1, 100, 100) * q.ms:
             for position in np.linspace(0, 180, 1000) * q.deg:
@@ -82,7 +82,7 @@ def scan(feedback, regions, callbacks=None):
         """Returns a tuple of indices of changed parameters at given iteration *index*."""
         return [i for i in range(len(regions)) if index % changes[i] == 0]
 
-    @async
+    @casync
     def get_value(index, tup, previous):
         """Get value after setting parameters, *index* is the flattened iteration index, *tup* are
         all the parameter values, *previous* is the previous future or None if this is the first
@@ -222,7 +222,7 @@ def focus(camera, motor, measure=np.std, opt_kwargs=None,
     return f
 
 
-@async
+@casync
 @expects(Camera, RotationMotor, num_frames=Numeric(1), shutter=Shutter,
          flat_motor=LinearMotor, flat_position=Numeric(1, q.m), y_0=Numeric(1),
          y_1=Numeric(1), frame_consumer=None)
@@ -280,7 +280,7 @@ def acquire_frames_360(camera, rotation_motor, num_frames, shutter=None, flat_mo
         camera['trigger_source'].restore().join()
 
 
-@async
+@casync
 @expects(Camera, RotationMotor, x_motor=RotationMotor, z_motor=RotationMotor,
          get_ellipse_points=find_needle_tips, num_frames=Numeric(1), metric_eps=Numeric(1, q.deg),
          position_eps=Numeric(1, q.deg), max_iterations=Numeric(1),
@@ -426,7 +426,7 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
     return (roll_history, pitch_history, center)
 
 
-@async
+@casync
 @expects(Camera, LinearMotor, LinearMotor, Numeric(2, q.um), Numeric(2, q.mm), Numeric(2, q.mm),
          xstep=Numeric(1), zstep=Numeric(1), thres=Numeric(1))
 def find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
@@ -611,7 +611,7 @@ def find_beam(cam, xmotor, zmotor, pixelsize, xborder, zborder,
     return False
 
 
-@async
+@casync
 @expects(Camera, LinearMotor, LinearMotor, Numeric(2, q.um),
          tolerance=Numeric(1), max_iterations=Numeric(1))
 def drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance=5,
@@ -659,7 +659,7 @@ def drift_to_beam(cam, xmotor, zmotor, pixelsize, tolerance=5,
         return False
 
 
-@async
+@casync
 @expects(Camera, LinearMotor, LinearMotor, Numeric(2, q.um), Numeric(2, q.mm), Numeric(2, q.mm),
          xstep=None, zstep=None, thres=Numeric(1), tolerance=Numeric(1),
          max_iterations=Numeric(1))

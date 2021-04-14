@@ -1,5 +1,5 @@
 """Aerotech"""
-from concert.async import busy_wait
+from concert.casync import busy_wait
 from concert.quantities import q
 from concert.networking.aerotech import Connection
 from concert.devices.motors.base import ContinuousRotationMotor

@@ -2,7 +2,7 @@
 
 from concert.base import Quantity, State, check, AccessorNotImplementedError
 from concert.quantities import q
-from concert.async import async
+from concert.casync import casync
 from concert.devices.base import Device
 
 
@@ -16,7 +16,7 @@ class Pump(Device):
     def __init__(self):
         super(Pump, self).__init__()
 
-    @async
+    @casync
     @check(source='standby', target='pumping')
     def start(self):
         """
@@ -26,7 +26,7 @@ class Pump(Device):
         """
         self._start()
 
-    @async
+    @casync
     @check(source='pumping', target='standby')
     def stop(self):
         """

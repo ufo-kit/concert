@@ -5,7 +5,7 @@ import inspect
 import subprocess
 import time
 import prettytable
-from concert.async import threaded, wait
+from concert.casync import threaded, wait
 from concert.devices.base import abort as device_abort
 from concert.devices.base import Device
 from concert.quantities import q

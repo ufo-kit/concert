@@ -4,7 +4,7 @@ from concert.quantities import q
 from concert.tests import assert_almost_equal, TestCase
 from concert.devices.motors.dummy import LinearMotor
 from concert.processes.common import scan, ascan, dscan, scan_param_feedback
-from concert.async import resolve
+from concert.casync import resolve
 from concert.helpers import Region
 
 

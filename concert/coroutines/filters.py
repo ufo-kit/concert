@@ -9,7 +9,7 @@ import numpy as np
 import concert.config as cfg
 from concert.quantities import q
 from concert.imageprocessing import ramp_filter
-from concert.async import threaded
+from concert.casync import threaded
 from concert.imageprocessing import flat_correct as make_flat_correct
 from .base import coroutine
 
@@ -62,7 +62,7 @@ def queue(consumer, process_all=True, block=False, make_deepcopy=True):
     effect. If *make_deepcopy* is True, insert a deep copy of an item into the queue, otherwise just
     a reference.
     """
-    from concert.async import HAVE_GEVENT
+    from concert.casync import HAVE_GEVENT
     if cfg.ENABLE_GEVENT and HAVE_GEVENT:
         from gevent.event import Event
     else:
@@ -299,11 +299,11 @@ class Timer(object):
 
     would measure only the time of *process*, no matter how complicated it is and whether it invokes
     subsequent coroutines. Everything what happens in *process* is taken into account.
-    This timer does not treat asynchronous operations in a special way, i.e. if you use it like
+    This timer does not treat casynchronous operations in a special way, i.e. if you use it like
     this::
 
-        def long_but_async_operation():
-            @async
+        def long_but_casync_operation():
+            @casync
             def process(data):
                 long_op(data)
 
@@ -311,10 +311,10 @@ class Timer(object):
                 item = yield
                 process(item)
 
-        timer(long_but_async_operation())
+        timer(long_but_casync_operation())
 
-    the time you truly measure is only the time to forward the data to *long_but_async_operation*
-    and the time to *start* the asynchronous operation (e.g. spawning a thread).
+    the time you truly measure is only the time to forward the data to *long_but_casync_operation*
+    and the time to *start* the casynchronous operation (e.g. spawning a thread).
 
     """
 

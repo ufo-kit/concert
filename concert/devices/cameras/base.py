@@ -62,7 +62,7 @@ frame. The callable is applied to the frame and the converted one is returned by
 """
 import contextlib
 from concert.base import AccessorNotImplementedError, Parameter, Quantity, State, check, identity
-from concert.async import async
+from concert.casync import casync
 from concert.quantities import q
 from concert.helpers import Bunch
 from concert.devices.base import Device
@@ -137,11 +137,11 @@ class Camera(Device):
         """Return a NumPy array with data of the current frame."""
         return self.convert(self._grab_real())
 
-    @async
-    def grab_async(self):
+    @casync
+    def grab_casync(self):
         return self.grab()
 
-    @async
+    @casync
     def stream(self, consumer):
         """
         stream(consumer)

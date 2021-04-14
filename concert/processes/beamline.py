@@ -1,6 +1,6 @@
 """A synchrotron beam line specific processes."""
 import numpy as np
-from concert.async import async, wait
+from concert.casync import casync, wait
 from concert.quantities import q
 from concert.imageprocessing import compute_rotation_axis, flat_correct
 from concert.helpers import expects, Numeric
@@ -9,7 +9,7 @@ from concert.devices.cameras.base import Camera
 from concert.devices.shutters.base import Shutter
 
 
-@async
+@casync
 @expects(Camera, Shutter)
 def acquire_dark(camera, shutter):
     """Use *camera* and *shutter* to acquire a dark field."""
@@ -19,7 +19,7 @@ def acquire_dark(camera, shutter):
     return _grab_software_trigger(camera)
 
 
-@async
+@casync
 @expects(Camera, Shutter, LinearMotor, Numeric(1, q.mm))
 def acquire_image_with_beam(camera, shutter, flat_motor, position):
     """Use *camera*, *shutter* and *flat_motor* to move the sample to the *position* and acquire an
@@ -34,7 +34,7 @@ def acquire_image_with_beam(camera, shutter, flat_motor, position):
     return _grab_software_trigger(camera)
 
 
-@async
+@casync
 @expects(Camera, Shutter, LinearMotor, RotationMotor, Numeric(1, q.mm), Numeric(1, q.mm))
 def determine_rotation_axis(camera, shutter, flat_motor, rotation_motor, flat_position,
                             radio_position):

@@ -1,6 +1,6 @@
 """A gripper can grip and release objects."""
 
-from concert.async import async
+from concert.casync import casync
 from concert.base import check, State
 from concert.devices.base import Device
 
@@ -11,7 +11,7 @@ class Gripper(Device):
 
     state = State(default='released')
 
-    @async
+    @casync
     @check(source='gripped', target='released')
     def release(self):
         """
@@ -21,7 +21,7 @@ class Gripper(Device):
         """
         self._release()
 
-    @async
+    @casync
     @check(source='released', target='gripped')
     def grip(self):
         """

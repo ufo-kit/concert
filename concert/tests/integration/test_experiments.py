@@ -224,7 +224,7 @@ class TestExperiment(TestExperimentBase):
         self.assertEqual(accumulate.items, list(range(self.num_produce)))
 
     def test_image_writing(self):
-        ImageWriter(self.acquisitions, self.walker, async=False)
+        ImageWriter(self.acquisitions, self.walker, casync=False)
         self.experiment.run().join()
 
         scan_name = self.name_fmt.format(1)

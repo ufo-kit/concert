@@ -3,7 +3,7 @@
 from concert.devices.base import Device
 from concert.base import Quantity, AccessorNotImplementedError
 from concert.quantities import q
-from concert.async import async
+from concert.casync import casync
 
 
 class WeightError(Exception):
@@ -32,7 +32,7 @@ class TarableScales(Scales):
     def __init__(self):
         super(TarableScales, self).__init__()
 
-    @async
+    @casync
     def tare(self):
         """
         tare()

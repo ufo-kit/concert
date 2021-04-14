@@ -9,14 +9,14 @@ This module provides execution routines and algorithms for optimization.
 """
 import logging
 from functools import wraps
-from concert.async import async
+from concert.casync import casync
 from concert.quantities import q
 
 
 LOG = logging.getLogger(__name__)
 
 
-@async
+@casync
 def optimize(function, x_0, algorithm, alg_args=(), alg_kwargs=None,
              consumer=None):
     """

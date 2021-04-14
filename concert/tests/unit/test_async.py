@@ -2,21 +2,21 @@ import time
 import random
 import concert.config
 from concert.devices.dummy import DummyDevice
-from concert.async import async, wait, resolve, KillException, HAVE_GEVENT
+from concert.casync import casync, wait, resolve, KillException, HAVE_GEVENT
 from concert.tests import TestCase, VisitChecker
 
 
-@async
+@casync
 def func():
     pass
 
 
-@async
+@casync
 def bad_func():
     raise RuntimeError
 
 
-@async
+@casync
 def identity(x):
     return x, x**2
 
@@ -28,7 +28,7 @@ class TestAsync(TestCase):
         self.device = DummyDevice()
 
     def test_wait(self):
-        @async
+        @casync
         def long_func():
             time.sleep(random.random() / 50.)
 
@@ -51,7 +51,7 @@ class TestAsync(TestCase):
     def test_kill(self):
         d = {'killed': False}
 
-        @async
+        @casync
         def long_op(d):
             try:
                 time.sleep(1)
@@ -73,7 +73,7 @@ class TestAsync(TestCase):
         self.assertSequenceEqual(tuples[1], [x**2 for x in range(10)])
 
     def test_cancel_operation(self):
-        @async
+        @casync
         def long_op():
             time.sleep(0.01)
 

@@ -1,4 +1,4 @@
-from concert.async import wait
+from concert.casync import wait
 from concert.base import Parameter, ParameterError
 from concert.devices.base import Device, abort
 from concert.tests import TestCase, suppressed_logging

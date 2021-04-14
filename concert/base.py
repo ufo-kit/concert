@@ -7,7 +7,7 @@ import inspect
 import types
 import threading
 from concert.helpers import hasattr_raise_exceptions, memoize
-from concert.async import async, wait, busy_wait
+from concert.casync import casync, wait, busy_wait
 from concert.quantities import q
 
 
@@ -626,7 +626,7 @@ class ParameterValue(object):
     def target(self):
         return self.get_target().join().result()
 
-    @async
+    @casync
     def get(self, wait_on=None):
         """
         Get concrete *value* of this object.
@@ -639,7 +639,7 @@ class ParameterValue(object):
 
         return getattr(self._instance, self.name)
 
-    @async
+    @casync
     def get_target(self, wait_on=None):
         """
         Get target value of this object
@@ -661,7 +661,7 @@ class ParameterValue(object):
         If *wait_on* is not None, it must be a future on which this method
         joins.
         """
-        @async
+        @casync
         def execute():
             if wait_on:
                 wait_on.join()
@@ -676,7 +676,7 @@ class ParameterValue(object):
 
         return future
 
-    @async
+    @casync
     def stash(self):
         """Save the current value internally on a growing stack.
 
@@ -984,7 +984,7 @@ class Parameterizable(object):
         if not hasattr(self, '_get_target_' + param.name):
             setattr(self, '_get_target_' + param.name, _getter_target_not_implemented)
 
-    @async
+    @casync
     def stash(self):
         """
         Save all writable parameters that can be restored with
@@ -995,7 +995,7 @@ class Parameterizable(object):
         """
         wait((param.stash() for param in self if param.writable))
 
-    @async
+    @casync
     def restore(self):
         """Restore all parameters saved with :meth:`.Parameterizable.stash`."""
         wait((param.restore() for param in self if param.writable))

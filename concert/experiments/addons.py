@@ -3,7 +3,7 @@ the acquired data, e.g. write images to disk, do tomographic reconstruction etc.
 """
 import logging
 import numpy as np
-from concert.async import threaded
+from concert.casync import threaded
 from concert.coroutines.base import broadcast, coroutine
 from concert.coroutines.filters import queue
 from concert.coroutines.sinks import Accumulate, Result
@@ -137,14 +137,14 @@ class ImageWriter(Addon):
 
     A :class:`~concert.storage.Walker` instance
 
-    .. py:attribute:: async
+    .. py:attribute:: casync
 
-    If True write images asynchronously
+    If True write images casynchronously
     """
 
-    def __init__(self, acquisitions, walker, async=True):
+    def __init__(self, acquisitions, walker, casync=True):
         self.walker = walker
-        self._async = async
+        self._casync = casync
         self._writers = {}
         super(ImageWriter, self).__init__(acquisitions)
 
@@ -168,7 +168,7 @@ class ImageWriter(Addon):
             try:
                 self.walker.descend(acquisition.name)
                 coro = self.walker.write()
-                if self._async:
+                if self._casync:
                     coro = queue(coro, process_all=True, block=block, make_deepcopy=False)
                 return coro
             finally:

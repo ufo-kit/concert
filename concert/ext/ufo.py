@@ -25,7 +25,7 @@ except ImportError:
                          "'https://github.com/ufo-kit/tofu.git'", file=sys.stderr)
 
 from multiprocessing.pool import ThreadPool
-from concert.async import async
+from concert.casync import casync
 from concert.imageprocessing import filter_low_frequencies
 from concert.quantities import q
 from concert.coroutines.base import coroutine, inject
@@ -798,7 +798,7 @@ class GeneralBackprojectManager(object):
 
         threading.Thread(target=send_volume).start()
 
-    @async
+    @casync
     def find_parameters(self, parameters, projections=None, metrics=('sag',), regions=None,
                         iterations=1, fwhm=0, minimize=(True,), z=None, method='powell',
                         method_options=None, guesses=None, bounds=None, store=True):

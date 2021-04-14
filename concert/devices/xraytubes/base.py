@@ -1,7 +1,7 @@
 """
 An X-ray tube.
 """
-from concert.async import async
+from concert.casync import casync
 from concert.base import check
 from concert.quantities import q
 from concert.base import Quantity, AccessorNotImplementedError, State
@@ -40,7 +40,7 @@ class XRayTube(Device):
     def _get_power(self):
         return (self.voltage*self.current).to(q.W)
 
-    @async
+    @casync
     @check(source='off', target='on')
     def on(self):
         """
@@ -50,7 +50,7 @@ class XRayTube(Device):
         """
         self._on()
 
-    @async
+    @casync
     @check(source='on', target='off')
     def off(self):
         """

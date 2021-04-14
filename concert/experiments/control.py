@@ -1,5 +1,5 @@
 """Experiment automation based on on-line data analysis."""
-from concert.async import async
+from concert.casync import casync
 
 
 class ClosedLoop(object):
@@ -33,7 +33,7 @@ class ClosedLoop(object):
         """
         raise NotImplementedError
 
-    @async
+    @casync
     def run(self, max_iterations=10):
         """
         run(self, max_iterations=10)

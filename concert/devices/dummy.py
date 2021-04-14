@@ -1,7 +1,7 @@
 """Dummy"""
 from concert.base import Parameter, Selection
 from concert.devices.base import Device
-from concert.async import async
+from concert.casync import casync
 
 
 class DummyDevice(Device):
@@ -22,7 +22,7 @@ class DummyDevice(Device):
         """The real value setter."""
         self._value = value
 
-    @async
+    @casync
     def do_nothing(self):
         """Do nothing."""
         pass

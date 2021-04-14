@@ -1,10 +1,10 @@
 """
 .. exception:: KillException
 
-    Exception that may be thrown during the execution of an :func:`.async`
+    Exception that may be thrown during the execution of an :func:`.casync`
     decorated function. The function may run cleanup code.
 
-.. function:: async
+.. function:: casync
 
     A decorator for functions which are executed asynchronously.
 
@@ -72,7 +72,7 @@ class NoFuture(Future):
         self.cancel_operation = cancel_operation
 
 
-def no_async(func):
+def no_casync(func):
     @functools.wraps(func)
     def _inner(*args, **kwargs):
         future = NoFuture(None)
@@ -176,7 +176,7 @@ if concert.config.ENABLE_GEVENT:
             def add_done_callback(self, callback):
                 self.link(callback)
 
-        def async(func):
+        def casync(func):
             if concert.config.ENABLE_ASYNC:
                 @functools.wraps(func)
                 def _inner(*args, **kwargs):
@@ -186,7 +186,7 @@ if concert.config.ENABLE_GEVENT:
 
                 return _inner
             else:
-                return no_async(func)
+                return no_casync(func)
 
         def threaded(func):
             @functools.wraps(func)
@@ -212,7 +212,7 @@ if not concert.config.ENABLE_GEVENT or not HAVE_GEVENT:
         class KillException(Exception):
             pass
 
-        def async(func):
+        def casync(func):
             if concert.config.ENABLE_ASYNC:
                 @functools.wraps(func)
                 def _inner(*args, **kwargs):
@@ -220,7 +220,7 @@ if not concert.config.ENABLE_GEVENT or not HAVE_GEVENT:
 
                 return _inner
             else:
-                return no_async(func)
+                return no_casync(func)
 
         def threaded(func):
             @functools.wraps(func)

@@ -6,7 +6,7 @@ care of proper logging structure.
 import logging
 import os
 import time
-from concert.async import async
+from concert.casync import casync
 from concert.progressbar import wrap_iterable
 from concert.base import Parameterizable, Parameter, Selection, State, check
 
@@ -56,7 +56,7 @@ class Acquisition(object):
             for consumer in started:
                 consumer.send(item)
 
-    @async
+    @casync
     def abort(self):
         self._aborted = True
 
@@ -205,7 +205,7 @@ class Experiment(Parameterizable):
                 return acq
         raise ExperimentError("Acquisition with name `{}' not found".format(name))
 
-    @async
+    @casync
     @check(source=['running'], target=['standby'])
     def abort(self):
         self._state_value = 'aborting'
@@ -225,7 +225,7 @@ class Experiment(Parameterizable):
                 break
             acq()
 
-    @async
+    @casync
     @check(source=['standby', 'error'], target='standby')
     def run(self):
         """

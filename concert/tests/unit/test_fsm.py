@@ -3,7 +3,7 @@ from concert.tests import TestCase
 from concert.base import (transition, check, StateError, TransitionNotAllowed, State, Parameter,
                           FSMError)
 from concert.quantities import q
-from concert.async import async
+from concert.casync import casync
 from concert.devices.base import Device
 
 
@@ -35,7 +35,7 @@ class SomeDevice(Device):
     def stop_moving(self):
         self.velocity = STOP_VELOCITY
 
-    @async
+    @casync
     @check(source='standby', target='standby')
     @transition(immediate='moving', target='standby')
     def move_some_time(self, velocity, duration):
@@ -131,7 +131,7 @@ class TestStateMachine(TestCase):
         self.device.stop_moving()
         self.assertEqual(self.device.state, 'standby')
 
-    def test_async_transition(self):
+    def test_casync_transition(self):
         future = self.device.move_some_time(MOVE_VELOCITY, 0.01)
         future.join()
         self.assertEqual(self.device.state, 'standby')

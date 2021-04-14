@@ -18,8 +18,8 @@ class TestDummyCamera(TestCase):
         frame = self.camera.grab()
         self.assertIsNotNone(frame)
 
-    def test_grab_async(self):
-        frame = self.camera.grab_async().result()
+    def test_grab_casync(self):
+        frame = self.camera.grab_casync().result()
         self.assertIsNotNone(frame)
 
     def test_trigger_source(self):

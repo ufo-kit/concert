@@ -1,7 +1,7 @@
 """
 .. data:: ENABLE_ASYNC
 
-    Enable asynchronous execution. If disabled, dummy futures are used that do
+    Enable casynchronous execution. If disabled, dummy futures are used that do
     no execute synchronously.
 
 .. data:: ENABLE_GEVENT

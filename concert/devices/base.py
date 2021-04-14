@@ -1,6 +1,6 @@
 import threading
 import logging
-from concert.async import async
+from concert.casync import casync
 from concert.base import Parameterizable
 
 
@@ -36,7 +36,7 @@ class Device(Parameterizable):
     def __exit__(self, exc_type, exc_value, traceback):
         self._lock.release()
 
-    @async
+    @casync
     def abort(self):
         """Emergency stop."""
         self._abort()

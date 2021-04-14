@@ -45,7 +45,7 @@ coordinates and rotation around "y"::
 
 """
 import numpy as np
-from concert.async import async, wait
+from concert.casync import casync, wait
 from concert.quantities import q
 from concert.base import Quantity
 from concert.devices.base import Device
@@ -71,17 +71,17 @@ class Axis(object):
         self.direction = direction
         self.position = position
 
-    @async
+    @casync
     def get_position(self):
         """
         get_position()
 
-        Get position asynchronously with respect to axis direction.
+        Get position casynchronously with respect to axis direction.
         """
         return self.motor.position * self.direction
 
     def set_position(self, position):
-        """Set the *position* asynchronously with respect to axis direction."""
+        """Set the *position* casynchronously with respect to axis direction."""
         return self.motor.set_position(position * self.direction)
 
 
@@ -113,7 +113,7 @@ class Positioner(Device):
             else:
                 self.rotators[axis.coordinate] = axis
 
-    @async
+    @casync
     def move(self, position):
         """
         move(position)
@@ -122,7 +122,7 @@ class Positioner(Device):
         """
         self.position += position
 
-    @async
+    @casync
     def rotate(self, angles):
         """
         rotate(angles)

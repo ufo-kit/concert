@@ -15,7 +15,7 @@ As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 """
 import logging
 from concert.quantities import q
-from concert.async import async
+from concert.casync import casync
 from concert.base import Quantity, State, check, AccessorNotImplementedError
 from concert.devices.base import Device
 from concert.config import MOTOR_VELOCITY_SAMPLING_TIME as dT
@@ -32,7 +32,7 @@ class _PositionMixin(Device):
     def __init__(self):
         super(_PositionMixin, self).__init__()
 
-    @async
+    @casync
     def move(self, delta):
         """
         move(delta)
@@ -40,7 +40,7 @@ class _PositionMixin(Device):
         Move motor by *delta* user units."""
         self.position += delta
 
-    @async
+    @casync
     @check(source=['hard-limit', 'moving'], target='standby')
     def stop(self):
         """
@@ -49,7 +49,7 @@ class _PositionMixin(Device):
         Stop the motion."""
         self._stop()
 
-    @async
+    @casync
     @check(source='*', target=['standby', 'hard-limit'])
     def home(self):
         """

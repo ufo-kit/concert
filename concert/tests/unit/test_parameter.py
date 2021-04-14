@@ -6,7 +6,7 @@ from concert.base import (Parameterizable, Parameter, Quantity, State, transitio
                           SoftLimitError, LockError, ParameterError, UnitError,
                           WriteAccessError)
 from concert.devices.dummy import SelectionDevice
-from concert.async import WaitError
+from concert.casync import WaitError
 
 
 class BaseDevice(Parameterizable):
