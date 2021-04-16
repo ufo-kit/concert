@@ -73,18 +73,13 @@ def get_ipython_shell(config=None):
 
 def get_prompt_config(session_name):
     """Customize the prompt for the *session_name*."""
-    try:
-        from IPython.config.loader import Config
-        cfg = Config()
-        prompt_config = cfg.PromptManager
-        trig = ">"
-        prompt =  '{} {} '.format(session_name, trig)
-        prompt_config.in_template = '{color.Normal}' + prompt
-        prompt_config.in2_template = '   .\\D. {} '.format(trig)
-        prompt_config.out_template = '\r'.format(trig)
-        return cfg
-    except:
-        pass
+    from IPython.terminal.prompts import Prompts, Token
+
+    class MyPrompt(Prompts):
+        def in_prompt_tokens(self, cli=None):
+            return [(Token, session_name), (Token.Prompt, ' > ')]
+
+    return MyPrompt
 
 
 class InitCommand(Command):
@@ -448,12 +443,8 @@ class StartCommand(Command):
             if not module:
                 from concert.quantities import q
 
-            try:
-                shell = get_ipython_shell(config=config)
-            except AttributeError:
-                template = config.PromptManager.in_template.replace('Normal', 'normal')
-                config.PromptManager.in_template = template
-                shell = get_ipython_shell(config=config)
+            shell = get_ipython_shell()
+            shell.prompts = config(shell)
 
             shell.set_custom_exc(exceptions, _handler)
             shell()
