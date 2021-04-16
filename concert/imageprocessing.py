@@ -24,7 +24,14 @@ def flat_correct(radio, flat, dark=None):
     Flat field correction of a radiograph *radio* with *flat* field.
     If *dark* field is supplied it is taken into account as well.
     """
-    return radio / flat if dark is None else (radio - dark) / (flat - dark)
+    if dark is not None:
+        flat = flat - dark
+        radio = radio - dark
+    valid = np.where(flat != 0)
+    result = np.zeros(radio.shape, dtype=np.float32)
+    result[valid] = radio[valid] / flat[valid]
+
+    return result
 
 
 def ramp_filter(width):
