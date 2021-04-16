@@ -1,8 +1,8 @@
-futures==2.1.4
-nose==1.3.0
-prettytable==0.7.2
-pyxdg==0.26
-pint==0.5.2
-numpy==1.16.5
-scipy==1.2.2
-tifffile==2018.11.6
+futures
+nose
+prettytable
+pyxdg
+pint>=0.12
+numpy
+scipy
+tifffile
