@@ -66,6 +66,7 @@ class TestRotationAxisMeasure(TestCase):
 
     @slow
     def test_center_only_x(self):
+        self.image_source.scale = (3, 0.33, 3)
         images = self.make_images(17 * q.deg, 0 * q.deg, intervals=15)
         self.center_check(images)
 

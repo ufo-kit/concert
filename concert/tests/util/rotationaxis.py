@@ -4,7 +4,7 @@ from concert.devices.cameras.dummy import Base as DummyBaseCamera
 
 
 def get_np_angle(angle):
-    return np.array([angle.to(q.rad).magnitude] * q.rad)
+    return angle.to(q.rad).magnitude
 
 
 def rot_x(angle, matrix):

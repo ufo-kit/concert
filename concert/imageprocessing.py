@@ -153,6 +153,8 @@ def segment_convex_object(image):
         else:
             mask[image < threshold] = 1
         labels, num = label(mask, return_num=True)
+        if not num:
+            return None
         bins = np.arange(num + 1) + 0.5
         hist, bins = np.histogram(labels, bins=bins)
         largest_label = int(bins[np.argmax(hist)] + 0.5)
@@ -168,6 +170,9 @@ def segment_convex_object(image):
 
     sgn = 1
     mask = _segment(thr_otsu)
+    if mask is None:
+        # Nothing found
+        return None
 
     # Compute convex hull of the mask and inverted mask. Object is that mask which has smaller
     # amount of pixels added by the convex hull (convex hull of a convex polygon has the same size

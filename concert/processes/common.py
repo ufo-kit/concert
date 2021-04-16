@@ -341,7 +341,10 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
                   position_last.to(q.deg), motor.position.to(q.deg))
         if i > 0:
             # Assume linear mapping between the computed angles and motor motion
-            coeff = (motor.position - position_last) / (angle_current - angle_last)
+            if angle_current == angle_last:
+                coeff = 0 * q.dimensionless
+            else:
+                coeff = (motor.position - position_last) / (angle_current - angle_last)
         else:
             coeff = initial_coeff
         position_last = motor.position
@@ -357,7 +360,7 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
 
     def go_to_best_index(motor, history):
         positions, angles = list(zip(*history))
-        best_index = np.argmin(np.abs(angles))
+        best_index = np.argmin(np.abs([angle.to_base_units().magnitude for angle in angles]))
         LOG.debug("Best iteration: %d, position: %s, angle: %s",
                   best_index, positions[best_index].to(q.deg), angles[best_index].to(q.deg))
         motor.position = positions[best_index]
@@ -413,6 +416,7 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
             # If there are no futures the motors have reached positions at which the computed
             # angles are below threshold
             break
+
         wait(futures)
 
     if i == max_iterations - 1:
