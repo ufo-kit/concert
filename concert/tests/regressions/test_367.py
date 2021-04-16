@@ -9,13 +9,9 @@ class TestIssue367(TestCase):
         from concert.devices.cameras.uca import Camera
         camera = Camera("mock")
 
-        camera.degree_value = 5.0 * q.celsius
+        camera.degree_value = q.Quantity(5, q.celsius)
         self.assertEqual(camera.degree_value.magnitude, 5.0)
 
         val = camera.degree_value.magnitude
-        camera.degree_value = camera.degree_value + 5 * q.celsius
+        camera.degree_value = camera.degree_value + 5 * q.delta_degC
         self.assertEqual(camera.degree_value.magnitude, val + 5)
-
-        val = camera.degree_value.magnitude
-        camera.degree_value = camera.degree_value + camera.degree_value
-        self.assertEqual(camera.degree_value.magnitude, val + val)

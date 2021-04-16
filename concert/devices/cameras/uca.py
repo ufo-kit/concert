@@ -36,7 +36,7 @@ def _new_getter_wrapper(name, unit=None):
         value = instance.uca.get_property(name)
 
         if unit:
-            return value * unit
+            return q.Quantity(value, unit)
 
         return value
 
