@@ -22,14 +22,6 @@ def _setter_not_implemented(value, *args):
     raise AccessorNotImplementedError
 
 
-def _is_compatible(unit, value):
-    try:
-        1 * unit + value
-        return True
-    except ValueError:
-        return False
-
-
 def _getter_not_implemented(*args):
     raise AccessorNotImplementedError
 
@@ -506,7 +498,7 @@ class Quantity(Parameter):
             LOG.debug("KeyboardInterrupt caught while getting `{}'".format(self.name))
 
     def __set__(self, instance, value):
-        if not _is_compatible(self.unit, value):
+        if not self.unit.is_compatible_with(value):
             msg = "{} of {} can only receive values of unit {} but got {}"
             raise UnitError(
                 msg.format(self.name, type(instance), self.unit, value))
@@ -858,7 +850,7 @@ class QuantityValue(ParameterValue):
         """Common tasks for lower and upper before we set them."""
         if self._limits_locked:
             raise LockError('upper limit locked')
-        if not _is_compatible(self._parameter.unit, value):
+        if not self._parameter.unit.is_compatible_with(value):
             raise UnitError("limit units must be compatible with `{}'".
                             format(self._parameter.unit))
 
