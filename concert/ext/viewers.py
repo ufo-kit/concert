@@ -4,12 +4,9 @@ import atexit
 import os
 import tempfile
 import time
-try:
-    from queue import Empty
-except ImportError:
-    from queue import Empty
 import logging
 import numpy as np
+from queue import Empty
 from subprocess import Popen
 from multiprocessing import Queue as MultiprocessingQueue, Process
 from concert.casync import threaded

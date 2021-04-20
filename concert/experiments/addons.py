@@ -226,10 +226,7 @@ class OnlineReconstruction(Addon):
     def _create_averaging(self, im_type):
         @coroutine
         def create_averaging_coro():
-            try:
-                import queue as queue_module
-            except ImportError:
-                import queue as queue_module
+            import queue as queue_module
 
             self._events[im_type].clear()
             queue = queue_module.Queue()

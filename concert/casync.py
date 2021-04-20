@@ -13,17 +13,13 @@
     Threaded execution of a function *func*.
 
 """
+import queue
 import time
 import functools
 import traceback
 import concert.config
 from concurrent.futures import ThreadPoolExecutor, Future
 from concert.quantities import q
-
-try:
-    import queue as queue
-except ImportError:
-    import queue
 
 
 # Patch futures so that they provide a join() and kill() method

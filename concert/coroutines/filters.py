@@ -1,8 +1,5 @@
 from copy import deepcopy
-try:
-    import queue as queue_module
-except ImportError:
-    import queue as queue_module
+import queue as queue_module
 import logging
 import time
 import numpy as np
