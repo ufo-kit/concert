@@ -2,7 +2,7 @@ import time
 import random
 import concert.config
 from concert.devices.dummy import DummyDevice
-from concert.casync import casync, wait, resolve, KillException, HAVE_GEVENT
+from concert.casync import casync, wait, resolve, KillException
 from concert.tests import TestCase, VisitChecker
 
 
@@ -61,9 +61,6 @@ class TestAsync(TestCase):
         future = long_op(d)
         time.sleep(0)
         future.kill()
-
-        if HAVE_GEVENT and concert.config.ENABLE_GEVENT:
-            self.assertTrue(d['killed'])
 
     def test_resolve(self):
         result = (identity(x) for x in range(10))

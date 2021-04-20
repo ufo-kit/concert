@@ -59,11 +59,7 @@ def queue(consumer, process_all=True, block=False, make_deepcopy=True):
     effect. If *make_deepcopy* is True, insert a deep copy of an item into the queue, otherwise just
     a reference.
     """
-    from concert.casync import HAVE_GEVENT
-    if cfg.ENABLE_GEVENT and HAVE_GEVENT:
-        from gevent.event import Event
-    else:
-        from threading import Event
+    from threading import Event
 
     if block and not process_all:
         raise ValueError('If block is True then process_all must be as well')

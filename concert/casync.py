@@ -16,6 +16,7 @@
 import queue
 import time
 import functools
+import threading
 import traceback
 import concert.config
 from concurrent.futures import ThreadPoolExecutor, Future
@@ -85,149 +86,36 @@ def no_casync(func):
     return _inner
 
 
-if concert.config.ENABLE_GEVENT:
-    try:
-        import gevent
-        import gevent.monkey
-        import gevent.threadpool
-
-        gevent.monkey.patch_all()
-
-        # XXX: we have to import threading after patching
-        import threading
-
-        HAVE_GEVENT = True
-        KillException = gevent.GreenletExit
-        threadpool = gevent.threadpool.ThreadPool(4)
-
-        class GreenletFuture(gevent.Greenlet):
-
-            """A Future interface based on top of a Greenlet.
-
-            This class provides the :class:`concurrent.futures.Future` interface on
-            top of a Greenlet.
-            """
-
-            def __init__(self, func, args, kwargs, cancel_operation=None):
-                super(GreenletFuture, self).__init__()
-                self.func = func
-                self.args = args
-                self.kwargs = kwargs
-                self.saved_exception = None
-                self._cancelled = False
-                self._running = False
-                self.cancel_operation = cancel_operation
-
-            def _run(self, *args, **kwargs):
-                try:
-                    self._running = True
-                    value = self.func(*self.args, **self.kwargs)
-                    self._running = False
-
-                    # Force starting at least a bit of the greenlet
-                    gevent.sleep(0)
-                    return value
-                except Exception as exception:
-                    self.saved_exception = exception
-
-            def join(self, timeout=None):
-                try:
-                    super(GreenletFuture, self).join(timeout)
-                except KeyboardInterrupt:
-                    self.cancel()
-
-                if self.saved_exception:
-                    raise self.saved_exception
-
-            def cancel(self):
-                self._cancelled = True
-                try:
-                    self.kill()
-                finally:
-                    if self.cancel_operation:
-                        self.cancel_operation()
-
-                return True
-
-            def cancelled(self):
-                return self._cancelled
-
-            def running(self):
-                return self._running
-
-            def done(self):
-                return self.ready()
-
-            def result(self, timeout=None):
-                try:
-                    value = self.get(timeout=timeout)
-                except KeyboardInterrupt:
-                    self.cancel()
-
-                if self.saved_exception:
-                    raise self.saved_exception
-
-                return value
-
-            def add_done_callback(self, callback):
-                self.link(callback)
-
-        def casync(func):
-            if concert.config.ENABLE_ASYNC:
-                @functools.wraps(func)
-                def _inner(*args, **kwargs):
-                    g = GreenletFuture(func, args, kwargs)
-                    g.start()
-                    return g
-
-                return _inner
-            else:
-                return no_casync(func)
-
-        def threaded(func):
-            @functools.wraps(func)
-            def _inner(*args, **kwargs):
-                result = threadpool.spawn(func, *args, **kwargs)
-                return result
-
-            return _inner
-    except ImportError:
-        HAVE_GEVENT = False
-        print("Gevent is not available, falling back to threads")
-else:
-    HAVE_GEVENT = False
+# Module-wide executor
+EXECUTOR = ThreadPoolExecutor(max_workers=128)
 
 
-if not concert.config.ENABLE_GEVENT or not HAVE_GEVENT:
-        import threading
+# This is a stub exception that will never be raised.
+class KillException(Exception):
+    pass
 
-        # Module-wide executor
-        EXECUTOR = ThreadPoolExecutor(max_workers=128)
 
-        # This is a stub exception that will never be raised.
-        class KillException(Exception):
-            pass
+def casync(func):
+    if concert.config.ENABLE_ASYNC:
+        @functools.wraps(func)
+        def _inner(*args, **kwargs):
+            return EXECUTOR.submit(func, *args, **kwargs)
 
-        def casync(func):
-            if concert.config.ENABLE_ASYNC:
-                @functools.wraps(func)
-                def _inner(*args, **kwargs):
-                    return EXECUTOR.submit(func, *args, **kwargs)
+        return _inner
+    else:
+        return no_casync(func)
 
-                return _inner
-            else:
-                return no_casync(func)
 
-        def threaded(func):
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                """Execute in a separate thread."""
-                thread = threading.Thread(target=func, args=args, kwargs=kwargs)
-                thread.daemon = True
-                thread.start()
-                return thread
+def threaded(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        """Execute in a separate thread."""
+        thread = threading.Thread(target=func, args=args, kwargs=kwargs)
+        thread.daemon = True
+        thread.start()
+        return thread
 
-            return wrapper
+    return wrapper
 
 
 def wait(futures):
