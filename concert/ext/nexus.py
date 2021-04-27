@@ -8,7 +8,6 @@ sets. It uses NeXpy_ to interface with NeXus.
 """
 from logging import StreamHandler
 from concert.storage import Walker, StorageError
-from concert.coroutines.base import coroutine
 
 try:
     import h5py
@@ -50,26 +49,24 @@ class Hdf5Walker(Walker):
         """Check if *paths* exist."""
         return '/'.join(paths) in self.current
 
-    @coroutine
-    def _write_coroutine(self, dsetname=None):
-        """Write frames to data set *dsetname*."""
-        data = yield
-        shape = (1, ) + data.shape
-        maxshape = (None, ) + data.shape
-        dsetname = dsetname or self.dsetname
+    async def write(self, producer, dsetname=None):
+        """Write frames from *producer* to data set *dsetname*."""
+        i = 0
 
-        if dsetname in self._current:
-            raise StorageError("`{}' is not empty".format(self._current.name + '/' + dsetname))
+        async for data in producer:
+            shape = (i + 1, ) + data.shape
+            if i == 0:
+                maxshape = (None, ) + data.shape
+                dsetname = dsetname or self.dsetname
 
-        dset = self._current.create_dataset(dsetname, shape, maxshape=maxshape, dtype=data.dtype)
+                if dsetname in self._current:
+                    raise StorageError("`{}' is not empty".format(self._current.name + '/' +
+                                                                  dsetname))
 
-        dset[0, :, :] = data[:, :]
-        i = 1
-
-        while True:
-            data = yield
-            shape = (i + 1, ) + shape[1:]
-            dset.resize(shape)
+                dset = self._current.create_dataset(dsetname, shape, maxshape=maxshape,
+                                                    dtype=data.dtype)
+            else:
+                dset.resize(shape)
             dset[i, :, :] = data[:, :]
             i += 1
 

@@ -28,8 +28,6 @@ from multiprocessing.pool import ThreadPool
 from concert.casync import casync
 from concert.imageprocessing import filter_low_frequencies
 from concert.quantities import q
-from concert.coroutines.base import coroutine, inject
-from concert.coroutines.filters import sinograms, flat_correct
 from concert.coroutines.sinks import Result
 from concert.experiments.imaging import tomo_projections_number, frames
 
@@ -109,16 +107,14 @@ class InjectProcess(object):
         self.wait()
         return True
 
-    @coroutine
-    def __call__(self, consumer):
+    async def __call__(self, producer):
         """Co-routine compatible consumer."""
         if not self._started:
             self.start()
 
-        while True:
-            item = yield
+        async for item in producer:
             self.insert(item)
-            consumer.send(self.result(leave_index=0))
+            yield self.result(leave_index=0)
 
     def start(self, arch=None, gpu=None):
         """
@@ -209,8 +205,7 @@ class FlatCorrect(InjectProcess):
         super(FlatCorrect, self).__init__(self.ffc, get_output=True, output_dims=2,
                                           copy_inputs=copy_inputs)
 
-    @coroutine
-    def __call__(self, consumer):
+    async def __call__(self, producer):
         """Co-routine compatible consumer."""
         def process_one(projection, dark, flat):
             if projection.dtype != np.float32:
@@ -223,80 +218,13 @@ class FlatCorrect(InjectProcess):
         if not self._started:
             self.start()
 
-        projection = yield
-        process_one(projection, self.dark.astype(np.float32), self.flat.astype(np.float32))
-
-        while True:
-            projection = yield
-            process_one(projection, None, None)
-
-
-class Backproject(InjectProcess):
-
-    """
-    Coroutine to reconstruct slices from sinograms using filtered
-    backprojection.
-
-    *axis_pos* specifies the center of rotation in pixels within the sinogram.
-    If not specified, the center of the image is assumed to be the center of
-    rotation.
-    """
-
-    def __init__(self, axis_pos=None):
-        self.pm = PluginManager()
-        self.pad = self.pm.get_task('pad')
-        self.crop = self.pm.get_task('crop')
-        self.fft = self.pm.get_task('fft', dimensions=1)
-        self.ifft = self.pm.get_task('ifft', dimensions=1)
-        self.fltr = self.pm.get_task('filter')
-        self.backprojector = self.pm.get_task('backproject')
-
-        if axis_pos:
-            self.backprojector.props.axis_pos = axis_pos
-
-        super(Backproject, self).__init__(self._connect_nodes(), get_output=True, output_dims=2)
-
-    def _connect_nodes(self, first=None):
-        """Connect processing nodes. *first* is the node before fft."""
-        graph = Ufo.TaskGraph()
-        if first:
-            graph.connect_nodes(first, self.pad)
-
-        graph.connect_nodes(self.pad, self.fft)
-        graph.connect_nodes(self.fft, self.fltr)
-        graph.connect_nodes(self.fltr, self.ifft)
-        graph.connect_nodes(self.ifft, self.crop)
-        graph.connect_nodes(self.crop, self.backprojector)
-
-        return graph
-
-    @property
-    def axis_position(self):
-        return self.backprojector.props.axis_pos
-
-    @axis_position.setter
-    def axis_position(self, position):
-        self.backprojector.set_properties(axis_pos=position)
-
-    def _process(self, sinogram, consumer):
-        """Process *sinogram* and send the result to *consumer*. Only to be used in __call__."""
-        self.insert(sinogram)
-        consumer.send(self.result(leave_index=0))
-
-    @coroutine
-    def __call__(self, consumer, arch=None, gpu=None):
-        """Get a sinogram, do filtered backprojection and send it to *consumer*."""
-        sinogram = yield
-        setup_padding(self.pad, self.crop, sinogram.shape[1], sinogram.shape[0])
-
-        if not self._started:
-            self.start(arch=arch, gpu=gpu)
-
-        self._process(sinogram, consumer)
-
-        while True:
-            sinogram = yield
-            self._process(sinogram, consumer)
+        fc = True
+        async for projection in producer:
+            if fc:
+                process_one(projection, self.dark.astype(np.float32), self.flat.astype(np.float32))
+                fc = False
+            else:
+                process_one(projection, None, None)
 
 
 class FlatCorrectedBackproject(Backproject):
@@ -385,132 +313,16 @@ class FlatCorrect(InjectProcess):
 
         super(FlatCorrect, self).__init__(self.flat_correction, get_output=True)
 
-    @coroutine
-    def __call__(self, consumer):
+    async def __call__(self, producer):
         """Get a sinogram, do filtered backprojection and send it to *consumer*."""
         if not self._started:
             self.start()
 
-        while True:
-            image = yield
+        async for image in producer:
             self.insert(image.astype(np.float32), node=self.flat_correction, index=0)
             self.insert(self.dark, node=self.flat_correction, index=1)
             self.insert(self.flat, node=self.flat_correction, index=2)
-            consumer.send(self.result())
-
-
-@coroutine
-def middle_row(consumer):
-    while True:
-        frame = yield
-        row = frame.shape[0] // 2
-        part = frame[row-1:row+1, :]
-        consumer.send(part)
-
-
-def center_rotation_axis(camera, motor, initial_motor_step,
-                         num_iterations=2, num_projections=None, flat=None, dark=None):
-    """
-    Center the rotation axis controlled by *motor*.
-
-    Use an iterative approach to center the rotation axis. Around *motor*s
-    current position, we evaluate five points by running a reconstruction.
-    *rotation_motor* rotates the sample around the tomographic axis.
-    *num_iterations* controls the final resolution of the step size, halving
-    each iteration. *flat* is a flat field frame and *dark* is a dark field
-    frame which will be used for flat correcting the acuired projections.
-    """
-
-    width_2 = camera.roi_width.magnitude / 2
-    axis_pos = width_2
-
-    # Crop the dark and flat
-    if flat is not None:
-        middle = flat.shape[0] // 2
-        flat = flat[middle, :]
-        if dark is not None:
-            dark = dark[middle, :]
-
-    n = num_projections or tomo_projections_number(camera.roi_width)
-    angle_step = np.pi / n * q.rad
-
-    step = initial_motor_step
-    current = motor.position
-
-    for i in range(num_iterations):
-        frm = current - step
-        to = current + step
-        div = 2 * step / 5
-
-        positions = (frm, frm + div, current, current + div, to)
-        scores = []
-
-        for position in positions:
-            motor.position = position
-            backproject = Backproject(axis_pos)
-            sino_result = Result()
-            sino_coro = sino_result()
-            if flat is not None:
-                sino_coro = flat_correct(flat, sino_coro, dark=dark)
-
-            inject(frames(n, camera, callback=lambda: rotation_motor.move(angle_step).join()),
-                   middle_row(sinograms(n, sino_coro)))
-
-            sinogram = (sinogram.result[0, :, :], )
-            result = Result()
-            m0 = np.mean(np.sum(sinogram[0], axis=1))
-
-            inject(sinogram, backproject(result()))
-            backproject.wait()
-
-            img = result.result
-
-            # Other possibilities: sum(abs(img)) or sum(img * heaviside(-img))
-            score = np.sum(np.abs(np.gradient(img))) / m0
-            scores.append(score)
-
-        current = positions[scores.index(min(scores))]
-        step /= 2
-
-
-def compute_rotation_axis(sinogram, initial_step=None, max_iterations=14,
-                          slice_consumer=None, score_consumer=None):
-
-    width_2 = sinogram.shape[1] / 2.0
-    iteration = 0
-    step = initial_step or width_2 / 2
-    current = width_2
-
-    while step > 1 and iteration < max_iterations:
-        frm = current - step
-        to = current + step
-        div = 2.0 * step / 5.0
-
-        axes = (frm, frm + div, current, current + div, to)
-        scores = []
-
-        for axis in axes:
-            backproject = Backproject(axis)
-            result = Result()
-
-            inject((sinogram, ), backproject(result()))
-            backproject.wait()
-
-            img = result.result
-
-            # Other possibilities: sum(abs(img)) or sum(img * heaviside(-img))
-            score = np.sum(np.abs(np.gradient(img)))
-            scores.append(score)
-            if slice_consumer:
-                slice_consumer.send(img)
-            if score_consumer:
-                score_consumer.send(axis * q.px)
-
-        current = axes[scores.index(min(scores))]
-        step /= 2.0
-        iteration += 1
-
-    return current
+            yield self.result()
 
 
 class GeneralBackprojectArgs(object):
@@ -631,8 +443,7 @@ class GeneralBackproject(InjectProcess):
         super(GeneralBackproject, self).__init__(graph, get_output=True, output_dims=output_dims,
                                                  scheduler=scheduler, copy_inputs=copy_inputs)
 
-    @coroutine
-    def __call__(self, consumer):
+    async def __call__(self, producer):
         def process_projection(projection, dark, flat):
             if projection is None:
                 return False
@@ -650,7 +461,7 @@ class GeneralBackproject(InjectProcess):
 
         def consume_volume():
             if not self._started:
-                consumer.send(None)
+                yield None
                 return
             self.stop()
             if self.before_download_event:
@@ -662,23 +473,18 @@ class GeneralBackproject(InjectProcess):
                 if result is None:
                     LOG.warn('Not all slices received (last: %g)', k)
                     break
-                consumer.send(result)
+                yield result
             LOG.debug('Volume downloaded in: %.2f s', time.time() - st)
             self.wait()
 
-        projection = yield
-        st = time.time()
-        processed = process_projection(projection, self.dark, self.flat)
-        if not processed:
-            consume_volume()
-
-        i = 1
-        while True:
-            projection = yield
+        i = 0
+        async for projection in producer:
+            if i == 0:
+                st = time.time()
             i += 1
-            if i == self.args.number:
-                LOG.debug('Last projection came')
-            processed = process_projection(projection, None, None)
+            processed = process_projection(projection,
+                                           self.dark if i == 1 else None,
+                                           self.flat if i == 1 else None)
             if not processed or i == self.args.number:
                 LOG.debug('Backprojected %d projections, duration: %.2f s', i, time.time() - st)
                 consume_volume()
@@ -760,11 +566,9 @@ class GeneralBackprojectManager(object):
             yield self.projections[i]
             self._num_processed_projections = i + 1
 
-    @coroutine
-    def consume(self, offset):
+    async def consume(self, offset, producer):
         i = 0
-        while True:
-            item = yield
+        async for item in producer:
             if item is None:
                 self.abort()
             self.volume[offset + i] = item
@@ -955,7 +759,7 @@ class GeneralBackprojectManager(object):
                                         region=region,
                                         copy_inputs=self.copy_inputs,
                                         before_download_event=self._consume_event)
-                inject(self.produce(), bp(self.consume(offset)))
+                self.consume(offset, bp(self.produce()))
 
             # Distribute work
             pool = ThreadPool(processes=len(self._resources))

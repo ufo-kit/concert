@@ -3,7 +3,7 @@ import os
 import logging
 import tifffile
 from logging import FileHandler, Formatter
-from concert.coroutines.base import coroutine, inject
+from concert.coroutines.base import feed_queue
 from concert.writers import TiffWriter
 
 
@@ -75,18 +75,18 @@ def create_directory(directory, rights=0o0750):
         os.makedirs(directory, rights)
 
 
-@coroutine
-def write_images(writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0, bytes_per_file=0):
+def write_images(pqueue, writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0,
+                 bytes_per_file=0):
     """
-    write_images(writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0, bytes_per_file=0)
+    write_images(pqueue, writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0,
+                 bytes_per_file=0)
 
     Write images on disk with specified *writer* and file name *prefix*. Write to one file until the
     *bytes_per_file* bytes has been written. If it is 0, then one file per image is created.
     *writer* is a subclass of :class:`.writers.ImageWriter`. *start_index* specifies the number in
     the first file name, e.g. for the default *prefix* and *start_index* 100, the first file name
     will be image_00100.tif. If *prefix* is not formattable images are appended to the filename
-    specified by *prefix*. Make sure you call close() on this coroutine to make sure GeneratorExit
-    is called and files are closed.
+    specified by *prefix*.
     """
     im_writer = None
     file_index = 0
@@ -100,9 +100,14 @@ def write_images(writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0, by
     if dir_name and not os.path.exists(dir_name):
         create_directory(dir_name)
 
+    i = 0
+
     try:
         while True:
-            image = yield
+            image = pqueue.get().data
+            if image is None:
+                pqueue.task_done()
+                break
             if not append and (not im_writer or written + image.nbytes > bytes_per_file):
                 if im_writer:
                     im_writer.close()
@@ -113,7 +118,9 @@ def write_images(writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0, by
                 written = 0
             im_writer.write(image)
             written += image.nbytes
-    except GeneratorExit:
+            i += 1
+            pqueue.task_done()
+    finally:
         if im_writer:
             im_writer.close()
             LOG.debug('Writer "{}" closed'.format(prefix.format(start_index + file_index - 1)))
@@ -179,18 +186,7 @@ class Walker(object):
         """Ascend from current depth."""
         raise NotImplementedError
 
-    def write(self, data=None, dsetname=None):
-        """Write a sequence of *data* if specified, otherwise this method turns into a coroutine.
-        The data set name is given by *dsetname*.
-        """
-        write_coro = self._write_coroutine(dsetname=dsetname)
-
-        if data is None:
-            return write_coro
-        else:
-            inject(data, write_coro)
-
-    def _write_coroutine(self, dsetname=None):
+    async def write(self, producer, dsetname=None):
         """Coroutine for writing data set *dsetname*."""
         raise NotImplementedError
 
@@ -215,14 +211,12 @@ class DummyWalker(Walker):
         if self._current != self._root:
             self._current = os.path.dirname(self._current)
 
-    @coroutine
-    def _write_coroutine(self, dsetname=None):
+    async def write(self, producer, dsetname=None):
         dsetname = dsetname or self.dsetname
         path = os.path.join(self._current, dsetname)
 
         i = 0
-        while True:
-            yield
+        async for item in producer:
             self._paths.add(os.path.join(path, str(i)))
             i += 1
 
@@ -273,7 +267,7 @@ class DirectoryWalker(Walker):
         """Check if *paths* exist."""
         return os.path.exists(os.path.join(self.current, *paths))
 
-    def _write_coroutine(self, dsetname=None):
+    def write(self, producer, dsetname=None):
         dsetname = dsetname or self.dsetname
 
         if self._dset_exists(dsetname):
@@ -282,9 +276,9 @@ class DirectoryWalker(Walker):
             raise StorageError("`{}' is not empty".format(dset_path))
 
         prefix = os.path.join(self._current, dsetname)
-        return write_images(writer=self._writer, prefix=prefix,
-                            start_index=self._start_index,
-                            bytes_per_file=self._bytes_per_file)
+
+        return feed_queue(producer, write_images, self._writer, prefix,
+                          self._start_index, self._bytes_per_file)
 
     def _dset_exists(self, dsetname):
         """Check if *dsetname* exists on the current level."""

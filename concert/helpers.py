@@ -1,6 +1,12 @@
 import time
 import inspect
 import functools
+import logging
+from dataclasses import dataclass, field
+from typing import Any
+
+
+LOG = logging.getLogger(__name__)
 
 
 class Command(object):
@@ -257,3 +263,12 @@ def hasattr_raise_exceptions(obj, name):
         return False
 
     return True
+
+
+@dataclass(order=True)
+class PrioItem:
+
+    """To be used in combination with `queue.PriorityQueue`."""
+
+    priority: int
+    data: Any=field(compare=False)
