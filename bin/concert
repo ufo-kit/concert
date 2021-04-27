@@ -345,7 +345,7 @@ class StartCommand(Command):
                 '--logto': {'choices': ['stderr', 'file'],
                             'default': 'file'},
                 '--logfile': {'type': str},
-                '--loglevel': {'choices': ['debug', 'info', 'warning', 'error',
+                '--loglevel': {'choices': ['aiodebug', 'debug', 'info', 'warning', 'error',
                                            'critical'],
                                'default': 'info'},
                 '--non-interactive': {'action': 'store_true'}}
@@ -365,16 +365,15 @@ class StartCommand(Command):
         else:
             handler = logging.StreamHandler(sys.stderr)
 
-        numeric_level = getattr(logging, loglevel.upper())
-
-        handler.setLevel(numeric_level)
+        logging.addLevelName(concert.config.AIODEBUG, 'AIODEBUG')
+        handler.setLevel(loglevel.upper())
         logformat = '[%(asctime)s] %(levelname)s: %(name)s: {}: %(message)s'
         formatter = logging.Formatter(logformat.format(session))
         handler.setFormatter(formatter)
 
         self.logger = logging.getLogger()
         self.logger.addHandler(handler)
-        self.logger.setLevel(numeric_level)
+        self.logger.setLevel(loglevel.upper())
 
         # Add session path, so that sessions can import other sessions
         sys.path.append(cs.path())
