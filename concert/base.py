@@ -172,8 +172,8 @@ def transition(immediate=None, target=None):
     """
     def wrapped(func):
         @functools.wraps(func)
-        def call_func(instance, *args, **kwargs):
-            if not hasattr_raise_exceptions(instance, 'state'):
+        async def call_func(instance, *args, **kwargs):
+            if 'state' not in instance:
                 raise FSMError('Changing state requires state parameter')
 
             # Store the original in case target is None
@@ -210,8 +210,8 @@ def check(source='*', target=None):
         targets = [target] if isinstance(target, str) else target
 
         @functools.wraps(func)
-        def call_func(instance, *args, **kwargs):
-            if not hasattr_raise_exceptions(instance, 'state'):
+        async def call_func(instance, *args, **kwargs):
+            if 'state' not in instance:
                 raise FSMError('Transitioning requires state parameter')
 
             if instance.state not in sources and '*' not in sources:
@@ -939,6 +939,9 @@ class Parameterizable(object):
             raise ParameterError(param)
 
         return self._params[param]
+
+    def __contains__(self, key):
+        return key in self._params
 
     def install_parameters(self, params):
         """Install parameters at run-time.
