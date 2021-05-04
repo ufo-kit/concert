@@ -113,3 +113,27 @@ async def feed_queue(producer, func, *args):
         LOG.log(concert.config.AIODEBUG, f'feed_queue finished with priority {prio}')
         pqueue.put(PrioItem(priority=prio, data=None))
         await future
+
+
+# TODO: test
+async def wait_until(condition, sleep_time=1e-1 * q.s, timeout=None):
+    """Wait until a callable *condition* returns True. *sleep_time* is the time to sleep
+    between consecutive checks of *condition*. If *timeout* is given and the *condition* doesn't
+    return True within the time specified by it a :class:`.WaitingError` is raised.
+    """
+    sleep_time = sleep_time.to(q.s).magnitude
+    if timeout:
+        start = time.time()
+        timeout = timeout.to(q.s).magnitude
+
+    while not await condition():
+        if timeout and time.time() - start > timeout:
+            raise WaitError('Waiting timed out')
+        await asyncio.sleep(sleep_time)
+
+
+class WaitError(Exception):
+
+    """Raised on busy waiting timeouts"""
+
+    pass
