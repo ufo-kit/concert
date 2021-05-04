@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 """Core module Parameters"""
+import asyncio
 import numpy as np
 import logging
 import functools
 import inspect
 import types
 import threading
-from concert.helpers import hasattr_raise_exceptions, memoize
-from concert.casync import casync, wait, busy_wait
+from concert.helpers import memoize
+from concert.coroutines.base import run_in_loop, wait_until
 from concert.quantities import q
 
 
@@ -30,14 +31,14 @@ def _getter_target_not_implemented(*args):
     raise AccessorNotImplementedError
 
 
-def _execute_func(func, instance, *args, **kwargs):
+async def _execute_func(func, instance, *args, **kwargs):
     """Execute *func* irrespective of whether it is a function or a method. *instance*
     is discarded if *func* is a function, otherwise it is used as a first real argument.
     """
     if isinstance(func, types.MethodType):
-        result = func(*args, **kwargs)
+        result = await func(*args, **kwargs)
     else:
-        result = func(instance, *args, **kwargs)
+        result = await func(instance, *args, **kwargs)
 
     return result
 
@@ -141,12 +142,22 @@ class AccessorNotImplementedError(NotImplementedError):
 
 class ReadAccessError(Exception):
 
-    """Raised when user tries to change a parameter that cannot be written."""
+    """Raised when user tries to read a parameter that cannot be read."""
 
     def __init__(self, parameter):
         LOG.warn("Invalid read access on {0}".format(parameter))
         msg = "parameter `{0}' cannot be read".format(parameter)
         super(ReadAccessError, self).__init__(msg)
+
+
+class TargetAccessError(Exception):
+
+    """Raised when user tries to read parameter's target value that cannot be read."""
+
+    def __init__(self, parameter):
+        LOG.warn("Invalid read access on {0}".format(parameter))
+        msg = "parameter's `{0}' target value cannot be read".format(parameter)
+        super(TargetAccessError, self).__init__(msg)
 
 
 class WriteAccessError(Exception):
@@ -157,6 +168,16 @@ class WriteAccessError(Exception):
         LOG.warn("Invalid write access on {0}".format(parameter))
         msg = "parameter `{0}' cannot be written".format(parameter)
         super(WriteAccessError, self).__init__(msg)
+
+
+class SelectionError(Exception):
+
+    """Raised when user tries to set selection parameter to unknown value."""
+
+    def __init__(self, parameter, value, values):
+        LOG.warn("Invalid write access on {0}".format(parameter))
+        msg = "Value `{}' not in `{}'".format(value, values)
+        super(SelectionError, self).__init__(msg)
 
 
 class LockError(Exception):
@@ -177,13 +198,13 @@ def transition(immediate=None, target=None):
                 raise FSMError('Changing state requires state parameter')
 
             # Store the original in case target is None
-            target_state = target if target else instance.state
+            target_state = target if target else await instance['state'].get()
 
             if immediate:
                 setattr(instance, '_state_value', immediate)
 
             try:
-                result = _execute_func(func, instance, *args, **kwargs)
+                result = await _execute_func(func, instance, *args, **kwargs)
                 setattr(instance, '_state_value', target_state)
             except StateError as error:
                 setattr(instance, '_state_value', error.state)
@@ -214,14 +235,15 @@ def check(source='*', target=None):
             if 'state' not in instance:
                 raise FSMError('Transitioning requires state parameter')
 
-            if instance.state not in sources and '*' not in sources:
-                msg = "Current state `{}' not in `{}'".format(instance.state, sources)
+            state = await instance['state'].get()
+            if state not in sources and '*' not in sources:
+                msg = "Current state `{}' not in `{}'".format(state, sources)
                 raise TransitionNotAllowed(msg)
 
-            result = _execute_func(func, instance, *args, **kwargs)
+            result = await _execute_func(func, instance, *args, **kwargs)
 
             # Check if the device got into an allowed state after the check
-            final = instance.state
+            final = await instance['state'].get()
             if final not in targets:
                 msg = "Final state `{}' not in `{}'".format(final, targets)
                 raise TransitionNotAllowed(msg)
@@ -305,67 +327,49 @@ class Parameter(object):
 
         return '_get_target_' + self.name
 
+    @memoize
+    def get_getter(self, instance):
+        if self.fget:
+            getter = functools.partial(self.fget, instance)
+        else:
+            getter = getattr(instance, self.getter_name())
+
+        return getter
+
+    @memoize
+    def get_target_getter(self, instance):
+        if self.fget_target:
+            target_getter = functools.partial(self.fget_target, instance)
+        else:
+            target_getter = getattr(instance, self.getter_name_target())
+
+        return target_getter
+
+    @memoize
+    def get_setter(self, instance):
+        if self.fset:
+            # If check is supplied to the Parameter do not apply partial because it will be applied
+            # below
+            setter = self.fset if self.check else functools.partial(self.fset, instance)
+        else:
+            setter = getattr(instance, self.setter_name())
+
+        if self.check:
+            setter = self.check(setter)
+            # Check wraps a method into a function which expects the first argument to be instance
+            # again, thus wrap it by functools.partial
+            setter = functools.partial(setter, instance)
+
+        return setter
+
     def __repr__(self):
         return str(self.help)
 
     def __get__(self, instance, owner):
-        # If we would just call self.fset(value) we would call the method
-        # defined in the base class. This is a hack (?) to call the function on
-        # the instance where we actually want the function to be called.
-
-        try:
-            if self.fget:
-                value = self.fget(instance, *self.data_args)
-            else:
-                value = getattr(instance, self.getter_name())(*self.data_args)
-
-            return value
-        except AccessorNotImplementedError:
-            raise ReadAccessError(self.name)
-        except KeyboardInterrupt:
-            # do not scream
-            LOG.debug("KeyboardInterrupt caught while getting `{}'".format(self.name))
+        return run_in_loop(instance[self.name].get())
 
     def __set__(self, instance, value):
-        try:
-            if instance[self.name].locked:
-                raise LockError("Parameter `{}' is locked for writing".format(self))
-
-            if self.fset:
-                self.fset(instance, value, *self.data_args)
-            else:
-                func = getattr(instance, '_set_' + self.name)
-
-                if self.check and not hasattr(func, '_is_checked'):
-                    func = self.check(func)
-                    func._is_checked = True
-                    setattr(instance, '_set_' + self.name, func)
-
-                try:
-                    if isinstance(func, types.MethodType):
-                        func(value, *self.data_args)
-                    else:
-                        func(instance, value, *self.data_args)
-                except AccessorNotImplementedError:
-                    raise WriteAccessError(self.name)
-
-            name = instance.__class__.__name__
-            if hasattr(instance, 'name_for_log'):
-                instance_name = getattr(instance, 'name_for_log')
-            else:
-                instance_name = _find_object_by_name(instance)
-                if instance_name:
-                    setattr(instance, 'name_for_log', instance_name)
-            if instance_name:
-                msg = "set {}::{}.{}='{}'"
-                LOG.info(msg.format(name, instance_name, self.name, value))
-            else:
-                msg = "set {}::{}='{}'"
-                LOG.info(msg.format(name, self.name, value))
-        except KeyboardInterrupt:
-            cancel_name = '_cancel_' + self.name
-            if hasattr(instance, cancel_name):
-                getattr(instance, cancel_name)()
+        run_in_loop(instance[self.name].set(value))
 
 
 class State(Parameter):
@@ -415,19 +419,6 @@ class State(Parameter):
         super(State, self).__init__(fget=fget, help=help)
         self.default = default
 
-    def __get__(self, instance, owner):
-        if self.fget:
-            value = self.fget(instance, *self.data_args)
-        else:
-            try:
-                value = getattr(instance, self.getter_name())(*self.data_args)
-            except AccessorNotImplementedError:
-                if self.default is None:
-                    raise StateError('Software state must have a default value')
-                value = self._value(instance)
-
-        return value
-
     def __set__(self, instance, value):
         raise AttributeError('State cannot be set')
 
@@ -442,21 +433,15 @@ class Selection(Parameter):
 
     """A :class:`.Parameter` that can take a value out of pre-defined list."""
 
-    def __init__(self, iterable, fget=None, fset=None, help=None):
+    def __init__(self, iterable, fget=None, fset=None, check=None, help=None):
         """
-        *fget*, *fset*, *data*, *transition* and *help* are identical to the
-        :class:`.Parameter` constructor arguments.
+        *fget*, *fset*, *check* and *help* are identical to the :class:`.Parameter` constructor
+        arguments.
 
         *iterable* is the list of things, that a selection can be.
         """
-        super(Selection, self).__init__(fget=fget, fset=fset, help=help)
+        super(Selection, self).__init__(fget=fget, fset=fset, check=check, help=help)
         self.iterable = iterable
-
-    def __set__(self, instance, value):
-        if value not in self.iterable:
-            raise WriteAccessError('{} not in {}'.format(value, self.iterable))
-
-        super(Selection, self).__set__(instance, value)
 
 
 class Quantity(Parameter):
@@ -484,52 +469,6 @@ class Quantity(Parameter):
 
     def convert(self, value):
         return value.to(self.unit)
-
-    def __get__(self, instance, owner):
-        # If we would just call self.fset(value) we would call the method
-        # defined in the base class. This is a hack (?) to call the function on
-        # the instance where we actually want the function to be called.
-        try:
-            value = super(Quantity, self).__get__(instance, owner)
-
-            if value is not None:
-                return self.convert(value)
-        except KeyboardInterrupt:
-            LOG.debug("KeyboardInterrupt caught while getting `{}'".format(self.name))
-
-    def __set__(self, instance, value):
-        if not self.unit.is_compatible_with(value):
-            msg = "{} of {} can only receive values of unit {} but got {}"
-            raise UnitError(
-                msg.format(self.name, type(instance), self.unit, value))
-
-        lower = instance[self.name].lower
-        upper = instance[self.name].upper
-
-        def leq(a, b):
-            """check a <= b"""
-            if not hasattr(a, 'shape') or len(a.shape) == 0:
-                return a <= b
-            else:
-                # Vector data type
-                valid_a = np.invert(np.isnan(a.magnitude))
-                valid_b = np.invert(np.isnan(b.magnitude))
-                valid = valid_a & valid_b
-                test_a = a[valid]
-                test_b = b[valid]
-                return np.all(test_a.to_base_units().magnitude <= test_b.to_base_units().magnitude)
-
-        if lower is not None:
-            if not leq(lower, value):
-                msg = "{} is out of range [{}, {}]"
-                raise SoftLimitError(msg.format(value, lower, upper))
-        if upper is not None:
-            if not leq(value, upper):
-                msg = "{} is out of range [{}, {}]"
-                raise SoftLimitError(msg.format(value, lower, upper))
-
-        converted = self.convert(value)
-        super(Quantity, self).__set__(instance, converted)
 
 
 def quantity(unit=None, lower=None, upper=None, data=None, check=None, help=None):
@@ -579,10 +518,10 @@ class ParameterValue(object):
         return self._parameter.name < other._parameter.name
 
     def __repr__(self):
-        return self.info_table.get_string()
+        return run_in_loop(self.info_table).get_string()
 
     @property
-    def info_table(self):
+    async def info_table(self):
         from concert.session.utils import get_default_table
         locked = "yes" if self.locked else "no"
         table = get_default_table(["attribute", "value"])
@@ -592,7 +531,7 @@ class ParameterValue(object):
         table.add_row(["locked", locked])
         table.add_row(["target_readable", self.target_readable])
         if self.target_readable:
-            table.add_row(["target_value", self.get_target().join().result])
+            table.add_row(["target_value", await self.get_target()])
         return table
 
     @property
@@ -616,60 +555,73 @@ class ParameterValue(object):
 
     @property
     def target(self):
-        return self.get_target().join().result()
+        return run_in_loop(self.get_target())
 
-    @casync
-    def get(self, wait_on=None):
+    async def get(self, wait_on=None):
         """
-        Get concrete *value* of this object.
+        Get coroutine obtaining the concrete *value* of this object.
 
-        If *wait_on* is not None, it must be a future on which this method
-        joins.
+        If *wait_on* is not None, it must be an awaitable on which this method waits.
         """
         if wait_on:
-            wait_on.join()
+            await wait_on
 
-        return getattr(self._instance, self.name)
+        try:
+            getter = self._parameter.get_getter(self._instance)
+            return await getter(*self._parameter.data_args)
+        except asyncio.CancelledError:
+            LOG.debug('getter cancelled %s', self._parameter.name)
+        except AccessorNotImplementedError:
+            raise ReadAccessError(self.name)
 
-    @casync
-    def get_target(self, wait_on=None):
+    async def get_target(self, wait_on=None):
         """
-        Get target value of this object
-        :param wait_on: If not None, this must be a future which joins before reading value.
-        :return:
+        Get coroutine obtaining target value of this object.
+
+        If *wait_on* is not None, it must be an awaitable on which this method waits.
         """
         if wait_on:
-            wait_on.join()
+            await wait_on
 
-        if self._parameter.fget_target is not None:
-            return self._parameter.fget_target(self._instance)
-        else:
-            return getattr(self._instance, '_get_target_' + self.name)()
+        try:
+            target_getter = self._parameter.get_target_getter(self._instance)
+            return await target_getter()
+        except AccessorNotImplementedError:
+            raise TargetAccessError(self.name)
 
-    def set(self, value, wait_on=None):
+    async def set(self, value, wait_on=None):
         """
         Set concrete *value* on the object.
 
-        If *wait_on* is not None, it must be a future on which this method
-        joins.
+        If *wait_on* is not None, it must be an awaitable on which this method waits.
         """
-        @casync
-        def execute():
-            if wait_on:
-                wait_on.join()
+        if wait_on:
+            await wait_on
 
-            setattr(self._instance, self.name, value)
+        if self.locked:
+            raise LockError("Parameter `{}' is locked for writing".format(self._parameter.name))
 
-        future = execute()
-        cancel_name = '_cancel_' + self.name
+        try:
+            setter = self._parameter.get_setter(self._instance)
+            await setter(value, *self._parameter.data_args)
+        except AccessorNotImplementedError:
+            raise WriteAccessError(self.name)
 
-        if hasattr(self._instance, cancel_name):
-            future.cancel_operation = getattr(self._instance, cancel_name)
+        name = self._instance.__class__.__name__
+        if hasattr(self._instance, 'name_for_log'):
+            instance_name = getattr(self._instance, 'name_for_log')
+        else:
+            instance_name = _find_object_by_name(self._instance)
+            if instance_name:
+                setattr(self._instance, 'name_for_log', instance_name)
+        if instance_name:
+            msg = "set {}::{}.{}='{}'"
+            LOG.info(msg.format(name, instance_name, self._parameter.name, value))
+        else:
+            msg = "set {}::{}='{}'"
+            LOG.info(msg.format(name, self._parameter.name, value))
 
-        return future
-
-    @casync
-    def stash(self):
+    async def stash(self):
         """Save the current value internally on a growing stack.
 
         If the parameter is writable the current value is saved on a stack and
@@ -679,11 +631,11 @@ class ParameterValue(object):
             raise ParameterError("Parameter `{}' is not writable".format(self.name))
 
         if self.target_readable:
-            self._saved.append(self.get_target().result())
+            self._saved.append(await self.get_target())
         else:
-            self._saved.append(self.get().result())
+            self._saved.append(await self.get())
 
-    def restore(self):
+    async def restore(self):
         """Restore the last value saved with :meth:`.ParameterValue.stash`.
 
         If the parameter can only be read or no value has been saved, this
@@ -694,7 +646,7 @@ class ParameterValue(object):
 
         if self._saved:
             val = self._saved.pop()
-            return self.set(val)
+            await self.set(val)
 
     @property
     def locked(self):
@@ -716,12 +668,36 @@ class ParameterValue(object):
         """Unlock parameter for writing."""
         self._locked = False
 
-    def wait(self, value, sleep_time=1e-1 * q.s, timeout=None):
+    async def wait(self, value, sleep_time=1e-1 * q.s, timeout=None):
         """Wait until the parameter value is *value*. *sleep_time* is the time to sleep
         between consecutive checks. *timeout* specifies the maximum waiting time.
         """
-        condition = lambda: self.get().result() == value
-        busy_wait(condition, sleep_time=sleep_time, timeout=timeout)
+        async def condition():
+            return await self.get() == value
+
+        await wait_until(condition, sleep_time=sleep_time, timeout=timeout)
+
+
+class StateValue(ParameterValue):
+
+    """Special :class:`.ParameterValue` implementing state parameter."""
+
+    async def get(self, wait_on=None):
+        if wait_on:
+            await wait_on
+
+        try:
+            getter = self._parameter.get_getter(self._instance)
+            return await getter(*self._parameter.data_args)
+        except AccessorNotImplementedError:
+            if not self._parameter.fget:
+                if self._parameter.default is None:
+                    raise FSMError('Software state must have a default value')
+                if not hasattr(self._instance, '_state_value'):
+                    self._instance._state_value = self._parameter.default
+                return self._instance._state_value
+            else:
+                raise ReadAccessError(self.name)
 
 
 class QuantityValue(ParameterValue):
@@ -816,8 +792,8 @@ class QuantityValue(ParameterValue):
             return self._external_upper_getter()
 
     @property
-    def info_table(self):
-        table = super(QuantityValue, self).info_table
+    async def info_table(self):
+        table = await super(QuantityValue, self).info_table
         table.add_row(["lower", self.lower])
         table.add_row(["upper", self.upper])
 
@@ -833,26 +809,74 @@ class QuantityValue(ParameterValue):
     def unit(self):
         return self._parameter.unit
 
-    def wait(self, value, eps=None, sleep_time=1e-1 * q.s, timeout=None):
+    async def get(self, wait_on=None):
+        value = await super(QuantityValue, self).get(wait_on=wait_on)
+
+        if value is not None:
+            return self._parameter.convert(value)
+
+    async def set(self, value, wait_on=None):
+        """
+        Set concrete *value* on the object.
+
+        If *wait_on* is not None, it must be an awaitable on which this method waits.
+        """
+        if wait_on:
+            await wait_on
+
+        if not self.unit.is_compatible_with(value):
+            msg = "{} of {} can only receive values of unit {} but got {}"
+            raise UnitError(
+                msg.format(self._parameter.name, type(self._instance), self.unit, value))
+
+        def leq(a, b):
+            """check a <= b"""
+            if not hasattr(a, 'shape') or len(a.shape) == 0:
+                return a <= b
+            else:
+                # Vector data type
+                valid_a = np.invert(np.isnan(a.magnitude))
+                valid_b = np.invert(np.isnan(b.magnitude))
+                valid = valid_a & valid_b
+                test_a = a[valid]
+                test_b = b[valid]
+                return np.all(test_a.to_base_units().magnitude <= test_b.to_base_units().magnitude)
+
+        if self.lower is not None:
+            if not leq(self.lower, value):
+                msg = "{} is out of range [{}, {}]"
+                raise SoftLimitError(msg.format(value, self.lower, self.upper))
+        if self.upper is not None:
+            if not leq(value, self.upper):
+                msg = "{} is out of range [{}, {}]"
+                raise SoftLimitError(msg.format(value, self.lower, self.upper))
+
+        converted = self._parameter.convert(value)
+        await super(QuantityValue, self).set(converted, wait_on=wait_on)
+
+    async def wait(self, value, eps=None, sleep_time=1e-1 * q.s, timeout=None):
         """Wait until the parameter value is *value*. *eps* is the allowed discrepancy between the
         actual value and *value*. *sleep_time* is the time to sleep between consecutive checks.
         *timeout* specifies the maximum waiting time.
         """
-        def eps_condition():
+        async def condition():
             """Take care of rountind errors"""
-            diff = np.abs((self.get().result() - value).to(eps.units))
-            return diff < eps
+            diff = await self.get() - value
+            if eps is not None:
+                diff = np.abs(diff.to(eps.units))
+                if diff < eps:
+                    diff = 0
 
-        condition = lambda: self.get().result() == value if eps is None else eps_condition
-        busy_wait(condition, sleep_time=sleep_time, timeout=timeout)
+            return diff == 0
+
+        await wait_until(condition, sleep_time=sleep_time, timeout=timeout)
 
     def _check_limit(self, value):
         """Common tasks for lower and upper before we set them."""
         if self._limits_locked:
             raise LockError('upper limit locked')
-        if not self._parameter.unit.is_compatible_with(value):
-            raise UnitError("limit units must be compatible with `{}'".
-                            format(self._parameter.unit))
+        if not self.unit.is_compatible_with(value):
+            raise UnitError("limit units must be compatible with `{}'".format(self.unit))
 
 
 class SelectionValue(ParameterValue):
@@ -861,6 +885,17 @@ class SelectionValue(ParameterValue):
 
     def __init__(self, instance, selection):
         super(SelectionValue, self).__init__(instance, selection)
+
+    async def set(self, value, wait_on=None):
+        """
+        Set concrete *value* on the object.
+
+        If *wait_on* is not None, it must be an awaitable on which this method waits.
+        """
+        if value not in self._parameter.iterable:
+            raise SelectionError(self._parameter.name, value, self._parameter.iterable)
+
+        await super(SelectionValue, self).set(value, wait_on=wait_on)
 
     @property
     def values(self):
@@ -916,19 +951,10 @@ class Parameterizable(object):
                     self._install_parameter(attr_type)
 
     def __str__(self):
-        from concert.session.utils import get_default_table
-
-        table = get_default_table(["Parameter", "Value"])
-        table.border = False
-
-        for param in self:
-            table.add_row([param.name, str(param.get().result())])
-
-        return table.get_string(sortby="Parameter")
+        return run_in_loop(self.info_table).get_string(sortby="Parameter")
 
     def __repr__(self):
-        return '\n'.join([super(Parameterizable, self).__repr__(),
-                         str(self)])
+        return '\n'.join([super(Parameterizable, self).__repr__(), str(self)])
 
     def __iter__(self):
         for param in sorted(self._params.values()):
@@ -942,6 +968,22 @@ class Parameterizable(object):
 
     def __contains__(self, key):
         return key in self._params
+
+    @property
+    async def info_table(self):
+        from concert.session.utils import get_default_table
+
+        table = get_default_table(["Parameter", "Value"])
+        table.border = False
+
+        for param in self:
+            try:
+                value = str(await param.get())
+            except ReadAccessError:
+                value = 'N/A'
+            table.add_row([param.name, value])
+
+        return table
 
     def install_parameters(self, params):
         """Install parameters at run-time.
@@ -962,13 +1004,23 @@ class Parameterizable(object):
             value = QuantityValue(self, param)
         elif isinstance(param, Selection):
             value = SelectionValue(self, param)
+        elif isinstance(param, State):
+            value = StateValue(self, param)
         else:
             value = ParameterValue(self, param)
 
         self._params[param.name] = value
 
-        setattr(self, 'set_' + param.name, value.set)
-        setattr(self, 'get_' + param.name, value.get)
+        getter_name = 'get_' + param.name
+        setter_name = 'set_' + param.name
+        if getter_name not in self.__class__.__dict__:
+            def get_parameter(instance, wait_on=None):
+                return instance[param.name].get(wait_on=wait_on)
+            setattr(self.__class__, getter_name, get_parameter)
+        if setter_name not in self.__class__.__dict__:
+            def set_parameter(instance, parameter_value, wait_on=None):
+                return instance[param.name].set(parameter_value, wait_on=wait_on)
+            setattr(self.__class__, setter_name, set_parameter)
 
         if not hasattr(self, '_set_' + param.name):
             setattr(self, '_set_' + param.name, _setter_not_implemented)
@@ -979,8 +1031,7 @@ class Parameterizable(object):
         if not hasattr(self, '_get_target_' + param.name):
             setattr(self, '_get_target_' + param.name, _getter_target_not_implemented)
 
-    @casync
-    def stash(self):
+    async def stash(self):
         """
         Save all writable parameters that can be restored with
         :meth:`.Parameterizable.restore`.
@@ -988,12 +1039,11 @@ class Parameterizable(object):
         The values are stored on a stacked, hence subsequent saved states can
         be restored one by one.
         """
-        wait((param.stash() for param in self if param.writable))
+        await asyncio.gather(*(param.stash() for param in self if param.writable))
 
-    @casync
-    def restore(self):
+    async def restore(self):
         """Restore all parameters saved with :meth:`.Parameterizable.stash`."""
-        wait((param.restore() for param in self if param.writable))
+        await asyncio.gather(*(param.restore() for param in self if param.writable))
 
     def lock(self, permanent=False):
         """Lock all the parameters for writing. If *permanent* is True, the
