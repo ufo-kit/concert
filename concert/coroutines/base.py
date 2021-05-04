@@ -1,50 +1,55 @@
-import atexit
 import asyncio
 import concert.config
 import functools
 import queue
 import logging
-import threading
+import time
+from concert.config import AIODEBUG
 from concert.helpers import PrioItem
+from concert.quantities import q
 
 
 LOG = logging.getLogger(__name__)
 
 
-def _shutdown_loop(loop, thread):
-    LOG.log(concert.config.AIODEBUG, 'Closing loop')
-    # Stop works only via threadsafe
-    loop.call_soon_threadsafe(loop.stop)
-    # Make sure we don't attempt to close a running loop
-    while loop.is_running():
-        pass
-    # Close works only via direct call
-    loop.close()
-    LOG.log(concert.config.AIODEBUG, 'Loop closed')
-    thread.join()
-    LOG.log(concert.config.AIODEBUG, 'Loop thread joined')
+def run_in_loop(coroutine):
+    """Wrap *coroutine* into a `asyncio.Task`, run it in the current loop and return the result.
+    On KeyboardInterrupt, the task is cancelled.
+    """
+    loop = asyncio.get_event_loop()
+    task = loop.create_task(coroutine)
+
+    try:
+        result = loop.run_until_complete(task)
+        return result
+    except KeyboardInterrupt:
+        LOG.log(AIODEBUG, "KeyboardInterrupt in `%s', cancelling", task.get_coro().__qualname__)
+        task.cancel()
 
 
-def _serve(loop):
-    LOG.log(concert.config.AIODEBUG, 'Start loop')
-    asyncio.set_event_loop(loop)
-    loop.run_forever()
+def start(coroutine):
+    """Start *coroutine*'s execution right away. This is supposed to be used for user convenience,
+    e.g. when they want to start some action without having to deal with asyncio, e.g.
+    motor.set_position(pos).
+
+    This calls `asyncio.ensure_future` on the *coroutine* which wraps it into a `asyncio.Task`. We
+    have to use this function instead of `asyncio.creat_task`, otherwise IPython would not start its
+    execution immediately (as of IPython version 7.22)
+    """
+    return asyncio.ensure_future(coroutine)
 
 
-_LOOP = asyncio.new_event_loop()
-_THREAD = threading.Thread(target=_serve, args=(_LOOP,), daemon=True)
-_THREAD.start()
-atexit.register(_shutdown_loop, _LOOP, _THREAD)
-
-
+# TODO: test
 def inloop(coroutine_func):
     @functools.wraps(coroutine_func)
     def inner(*args, **kwargs):
-        return asyncio.run_coroutine_threadsafe(coroutine_func(*args, **kwargs), _LOOP)
+        LOG.log(concert.config.AIODEBUG, 'inloop: %s', coroutine_func)
+        return run_in_loop(coroutine_func(*args, **kwargs))
 
     return inner
 
 
+# TODO: test
 def broadcast(producer, *consumers):
     """
     broadcast(producer, *consumers)
@@ -86,6 +91,7 @@ def broadcast(producer, *consumers):
     return started
 
 
+# TODO: test
 async def feed_queue(producer, func, *args):
     """Feed function *func* with items from *producer* in a separete thread. The signatute must be
     func(queue, *args) where elements in the queue are instances of `concert.helpers.PrioItem`.
