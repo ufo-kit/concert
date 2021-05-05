@@ -18,5 +18,5 @@ class PhotoDiode(Device):
     def __init__(self):
         super(PhotoDiode, self).__init__()
 
-    def _get_intensity(self):
+    async def _get_intensity(self):
         raise AccessorNotImplementedError

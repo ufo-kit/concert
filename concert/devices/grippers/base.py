@@ -1,6 +1,6 @@
 """A gripper can grip and release objects."""
 
-from concert.casync import casync
+from concert.commands import command
 from concert.base import check, State
 from concert.devices.base import Device
 
@@ -11,30 +11,30 @@ class Gripper(Device):
 
     state = State(default='released')
 
-    @casync
+    @command()
     @check(source='gripped', target='released')
-    def release(self):
+    async def release(self):
         """
         release()
 
         Release an object.
         """
-        self._release()
+        await self._release()
 
-    @casync
+    @command()
     @check(source='released', target='gripped')
-    def grip(self):
+    async def grip(self):
         """
         grip()
 
         Grip an object.
         """
-        self._grip()
+        await self._grip()
 
-    def _release(self):
+    async def _release(self):
         """The actual release implementation."""
         raise NotImplementedError
 
-    def _grip(self):
+    async def _grip(self):
         """The actual grip implementation."""
         raise NotImplementedError

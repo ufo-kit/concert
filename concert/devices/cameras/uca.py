@@ -4,6 +4,7 @@ Cameras supported by the libuca library.
 import functools
 import logging
 import numpy as np
+from concert.coroutines.base import run_in_executor
 from concert.quantities import q
 from concert.base import Parameter, Quantity, transition
 from concert.helpers import Bunch
@@ -14,8 +15,8 @@ LOG = logging.getLogger(__name__)
 
 
 def _new_setter_wrapper(name, unit=None):
-    def _wrapper(instance, value):
-        if instance.state == 'recording':
+    async def _wrapper(instance, value):
+        if await instance.get_state() == 'recording':
             raise base.CameraError('Changing parameters is not allowed while recording')
 
         if unit:
@@ -32,7 +33,7 @@ def _new_setter_wrapper(name, unit=None):
 
 
 def _new_getter_wrapper(name, unit=None):
-    def _wrapper(instance):
+    async def _wrapper(instance):
         value = instance.uca.get_property(name)
 
         if unit:
@@ -158,63 +159,65 @@ class Camera(base.Camera):
         self._record_dtype = None
 
     @transition(target='readout')
-    def start_readout(self):
+    async def start_readout(self):
         self.uca.start_readout()
 
     @transition(target='standby')
-    def stop_readout(self):
+    async def stop_readout(self):
         self.uca.stop_readout()
 
-    def grab(self, index=None):
-        return self.convert(self._grab_real(index))
+    async def grab(self, index=None):
+        return self.convert(await self._grab_real(index))
 
     def write(self, name, data):
         """Write NumPy array *data* for *name*."""
         raw = data.__array_interface__['data'][0]
         self.uca.write(name, raw, data.nbytes)
 
-    def _get_frame_rate(self):
-        return self._uca_get_frame_rate(self) / q.s
+    async def _get_frame_rate(self):
+        return await self._uca_get_frame_rate(self) / q.s
 
-    def _set_frame_rate(self, frame_rate):
-        self._uca_set_frame_rate(self, frame_rate * q.s)
+    async def _set_frame_rate(self, frame_rate):
+        await self._uca_set_frame_rate(self, frame_rate * q.s)
 
-    def _get_trigger_source(self):
-        uca_trigger = self._uca_get_trigger(self)
+    async def _get_trigger_source(self):
+        uca_trigger = await self._uca_get_trigger(self)
         return self._uca_to_concert_trigger[uca_trigger]
 
-    def _set_trigger_source(self, source):
+    async def _set_trigger_source(self, source):
         uca_value = getattr(self.uca.enum_values.trigger_source, source)
-        self._uca_set_trigger(self, uca_value)
+        await self._uca_set_trigger(self, uca_value)
 
     @transition(target='recording')
     @_translate_gerror
-    def _record_real(self):
-        self._record_shape = self.roi_height.magnitude, self.roi_width.magnitude
-        self._record_dtype = np.uint16 if self.sensor_bitdepth.magnitude > 8 else np.uint8
+    async def _record_real(self):
+        self._record_shape = ((await self.get_roi_height()).magnitude,
+                              (await self.get_roi_width()).magnitude)
+        self._record_dtype = (np.uint16 if (await self.get_sensor_bitdepth()).magnitude > 8 else
+                              np.uint8)
         self.uca.start_recording()
 
     @transition(target='standby')
     @_translate_gerror
-    def _stop_real(self):
+    async def _stop_real(self):
         self.uca.stop_recording()
 
     @_translate_gerror
-    def _trigger_real(self):
+    async def _trigger_real(self):
         self.uca.trigger()
 
     @_translate_gerror
-    def _grab_real(self, index=None):
+    async def _grab_real(self, index=None):
         array = np.empty(self._record_shape, dtype=self._record_dtype)
         data = array.__array_interface__['data'][0]
 
         if index is not None:
-            if self.uca.readout(data, index):
+            if await run_in_executor(self.uca.readout, data, index):
                 return array
             else:
                 raise base.CameraError('No frame available')
 
-        if self.uca.grab(data):
+        if await run_in_executor(self.uca.grab, data):
             return array
         else:
             raise base.CameraError('No frame available')

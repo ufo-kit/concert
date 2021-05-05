@@ -12,9 +12,9 @@ class SampleChanger(base.SampleChanger):
         super(SampleChanger, self).__init__()
         self._sample = None
 
-    def _set_sample(self, sample):
+    async def _set_sample(self, sample):
         """Insert the sample in the holder."""
         self._sample = sample
 
-    def _get_sample(self):
+    async def _get_sample(self):
         return self._sample

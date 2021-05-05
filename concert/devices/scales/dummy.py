@@ -11,13 +11,13 @@ class Scales(base.Scales):
         super(Scales, self).__init__()
         self._weight = 147 * q.kg
 
-    def _get_weight(self):
+    async def _get_weight(self):
         return self._weight
 
 
-class TarableScales(Scales):
+class TarableScales(base.TarableScales, Scales):
 
     """A tarable dummy scale."""
 
-    def _tare():
+    async def _tare(self):
         pass

@@ -18,7 +18,7 @@ class Positioner(base.Positioner):
         super(Positioner, self).__init__(axes, position=position)
         self.detector = detector
 
-    def move(self, position):
+    async def move(self, position):
         """Move by specified *position* which can be given in meters or pixels."""
         # Is there a better way to check units?
         if str(position.units) == 'pixel':
@@ -27,12 +27,12 @@ class Positioner(base.Positioner):
                 raise base.PositionerError('Cannot set \'z\' coordinate position in pixels.')
 
             physical_position = [0, 0, 0]
-            width = self.detector.pixel_width.to(q.m).magnitude
-            height = self.detector.pixel_height.to(q.m).magnitude
+            width = (await self.detector.get_pixel_width()).to(q.m).magnitude
+            height = (await self.detector.get_pixel_height()).to(q.m).magnitude
             physical_position[0] = position[0].magnitude * width
             physical_position[1] = position[1].magnitude * height
             physical_position *= q.m
         else:
             physical_position = position
 
-        return super(Positioner, self).move(physical_position)
+        return await super(Positioner, self).move(physical_position)

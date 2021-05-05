@@ -44,8 +44,8 @@ coordinates and rotation around "y"::
     positioner.orientation = (np.nan, - 90, np.nan) * q.deg
 
 """
+import asyncio
 import numpy as np
-from concert.casync import casync, wait
 from concert.quantities import q
 from concert.base import Quantity
 from concert.devices.base import Device
@@ -71,18 +71,17 @@ class Axis(object):
         self.direction = direction
         self.position = position
 
-    @casync
-    def get_position(self):
+    async def get_position(self):
         """
         get_position()
 
-        Get position casynchronously with respect to axis direction.
+        Get position asynchronously with respect to axis direction.
         """
-        return self.motor.position * self.direction
+        return (await self.motor.get_position()) * self.direction
 
-    def set_position(self, position):
-        """Set the *position* casynchronously with respect to axis direction."""
-        return self.motor.set_position(position * self.direction)
+    async def set_position(self, position):
+        """Set the *position* asynchronously with respect to axis direction."""
+        return await self.motor.set_position(position * self.direction)
 
 
 class Positioner(Device):
@@ -113,102 +112,100 @@ class Positioner(Device):
             else:
                 self.rotators[axis.coordinate] = axis
 
-    @casync
-    def move(self, position):
+    async def move(self, position):
         """
         move(position)
 
         Move by specified *position*.
         """
-        self.position += position
+        await self.set_position(await self.get_position() + position)
 
-    @casync
-    def rotate(self, angles):
+    async def rotate(self, angles):
         """
         rotate(angles)
 
         Rotate by *angles*.
         """
-        self.orientation += angles
+        await self.set_orientation(await self.get_orientation() + angles)
 
-    def right(self, value):
+    async def right(self, value):
         """
         right(value)
 
         Move right by *value*."""
-        return self.move(_vectorize(value, 'x'))
+        return await self.move(_vectorize(value, 'x'))
 
-    def left(self, value):
+    async def left(self, value):
         """
         left(value)
 
         Move left by *value*."""
-        return self.right(-value)
+        return await self.right(-value)
 
-    def up(self, value):
+    async def up(self, value):
         """
         up(value)
 
         Move up by *value*.
         """
-        return self.move(_vectorize(value, 'y'))
+        return await self.move(_vectorize(value, 'y'))
 
-    def down(self, value):
+    async def down(self, value):
         """
         down(value)
 
         Move down by *value*.
         """
-        return self.up(-value)
+        return await self.up(-value)
 
-    def forward(self, value):
+    async def forward(self, value):
         """
         forward(value)
 
         Move forward by *value*.
         """
-        return self.move(_vectorize(value, 'z'))
+        return await self.move(_vectorize(value, 'z'))
 
-    def back(self, value):
+    async def back(self, value):
         """
         back(value)
 
         Move back by *value*.
         """
-        return self.forward(-value)
+        return await self.forward(-value)
 
-    def _get_position(self):
+    async def _get_position(self):
         """Get the position of the positioner."""
-        return self._get_vector(self.translators)
+        return await self._get_vector(self.translators)
 
-    def _set_position(self, position):
+    async def _set_position(self, position):
         """3D translation to *position*."""
-        self._set_vector(position, self.translators)
+        await self._set_vector(position, self.translators)
 
-    def _get_orientation(self):
+    async def _get_orientation(self):
         """Get the angular position of the positioner."""
-        return self._get_vector(self.rotators)
+        return await self._get_vector(self.rotators)
 
-    def _set_orientation(self, angles):
+    async def _set_orientation(self, angles):
         """Rotation with magnitudes *angles*."""
-        self._set_vector(angles, self.rotators)
+        await self._set_vector(angles, self.rotators)
 
-    def _get_vector(self, axes):
+    async def _get_vector(self, axes):
         """Get the current translation or orientation vector."""
         vector = []
         unit = q.m if axes == self.translators else q.rad
 
         for coordinate in ['x', 'y', 'z']:
             if coordinate in axes:
-                vector.append(axes[coordinate].get_position().result().to(unit).magnitude)
+                vector.append((await axes[coordinate].get_position()).to(unit).magnitude)
             else:
                 vector.append(np.nan)
 
         return vector * unit
 
-    def _set_vector(self, vector, axes):
+    async def _set_vector(self, vector, axes):
         """Set position (angular or translational) given by *vector* on *axes*."""
-        futures = []
+        coros = []
         for i, coordinate in enumerate(['x', 'y', 'z']):
             magnitude = vector[i].magnitude
             if not np.isnan(magnitude):
@@ -217,9 +214,10 @@ class Positioner(Device):
                         # Last chance is to specify the coordinate to be zero.
                         raise PositionerError('Cannot move in {} coordinate'.format(coordinate))
                 else:
-                    future = axes[coordinate].set_position(vector[i])
-                    futures.append(future)
-        wait(futures)
+                    coro = axes[coordinate].set_position(vector[i])
+                    coros.append(coro)
+
+        await asyncio.gather(*coros)
 
 
 class PositionerError(Exception):

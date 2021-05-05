@@ -30,11 +30,11 @@ class StorageRing(base.StorageRing):
         self.monitor.daemon = True
         self.monitor.start()
 
-    def _get_current(self):
+    async def _get_current(self):
         return self._current - self._lifetime * self._current_decay
 
-    def _get_energy(self):
+    async def _get_energy(self):
         return self._energy - self._lifetime * self._energy_decay
 
-    def _get_lifetime(self):
+    async def _get_lifetime(self):
         return self._lifetime

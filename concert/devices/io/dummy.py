@@ -11,10 +11,10 @@ class IO(base.IO):
         super(IO, self).__init__()
         self._ports = {0: port_value}
 
-    def _read_port(self, port):
+    async def _read_port(self, port):
         return self._ports[port]
 
-    def _write_port(self, port, value):
+    async def _write_port(self, port, value):
         self._ports[port] = value
 
 
@@ -23,9 +23,9 @@ class Signal(base.Signal):
     """Dummy signal device."""
 
     @transition(target='on')
-    def _on(self):
+    async def _on(self):
         pass
 
     @transition(target='off')
-    def _off(self):
+    async def _off(self):
         pass

@@ -1,5 +1,6 @@
 """A dummy pump."""
 
+from concert.base import transition
 from concert.devices.pumps import base
 from concert.quantities import q
 
@@ -12,14 +13,16 @@ class Pump(base.Pump):
         super(Pump, self).__init__()
         self._flow_rate = 0 * q.l / q.s
 
-    def _start(self):
-        self._set_state(Pump.PUMPING)
+    @transition(target='pumping')
+    async def _start(self):
+        pass
 
-    def _stop(self):
-        self._set_state(Pump.STANDBY)
+    @transition(target='standby')
+    async def _stop(self):
+        pass
 
-    def _set_flow_rate(self, flow_rate):
+    async def _set_flow_rate(self, flow_rate):
         self._flow_rate = flow_rate
 
-    def _get_flow_rate(self):
+    async def _get_flow_rate(self):
         return self._flow_rate

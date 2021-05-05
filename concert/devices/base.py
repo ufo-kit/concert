@@ -1,7 +1,8 @@
+import asyncio
 import threading
 import logging
-from concert.casync import casync
 from concert.base import Parameterizable
+from concert.commands import command
 
 
 LOG = logging.getLogger(__name__)
@@ -36,21 +37,18 @@ class Device(Parameterizable):
     def __exit__(self, exc_type, exc_value, traceback):
         self._lock.release()
 
-    @casync
-    def abort(self):
+    @command()
+    async def abort(self):
         """Emergency stop."""
-        self._abort()
+        await self._abort()
 
-    def _abort(self):
+    async def _abort(self):
         """The actual abort implementation."""
         pass
 
 
-def abort(devices):
-    """Abort all actions related with parameters on all *devices*."""
-    futures = []
-    for device in devices:
-        future = device.abort()
-        futures.append(future)
-
-    return futures
+def abort_all_devices(devices):
+    """Abort all actions related with parameters on all *devices* and return gathering future from
+    :func:`asyncio.gather`.
+    """
+    return asyncio.gather(*[device.abort() for device in devices])

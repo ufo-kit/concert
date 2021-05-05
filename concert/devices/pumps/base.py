@@ -2,7 +2,6 @@
 
 from concert.base import Quantity, State, check, AccessorNotImplementedError
 from concert.quantities import q
-from concert.casync import casync
 from concert.devices.base import Device
 
 
@@ -16,34 +15,32 @@ class Pump(Device):
     def __init__(self):
         super(Pump, self).__init__()
 
-    @casync
     @check(source='standby', target='pumping')
-    def start(self):
+    async def start(self):
         """
         start()
 
         Start pumping.
         """
-        self._start()
+        await self._start()
 
-    @casync
     @check(source='pumping', target='standby')
-    def stop(self):
+    async def stop(self):
         """
         stop()
 
         Stop pumping.
         """
-        self._stop()
+        await self._stop()
 
-    def _get_flow_rate(self):
+    async def _get_flow_rate(self):
         raise AccessorNotImplementedError
 
-    def _set_flow_rate(self, flow_rate):
+    async def _set_flow_rate(self, flow_rate):
         raise AccessorNotImplementedError
 
-    def _start(self):
+    async def _start(self):
         raise NotImplementedError
 
-    def _stop(self):
+    async def _stop(self):
         raise NotImplementedError

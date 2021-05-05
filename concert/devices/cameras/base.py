@@ -21,11 +21,11 @@ can be one of
   control over when is the camera triggered, example usage::
 
     camera.trigger_source = camera.trigger_sources.SOFTWARE
-    camera.start_recording()
-    camera.trigger()
+    start_recording(camera)
+    trigger(camera)
     long_operation()
     # Here we get the frame from before the long operation
-    camera.grab()
+    grab(camera)
 
 * :attr:`Camera.trigger_sources.EXTERNAL` is a source when the camera is triggered
   by an external low-level signal (such as TTL). This source provides very precise
@@ -40,10 +40,10 @@ To setup and use a camera in a typical environment, you would do::
     camera = Camera('pco')
     camera.trigger_source = camera.trigger_sources.SOFTWARE
     camera.exposure_time = 0.2 * q.s
-    camera.start_recording()
-    camera.trigger()
-    data = camera.grab()
-    camera.stop_recording()
+    start_recording(camera)
+    trigger(camera)
+    data = grab(camera)
+    stop_recording(camera)
 
     print("mean=%f, stddev=%f" % (np.mean(data), np.std(data)))
 
@@ -58,14 +58,19 @@ frame. The callable is applied to the frame and the converted one is returned by
     camera = Camera()
     camera.convert = np.fliplr
     # The frame is left-right flipped
-    camera.grab()
+    grab(camera)
 """
 import contextlib
+import logging
 from concert.base import AccessorNotImplementedError, Parameter, Quantity, State, check, identity
-from concert.casync import casync
+from concert.config import AIODEBUG
+from concert.commands import command
 from concert.quantities import q
 from concert.helpers import Bunch
 from concert.devices.base import Device
+
+
+LOG = logging.getLogger(__name__)
 
 
 class CameraError(Exception):
@@ -93,84 +98,83 @@ class Camera(Device):
         super(Camera, self).__init__()
         self.convert = identity
 
+    @command()
     @check(source='standby', target='recording')
-    def start_recording(self):
+    async def start_recording(self):
         """
         start_recording()
 
         Start recording frames.
         """
-        self._record_real()
+        await self._record_real()
 
+    @command()
     @check(source='recording', target='standby')
-    def stop_recording(self):
+    async def stop_recording(self):
         """
         stop_recording()
 
         Stop recording frames.
         """
-        self._stop_real()
+        await self._stop_real()
 
-    @contextlib.contextmanager
-    def recording(self):
+    @contextlib.asynccontextmanager
+    async def recording(self):
         """
         recording()
 
         A context manager for starting and stopping the camera.
 
-        In general it is used with the ``with`` keyword like this::
+        In general it is used with the ``async with`` keyword like this::
 
-            with camera.recording():
-                frame = camera.grab()
+            async with camera.recording():
+                frame = await camera.grab()
         """
-        self.start_recording()
+        await self.start_recording()
         try:
             yield
         finally:
-            self.stop_recording()
+            LOG.log(AIODEBUG, 'stop recording in recording()')
+            await self.stop_recording()
 
-    def trigger(self):
+    @command()
+    async def trigger(self):
         """Trigger a frame if possible."""
-        self._trigger_real()
+        await self._trigger_real()
 
-    def grab(self):
+    @command()
+    async def grab(self):
         """Return a NumPy array with data of the current frame."""
-        return self.convert(self._grab_real())
+        return self.convert(await self._grab_real())
 
-    @casync
-    def grab_casync(self):
-        return self.grab()
-
-    @casync
-    def stream(self, consumer):
+    async def stream(self):
         """
-        stream(consumer)
+        stream()
 
-        Grab frames continuously and send them to *consumer*, which
-        is a coroutine.
+        Grab frames continuously yield them. This is an async generator.
         """
-        self.trigger_source = self.trigger_sources.AUTO
-        self.start_recording()
+        await self.set_trigger_source(self.trigger_sources.AUTO)
+        await self.start_recording()
 
-        while self.state == 'recording':
-            consumer.send(self.grab())
+        while await self.get_state() == 'recording':
+            yield await self.grab()
 
-    def _get_trigger_source(self):
+    async def _get_trigger_source(self):
         raise AccessorNotImplementedError
 
-    def _set_trigger_source(self, source):
+    async def _set_trigger_source(self, source):
         raise AccessorNotImplementedError
 
-    def _record_real(self):
+    async def _record_real(self):
         raise AccessorNotImplementedError
 
-    def _stop_real(self):
+    async def _stop_real(self):
         raise AccessorNotImplementedError
 
-    def _trigger_real(self):
+    async def _trigger_real(self):
         raise AccessorNotImplementedError
 
-    def _grab_real(self):
+    async def _grab_real(self):
         raise AccessorNotImplementedError
 
 
@@ -180,9 +184,8 @@ class BufferedMixin(Device):
 
     state = State(default='standby')
 
-    @check(source='standby', target='standby')
     def readout_buffer(self, *args, **kwargs):
         return self._readout_real(*args, **kwargs)
 
-    def _readout_real(self, *args, **kwargs):
+    async def _readout_real(self, *args, **kwargs):
         raise AccessorNotImplementedError

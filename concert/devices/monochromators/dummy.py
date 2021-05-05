@@ -11,8 +11,8 @@ class Monochromator(base.Monochromator):
         super(Monochromator, self).__init__()
         self._energy = 100 * q.keV
 
-    def _get_energy_real(self):
+    async def _get_energy_real(self):
         return self._energy
 
-    def _set_energy_real(self, energy):
+    async def _set_energy_real(self, energy):
         self._energy = energy

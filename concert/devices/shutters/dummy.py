@@ -11,9 +11,9 @@ class Shutter(base.Shutter):
         super(Shutter, self).__init__()
 
     @transition(target='open')
-    def _open(self):
+    async def _open(self):
         pass
 
     @transition(target='closed')
-    def _close(self):
+    async def _close(self):
         pass

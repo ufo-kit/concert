@@ -1,5 +1,6 @@
 """PCO cameras implementation."""
 
+import asyncio
 import time
 from datetime import datetime
 import numpy as np
@@ -13,18 +14,23 @@ class Pco(Camera):
     """Pco camera implemented by libuca."""
 
     def __init__(self):
-        super(Pco, self).__init__('pco')
+        super().__init__('pco')
 
-    def stream(self, consumer):
-        """stream frames to the *consumer*."""
+    async def stream(self):
+        """
+        stream()
+
+        Grab frames continuously yield them. This is an async generator.
+        """
         try:
-            self.acquire_mode = self.uca.enum_values.acquire_mode.AUTO
-            self.storage_mode = self.uca.enum_values.storage_mode.RECORDER
-            self.record_mode = self.uca.enum_values.record_mode.RING_BUFFER
+            await self.set_acquire_mode(self.uca.enum_values.acquire_mode.AUTO)
+            await self.set_storage_mode(self.uca.enum_values.storage_mode.RECORDER)
+            await self.set_record_mode(self.uca.enum_values.record_mode.RING_BUFFER)
         except:
             pass
 
-        return super(Pco, self).stream(consumer)
+        async for image in super().stream():
+            yield image
 
 
 class PCO4000(Pco):
@@ -39,24 +45,24 @@ class PCO4000(Pco):
     def __init__(self):
         self._lock_access = False
         self._last_grab_time = None
-        super(PCO4000, self).__init__()
+        super().__init__()
 
-    def start_recording(self):
-        super(PCO4000, self).start_recording()
+    async def start_recording(self):
+        super().start_recording()
         self._lock_access = True
 
-    def stop_recording(self):
+    async def stop_recording(self):
         self._lock_access = False
-        super(PCO4000, self).stop_recording()
+        super().stop_recording()
 
-    def _grab_real(self, index=None):
+    async def _grab_real(self, index=None):
         # For the PCO.4000 there must be a delay of at least 1.2 second
         # between consecutive grabs, otherwise it crashes. We provide
         # appropriate timeout here.
         current = time.time()
         if self._last_grab_time and current - self._last_grab_time < 1.2:
-            time.sleep(1.2 - current + self._last_grab_time)
-        result = super(PCO4000, self)._grab_real(index=index)
+            await asyncio.sleep(1.2 - current + self._last_grab_time)
+        result = await super()._grab_real(index=index)
         self._last_grab_time = time.time()
 
         return result
@@ -72,32 +78,29 @@ class Dimax(Pco, base.BufferedMixin):
 
     """A pco.dimax camera implementation."""
 
-    def __init__(self):
-        super(Dimax, self).__init__()
-
-    def start_recording(self):
-        super(Dimax, self).start_recording()
+    async def start_recording(self):
+        await super().start_recording()
         # By low frame rates the camera returns status that it is already recording, whereas it is
         # not. Waiting 1 frame time seems to help.
         time.sleep((1 / self.frame_rate).to(q.s).magnitude)
 
-    def _readout_real(self, num_frames=None):
+    async def _readout_real(self, num_frames=None):
         """Readout *num_frames* frames."""
-        if num_frames is None:
-            num_frames = self.recorded_frames.magnitude
+        recorded_frames = await self.get_recorded_frames()
 
-        if not 0 < num_frames <= self.recorded_frames:
+        if num_frames is None:
+            num_frames = recorded_frames.magnitude
+
+        if not 0 < num_frames <= recorded_frames:
             raise base.CameraError("Number of frames {} ".format(num_frames) +
                                    "must be more than zero and less than the recorded " +
-                                   "number of frames {}".format(self.recorded_frames))
+                                   "number of frames {}".format(recorded_frames))
 
         try:
             self.uca.start_readout()
 
             for i in range(num_frames):
-                yield self.grab()
-        except base.CameraError:
-            raise StopIteration
+                yield await self.grab()
         finally:
             self.uca.stop_readout()
 

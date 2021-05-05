@@ -15,21 +15,21 @@ class XRayTube(base.XRayTube):
         self._current = 0 * q.A
 
     @transition(target='on')
-    def _on(self):
+    async def _on(self):
         pass
 
     @transition(target='off')
-    def _off(self):
+    async def _off(self):
         pass
 
-    def _get_voltage(self):
+    async def _get_voltage(self):
         return self._voltage
 
-    def _set_voltage(self, voltage):
+    async def _set_voltage(self, voltage):
         self._voltage = voltage
 
-    def _get_current(self):
+    async def _get_current(self):
         return self._current
 
-    def _set_current(self, current):
+    async def _set_current(self, current):
         self._current = current

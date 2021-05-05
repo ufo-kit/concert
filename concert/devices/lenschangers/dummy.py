@@ -1,17 +1,18 @@
-from concert.base import Selection
+from concert.base import check, Selection
 from concert.devices.lenschangers.base import LensChanger as BaseLensChanger
 
 
 class LensChanger(BaseLensChanger):
     '''Lens changer class implementation'''
-    objective = Selection(['objective_10x', 'objective_5x'])
+    objective = Selection(['objective_10x', 'objective_5x'], help='objective',
+                          check=check(source='standby', target='standby'))
 
     def __init__(self):
         super(LensChanger, self).__init__()
         self._objective = 'objective_10x'
 
-    def _set_objective_real(self, objective):
+    async def _set_objective(self, objective):
         self._objective = objective
 
-    def _get_objective_real(self):
+    async def _get_objective(self):
         return self._objective

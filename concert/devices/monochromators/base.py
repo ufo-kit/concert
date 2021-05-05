@@ -44,40 +44,40 @@ class Monochromator(Device):
     energy = Quantity(q.eV, help="Energy")
     wavelength = Quantity(q.nanometer, help="Wavelength")
 
-    def _get_energy(self):
+    async def _get_energy(self):
         try:
-            return self._get_energy_real()
+            return await self._get_energy_real()
         except AccessorNotImplementedError:
-            return wavelength_to_energy(self._get_wavelength_real())
+            return wavelength_to_energy(await self._get_wavelength_real())
 
     @check(source="standby", target="standby")
-    def _set_energy(self, energy):
+    async def _set_energy(self, energy):
         try:
-            return self._set_energy_real(energy)
+            await self._set_energy_real(energy)
         except AccessorNotImplementedError:
-            self._set_wavelength_real(energy_to_wavelength(energy))
+            await self._set_wavelength_real(energy_to_wavelength(energy))
 
-    def _get_wavelength(self):
+    async def _get_wavelength(self):
         try:
-            return self._get_wavelength_real()
+            return await self._get_wavelength_real()
         except AccessorNotImplementedError:
-            return energy_to_wavelength(self._get_energy_real())
+            return energy_to_wavelength(await self._get_energy_real())
 
     @check(source="standby", target="standby")
-    def _set_wavelength(self, wavelength):
+    async def _set_wavelength(self, wavelength):
         try:
-            self._set_wavelength_real(wavelength)
+            await self._set_wavelength_real(wavelength)
         except AccessorNotImplementedError:
-            self._set_energy_real(wavelength_to_energy(wavelength))
+            await self._set_energy_real(wavelength_to_energy(wavelength))
 
-    def _get_energy_real(self):
+    async def _get_energy_real(self):
         raise AccessorNotImplementedError
 
-    def _set_energy_real(self, energy):
+    async def _set_energy_real(self, energy):
         raise AccessorNotImplementedError
 
-    def _get_wavelength_real(self):
+    async def _get_wavelength_real(self):
         raise AccessorNotImplementedError
 
-    def _set_wavelength_real(self, wavelength):
+    async def _set_wavelength_real(self, wavelength):
         raise AccessorNotImplementedError

@@ -12,8 +12,8 @@ class LightSource(base.LightSource):
         super(LightSource, self).__init__()
         self._intensity = 0 * q.V
 
-    def _set_intensity(self, intensity):
+    async def _set_intensity(self, intensity):
         self._intensity = intensity
 
-    def _get_intensity(self):
+    async def _get_intensity(self):
         return self._intensity

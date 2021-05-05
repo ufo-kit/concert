@@ -16,11 +16,11 @@ class Detector(Device):
     pixel_width = Quantity(q.m, help="Effective pixel width")
     pixel_height = Quantity(q.m, help="Effective pixel height")
 
-    def _get_pixel_width(self):
-        return self.camera.sensor_pixel_width * self.magnification
+    async def _get_pixel_width(self):
+        return (await self.camera.get_sensor_pixel_width()) * self.magnification
 
-    def _get_pixel_height(self):
-        return self.camera.sensor_pixel_height * self.magnification
+    async def _get_pixel_height(self):
+        return (await self.camera.get_sensor_pixel_height()) * self.magnification
 
     @property
     def camera(self):

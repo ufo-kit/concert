@@ -27,11 +27,11 @@ class StorageRing(Device):
     def __init__(self):
         super(StorageRing, self).__init__()
 
-    def _get_current(self):
+    async def _get_current(self):
         raise AccessorNotImplementedError
 
-    def _get_energy(self):
+    async def _get_energy(self):
         raise AccessorNotImplementedError
 
-    def _get_lifetime(self):
+    async def _get_lifetime(self):
         raise AccessorNotImplementedError

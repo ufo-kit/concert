@@ -11,11 +11,11 @@ class Gripper(base.Gripper):
         super(Gripper, self).__init__()
         self._state = 'released'
 
-    def _release(self):
+    async def _release(self):
         self._state = 'released'
 
-    def _grip(self):
+    async def _grip(self):
         self._state = 'gripped'
 
-    def _get_state(self):
+    async def _get_state(self):
         return self._state

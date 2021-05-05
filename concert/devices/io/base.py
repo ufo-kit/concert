@@ -1,6 +1,6 @@
 """Port, IO Device."""
 
-import time
+import asyncio
 from concert.base import AccessorNotImplementedError, State, check
 from concert.quantities import q
 from concert.devices.base import Device
@@ -13,39 +13,39 @@ class Signal(Device):
     state = State(default='off')
 
     @check(source='off', target='on')
-    def on(self):
+    async def on(self):
         """
         on()
 
         Switch the signal on.
         """
-        self._on()
+        await self._on()
 
     @check(source='on', target='off')
-    def off(self):
+    async def off(self):
         """
         off()
 
         Switch the signal off.
         """
-        self._off()
+        await self._off()
 
     @check(source='off', target='off')
-    def trigger(self, duration=10*q.ms):
+    async def trigger(self, duration=10*q.ms):
         """
         trigger(duration=10*q.ms)
 
         Generate a trigger signal of *duration*.
         """
-        self.on()
-        time.sleep(duration.to(q.s).magnitude)
-        self.off()
+        await self.on()
+        await asyncio.sleep(duration.to(q.s).magnitude)
+        await self.off()
 
-    def _on(self):
+    async def _on(self):
         """Implementation."""
         raise NotImplementedError
 
-    def _off(self):
+    async def _off(self):
         """Implementation."""
         raise NotImplementedError
 
@@ -70,21 +70,21 @@ class IO(Device):
         if port not in self._ports:
             raise IODeviceError("Port `{}' not found".format(port))
 
-    def read_port(self, port):
+    async def read_port(self, port):
         """Read a *port*."""
         self._check(port)
-        return self._read_port(port)
+        return await self._read_port(port)
 
-    def write_port(self, port, value):
+    async def write_port(self, port, value):
         """Write a *value* to the *port*."""
         self._check(port)
-        self._write_port(port, value)
+        await self._write_port(port, value)
 
-    def _read_port(self, port):
+    async def _read_port(self, port):
         """Implementation of reading a *port* from the device."""
         raise AccessorNotImplementedError
 
-    def _write_port(self, port, value):
+    async def _write_port(self, port, value):
         """Implementation of writing a *value* to a *port* on the device."""
         raise AccessorNotImplementedError
 
