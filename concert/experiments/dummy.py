@@ -31,7 +31,9 @@ class ImagingExperiment(Experiment):
 
     .. py:attribute:: random
 
-        If True, one random image is created and re-used, otherwise zeros
+        'off': use zeros
+        'single': one random repeated in every iteration
+        'multi': every iteration generates new random image
 
     .. py:attribute:: dtype
 
@@ -44,6 +46,8 @@ class ImagingExperiment(Experiment):
         self.num_flats = num_flats
         self.num_radios = num_radios
         self.shape = shape
+        if random not in ['off', 'single', 'multi']:
+            raise ValueError("random must be one of 'off', 'single', 'multi'")
         self.random = random
         self.dtype = dtype
         darks = Acquisition('darks', self.take_darks)
@@ -52,13 +56,14 @@ class ImagingExperiment(Experiment):
         super(ImagingExperiment, self).__init__([darks, flats, radios], walker=walker)
 
     def _produce_images(self, num):
-        if self.random:
-            image = np.random.normal(128., 10., size=self.shape)
-        else:
-            image = np.zeros(self.shape)
+        if self.random == 'off':
+            image = np.zeros(self.shape).astype(self.dtype)
+        elif self.random == 'single':
+            image = np.random.normal(128., 10., size=self.shape).astype(self.dtype)
 
-        image = image.astype(self.dtype)
         for i in wrap_iterable(list(range(num))):
+            if self.random == 'multi':
+                image = np.random.normal(128., 10., size=self.shape).astype(self.dtype)
             yield image
 
     def take_darks(self):
