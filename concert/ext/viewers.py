@@ -1,146 +1,104 @@
 """Opening images in external programs."""
+import asyncio
 import collections
-import atexit
 import os
 import tempfile
 import time
 import logging
-import numpy as np
+from multiprocessing import Queue as MultiprocessingQueue, Process
 from queue import Empty
 from subprocess import Popen
-from multiprocessing import Queue as MultiprocessingQueue, Process
-from concert.casync import threaded
+from typing import Callable
+import numpy as np
+from concert.base import Parameterizable, Parameter
+from concert.coroutines.base import run_in_executor
+from concert.commands import command
 from concert.quantities import q
-from concert.storage import write_tiff
-from concert.coroutines.base import coroutine
 
 
 LOG = logging.getLogger(__name__)
-_PYPLOT_VIEWERS = []
 
 
-def _terminate_pyplotviewers():
-    """Terminate all :py:class:`PyplotViewerBase` isntances."""
-    for viewer in _PYPLOT_VIEWERS:
-        if viewer is not None:
-            viewer.terminate()
-
-
-# Register termination of all the PyplotViewerBase instances also on
-# normal exit
-atexit.register(_terminate_pyplotviewers)
-
-
-def _start_command(program, image, writer=write_tiff):
+def imagej(image, path="imagej"):
     """
-    Create a tmp file for dumping the *image* and use *program*
-    to open that image. Use *writer* for writing the iamge to the disk.
+    imagej(image, path="imagej")
+
+    Open *image* in ImageJ found by *path*.
     """
-    tmp_file = tempfile.mkstemp()[1]
-    try:
-        full_path = writer(tmp_file, image)
-        process = Popen([program, full_path])
-        process.wait()
-    finally:
-        os.remove(full_path)
+    def start_command(program, image):
+        """
+        Create a tmp file for dumping the *image* and use *program*
+        to open that image. Use *writer* for writing the iamge to the disk.
+        """
+        from concert.storage import write_tiff
+
+        tmp_file = tempfile.mkstemp()[1]
+        try:
+            full_path = write_tiff(tmp_file, image)
+            with Popen([program, full_path]) as process:
+                process.wait()
+        finally:
+            os.remove(full_path)
+            LOG.debug('Temporary file removed')
+
+    # Do not make a daemon process to make sure the interpreter waits for it to exit, i.e. the
+    # *finally* will be called and temp file deleted.
+    proc = Process(target=start_command, args=(path, image), daemon=False)
+    proc.start()
 
 
-@threaded
-def imagej(image, path="imagej", writer=write_tiff):
-    """
-    imagej(image, path="imagej", writer=write_tiff)
-
-    Open *image* in ImageJ found by *path*. *writer* specifies
-    the written image file type.
-    """
-    _start_command(path, image, writer)
-
-
-class PyplotViewerBase(object):
+class ViewerBase(Parameterizable):
 
     """
-    A base class for data viewer which sends commands to a matplotlib updater
-    which runs in a separate process.
-
-    .. py:attribute:: view_function
-
-        The function which updates the figure based on the changed data. Its
-        nomenclature has to be::
-
-            foo(data, force=False)
-
-        Where *force* determines whether the redrawing must be done or not. If
-        it is False, the redrawing takes place if the data queue contains only
-        the current data item. This prevents the actual drawer from being
-        overwhelmed by the amount of incoming data.
-
-    .. py:attribute:: blit
-
-        True if faster redrawing based on canvas blitting should be used.
+    A base class for data viewer which sends commands to a backend-specific updater which runs in a
+    separate process.
     """
 
-    def __init__(self, view_function, blit=False):
+    def __init__(self):
+        super().__init__()
         self._queue = MultiprocessingQueue()
+        # This prevents hanging in the case we exit the session after something is put in the queue
+        # and before it is consumed.
+        self._queue.cancel_join_thread()
         self._paused = False
-        self._terminated = False
-        self._coroutine = None
+        # To be set up by an actual implementation which runs the drawing backed in a separate
+        # process
         self._proc = None
-        # The udater is implementation-specific and must be provided by
-        # the subclass by calling self._set_updater
-        self._updater = None
-        self.view_function = view_function
-        self._blit = blit
+        # __del__ is not going to help because it's never called from our concert session
 
-    def __call__(self, size=None):
+    async def __call__(self, producer, size=0, force=False):
         """
-        Display a dynamic image in a separate thread in order not to
-        stall program execution. If *size* is specified, the redrawing stops
-        when *size* images come.
-        """
-        if self._coroutine is None:
-            self._coroutine = self._update(size=size)
-
-        return self._coroutine
-
-    @coroutine
-    def _update(self, size=None):
-        """
-        Display data image in a separate thread in order not to stall program
-        execution. If *size* is specified, the redrawing stops when *size*
-        data items come. This method does not force the redrawing unless the
-        last item has come. The subclass must provide the view function
-        :py:attr:`PyplotViewerBase.view_function`.
+        Display stream from *producer*. If *size* is specified, stop after displaying *size* items.
+        If *force* is True make sure the item is displayed, otherwise it may be skipped if there is
+        something in the queue waiting to be shown.
         """
         i = 0
 
-        while True:
-            item = yield
-            if size is None or i < size:
-                if size is not None and i == size - 1:
-                    # Maximum number of items has come, end redrawing
-                    self.view_function(item, force=True)
-                else:
-                    self.view_function(item)
-                # This helps with the smoothness of drawing
-                time.sleep(0.001)
+        async for item in producer:
+            if not size or i < size:
+                await self.show(item, force=force)
 
             i += 1
 
-    def _set_updater(self, updater):
+    @command()
+    async def show(self, item, force=False):
+        """Push *item* to the queue for display in a separate proces. If *force* is True make sure
+        the item is displayed, otherwise it may be skipped if there is something in the queue
+        waiting to be shown.
         """
-        Set the *updater*, now the process can start. This has to be called
-        by the subclasses.
-        """
-        self._updater = updater
-        self._proc = Process(target=self._run)
-        self._proc.start()
-        _PYPLOT_VIEWERS.append(self)
+        # If the circumstances allow it, push the item to the queue for display
+        # This must happen before instantiation of the updater below because _show may raise
+        # exception, in which case we don't want the updater to have started yet.
+        if not self._paused and (not self._queue.qsize() or force or not self._proc):
+            await run_in_executor(self._show, item)
 
-    def terminate(self):
-        """Close all communication and terminate child process."""
-        if not self._terminated:
-            self._queue.close()
-            self._proc.terminate()
+        # If there is no updater or it has been stopped, instantiate it and start it in a process.
+        if not (self._proc and self._proc.is_alive()):
+            self._proc = Process(target=self._start_updater, daemon=True)
+            self._proc.start()
+            # Make sure that all control commands, like changing colormap, have been processed
+            while self._queue.qsize():
+                await asyncio.sleep(0.01)
 
     def pause(self):
         """Pause, no images are dispayed but image commands work."""
@@ -150,27 +108,20 @@ class PyplotViewerBase(object):
         """Resume the viewer."""
         self._paused = False
 
-    def _run(self):
-        """
-        Run the process, i.e. wait for an image to come to the queue
-        and dispaly it. This method is executed in a separate process.
-        """
-        # This import *must* be here, otherwise it doesn't work on Linux
-        from matplotlib import pyplot as plt
-        from matplotlib.animation import FuncAnimation
+    def _show(self, item):
+        """Implementation of pushing *item* to the display queue."""
+        raise NotImplementedError
 
-        try:
-            figure = plt.figure()
-            # The underscore must stay, otherwise it doesn't work, magic?
-            _ = FuncAnimation(figure, self._updater.process, interval=5,
-                              blit=self._blit)
-            plt.show()
+    def _start_updater(self):
+        updater = self._make_updater()
+        updater.run()
 
-        except KeyboardInterrupt:
-            plt.close("all")
+    def _make_updater(self):
+        """Updater factory method."""
+        raise NotImplementedError
 
 
-class PyplotViewer(PyplotViewerBase):
+class PyplotViewer(ViewerBase):
 
     """
     Dynamic plot viewer using matplotlib.
@@ -188,133 +139,343 @@ class PyplotViewer(PyplotViewerBase):
         If True, the axes limits will be expanded as needed by the new data,
         otherwise the user needs to rescale the axes
 
+    .. py:attribute:: title
+
+        Plot title
     """
 
-    def __init__(self, style="o", plot_kwargs=None, autoscale=True, title="",
-                 coroutine_force=False):
-        super(PyplotViewer, self).__init__(self._plot_unraveled)
+    style = Parameter(help='Line style')
+    autoscale = Parameter(help='Autoscale view')
+
+    def __init__(self, style: str = "o", plot_kwargs: dict = None, autoscale: bool = True,
+                 title: str = ""):
+        super().__init__()
         self._autoscale = autoscale
         self._style = style
-        self._iteration = 0
-        self.coroutine_force = coroutine_force
-        self._set_updater(_PyplotUpdater(self._queue, style,
-                                         plot_kwargs, autoscale,
-                                         title=title))
+        self._plot_kwargs = plot_kwargs
+        self._title = title
 
-    def plot(self, x, y=None, force=False):
-        """
-        Plot *x* and *y*, if *y* is None and *x* is a scalar the real y is
-        given by *x* and x is the current iteration of the plotting command,
-        if *x* is an iterable then it is interpreted as y data array and x is
-        a span [0, len(x)]. If both *x* and *y* are given, they are plotted as
-        they are. If *force* is True the plotting is guaranteed, otherwise it
-        might be skipped for the sake of plotting speed.
-
-        Note: if x is not given, the iteration starts at 0.
-        """
-        if not self._paused and (not self._queue.qsize() or force):
-            if y is None:
-                if isinstance(x, q.Quantity) and isinstance(x.magnitude, collections.Iterable) or\
-                   not isinstance(x, q.Quantity) and isinstance(x, collections.Iterable):
-                    x_data = np.arange(len(x))
-                    y_data = x
-                else:
-                    x_data = self._iteration
-                    y_data = x
-                    self._iteration += 1
-            else:
-                x_data = x
-                y_data = y
-            self._queue.put((_PyplotUpdater.PLOT, (x_data, y_data)))
-
-    def _plot_unraveled(self, item):
+    def _show(self, item):
         """Unravel the *item* for x and y so that it is plotted correctly."""
-        self.plot(item[0], y=item[1], force=self.coroutine_force)
+        try:
+            if len(item) != 2:
+                raise ValueError('Plotting accepts only (x, y) pairs')
+        except TypeError as exc:
+            raise ValueError('Plotting accepts only (x, y) pairs') from exc
 
-    @property
-    def style(self):
+        if isinstance(item, q.Quantity):
+            item = item.magnitude
+        first, second = item
+        if isinstance(first, q.Quantity):
+            first = first.magnitude
+        if isinstance(second, q.Quantity):
+            second = second.magnitude
+        item = (first, second)
+
+        self._queue.put(('plot', item))
+
+    def _make_updater(self):
+        return _PyplotUpdater(self._queue, self._style, self._plot_kwargs,
+                              self._autoscale, title=self._title)
+
+    def reset(self):
+        """Clear the plotted data."""
+        self._queue.put(('clear', None))
+
+    async def _get_style(self):
         return self._style
 
-    @style.setter
-    def style(self, style):
+    async def _set_style(self, style):
         """Set line style to *style*."""
+        self._queue.put(('style', style))
         self._style = style
-        self._queue.put((_PyplotUpdater.STYLE, style))
 
-    def clear(self):
-        """Clear the plotted data."""
-        self._iteration = 0
-        self._queue.put((_PyplotUpdater.CLEAR, None))
-
-    @property
-    def autoscale(self):
+    async def _get_autoscale(self):
         return self._autoscale
 
-    @autoscale.setter
-    def autoscale(self, autoscale):
+    async def _set_autoscale(self, autoscale):
         """Set *autoscale* on the axes, can be True or False."""
+        self._queue.put(('autoscale', autoscale))
         self._autoscale = autoscale
-        self._queue.put((_PyplotUpdater.AUTOSCALE, autoscale))
 
 
-class PyplotImageViewer(PyplotViewerBase):
+class ImageViewerBase(ViewerBase):
 
-    """Dynamic image viewer using matplotlib."""
+    """Backend-free base class for displaying images.
 
-    def __init__(self, imshow_kwargs=None, colorbar=True, title=""):
-        super(PyplotImageViewer, self).__init__(self.show, blit=True)
-        self._has_colorbar = colorbar
+    .. py:attribute:: limits
+
+        minimum and maximum gray value (black and white points). Can be a tuple (min, max), 'auto'
+        or 'stream'. When 'auto', limits are adjusted for every shown image, when 'stream', limits
+        are adjusted on every __call__.
+
+    .. py:attribute:: downsampling
+
+        Display every n-th pixel, which can speed up the viewer
+
+    .. py:attribute:: title
+
+        Image title
+
+    .. py:attribute:: show_refresh_rate
+
+        Whether or not to show refresh rate text directly embedded into the displayed image
+    """
+
+    show_refresh_rate = Parameter(help='Display current refresh rate')
+    limits = Parameter(help='Black and white point')
+    downsampling = Parameter(help='Display only every n-th pixel')
+
+    def __init__(self, limits: str = 'stream', downsampling: int = 1, title: str = "",
+                 show_refresh_rate: bool = False):
+        super().__init__()
+        self._show_refresh_rate = show_refresh_rate
+        self._title = title
+        self._downsampling = downsampling
+        self._limits = limits
+        self._new_stream = False
+
+    async def __call__(self, producer: Callable, size: int = None, force: bool = False):
+        self._new_stream = True
+        return await super().__call__(producer, size=None, force=force)
+
+    def _show(self, item):
+        if self._new_stream or self._proc is None or not self._proc.is_alive():
+            # We have been called as a coroutine or haven's stated at all yet
+            self._new_stream = False
+            if self._limits == 'stream':
+                # Limits are locked to the first image in stream
+                image = item[::self._downsampling, ::self._downsampling]
+                self._queue.put(('clim', (image.min(), image.max())))
+
+        self._queue.put(('image', item[::self._downsampling, ::self._downsampling]))
+
+    async def _get_downsampling(self):
+        return self._downsampling
+
+    async def _set_downsampling(self, value):
+        if value not in range(1, 21):
+            raise ValueError('Downsampling must be from interval [1, 20]')
+        self._downsampling = value
+
+    async def _get_limits(self):
+        return self._limits
+
+    async def _set_limits(self, limits):
+        """
+        Minimum and maximum gray value (black and white points). Can be a tuple (min, max), 'auto'
+        or 'stream'. When 'auto', limits are adjusted for every shown image, when 'stream', limits
+        are adjusted on every __call__.
+        """
+        if not (limits == 'auto' or limits == 'stream' or len(limits) == 2):
+            raise ViewerError("limits can be a tuple (min, max), 'auto' or 'stream'")
+        self._queue.put(('clim', limits))
+        self._limits = limits
+
+    async def _get_show_refresh_rate(self):
+        return self._show_refresh_rate
+
+    async def _set_show_refresh_rate(self, value):
+        if not isinstance(value, bool):
+            raise ValueError('boolean value expected')
+        self._queue.put(('show-fps', value))
+        self._show_refresh_rate = value
+
+
+class PyQtGraphViewer(ImageViewerBase):
+
+    """Dynamic image viewer using PyQtGraph."""
+
+    def _make_updater(self):
+        return _PyQtGraphUpdater(self._queue, limits=self._limits, title=self._title,
+                                 show_refresh_rate=self._show_refresh_rate)
+
+
+class PyplotImageViewer(ImageViewerBase):
+
+    """Dynamic image viewer using matplotlib.
+
+    .. py:attribute:: imshow_kwargs
+
+        matplotlib's imshow keyword arguments
+
+    .. py:attribute:: fast
+
+        Whether to use the fast version without colorbar
+
+    """
+
+    colormap = Parameter(help='Colormap')
+
+    def __init__(self, imshow_kwargs: dict = None, fast: bool = True, limits: str = 'stream',
+                 downsampling: int = 1, title: str = "", show_refresh_rate: bool = False):
+        super().__init__(title=title, show_refresh_rate=show_refresh_rate)
+        self._has_colorbar = not fast
         self._imshow_kwargs = {} if imshow_kwargs is None else imshow_kwargs
         self._make_imshow_defaults()
-        self._set_updater(_PyplotImageUpdater(self._queue,
-                                              self._imshow_kwargs,
-                                              self._has_colorbar,
-                                              title=title))
 
-    def show(self, item, force=False):
-        """
-        show *item* into the redrawing queue. The item is truly inserted
-        only if the queue is empty in order to guarantee that the newest
-        image is drawn or if the *force* is True.
-        """
-        if not self._paused and (not self._queue.qsize() or force):
-            self._queue.put((_PyplotImageUpdater.IMAGE, item))
+    def _make_updater(self):
+        if self._has_colorbar:
+            return _PyplotImageUpdater(self._queue, self._imshow_kwargs, self._has_colorbar,
+                                       title=self._title, show_refresh_rate=self._show_refresh_rate)
+        return _SimplePyplotImageUpdater(self._queue, self._imshow_kwargs, title=self._title,
+                                         show_refresh_rate=self._show_refresh_rate)
 
-    @property
-    def limits(self):
-        raise NotImplementedError
-
-    @limits.setter
-    def limits(self, clim):
-        """
-        Update the colormap limits by *clim*, which is a (lower, upper)
-        tuple.
-        """
-        self._queue.put((_PyplotImageUpdater.CLIM, clim))
-
-    @property
-    def colormap(self):
-        return self._colormap
-
-    @colormap.setter
-    def colormap(self, colormap):
-        """Set colormp of the shown image to *colormap*."""
-        self._queue.put((_PyplotImageUpdater.COLORMAP, colormap))
+    def reset(self):
+        """Reset the viewer's state."""
+        self._queue.put(('reset', None))
 
     def _make_imshow_defaults(self):
         """Override matplotlib's image showing defafults."""
-        from matplotlib import cm
-
         if "cmap" not in self._imshow_kwargs:
-            self._imshow_kwargs["cmap"] = cm.gray
-            self._colormap = cm.gray
-        else:
-            self._colormap = self._imshow_kwargs["cmap"]
+            self._imshow_kwargs["cmap"] = 'gray'
+        self._colormap = self._imshow_kwargs["cmap"]
         if "interpolation" not in self._imshow_kwargs:
             self._imshow_kwargs["interpolation"] = "nearest"
 
+    async def _get_colormap(self):
+        return self._colormap
 
-class _PyplotUpdaterBase(object):
+    async def _set_colormap(self, colormap):
+        """Set colormp of the shown image to *colormap*."""
+        self._queue.put(('colormap', colormap))
+
+
+class _PyQtGraphUpdater:
+
+    """Fast PyQtGraph-based image viewing backend."""
+
+    def __init__(self, queue: MultiprocessingQueue, limits: str = 'stream', title: str = "",
+                 show_refresh_rate: bool = False):
+        self.queue = queue
+        self.title = title
+        self.clim = limits
+        self.show_refresh_rate = show_refresh_rate
+        self.text = None
+        self.plot = None
+        # main graphics window
+        self.view = None
+        self.last_text_time = time.perf_counter()
+        self.last_time = time.perf_counter()
+        self.commands = {'image': self.proces_image,
+                         'clim': self.update_limits,
+                         'show-fps': self.toggle_show_refresh_rate}
+
+    def process(self):
+        """Process commands from queue."""
+        try:
+            cmd, item = self.queue.get(timeout=0.01)
+            self.commands[cmd](item)
+        except Empty:
+            pass
+
+    def draw_image(self, image):
+        """Display *image*."""
+        now = time.perf_counter()
+        self.view.imageItem.setImage(image, autoLevels=self.clim == 'auto', autoDownsample=True)
+
+        if self.show_refresh_rate:
+            if now - self.last_text_time > 0.5:
+                fps = 1 / (now - self.last_time)
+                self.text.setPos(image.shape[1] / 2, 0)
+                self.text.setText(f'{fps:5.1f} FPS')
+                self.last_text_time = now
+
+        if not self.view.isVisible():
+            self.view.show()
+
+        self.last_time = now
+
+    def proces_image(self, image):
+        """Process current *image* including window setup if it is a first image."""
+        import pyqtgraph as pg
+        first = False
+
+        if not self.view:
+            first = True
+            self.plot = pg.PlotItem(title=self.title)
+            self.view = pg.ImageView(view=self.plot)
+            self.make_refresh_rate_text()
+
+        self.draw_image(image)
+
+        if first:
+            self.update_limits(self.clim)
+
+    def update_limits(self, clim):
+        """Update limits (black and white point)."""
+        # Store no matter if there is an image already or not
+        self.clim = clim
+
+        if not self.view:
+            # No image has been displayed yet
+            return
+
+        if clim == 'auto':
+            # Synchronize histogram range and current image range drawn as lines
+            self.view.imageItem.setImage(self.view.imageItem.image, autoLevels=True,
+                                         autoDownsample=True)
+            # Adjust histogram range
+            self.view.ui.histogram.autoHistogramRange()
+            return
+
+        if clim == 'stream':
+            # Set to current image and keep it that way
+            self.clim = (self.view.imageItem.image.min(), self.view.imageItem.image.max())
+
+        self.view.imageItem.setLevels(self.clim)
+        # Synchronize histogram range and current image range drawn as lines
+        self.view.imageItem.setImage(self.view.imageItem.image, autoLevels=False,
+                                     autoDownsample=True)
+        self.view.ui.histogram.setHistogramRange(*self.clim)
+
+    def toggle_show_refresh_rate(self, value):
+        """Show refresh rate or not controlled by *value*."""
+        self.show_refresh_rate = value
+
+        if not self.view:
+            return
+
+        if value:
+            self.make_refresh_rate_text()
+        else:
+            if self.text:
+                self.view.removeItem(self.text)
+            self.text = None
+
+    def make_refresh_rate_text(self):
+        """Make text for showing the refresh rate."""
+        import pyqtgraph as pg
+
+        if self.text or not self.show_refresh_rate:
+            return
+
+        self.text = pg.TextItem(anchor=(0.5, 0), color=(220, 220, 220), fill=(0, 0, 0))
+        self.text.setOpacity(0.5)
+        if self.view:
+            self.view.addItem(self.text)
+
+    def run(self):
+        """Start drawing."""
+        import pyqtgraph as pg
+        from pyqtgraph.Qt import QtCore
+        import signal
+
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+        app = pg.QtGui.QApplication([])
+        # row-major for not transposing the array
+        pg.setConfigOptions(antialias=True, imageAxisOrder='row-major')
+
+        timer = QtCore.QTimer()
+        timer.timeout.connect(self.process)
+        # 0 ms delay -> be as fast as possible
+        timer.start(0)
+
+        app.exec_()
+
+
+class _PyplotUpdaterBase:
 
     """
     Base class for animating a matploblib figure in a separate process.
@@ -324,7 +485,7 @@ class _PyplotUpdaterBase(object):
         A multiprocessing queue for receiving commands
     """
 
-    def __init__(self, queue, title=""):
+    def __init__(self, queue: MultiprocessingQueue, title: str = ""):
         self.queue = queue
         self.first = True
         self.title = title
@@ -333,10 +494,9 @@ class _PyplotUpdaterBase(object):
         self.commands = {}
 
     def process(self, iteration):
-        """
-        Update function which is going to be called by matplotlib's
-        FuncAnimation instance.
-        """
+        """Get item from queue and process it."""
+        import matplotlib.pyplot as plt
+
         try:
             if self.first:
                 # Wait as much time as it takes for the first
@@ -345,14 +505,14 @@ class _PyplotUpdaterBase(object):
                 item = self.queue.get()
                 self.first = False
             else:
-                item = self.queue.get(timeout=0.1)
-            command, data = item
-            self.commands[command](data)
+                item = self.queue.get(timeout=0.01)
+            cmd, data = item
+            self.commands[cmd](data)
+            return self.get_artists()
         except Empty:
-            pass
-        except Exception as exc:
-            LOG.error("Pyplot Exception: {}".format(exc))
-        finally:
+            if iteration is None:
+                # Let the image window be responsive by the simple updater
+                plt.pause(0.01)
             return self.get_artists()
 
     def get_artists(self):
@@ -362,21 +522,30 @@ class _PyplotUpdaterBase(object):
         """
         raise NotImplementedError
 
+    def run(self):
+        """
+        Run the process, i.e. wait for an image to come to the queue
+        and dispaly it. This method is executed in a separate process.
+        """
+        # This import *must* be here, otherwise it doesn't work on Linux
+        from matplotlib import pyplot as plt
+        from matplotlib.animation import FuncAnimation
+        # KeyboardInterrupt is ignored in order not to keep hanging somewhere...
+        import signal
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+        figure = plt.figure()
+        animation = FuncAnimation(figure, self.process, interval=200, blit=False)
+        plt.show()
+
 
 class _PyplotUpdater(_PyplotUpdaterBase):
 
-    """
-    Private class for updating a matplotlib figure with a 1D data stream.
-    The arguments are the same as by :py:class:`PyplotViewer`.
-    """
-    CLEAR = "clear"
-    PLOT = "plot"
-    STYLE = "style"
-    AUTOSCALE = "autoscale"
+    """Plotting backend. The arguments are the same as by :py:class:`PyplotViewer`."""
 
-    def __init__(self, queue, style="o", plot_kwargs=None, autoscale=True,
-                 title=""):
-        super(_PyplotUpdater, self).__init__(queue, title=title)
+    def __init__(self, queue: MultiprocessingQueue, style: str = "o", plot_kwargs: dict = None,
+                 autoscale: bool = True, title: str = ""):
+        super().__init__(queue, title=title)
         self.data = [[], []]
         self.line = None
         self.style = style
@@ -385,10 +554,10 @@ class _PyplotUpdater(_PyplotUpdaterBase):
             # Matplotlib changes colors all the time by default
             self.plot_kwargs['color'] = 'b'
         self.autoscale = autoscale
-        self.commands = {_PyplotUpdater.PLOT: self.plot,
-                         _PyplotUpdater.STYLE: self.change_style,
-                         _PyplotUpdater.CLEAR: self.clear,
-                         _PyplotUpdater.AUTOSCALE: self.set_autoscale}
+        self.commands = {'plot': self.plot,
+                         'style': self.change_style,
+                         'clear': self.clear,
+                         'autoscale': self.set_autoscale}
 
     def get_artists(self):
         """Get the artists for the drawing."""
@@ -404,19 +573,13 @@ class _PyplotUpdater(_PyplotUpdaterBase):
 
     def clear(self, data):
         """Clear everything from the plot."""
-        from matplotlib import pyplot as plt
-
         self.data = [[], []]
         if self.line is not None:
             self.line.axes.clear()
         self.make_line()
 
-        plt.draw()
-
     def plot(self, data):
         """Plot *data*, which is an (x, y) tuple."""
-        from matplotlib import pyplot as plt
-
         def get_magnitude_and_unit(value):
             if hasattr(value, "magnitude"):
                 dimless = value.magnitude
@@ -455,7 +618,6 @@ class _PyplotUpdater(_PyplotUpdaterBase):
             # Draw for the first time or on limit change to update ticks and
             # labels
             self.autoscale_view()
-        plt.draw()
 
     def change_style(self, style):
         """Change line style to *style*."""
@@ -467,12 +629,9 @@ class _PyplotUpdater(_PyplotUpdaterBase):
 
     def set_autoscale(self, autoscale):
         """If *autoscale* is True, the plit is rescaled when needed."""
-        from matplotlib import pyplot as plt
-
         self.autoscale = autoscale
         if self.autoscale:
             self.autoscale_view()
-            plt.draw()
 
     def autoscale_view(self):
         """Autoscale axes limits."""
@@ -486,132 +645,93 @@ class _PyplotUpdater(_PyplotUpdaterBase):
             self.line.axes.autoscale_view()
 
 
-class _PyplotImageUpdater(_PyplotUpdaterBase):
+class _PyplotImageUpdaterBase(_PyplotUpdaterBase):
 
-    """
-    Private class for updating a matplotlib figure with an image stream.
-    """
+    """Common class for various image viewing backends."""
 
-    IMAGE = "image"
-    CLIM = "clim"
-    COLORMAP = "colormap"
-
-    def __init__(self, queue, imshow_kwargs, has_colorbar, title=""):
-        super(_PyplotImageUpdater, self).__init__(queue, title=title)
+    def __init__(self, queue: MultiprocessingQueue, imshow_kwargs: dict, limits: str = 'stream',
+                 title: str = "", show_refresh_rate: bool = False):
+        super().__init__(queue, title=title)
         self.imshow_kwargs = imshow_kwargs
-        self.has_colorbar = has_colorbar
         self.mpl_image = None
-        self.colorbar = None
-        self.clim = None
-        self.colormap = None
-        self.commands = {_PyplotImageUpdater.IMAGE: self.process_image,
-                         _PyplotImageUpdater.CLIM: self.update_limits,
-                         _PyplotImageUpdater.COLORMAP: self.update_colormap}
-
-    def get_artists(self):
-        """Get artists to return for matplotlib's animation."""
-        retval = [] if self.mpl_image is None else [self.mpl_image]
-
-        return retval
+        self.clim = limits
+        self.text = None
+        self.show_refresh_rate = show_refresh_rate
+        self.last_text_time = time.perf_counter()
+        self.last_time = time.perf_counter()
+        self.commands = {'image': self.process_image,
+                         'clim': self.update_limits,
+                         'colormap': self.update_colormap,
+                         'reset': self.reset,
+                         'show-fps': self.toggle_show_refresh_rate}
 
     def process_image(self, image):
-        """Process the incoming *image*."""
-        if self.mpl_image is not None and \
-                self.mpl_image.get_size() != image.shape:
-            # When the shape changes the axes needs to be reset
-            self.mpl_image.axes.clear()
-            self.mpl_image = None
-
-        if self.mpl_image is None:
-            # Either removed by shape change or first time drawing
-            self.make_image(image)
-        else:
-            self.update_all(image)
+        """Display *image*."""
+        raise NotImplementedError
 
     def update_limits(self, clim):
-        """
-        Update current colormap limits by *clim*, which is a tuple
-        (lower, upper). If *clim* is None, the limit is reset to the span of
-        the current image.
-        """
-        from matplotlib import pyplot as plt
-        self.clim = clim
-
-        if clim is None and self.mpl_image is not None:
-            # Restore the full clim
-            clim = self.mpl_image.get_array().min(), \
-                self.mpl_image.get_array().max()
-
-        if self.mpl_image is not None and clim is not None:
-            self.mpl_image.set_clim(clim)
-            self.update_colorbar()
-            plt.draw()
+        """Update limits (black and white point)."""
+        raise NotImplementedError
 
     def update_colormap(self, colormap):
-        """Update colormap to *colormap*."""
-        from matplotlib import pyplot as plt
+        """Update colormap."""
+        raise NotImplementedError
 
-        self.colormap = colormap
+    def reset(self, *args):
+        """Reset state."""
+        if self.mpl_image:
+            self.mpl_image.remove()
+            self.mpl_image = None
+        if self.text:
+            self.text.remove()
+            self.text = None
 
-        if self.mpl_image is not None:
-            self.mpl_image.set_cmap(self.colormap)
-        if "cmap" in self.imshow_kwargs:
-            self.imshow_kwargs["cmap"] = self.colormap
-        if self.colorbar is not None:
-            self.colorbar.set_cmap(self.colormap)
-            self.colorbar.draw_all()
-        plt.draw()
+    def toggle_show_refresh_rate(self, value):
+        """Show refresh rate or not controlled by *value*."""
+        self.show_refresh_rate = value
 
-    def update_all(self, image):
-        """Update image and colorbar."""
-        from matplotlib import pyplot as plt
+        if self.show_refresh_rate:
+            if self.mpl_image:
+                self.make_refresh_rate_text()
+        else:
+            if self.text:
+                self.text.remove()
+                self.text = None
 
-        self.mpl_image.set_data(image)
-        if self.clim is None:
-            # If the limit is not set to a value we autoscale
-            new_lower = float(image.min())
-            new_upper = float(image.max())
-            if self.limits_changed(new_lower, new_upper):
-                self.mpl_image.set_clim(new_lower, new_upper)
-                self.update_colorbar()
-                plt.draw()
+    def get_artists(self):
+        """Needed by matplotlib's FuncAnimation."""
+        artists = []
+        if self.mpl_image:
+            artists.append(self.mpl_image)
+        if self.text:
+            artists.append(self.text)
 
-    def update_colorbar(self):
-        """Update the colorbar (rescale and redraw)."""
-        shape = self.mpl_image.get_size()
-        if (shape[1] > shape[0] and self.colorbar.orientation == 'vertical' or
-                shape[0] >= shape[1] and self.colorbar.orientation == 'horizontal'):
-            self.colorbar.remove()
-            self.make_colorbar()
-        self.colorbar.set_clim(self.mpl_image.get_clim())
-        self.colorbar.draw_all()
+        return artists
 
-    def make_colorbar(self):
-        """Make colorbar according to the current colormap."""
-        from matplotlib import pyplot as plt
+    def update_refresh_rate_text(self):
+        """Update refresh rate text."""
+        if not (self.show_refresh_rate and self.text):
+            return
 
-        colormap = None
-        if self.colormap is not None:
-            colormap = self.colormap
-        elif "cmap" in self.imshow_kwargs:
-            colormap = self.imshow_kwargs["cmap"]
-        shape = self.mpl_image.get_size()
-        orientation = 'horizontal' if shape[1] > shape[0] else 'vertical'
-        self.colorbar = plt.colorbar(cmap=colormap, orientation=orientation)
+        current = time.perf_counter()
+        if current - self.last_text_time > 0.5:
+            # Don't update FPS text that often to be readable
+            fps = 1 / (current - self.last_time)
+            self.text.set_text(f'{fps:5.1f} FPS')
+            self.last_text_time = current
+        self.last_time = current
 
-    def make_image(self, image):
-        """Create an image with colorbar"""
-        from matplotlib import pyplot as plt
-        self.mpl_image = plt.imshow(image, **self.imshow_kwargs)
-        self.mpl_image.axes.set_title(self.title)
-        if self.clim is not None:
-            self.mpl_image.set_clim(self.clim)
-        if self.has_colorbar:
-            if self.colorbar is None:
-                self.make_colorbar()
-            else:
-                self.update_colorbar()
-        plt.draw()
+    def make_refresh_rate_text(self, animated=False):
+        """Make text for showing the refresh rate."""
+        import matplotlib.pyplot as plt
+
+        if self.text or not self.show_refresh_rate:
+            return
+
+        self.text = plt.text(0.5, 0.975, '', alpha=0.5, animated=animated,
+                             ha='center', va='center', backgroundcolor='black',
+                             color='lightgray', transform=self.mpl_image.axes.transAxes)
+        self.text.get_bbox_patch().set_alpha(0.5)
 
     def limits_changed(self, lower, upper):
         """
@@ -625,3 +745,215 @@ class _PyplotImageUpdater(_PyplotUpdaterBase):
         upper_ratio = np.abs(upper - self.mpl_image.get_clim()[1]) / new_range
 
         return lower_ratio > 0.1 or upper_ratio > 0.1
+
+
+class _PyplotImageUpdater(_PyplotImageUpdaterBase):
+
+    """Image viewing backend."""
+
+    def __init__(self, queue: MultiprocessingQueue, imshow_kwargs: dict, limits: str = 'stream',
+                 title: str = "", show_refresh_rate: bool = False):
+        super().__init__(queue, imshow_kwargs, limits=limits, title=title,
+                         show_refresh_rate=show_refresh_rate)
+        self.colorbar = None
+
+    def get_artists(self):
+        """Get artists to return for matplotlib's animation."""
+        artists = super().get_artists()
+        if self.colorbar:
+            artists.append(self.colorbar)
+
+        return artists
+
+    def process_image(self, image):
+        """Process the incoming *image*."""
+        if self.mpl_image is not None and \
+                self.mpl_image.get_size() != image.shape:
+            # When the shape changes the axes needs to be reset
+            self.mpl_image.axes.figure.clear()
+            self.mpl_image = None
+            self.colorbar = None
+
+        if self.mpl_image is None:
+            # Either removed by shape change or first time drawing
+            self.make_image(image)
+        else:
+            self.update_all(image)
+
+    def update_limits(self, clim):
+        # Store no matter if there is an image already or not
+        self.clim = clim
+
+        if self.mpl_image is None:
+            return
+
+        if clim in ['auto', 'stream']:
+            image = self.mpl_image.get_array()
+            clim = (image.min(), image.max())
+            if clim == 'stream':
+                # Set to current image and keep it that way
+                self.clim = (image.min(), image.max())
+
+        self.mpl_image.set_clim(clim)
+        self.update_colorbar()
+
+    def update_colormap(self, colormap):
+        """Update colormap to *colormap*."""
+        if self.mpl_image is not None:
+            self.mpl_image.set_cmap(colormap)
+
+        # Save for later
+        self.imshow_kwargs["cmap"] = colormap
+
+    def update_all(self, image):
+        """Update image and colorbar."""
+        self.mpl_image.set_data(image)
+        self.update_refresh_rate_text()
+        if self.clim == 'auto':
+            # If the limit is not set to a value we autoscale
+            new_lower = float(image.min())
+            new_upper = float(image.max())
+            if self.limits_changed(new_lower, new_upper):
+                self.mpl_image.set_clim(new_lower, new_upper)
+                self.update_colorbar()
+
+    def update_colorbar(self):
+        """Update the colorbar (rescale and redraw)."""
+        shape = self.mpl_image.get_size()
+        if (shape[1] > shape[0] and self.colorbar.orientation == 'vertical' or
+                shape[0] >= shape[1] and self.colorbar.orientation == 'horizontal'):
+            self.colorbar.remove()
+            self.make_colorbar()
+
+    def make_colorbar(self):
+        """Make colorbar according to the current colormap."""
+        from matplotlib import pyplot as plt
+
+        colormap = self.imshow_kwargs.get("cmap")
+        shape = self.mpl_image.get_size()
+        orientation = 'horizontal' if shape[1] > shape[0] else 'vertical'
+        self.colorbar = plt.colorbar(cmap=colormap, orientation=orientation)
+
+    def make_image(self, image):
+        """Create an image with colorbar"""
+        from matplotlib import pyplot as plt
+        self.mpl_image = plt.imshow(image, **self.imshow_kwargs)
+        self.mpl_image.axes.set_title(self.title)
+        self.make_refresh_rate_text(animated=False)
+        if self.colorbar is None:
+            self.make_colorbar()
+        self.update_limits(self.clim)
+
+
+class _SimplePyplotImageUpdater(_PyplotImageUpdaterBase):
+
+    """Simple image viewing backend optimized for speed, no colorbar available."""
+
+    def __init__(self, queue: MultiprocessingQueue, imshow_kwargs: dict, limits: str = 'stream',
+                 title: str = "", show_refresh_rate: bool = False):
+        super().__init__(queue, imshow_kwargs, limits=limits, title=title,
+                         show_refresh_rate=show_refresh_rate)
+        self.fig = None
+        self.axes = None
+        self.background = None
+
+    def run(self):
+        """There is no animation, we handle everything ourselves so just keep getting images from
+        the queue.
+        """
+        # KeyboardInterrupt is ignored in order not to keep hanging somewhere...
+        import signal
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+        while True:
+            self.process(None)
+
+    def on_close(self, event):
+        """Called when the window is closed. Note it and re-open on next image."""
+        self.fig = self.axes = self.mpl_image = None
+
+    def on_draw(self, event):
+        """Called when size is changed and we need to copy the new bbox."""
+        if event is not None:
+            if event.canvas != self.fig.canvas:
+                raise RuntimeError
+
+        self.background = self.fig.canvas.copy_from_bbox(self.fig.bbox)
+        if self.mpl_image:
+            self.axes.draw_artist(self.mpl_image)
+        if self.text:
+            self.axes.draw_artist(self.text)
+
+    def redraw(self):
+        """Redraw scene."""
+        if self.clim in ['auto', 'stream']:
+            # If the limit is not set to a value we autoscale
+            new_lower = float(self.mpl_image.get_array().min())
+            new_upper = float(self.mpl_image.get_array().max())
+            if self.clim == 'stream':
+                self.clim = (new_lower, new_upper)
+            if self.limits_changed(new_lower, new_upper):
+                self.mpl_image.set_clim(new_lower, new_upper)
+        self.axes.draw_artist(self.mpl_image)
+        if self.text:
+            self.axes.draw_artist(self.text)
+        self.fig.canvas.blit(self.fig.bbox)
+        self.fig.canvas.flush_events()
+
+    def update_limits(self, clim):
+        self.clim = clim
+        if self.mpl_image is None:
+            return
+
+        if clim not in ['auto', 'stream']:
+            self.mpl_image.set_clim(clim)
+
+        self.redraw()
+
+    def update_colormap(self, colormap):
+        """Update colormap to *colormap*."""
+        if self.mpl_image is not None:
+            self.mpl_image.set_cmap(colormap)
+            self.redraw()
+
+        # Save for after reset
+        self.imshow_kwargs["cmap"] = colormap
+
+    def process_image(self, image):
+        import matplotlib.pyplot as plt
+
+        if not self.fig:
+            # Start from scratch after close or first invocation
+            self.fig, self.axes = plt.subplots()
+            self.axes.set_title(self.title)
+            self.fig.canvas.mpl_connect('draw_event', self.on_draw)
+            self.fig.canvas.mpl_connect('close_event', self.on_close)
+
+        if self.mpl_image:
+            if self.mpl_image.get_array().shape != image.shape:
+                # Make sure the image is not screwed up if panned/zoomed previously
+                self.reset()
+            else:
+                self.fig.canvas.restore_region(self.background)
+                self.mpl_image.set_data(image)
+                self.update_refresh_rate_text()
+                self.redraw()
+        if not self.mpl_image:
+            # Not an else clause because we could have set mpl_image to None in the previous if
+            self.mpl_image = self.axes.imshow(image, animated=True, **self.imshow_kwargs)
+            if self.clim not in ['auto', 'stream']:
+                self.mpl_image.set_clim(self.clim)
+            self.make_refresh_rate_text(animated=True)
+            # This makes sure axes BBox fits the newly displayed image
+            self.axes.relim()
+            # In case we were panning/zooming, this will reset the position
+            self.axes.autoscale()
+            # This will reset toolbar buttons
+            self.axes.figure.canvas.toolbar.update()
+            plt.show(block=False)
+            plt.pause(0.1)
+            self.background = self.fig.canvas.copy_from_bbox(self.fig.bbox)
+
+
+class ViewerError(Exception):
+    """Viewer errors."""
