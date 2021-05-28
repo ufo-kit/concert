@@ -224,7 +224,7 @@ def transition(immediate=None, target=None):
     return wrapped
 
 
-def check(source='*', target=None):
+def check(source='*', target='*'):
     """
     Decorates a method for checking the device state.
 
@@ -233,6 +233,11 @@ def check(source='*', target=None):
     will be after successful completion of the method or a list of possible
     target states.
     """
+    async def check_now(instance, allowed_states, state_str):
+        state = await instance['state'].get()
+        if state not in allowed_states and '*' not in allowed_states:
+            raise TransitionNotAllowed(f"{state_str} state `{state}' not in `{allowed_states}'")
+
     def wrapped(func):
         sources = [source] if isinstance(source, str) else source
         targets = [target] if isinstance(target, str) else target
@@ -242,18 +247,10 @@ def check(source='*', target=None):
             if 'state' not in instance:
                 raise FSMError('Transitioning requires state parameter')
 
-            state = await instance['state'].get()
-            if state not in sources and '*' not in sources:
-                msg = "Current state `{}' not in `{}'".format(state, sources)
-                raise TransitionNotAllowed(msg)
-
+            await check_now(instance, sources, 'Current')
             result = await _execute_func(func, instance, *args, **kwargs)
+            await check_now(instance, targets, 'Final')
 
-            # Check if the device got into an allowed state after the check
-            final = await instance['state'].get()
-            if final not in targets:
-                msg = "Final state `{}' not in `{}'".format(final, targets)
-                raise TransitionNotAllowed(msg)
             return result
 
         return call_func
