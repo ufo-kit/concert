@@ -345,8 +345,8 @@ class StartCommand(Command):
                 '--logto': {'choices': ['stderr', 'file'],
                             'default': 'file'},
                 '--logfile': {'type': str},
-                '--loglevel': {'choices': ['aiodebug', 'debug', 'info', 'warning', 'error',
-                                           'critical'],
+                '--loglevel': {'choices': ['perfdebug', 'aiodebug', 'debug', 'info', 'warning',
+                                           'error', 'critical'],
                                'default': 'info'},
                 '--non-interactive': {'action': 'store_true'}}
         super(StartCommand, self).__init__('start', opts)
@@ -365,6 +365,7 @@ class StartCommand(Command):
         else:
             handler = logging.StreamHandler(sys.stderr)
 
+        logging.addLevelName(concert.config.PERFDEBUG, 'PERFDEBUG')
         logging.addLevelName(concert.config.AIODEBUG, 'AIODEBUG')
         handler.setLevel(loglevel.upper())
         logformat = '[%(asctime)s] %(levelname)s: %(name)s: {}: %(message)s'
