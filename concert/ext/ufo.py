@@ -1,4 +1,4 @@
-
+import asyncio
 import copy
 import logging
 import threading
@@ -16,20 +16,18 @@ except ImportError as e:
 
 try:
     from tofu.config import SECTIONS, GEN_RECO_PARAMS
-    from tofu.util import setup_padding, get_reconstruction_regions
+    from tofu.util import get_reconstruction_regions
     from tofu.genreco import (CTGeometry, setup_graph, set_projection_filter_scale, make_runs,
                               DTYPE_CL_SIZE)
     from tofu.tasks import get_task
 except ImportError:
-    print("You must install tofu to use Ufo features, see "\
-                         "'https://github.com/ufo-kit/tofu.git'", file=sys.stderr)
+    print("You must install tofu to use Ufo features, see 'https://github.com/ufo-kit/tofu.git'",
+          file=sys.stderr)
 
-from multiprocessing.pool import ThreadPool
-from concert.casync import casync
+from concert.base import Parameterizable, State, check, transition
+from concert.config import PERFDEBUG
+from concert.coroutines.base import async_generate, run_in_executor, run_in_loop
 from concert.imageprocessing import filter_low_frequencies
-from concert.quantities import q
-from concert.coroutines.sinks import Result
-from concert.experiments.imaging import tomo_projections_number, frames
 
 
 LOG = logging.getLogger(__name__)
@@ -105,7 +103,6 @@ class InjectProcess(object):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.wait()
-        return True
 
     async def __call__(self, producer):
         """Co-routine compatible consumer."""
@@ -113,8 +110,8 @@ class InjectProcess(object):
             self.start()
 
         async for item in producer:
-            self.insert(item)
-            yield self.result(leave_index=0)
+            await self.insert(item)
+            yield await self.result(leave_index=0)
 
     def start(self, arch=None, gpu=None):
         """
@@ -131,53 +128,62 @@ class InjectProcess(object):
         else:
             sched = self.sched
 
-        self.thread = threading.Thread(target=run_scheduler, args=(sched,))
+        self.thread = threading.Thread(target=run_scheduler, args=(sched,), daemon=True)
         self.thread.start()
 
         if not self._started:
             self._started = True
 
-    def insert(self, array, node=None, index=0):
+    async def insert(self, array, node=None, index=0):
         """
         Insert *array* into the *node*'s *index* input.
 
         .. note:: *array* must be a NumPy compatible array.
         """
-        if not node:
-            if len(self.input_tasks) > 1:
-                raise ValueError('input_node cannot be None for graphs with more inputs')
+        def _insert_real(array, node=None, index=0):
+            if not node:
+                if len(self.input_tasks) > 1:
+                    raise ValueError('input_node cannot be None for graphs with more inputs')
+                else:
+                    node = list(self.input_tasks.keys())[0]
+            if self.ufo_buffers[node][index] is None:
+                # reverse shape from rows, cols to x, y
+                self.ufo_buffers[node][index] = Ufo.Buffer.new_with_size(array.shape[::-1], None)
             else:
-                node = list(self.input_tasks.keys())[0]
-        if self.ufo_buffers[node][index] is None:
-            # reverse shape from rows, cols to x, y
-            self.ufo_buffers[node][index] = Ufo.Buffer.new_with_size(array.shape[::-1], None)
-        else:
-            self.ufo_buffers[node][index] = self.input_tasks[node][index].get_input_buffer()
+                self.ufo_buffers[node][index] = self.input_tasks[node][index].get_input_buffer()
 
-        if array is not None:
-            if self.copy_inputs:
-                array = np.copy(array, order='C')
-            self.ufo_buffers[node][index].copy_host_array(array.__array_interface__['data'][0])
-        self.input_tasks[node][index].release_input_buffer(self.ufo_buffers[node][index])
+            if array is not None:
+                if self.copy_inputs:
+                    array = np.copy(array, order='C')
+                self.ufo_buffers[node][index].copy_host_array(array.__array_interface__['data'][0])
+            self.input_tasks[node][index].release_input_buffer(self.ufo_buffers[node][index])
 
-    def result(self, leave_index=None):
+        await run_in_executor(_insert_real, array, node, index)
+
+    async def result(self, leave_index=None):
         """Get result from *leave_index* if not None, all leaves if None. Returns a list of results
         in case *leave_index* is None or one result for the specified leave_index.
         """
-        if self.output_tasks:
-            indices = list(range(len(self.output_tasks))) if leave_index is None else [leave_index]
-            results = []
-            for index in indices:
-                buf = self.output_tasks[index].get_output_buffer()
-                if not buf:
-                    return [None]
-                results.append(np.copy(ufo.numpy.asarray(buf)))
-                self.output_tasks[index].release_output_buffer(buf)
+        def _result_real(leave_index=None):
+            if self.output_tasks:
+                if leave_index is None:
+                    indices = list(range(len(self.output_tasks)))
+                else:
+                    indices = [leave_index]
+                results = []
+                for index in indices:
+                    buf = self.output_tasks[index].get_output_buffer()
+                    if not buf:
+                        return [None]
+                    results.append(np.copy(ufo.numpy.asarray(buf)))
+                    self.output_tasks[index].release_output_buffer(buf)
 
-            if leave_index is not None:
-                results = results[0]
+                if leave_index is not None:
+                    results = results[0]
 
-            return results
+                return results
+
+        return await run_in_executor(_result_real, leave_index)
 
     def stop(self):
         """Stop input tasks."""
@@ -207,24 +213,21 @@ class FlatCorrect(InjectProcess):
 
     async def __call__(self, producer):
         """Co-routine compatible consumer."""
-        def process_one(projection, dark, flat):
-            if projection.dtype != np.float32:
-                projection = projection.astype(np.float32)
-            self.insert(projection, index=0)
-            self.insert(dark, index=1)
-            self.insert(flat, index=2)
-            consumer.send(self.result(leave_index=0))
+        if self.dark is None or self.flat is None:
+            raise InjectProcessError('dark and flat images must be set')
 
         if not self._started:
             self.start()
 
-        fc = True
+        first = True
         async for projection in producer:
-            if fc:
-                yield process_one(projection, self.dark.astype(np.float32), self.flat.astype(np.float32))
-                fc = False
-            else:
-                yield process_one(projection, None, None)
+            if projection.dtype != np.float32:
+                projection = projection.astype(np.float32)
+            await self.insert(projection, index=0)
+            await self.insert(self.dark.astype(np.float32) if first else None, index=1)
+            await self.insert(self.flat.astype(np.float32) if first else None, index=2)
+            yield await self.result(leave_index=0)
+            first = False
 
 
 class GeneralBackprojectArgs(object):
@@ -280,17 +283,17 @@ class GeneralBackprojectArgs(object):
 
 class GeneralBackproject(InjectProcess):
     def __init__(self, args, resources=None, gpu_index=0, flat=None, dark=None, region=None,
-                 copy_inputs=False, before_download_event=None):
+                 copy_inputs=False):
         if args.width is None or args.height is None:
             raise GeneralBackprojectError('width and height must be set in GeneralBackprojectArgs')
-        self.before_download_event = before_download_event
         scheduler = Ufo.FixedScheduler()
         if resources:
             scheduler.set_resources(resources)
         gpu = scheduler.get_resources().get_gpu_nodes()[gpu_index]
 
         self.args = copy.deepcopy(args)
-        x_region, y_region, z_region = get_reconstruction_regions(self.args, store=True)
+        x_region, y_region, z_region = get_reconstruction_regions(self.args, store=True,
+                                                                  dtype=float)
         set_projection_filter_scale(self.args)
         if region is not None:
             self.args.region = region
@@ -346,71 +349,71 @@ class GeneralBackproject(InjectProcess):
                                                  scheduler=scheduler, copy_inputs=copy_inputs)
 
     async def __call__(self, producer):
-        def process_projection(projection, dark, flat):
-            if projection is None:
-                return False
-            elif not self._started:
+        async def process_projection(projection, dark, flat):
+            if not self._started:
                 self.start()
             projection = projection[self.args.y:self.args.y + self.args.height]
             if projection.dtype != np.float32:
                 projection = projection.astype(np.float32)
-            self.insert(projection, index=0)
+            await self.insert(projection, index=0)
             if self.dark is not None and self.flat is not None:
-                self.insert(dark, index=1)
-                self.insert(flat, index=2)
+                await self.insert(dark, index=1)
+                await self.insert(flat, index=2)
 
             return True
 
-        def consume_volume():
+        async def consume_volume():
             if not self._started:
                 yield None
                 return
             self.stop()
-            if self.before_download_event:
-                LOG.debug('Waiting for event before download')
-                self.before_download_event.wait()
-            st = time.time()
+            st = time.perf_counter()
             for k in np.arange(*self.args.region):
-                result = self.result()[0]
+                result = (await self.result())[0]
                 if result is None:
                     LOG.warn('Not all slices received (last: %g)', k)
                     break
                 yield result
-            LOG.debug('Volume downloaded in: %.2f s', time.time() - st)
+            LOG.log(PERFDEBUG, 'Volume downloaded in: %.2f s', time.perf_counter() - st)
             self.wait()
 
         i = 0
-        async for projection in producer:
-            if i == 0:
-                st = time.time()
-            i += 1
-            processed = process_projection(projection,
-                                           self.dark if i == 1 else None,
-                                           self.flat if i == 1 else None)
-            if not processed or i == self.args.number:
-                LOG.debug('Backprojected %d projections, duration: %.2f s', i, time.time() - st)
-                consume_volume()
+        try:
+            async for projection in producer:
+                if i == 0:
+                    st = time.perf_counter()
+                i += 1
+                processed = await process_projection(projection,
+                                                     self.dark if i == 1 else None,
+                                                     self.flat if i == 1 else None)
+                if not processed or i == self.args.number:
+                    LOG.log(PERFDEBUG, 'Backprojected %d projections, duration: %.2f s', i,
+                            time.perf_counter() - st)
+                    async for item in consume_volume():
+                        yield item
+        except asyncio.CancelledError:
+            # Stop scheduler to free up memory
+            self.wait()
+            raise
 
 
-class GeneralBackprojectManager(object):
-    def __init__(self, args, dark=None, flat=None, regions=None, copy_inputs=False,
-                 projection_sleep_time=0 * q.s):
-        self._aborted = False
+class GeneralBackprojectManager(Parameterizable):
+
+    state = State(default='standby')
+
+    def __init__(self, args, dark=None, flat=None, regions=None, copy_inputs=False):
+        super().__init__()
         self.regions = regions
         self.copy_inputs = copy_inputs
-        self.projection_sleep_time = projection_sleep_time
         self.projections = None
         self._resources = []
         self.volume = None
         self.dark = dark
         self.flat = flat
         self.args = args
-        self._consume_event = threading.Event()
-        self._process_event = threading.Event()
-        self._consume_event.set()
-        self._process_event.set()
         self._num_received_projections = 0
         self._num_processed_projections = 0
+        self._producer_condition = asyncio.Condition()
 
     @property
     def num_received_projections(self):
@@ -422,7 +425,7 @@ class GeneralBackprojectManager(object):
 
     def _update(self):
         """Update the regions and volume sizes based on changed args or region."""
-        st = time.time()
+        st = time.perf_counter()
         x_region, y_region, z_region = get_reconstruction_regions(self.args)
         if not self._resources:
             self._resources = [Ufo.Resources()]
@@ -451,60 +454,22 @@ class GeneralBackprojectManager(object):
         else:
             shape = (offset, len(np.arange(*y_region)), len(np.arange(*x_region)))
         if self.volume is None or shape != self.volume.shape:
-            self.join_consuming()
             self.volume = np.empty(shape, dtype=np.float32)
-        LOG.debug('Backprojector manager update duration: %g s', time.time() - st)
+        LOG.log(PERFDEBUG, 'Backprojector manager update duration: %g s', time.perf_counter() - st)
 
-    def produce(self):
-        sleep_time = self.projection_sleep_time.to(q.s).magnitude
+    async def produce(self):
         for i in range(self.args.number):
-            while self._num_received_projections < i + 1:
-                if self._aborted:
-                    break
-                time.sleep(sleep_time)
-            if self._aborted:
-                yield None
-                break
+            async with self._producer_condition:
+                await self._producer_condition.wait_for(lambda: self._num_received_projections > i)
             yield self.projections[i]
             self._num_processed_projections = i + 1
 
     async def consume(self, offset, producer):
         i = 0
         async for item in producer:
-            if item is None:
-                self.abort()
             self.volume[offset + i] = item
             i += 1
 
-    def join_processing(self):
-        LOG.debug('Waiting for backprojectors to finish')
-        self._process_event.wait()
-
-    def join_consuming(self):
-        LOG.debug('Waiting for volume processing to finish')
-        self._consume_event.wait()
-
-    def join(self):
-        self.join_processing()
-        self.join_consuming()
-
-    def consume_volume(self, consumer):
-        self.join_consuming()
-        self._consume_event.clear()
-
-        def send_volume():
-            out_st = time.time()
-            for s in self.volume:
-                consumer.send(s)
-            out_duration = time.time() - out_st
-            out_size = self.volume.nbytes / 2 ** 20
-            LOG.debug('Volume sending duration: %.2f s, speed: %.2f MB/s',
-                      out_duration, out_size / out_duration)
-            self._consume_event.set()
-
-        threading.Thread(target=send_volume).start()
-
-    @casync
     def find_parameters(self, parameters, projections=None, metrics=('sag',), regions=None,
                         iterations=1, fwhm=0, minimize=(True,), z=None, method='powell',
                         method_options=None, guesses=None, bounds=None, store=True):
@@ -540,7 +505,6 @@ class GeneralBackprojectManager(object):
         because the optimization happens on all parameters simultaneously, the same holds for
         *minimize*.
         """
-        self.join_processing()
         if projections is None:
             if self.projections is None:
                 raise GeneralBackprojectManagerError('*projections* must be specified if no '
@@ -556,7 +520,7 @@ class GeneralBackprojectManager(object):
             def score(vector):
                 for (parameter, value) in zip(parameters, vector):
                     setattr(self.args, parameter.replace('-', '_'), [value])
-                inject(projections, self(block=True))
+                run_in_loop(self(async_generate(projections)))
                 result = sgn * self.volume[0]
                 LOG.info('Optimization vector: %s, result: %g', vector, result)
 
@@ -599,7 +563,7 @@ class GeneralBackprojectManager(object):
                     self.args.slice_metric = metric
                     self.args.z_parameter = parameter
                     self.args.region = region
-                    inject(projections, self(block=True))
+                    run_in_loop(self(async_generate(projections)))
                     sgn = 1 if minim else -1
                     values = self.volume
                     if fwhm:
@@ -621,121 +585,86 @@ class GeneralBackprojectManager(object):
 
         return result
 
-    @coroutine
-    def __call__(self, consumer=None, block=False, wait_for_events=None,
-                 wait_for_projections=False):
-        self.join_processing()
-        self._process_event.clear()
-        LOG.debug('Backprojector manager start')
-        st = time.time()
-        self._num_received_projections = 0
-        self._num_processed_projections = 0
-        self._aborted = False
+    async def _copy_projections(self, producer):
+        def copy_projection(projection):
+            # LOG.log(PERFDEBUG, f'Saving projection {self._num_received_projections}')
+            self.projections[self._num_received_projections] = projection
 
-        def prepare_and_start():
-            """Make sure the arguments are up-to-date."""
-            if wait_for_events is not None:
-                LOG.debug('Waiting for events')
-                for event in wait_for_events:
-                    event.wait()
-                LOG.debug('Waiting for events done (cached projections: %d)',
-                          self._num_received_projections)
+        async for projection in producer:
+            if self._num_received_projections == 0:
+                (self.args.height, self.args.width) = projection.shape
+                in_shape = (self.args.number,) + projection.shape
+                if (self.projections is None or in_shape != self.projections.shape or
+                        projection.dtype != self.projections.dtype):
+                    self.projections = np.empty(in_shape, dtype=projection.dtype)
 
-            self._update()
+            if self._num_received_projections < self.args.number:
+                await run_in_executor(copy_projection, projection)
+                self._num_received_projections += 1
+                async with self._producer_condition:
+                    self._producer_condition.notify_all()
 
-            def start_one(index):
-                """Start one backprojector with a specific GPU ID in a separate thread."""
-                offset = 0
-                for i in range(self._batch_index):
-                    for j, region in self._regions[i]:
-                        offset += len(np.arange(*region))
-                batch = self._regions[self._batch_index]
-                offset += sum([len(np.arange(*reg)) for j, reg in batch[:index]])
+    async def _distribute(self):
+        """Distribute projections to multiple batches which may run on multiple GPUs."""
+        st = time.perf_counter()
+        self._update()
 
-                gpu_index, region = self._regions[self._batch_index][index]
-                bp = GeneralBackproject(self.args,
-                                        resources=self._resources[index],
-                                        gpu_index=gpu_index,
-                                        dark=self.dark,
-                                        flat=self.flat,
-                                        region=region,
-                                        copy_inputs=self.copy_inputs,
-                                        before_download_event=self._consume_event)
-                self.consume(offset, bp(self.produce()))
+        async def start_one(batch_index, region_index):
+            """Start one backprojector with a specific GPU ID in a separate thread."""
+            # first slice offset
+            offset = 0
+            for i in range(batch_index):
+                for j, region in self._regions[i]:
+                    offset += len(np.arange(*region))
+            batch = self._regions[batch_index]
+            offset += sum([len(np.arange(*reg)) for j, reg in batch[:region_index]])
 
-            # Distribute work
-            pool = ThreadPool(processes=len(self._resources))
-            for i in range(len(self._regions)):
-                if self._aborted:
-                    break
-                self._batch_index = i
-                pool.map(start_one, list(range(len(self._regions[i]))))
-            pool.close()
-            pool.join()
+            gpu_index, region = self._regions[batch_index][region_index]
+            bp = GeneralBackproject(self.args,
+                                    resources=self._resources[region_index],
+                                    gpu_index=gpu_index,
+                                    dark=self.dark,
+                                    flat=self.flat,
+                                    region=region,
+                                    copy_inputs=self.copy_inputs)
+            await self.consume(offset, bp(self.produce()))
 
-            if not self._aborted:
-                # Process results
-                duration = time.time() - st
-                LOG.debug('Backprojectors duration: %.2f s', duration)
-                in_size = self.projections.nbytes / 2 ** 20
-                out_size = self.volume.nbytes / 2 ** 20
-                LOG.debug('Input size: %g GB, output size: %g GB', in_size / 1024, out_size / 1024)
-                LOG.debug('Performance: %.2f GUPS (In: %.2f MB/s, out: %.2f MB/s)',
-                          self.volume.size * self.projections.shape[0] * 1e-9 / duration,
-                          in_size / duration, out_size / duration)
-                if consumer:
-                    self.consume_volume(consumer)
-            # Enable processing only after the consumer starts to make sure self.join()
-            # works as expected
-            self._process_event.set()
+        LOG.debug(f'Reconstructing {len(self._regions)} batches: {self._regions}')
+        for batch_index in range(len(self._regions)):
+            coros = []
+            for region_index in range(len(self._regions[batch_index])):
+                coros.append(start_one(batch_index, region_index))
+            await asyncio.gather(*coros)
 
-        arg_thread = None
-        try:
-            projection = yield
-            (self.args.height, self.args.width) = projection.shape
-            if not wait_for_projections:
-                arg_thread = threading.Thread(target=prepare_and_start)
-                arg_thread.start()
-            LOG.debug('Backprojectors initialization duration: %.2f ms', (time.time() - st) * 1000)
-            in_shape = (self.args.number,) + projection.shape
-            if (self.projections is None or in_shape != self.projections.shape or
-                    projection.dtype != self.projections.dtype):
-                self.projections = np.empty(in_shape, dtype=projection.dtype)
-            self.projections[0] = projection
-            self._num_received_projections = 1
+        # Process results
+        duration = time.perf_counter() - st
+        LOG.log(PERFDEBUG, 'Backprojectors duration: %.2f s', duration)
+        in_size = self.projections.nbytes / 2 ** 20
+        out_size = self.volume.nbytes / 2 ** 20
+        LOG.log(PERFDEBUG, 'Input size: %g GB, output size: %g GB', in_size / 1024,
+                out_size / 1024)
+        LOG.log(PERFDEBUG, 'Performance: %.2f GUPS (In: %.2f MB/s, out: %.2f MB/s)',
+                self.volume.size * self.projections.shape[0] * 1e-9 / duration,
+                in_size / duration, out_size / duration)
 
-            finalize = True
-            while True:
-                projection = yield
-                if self._num_received_projections < self.args.number:
-                    self.projections[self._num_received_projections] = projection
-                    self._num_received_projections += 1
-                if finalize and self._num_received_projections == self.args.number:
-                    finalize = False
-                    if wait_for_projections:
-                        arg_thread = threading.Thread(target=prepare_and_start)
-                        arg_thread.start()
-                    LOG.debug('Last projection dispatched by manager')
-                    if block:
-                        self.join()
-        except GeneratorExit:
-            if (self.projections is None or
-                    self._num_received_projections < self.projections.shape[0]):
-                self._aborted = True
-                LOG.error('Not enough projections received (%d from %d)',
-                          self._num_received_projections, self.args.number)
-                if arg_thread:
-                    arg_thread.join()
+    @check(source='standby', target='*')
+    @transition(immediate='running', target='standby')
+    async def __call__(self, producer):
+        self._num_received_projections = self._num_processed_projections = 0
 
-    def abort(self):
-        self._aborted = True
+        await asyncio.gather(self._copy_projections(producer), self._distribute())
+
+
+class InjectProcessError(Exception):
+
+    """Errors related with :py:class:`.InjectProcess`."""
 
 
 class GeneralBackprojectManagerError(Exception):
     pass
 
 
-class GeneralBackprojectError(Exception):
+class GeneralBackprojectError(InjectProcessError):
     pass
 
 
