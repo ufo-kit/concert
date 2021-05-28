@@ -188,8 +188,9 @@ class LockError(Exception):
 
 
 def transition(immediate=None, target=None):
-    """Change software state of a device to *immediate*. After the function
-    execution finishes change the state to *target*.
+    """Change software state of a device to *immediate*. After the function execution finishes
+    change the state to *target*. On :py:class:`.asyncio.CancelledError`, state is set to *target*
+    and cleanup logic must take place in the callable to be wrapped.
     """
     def wrapped(func):
         @functools.wraps(func)
@@ -209,6 +210,12 @@ def transition(immediate=None, target=None):
             except StateError as error:
                 setattr(instance, '_state_value', error.state)
                 raise error
+            except asyncio.CancelledError:
+                # If *func* is cancelled, *func* must make sure that all cleanup except state update
+                # happens. If even the state should have some special value, then do not use
+                # *transition* at all and implement everything in *func*.
+                setattr(instance, '_state_value', target_state)
+                raise
 
             return result
 
