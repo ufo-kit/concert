@@ -1,11 +1,11 @@
 """Opening images in external programs."""
 import asyncio
 import collections
+import multiprocessing as mp
 import os
 import tempfile
 import time
 import logging
-from multiprocessing import Queue as MultiprocessingQueue, Process
 from queue import Empty
 from subprocess import Popen
 from typing import Callable
@@ -17,6 +17,7 @@ from concert.quantities import q
 
 
 LOG = logging.getLogger(__name__)
+_MP_CTX = mp.get_context('spawn')
 
 
 def imagej(image, path="imagej"):
@@ -43,7 +44,7 @@ def imagej(image, path="imagej"):
 
     # Do not make a daemon process to make sure the interpreter waits for it to exit, i.e. the
     # *finally* will be called and temp file deleted.
-    proc = Process(target=start_command, args=(path, image), daemon=False)
+    proc = _MP_CTX.Process(target=start_command, args=(path, image), daemon=False)
     proc.start()
 
 
@@ -56,7 +57,7 @@ class ViewerBase(Parameterizable):
 
     def __init__(self):
         super().__init__()
-        self._queue = MultiprocessingQueue()
+        self._queue = _MP_CTX.Queue()
         # This prevents hanging in the case we exit the session after something is put in the queue
         # and before it is consumed.
         self._queue.cancel_join_thread()
@@ -94,7 +95,8 @@ class ViewerBase(Parameterizable):
 
         # If there is no updater or it has been stopped, instantiate it and start it in a process.
         if not (self._proc and self._proc.is_alive()):
-            self._proc = Process(target=self._start_updater, daemon=True)
+            updater = self._make_updater()
+            self._proc = _MP_CTX.Process(target=updater.run, daemon=True)
             self._proc.start()
             # Make sure that all control commands, like changing colormap, have been processed
             while self._queue.qsize():
@@ -111,10 +113,6 @@ class ViewerBase(Parameterizable):
     def _show(self, item):
         """Implementation of pushing *item* to the display queue."""
         raise NotImplementedError
-
-    def _start_updater(self):
-        updater = self._make_updater()
-        updater.run()
 
     def _make_updater(self):
         """Updater factory method."""
@@ -345,7 +343,7 @@ class _PyQtGraphUpdater:
 
     """Fast PyQtGraph-based image viewing backend."""
 
-    def __init__(self, queue: MultiprocessingQueue, limits: str = 'stream', title: str = "",
+    def __init__(self, queue: mp.Queue, limits: str = 'stream', title: str = "",
                  show_refresh_rate: bool = False):
         self.queue = queue
         self.title = title
@@ -485,7 +483,7 @@ class _PyplotUpdaterBase:
         A multiprocessing queue for receiving commands
     """
 
-    def __init__(self, queue: MultiprocessingQueue, title: str = ""):
+    def __init__(self, queue: mp.Queue, title: str = ""):
         self.queue = queue
         self.first = True
         self.title = title
@@ -543,7 +541,7 @@ class _PyplotUpdater(_PyplotUpdaterBase):
 
     """Plotting backend. The arguments are the same as by :py:class:`PyplotViewer`."""
 
-    def __init__(self, queue: MultiprocessingQueue, style: str = "o", plot_kwargs: dict = None,
+    def __init__(self, queue: mp.Queue, style: str = "o", plot_kwargs: dict = None,
                  autoscale: bool = True, title: str = ""):
         super().__init__(queue, title=title)
         self.data = [[], []]
@@ -649,7 +647,7 @@ class _PyplotImageUpdaterBase(_PyplotUpdaterBase):
 
     """Common class for various image viewing backends."""
 
-    def __init__(self, queue: MultiprocessingQueue, imshow_kwargs: dict, limits: str = 'stream',
+    def __init__(self, queue: mp.Queue, imshow_kwargs: dict, limits: str = 'stream',
                  title: str = "", show_refresh_rate: bool = False):
         super().__init__(queue, title=title)
         self.imshow_kwargs = imshow_kwargs
@@ -751,7 +749,7 @@ class _PyplotImageUpdater(_PyplotImageUpdaterBase):
 
     """Image viewing backend."""
 
-    def __init__(self, queue: MultiprocessingQueue, imshow_kwargs: dict, limits: str = 'stream',
+    def __init__(self, queue: mp.Queue, imshow_kwargs: dict, limits: str = 'stream',
                  title: str = "", show_refresh_rate: bool = False):
         super().__init__(queue, imshow_kwargs, limits=limits, title=title,
                          show_refresh_rate=show_refresh_rate)
@@ -849,7 +847,7 @@ class _SimplePyplotImageUpdater(_PyplotImageUpdaterBase):
 
     """Simple image viewing backend optimized for speed, no colorbar available."""
 
-    def __init__(self, queue: MultiprocessingQueue, imshow_kwargs: dict, limits: str = 'stream',
+    def __init__(self, queue: mp.Queue, imshow_kwargs: dict, limits: str = 'stream',
                  title: str = "", show_refresh_rate: bool = False):
         super().__init__(queue, imshow_kwargs, limits=limits, title=title,
                          show_refresh_rate=show_refresh_rate)

@@ -511,4 +511,6 @@ def main():
 
 
 if __name__ == '__main__':
+    # This must be here for mp.get_context('spawn') in concert.ext.viewers to work
+    __spec__ = None
     main()
