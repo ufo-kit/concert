@@ -493,8 +493,6 @@ class _PyplotUpdaterBase:
 
     def process(self, iteration):
         """Get item from queue and process it."""
-        import matplotlib.pyplot as plt
-
         try:
             if self.first:
                 # Wait as much time as it takes for the first
@@ -508,10 +506,11 @@ class _PyplotUpdaterBase:
             self.commands[cmd](data)
             return self.get_artists()
         except Empty:
-            if iteration is None:
-                # Let the image window be responsive by the simple updater
-                plt.pause(0.01)
+            self.on_empty()
             return self.get_artists()
+
+    def on_empty(self):
+        """Callback on queue timeout."""
 
     def get_artists(self):
         """
@@ -854,6 +853,7 @@ class _SimplePyplotImageUpdater(_PyplotImageUpdaterBase):
         self.fig = None
         self.axes = None
         self.background = None
+        self.closed = True
 
     def run(self):
         """There is no animation, we handle everything ourselves so just keep getting images from
@@ -866,9 +866,22 @@ class _SimplePyplotImageUpdater(_PyplotImageUpdaterBase):
         while True:
             self.process(None)
 
+    def on_empty(self):
+        """Let the image window be responsive and run the GUI event loop for a while.
+
+        Note:
+        plt.pause makes the window steal focus aggresively (mpl 3.1.2) and after minimizing it pops
+        right back up. This keeps happening until user maniputes the image via the toolbar. Doing
+        things manually via draw_idle and starting the event loop seems to do the trick, for now...
+        """
+        # plt.pause(0.01)
+        if self.fig:
+            self.fig.canvas.draw_idle()
+            self.fig.canvas.start_event_loop(0.01)
+
     def on_close(self, event):
         """Called when the window is closed. Note it and re-open on next image."""
-        self.fig = self.axes = self.mpl_image = None
+        self.closed = True
 
     def on_draw(self, event):
         """Called when size is changed and we need to copy the new bbox."""
@@ -920,12 +933,14 @@ class _SimplePyplotImageUpdater(_PyplotImageUpdaterBase):
     def process_image(self, image):
         import matplotlib.pyplot as plt
 
-        if not self.fig:
+        if self.closed:
             # Start from scratch after close or first invocation
             self.fig, self.axes = plt.subplots()
+            self.mpl_image = None
             self.axes.set_title(self.title)
             self.fig.canvas.mpl_connect('draw_event', self.on_draw)
             self.fig.canvas.mpl_connect('close_event', self.on_close)
+            self.closed = False
 
         if self.mpl_image:
             if self.mpl_image.get_array().shape != image.shape:
