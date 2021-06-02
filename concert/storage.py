@@ -1,4 +1,5 @@
 """Storage implementations."""
+import contextlib
 import os
 import logging
 import tifffile
@@ -152,6 +153,14 @@ class Walker(object):
         if self._log:
             self._log_handler.close()
             self._log.removeHandler(self._log_handler)
+
+    @contextlib.contextmanager
+    def inside(self, name):
+        self.descend(name)
+        try:
+            yield
+        finally:
+            self.ascend()
 
     def home(self):
         """Return to root."""
