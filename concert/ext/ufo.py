@@ -26,7 +26,7 @@ except ImportError:
 
 from concert.base import Parameterizable, State, check, transition
 from concert.config import PERFDEBUG
-from concert.coroutines.base import async_generate, run_in_executor, run_in_loop
+from concert.coroutines.base import async_generate, run_in_executor, run_in_loop, start
 from concert.imageprocessing import filter_low_frequencies
 
 
@@ -208,8 +208,7 @@ class FlatCorrect(InjectProcess):
         self.ffc = get_task('flat-field-correct')
         self.ffc.props.fix_nan_and_inf = fix_nan_and_inf
         self.ffc.props.absorption_correct = absorptivity
-        super(FlatCorrect, self).__init__(self.ffc, get_output=True, output_dims=2,
-                                          copy_inputs=copy_inputs)
+        super().__init__(self.ffc, get_output=True, output_dims=2, copy_inputs=copy_inputs)
 
     async def __call__(self, producer):
         """Co-routine compatible consumer."""
@@ -282,8 +281,36 @@ class GeneralBackprojectArgs(object):
 
 
 class GeneralBackproject(InjectProcess):
-    def __init__(self, args, resources=None, gpu_index=0, flat=None, dark=None, region=None,
-                 copy_inputs=False):
+
+    """One backprojector worker.
+
+    .. py:attribute:: args
+
+        :class:`.GeneralBackprojectArgs` instance with arguments for reconstruction
+
+    .. py:attribute:: resources
+
+        `Ufo.Resources` instance
+
+    .. py:attribute:: gpu_index
+
+        use GPU with this index
+
+    .. py:attribute:: do_normalization
+
+        do flat correction of not
+
+    .. py:attribute:: region
+
+        User defined region which can override the one stored in `args`
+
+    .. py:attribute:: copy_inputs
+
+        if True copy images before they are inserted into UFO
+    """
+
+    def __init__(self, args, resources=None, gpu_index=0, do_normalization=False,
+                 region=None, copy_inputs=False):
         if args.width is None or args.height is None:
             raise GeneralBackprojectError('width and height must be set in GeneralBackprojectArgs')
         scheduler = Ufo.FixedScheduler()
@@ -302,12 +329,6 @@ class GeneralBackproject(InjectProcess):
         if not self.args.disable_projection_crop:
             geometry.optimize_args()
         self.args = geometry.args
-        self.dark = dark
-        self.flat = flat
-        if self.dark is not None and self.flat is not None:
-            LOG.debug('Flat correction on')
-            self.dark = self.dark[self.args.y:self.args.y + self.args.height].astype(np.float32)
-            self.flat = self.flat[self.args.y:self.args.y + self.args.height].astype(np.float32)
 
         regions = make_runs([gpu], [gpu_index], x_region, y_region, self.args.region,
                             DTYPE_CL_SIZE[self.args.store_type],
@@ -318,16 +339,23 @@ class GeneralBackproject(InjectProcess):
             raise GeneralBackprojectError('Region does not fit to the GPU memory')
 
         graph = Ufo.TaskGraph()
-        if dark is not None and flat is not None:
-            ffc = get_task('flat-field-correct', processing_node=gpu)
-            ffc.props.fix_nan_and_inf = self.args.fix_nan_and_inf
-            ffc.props.absorption_correct = self.args.absorptivity
-            first = ffc
-        else:
-            first = None
+
+        # Normalization
+        self.ffc = None
+        self.do_normalization = do_normalization
+        if do_normalization:
+            self.ffc = get_task('flat-field-correct', processing_node=gpu)
+            self.ffc.props.fix_nan_and_inf = self.args.fix_nan_and_inf
+            self.ffc.props.absorption_correct = self.args.absorptivity
+            self._darks_averaged = False
+            self._flats_averaged = False
+            self.dark_avg = get_task('average', processing_node=gpu)
+            self.flat_avg = get_task('average', processing_node=gpu)
+            graph.connect_nodes_full(self.dark_avg, self.ffc, 1)
+            graph.connect_nodes_full(self.flat_avg, self.ffc, 2)
 
         (first, last) = setup_graph(self.args, graph, x_region, y_region, self.args.region,
-                                    source=first, gpu=gpu, index=gpu_index, do_output=False,
+                                    source=self.ffc, gpu=gpu, index=gpu_index, do_output=False,
                                     make_reader=False)
         output_dims = 2
         if args.slice_metric:
@@ -345,23 +373,37 @@ class GeneralBackproject(InjectProcess):
             LOG.debug('Only back projection, no other processing')
             graph = first
 
-        super(GeneralBackproject, self).__init__(graph, get_output=True, output_dims=output_dims,
-                                                 scheduler=scheduler, copy_inputs=copy_inputs)
+        super().__init__(graph, get_output=True, output_dims=output_dims, scheduler=scheduler,
+                         copy_inputs=copy_inputs)
+
+        if self.do_normalization:
+            # Setup input tasks for normalization images averaging. Our parent picks up only the two
+            # averagers and not the ffc's zero port for projections.
+            self.input_tasks[self.ffc] = [Ufo.InputTask()]
+            self.ufo_buffers[self.ffc] = [None]
+            self.graph.connect_nodes_full(self.input_tasks[self.ffc][0], self.ffc, 0)
+
+    async def _average(self, producer, node):
+        what = 'darks' if node == self.dark_avg else 'flats'
+        LOG.log(PERFDEBUG, 'Starting %s averaging', what)
+        start = time.perf_counter()
+        if not self._started:
+            self.start()
+
+        async for image in producer:
+            await self.insert(image[self.args.y:self.args.y + self.args.height].astype(np.float32),
+                              node=node, index=0)
+        LOG.log(PERFDEBUG, '%s averaging duration: %g s', what, time.perf_counter() - start)
+
+    async def average_darks(self, producer):
+        await self._average(producer, self.dark_avg)
+        self._darks_averaged = True
+
+    async def average_flats(self, producer):
+        await self._average(producer, self.flat_avg)
+        self._flats_averaged = True
 
     async def __call__(self, producer):
-        async def process_projection(projection, dark, flat):
-            if not self._started:
-                self.start()
-            projection = projection[self.args.y:self.args.y + self.args.height]
-            if projection.dtype != np.float32:
-                projection = projection.astype(np.float32)
-            await self.insert(projection, index=0)
-            if self.dark is not None and self.flat is not None:
-                await self.insert(dark, index=1)
-                await self.insert(flat, index=2)
-
-            return True
-
         async def consume_volume():
             if not self._started:
                 yield None
@@ -371,22 +413,38 @@ class GeneralBackproject(InjectProcess):
             for k in np.arange(*self.args.region):
                 result = (await self.result())[0]
                 if result is None:
-                    LOG.warn('Not all slices received (last: %g)', k)
+                    LOG.warning('Not all slices received (last: %g)', k)
                     break
                 yield result
             LOG.log(PERFDEBUG, 'Volume downloaded in: %.2f s', time.perf_counter() - st)
             self.wait()
+            self._darks_averaged = False
+            self._flats_averaged = False
 
         i = 0
         try:
             async for projection in producer:
                 if i == 0:
                     st = time.perf_counter()
+                    if not self._started:
+                        self.start()
+                    if self.do_normalization:
+                        if not (self._darks_averaged and self._flats_averaged):
+                            raise GeneralBackprojectError('Darks and flats not processed yet')
+                        # Tell averagers to generate instead of consuming from now on
+                        self.input_tasks[self.dark_avg][0].stop()
+                        self.input_tasks[self.flat_avg][0].stop()
                 i += 1
-                processed = await process_projection(projection,
-                                                     self.dark if i == 1 else None,
-                                                     self.flat if i == 1 else None)
-                if not processed or i == self.args.number:
+
+                projection = projection[self.args.y:self.args.y + self.args.height]
+                if projection.dtype != np.float32:
+                    projection = projection.astype(np.float32)
+                # If ffc is None, node=None and that's OK because there is only one input which the
+                # parent can deal with. Projection port of ffc task is zero, so no need for special
+                # handling.
+                await self.insert(projection, node=self.ffc, index=0)
+
+                if i == self.args.number:
                     LOG.log(PERFDEBUG, 'Backprojected %d projections, duration: %.2f s', i,
                             time.perf_counter() - st)
                     async for item in consume_volume():
@@ -399,28 +457,61 @@ class GeneralBackproject(InjectProcess):
 
 class GeneralBackprojectManager(Parameterizable):
 
+    """Manage 3D recnstruction by back projection. The manager stores darks, flats and projections
+    and spreads them to back projection workers in as many batches as needed in order not to
+    overflow GPU memory.
+
+    .. py:attribute:: args
+
+        :class:`.GeneralBackprojectArgs` instance with arguments for reconstruction
+
+    .. py:attribute:: average_normalization
+
+       if False, use only one dark and flat image from their streams, otherwise average all of them
+
+    .. py:attribute:: regions
+
+        User defined regions (batches) for reconstruction, if None, batches are determined
+        automatically
+
+    .. py:attribute:: copy_inputs
+
+        if True copy images before they are inserted into UFO
+    """
+
     state = State(default='standby')
 
-    def __init__(self, args, dark=None, flat=None, regions=None, copy_inputs=False):
+    def __init__(self, args, average_normalization=True, regions=None, copy_inputs=False):
         super().__init__()
+        self.args = args
         self.regions = regions
         self.copy_inputs = copy_inputs
         self.projections = None
         self._resources = []
         self.volume = None
-        self.dark = dark
-        self.flat = flat
-        self.args = args
+        self.average_normalization = average_normalization
+        self.darks = []
+        self.flats = []
+        self._darks_condition = asyncio.Condition()
+        self._flats_condition = asyncio.Condition()
+        # Conditions for darks and flats need to signal that no more images will come and *done* is
+        # how they do it
+        self._darks_condition.done = False
+        self._flats_condition.done = False
         self._num_received_projections = 0
         self._num_processed_projections = 0
         self._producer_condition = asyncio.Condition()
+        self._processing_task = None
+        self._regions = None
 
     @property
     def num_received_projections(self):
+        """Number of received projections."""
         return self._num_received_projections
 
     @property
     def num_processed_projections(self):
+        """Number of projections sent to backprojectors."""
         return self._num_processed_projections
 
     def _update(self):
@@ -457,14 +548,16 @@ class GeneralBackprojectManager(Parameterizable):
             self.volume = np.empty(shape, dtype=np.float32)
         LOG.log(PERFDEBUG, 'Backprojector manager update duration: %g s', time.perf_counter() - st)
 
-    async def produce(self):
+    async def _produce(self):
+        """Produce projections for backprojectors."""
         for i in range(self.args.number):
             async with self._producer_condition:
                 await self._producer_condition.wait_for(lambda: self._num_received_projections > i)
             yield self.projections[i]
             self._num_processed_projections = i + 1
 
-    async def consume(self, offset, producer):
+    async def _consume(self, offset, producer):
+        """Consume slices from individual backprojectors."""
         i = 0
         async for item in producer:
             self.volume[offset + i] = item
@@ -520,7 +613,7 @@ class GeneralBackprojectManager(Parameterizable):
             def score(vector):
                 for (parameter, value) in zip(parameters, vector):
                     setattr(self.args, parameter.replace('-', '_'), [value])
-                run_in_loop(self(async_generate(projections)))
+                run_in_loop(self.backproject(async_generate(projections)))
                 result = sgn * self.volume[0]
                 LOG.info('Optimization vector: %s, result: %g', vector, result)
 
@@ -563,7 +656,7 @@ class GeneralBackprojectManager(Parameterizable):
                     self.args.slice_metric = metric
                     self.args.z_parameter = parameter
                     self.args.region = region
-                    run_in_loop(self(async_generate(projections)))
+                    run_in_loop(self.backproject(async_generate(projections)))
                     sgn = 1 if minim else -1
                     values = self.volume
                     if fwhm:
@@ -587,12 +680,15 @@ class GeneralBackprojectManager(Parameterizable):
 
     async def _copy_projections(self, producer):
         def copy_projection(projection):
-            # LOG.log(PERFDEBUG, f'Saving projection {self._num_received_projections}')
             self.projections[self._num_received_projections] = projection
 
         async for projection in producer:
             if self._num_received_projections == 0:
-                (self.args.height, self.args.width) = projection.shape
+                if not self.args.width:
+                    (self.args.height, self.args.width) = projection.shape
+                elif (self.args.height, self.args.width) != projection.shape:
+                    raise GeneralBackprojectManagerError('Projections have different '
+                                                         'shape from normalization images')
                 in_shape = (self.args.number,) + projection.shape
                 if (self.projections is None or in_shape != self.projections.shape or
                         projection.dtype != self.projections.dtype):
@@ -604,8 +700,12 @@ class GeneralBackprojectManager(Parameterizable):
                 async with self._producer_condition:
                     self._producer_condition.notify_all()
 
-    async def _distribute(self):
-        """Distribute projections to multiple batches which may run on multiple GPUs."""
+    async def _distribute(self, reuse_normalization=False, do_normalization=False):
+        """Distribute projections to multiple batches which may run on multiple GPUs. If
+        *reuse_normalization* is True just feed the workers with the stored darks and flats, do not
+        expect new streams. If *do_normalization* is True send darks and flats to backprojectors.
+        """
+        LOG.debug('Processing start')
         st = time.perf_counter()
         self._update()
 
@@ -623,13 +723,25 @@ class GeneralBackprojectManager(Parameterizable):
             bp = GeneralBackproject(self.args,
                                     resources=self._resources[region_index],
                                     gpu_index=gpu_index,
-                                    dark=self.dark,
-                                    flat=self.flat,
+                                    do_normalization=do_normalization,
                                     region=region,
                                     copy_inputs=self.copy_inputs)
-            await self.consume(offset, bp(self.produce()))
+            if do_normalization:
+                if reuse_normalization:
+                    darks = self.darks if self.average_normalization else self.darks[:1]
+                    flats = self.flats if self.average_normalization else self.flats[:1]
+                    darks_generator = async_generate(darks)
+                    flats_generator = async_generate(flats)
+                else:
+                    darks_generator = self._produce_normalization(self.darks,
+                                                                  self._darks_condition)
+                    flats_generator = self._produce_normalization(self.flats,
+                                                                  self._flats_condition)
+                await asyncio.gather(bp.average_darks(darks_generator),
+                                     bp.average_flats(flats_generator))
+            await self._consume(offset, bp(self._produce()))
 
-        LOG.debug(f'Reconstructing {len(self._regions)} batches: {self._regions}')
+        LOG.debug('Reconstructing %d batches: %s', len(self._regions), self._regions)
         for batch_index in range(len(self._regions)):
             coros = []
             for region_index in range(len(self._regions[batch_index])):
@@ -647,12 +759,99 @@ class GeneralBackprojectManager(Parameterizable):
                 self.volume.size * self.projections.shape[0] * 1e-9 / duration,
                 in_size / duration, out_size / duration)
 
-    @check(source='standby', target='*')
-    @transition(immediate='running', target='standby')
-    async def __call__(self, producer):
+    async def _produce_normalization(self, images, condition):
+        i = 0
+        while True:
+            async with condition:
+                # Either there is an image to consume, or last image has come and we have consumed
+                # all of them
+                await condition.wait_for(lambda: len(images) > i or
+                                         condition.done and i == len(images))
+                if condition.done and i == len(images):
+                    break
+            yield images[i]
+            i += 1
+
+    async def _copy_normalization(self, producer, images, condition):
+        if not self._processing_task:
+            # When we start a new backprojection job we need to clear both darks and flats because
+            # we don't know which acquisition will be done first. This must be done here so that the
+            # first image is not lost, which would be the case if we called it where the actual
+            # _distribute is called.
+            self.reset()
+        try:
+            async for image in producer:
+                if not self.args.width:
+                    (self.args.height, self.args.width) = image.shape
+                if not self._processing_task:
+                    # Start averaging before projection stream starts
+                    self._processing_task = start(self._distribute(reuse_normalization=False,
+                                                                   do_normalization=True))
+
+                async with condition:
+                    images.append(image)
+                    condition.notify_all()
+
+                if not self.average_normalization:
+                    # We store only one
+                    break
+
+            # Last image has arrived, signal by *done* and notify waiting coros
+            async with condition:
+                condition.done = True
+                condition.notify_all()
+        except asyncio.CancelledError:
+            if self._processing_task and not self._processing_task.cancelled():
+                self._processing_task.cancel()
+                self._processing_task = None
+            raise
+
+    def reset(self):
+        """Reset state, clearing all pre-processing steps but keep projections and slices intact."""
+        LOG.debug('Reset')
+        if self._processing_task and not self._processing_task.done():
+            raise GeneralBackprojectManagerError('Reconstruction running, cannot reset')
+        del self.darks[:]
+        del self.flats[:]
+        self._darks_condition.done = False
+        self._flats_condition.done = False
+        self._processing_task = None
         self._num_received_projections = self._num_processed_projections = 0
 
-        await asyncio.gather(self._copy_projections(producer), self._distribute())
+    @check(source='standby', target='*')
+    @transition(immediate='running', target='standby')
+    async def update_darks(self, producer):
+        """Get new darks from *producer*. Immediately start the reconstruction so that averaging
+        starts.
+        """
+        await self._copy_normalization(producer, self.darks, self._darks_condition)
+
+    @check(source='standby', target='*')
+    @transition(immediate='running', target='standby')
+    async def update_flats(self, producer):
+        """Get new flats from *producer*. Immediately start the reconstruction so that averaging
+        starts.
+        """
+        await self._copy_normalization(producer, self.flats, self._flats_condition)
+
+    @check(source='standby', target='*')
+    async def backproject(self, producer):
+        """Backproject projections from *producer*."""
+        self._state_value = 'running'
+        self._num_received_projections = self._num_processed_projections = 0
+
+        try:
+            if not self._processing_task:
+                self._processing_task = start(self._distribute(reuse_normalization=True,
+                                                               do_normalization=self.darks and
+                                                               self.flats))
+            await asyncio.gather(self._copy_projections(producer), self._processing_task)
+        except asyncio.CancelledError:
+            if self._processing_task and not self._processing_task.cancelled():
+                self._processing_task.cancel()
+        finally:
+            self._processing_task = None
+            self._state_value = 'standby'
 
 
 class InjectProcessError(Exception):
