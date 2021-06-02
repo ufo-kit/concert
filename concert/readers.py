@@ -1,9 +1,10 @@
 """Image readers for convenient work with multi-page image sequences."""
 import glob
 import os
+from concert.coroutines.base import run_in_executor
 
 
-class FileSequenceReader(object):
+class FileSequenceReader:
 
     """Image sequence reader optimized for reading consecutive images. One multi-page image file is
     not closed after an image is read so that it does not have to be re-opened for reading the next
@@ -26,6 +27,18 @@ class FileSequenceReader(object):
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
+
+    async def read_range(self, start=0, stop=None, step=1):
+        if stop is None:
+            stop = self.num_images
+        if stop > self.num_images:
+            raise SequenceReaderError('Stop greater than number of images')
+
+        try:
+            for i in range(start, stop, step):
+                yield await run_in_executor(self.read, i)
+        finally:
+            self.close()
 
     @property
     def num_images(self):
