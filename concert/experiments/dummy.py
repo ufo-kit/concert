@@ -2,6 +2,7 @@
 
 import os
 import numpy as np
+from concert.coroutines.base import run_in_executor
 from concert.experiments.base import Acquisition, Experiment
 from concert.devices.cameras.dummy import FileCamera
 from concert.progressbar import wrap_iterable
@@ -55,15 +56,18 @@ class ImagingExperiment(Experiment):
         radios = Acquisition('radios', self.take_radios)
         super(ImagingExperiment, self).__init__([darks, flats, radios], walker=walker)
 
-    def _produce_images(self, num):
+    async def _produce_images(self, num):
+        def make_random_image():
+            return np.random.normal(128., 10., size=self.shape).astype(self.dtype)
+
         if self.random == 'off':
-            image = np.zeros(self.shape).astype(self.dtype)
+            image = await run_in_executor(np.zeros, self.shape, self.dtype)
         elif self.random == 'single':
-            image = np.random.normal(128., 10., size=self.shape).astype(self.dtype)
+            image = await run_in_executor(make_random_image)
 
         for i in wrap_iterable(list(range(num))):
             if self.random == 'multi':
-                image = np.random.normal(128., 10., size=self.shape).astype(self.dtype)
+                image = await run_in_executor(make_random_image)
             yield image
 
     def take_darks(self):
@@ -147,19 +151,19 @@ class ImagingFileExperiment(Experiment):
         radios = Acquisition('radios', self.take_radios)
         super(ImagingFileExperiment, self).__init__([darks, flats, radios], walker=walker)
 
-    def _produce_images(self, pattern, num):
+    async def _produce_images(self, pattern, num):
         camera = FileCamera(os.path.join(self.directory, pattern))
         if self.roi_x0 is not None:
-            camera.roi_x0 = self.roi_x0
+            await camera.set_roi_x0(self.roi_x0)
         if self.roi_width is not None:
-            camera.roi_width = self.roi_width
+            await camera.set_roi_width(self.roi_width)
         if self.roi_y0 is not None:
-            camera.roi_y0 = self.roi_y0
+            await camera.set_roi_y0(self.roi_y0)
         if self.roi_height is not None:
-            camera.roi_height = self.roi_height
+            await camera.set_roi_height(self.roi_height)
 
         for i in wrap_iterable(list(range(num))):
-            yield camera.grab()
+            yield await camera.grab()
 
     def take_darks(self):
         return self._produce_images(self.darks_pattern, self.num_darks)

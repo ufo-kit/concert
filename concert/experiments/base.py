@@ -3,12 +3,15 @@ An experiment can be run multiple times. The base :py:class:`.Experiment` takes
 care of proper logging structure.
 """
 
+import asyncio
 import logging
 import os
 import time
-from concert.casync import casync
+from concert.commands import command
+from concert.coroutines.base import broadcast
+from concert.coroutines.sinks import null
 from concert.progressbar import wrap_iterable
-from concert.base import Parameterizable, Parameter, Selection, State, check
+from concert.base import check, Parameterizable, Parameter, Selection, State, StateError, transition
 
 
 LOG = logging.getLogger(__name__)
@@ -30,7 +33,7 @@ class Acquisition(object):
 
     .. py:attribute:: acquire
 
-        a callable which acquires the data, takes no arguments, can be None.
+        a coroutine function which acquires the data, takes no arguments, can be None.
 
     """
 
@@ -39,35 +42,23 @@ class Acquisition(object):
         self.producer = producer
         self.consumers = [] if consumers is None else consumers
         # Don't bother with checking this for None later
-        self.acquire = acquire if acquire else lambda: None
-        self._aborted = False
+        if acquire and not asyncio.iscoroutinefunction(acquire):
+            raise TypeError('acquire must be a coroutine function')
+        self.acquire = acquire
 
-    def connect(self):
-        """Connect producer with consumers."""
-        self._aborted = False
-        started = []
-        for not_started in self.consumers:
-            started.append(not_started())
-
-        for item in self.producer():
-            if self._aborted:
-                LOG.info("Acquisition '%s' aborted", self.name)
-                break
-            for consumer in started:
-                consumer.send(item)
-
-    @casync
-    def abort(self):
-        self._aborted = True
-
-    def __call__(self):
+    async def __call__(self):
         """Run the acquisition, i.e. acquire the data and connect the producer and consumers."""
-        LOG.debug("Running acquisition '{}'".format(self))
+        LOG.debug(f"Running acquisition '{self.name}'")
+        consumers = self.consumers
+        if not consumers:
+            LOG.debug(f"`{self.name}' has no consumers, using null")
+            consumers = [null]
 
         if self.acquire:
-            self.acquire()
+            await self.acquire()
 
-        self.connect()
+        coros = broadcast(self.producer(), *consumers)
+        await asyncio.gather(*coros, return_exceptions=False)
 
     def __repr__(self):
         return "Acquisition({})".format(self.name)
@@ -118,41 +109,41 @@ class Experiment(Parameterizable):
         self.log = LOG
         super(Experiment, self).__init__()
 
-        if self.separate_scans and self.walker:
+        if separate_scans and walker:
             # The data is not supposed to be overwritten, so find an iteration which
             # hasn't been used yet
-            while self.walker.exists(self.name_fmt.format(self.iteration)):
-                self.iteration += 1
+            while self.walker.exists(self._name_fmt.format(self._iteration)):
+                self._iteration += 1
 
-    def _get_iteration(self):
+    async def _get_iteration(self):
         return self._iteration
 
-    def _set_iteration(self, iteration):
+    async def _set_iteration(self, iteration):
         self._iteration = iteration
 
-    def _get_separate_scans(self):
+    async def _get_separate_scans(self):
         return self._separate_scans
 
-    def _set_separate_scans(self, separate_scans):
+    async def _set_separate_scans(self, separate_scans):
         self._separate_scans = separate_scans
 
-    def _get_name_fmt(self):
+    async def _get_name_fmt(self):
         return self._name_fmt
 
-    def _set_name_fmt(self, fmt):
+    async def _set_name_fmt(self, fmt):
         self._name_fmt = fmt
 
-    def _get_log_level(self):
+    async def _get_log_level(self):
         return logging.getLevelName(self.log.getEffectiveLevel()).lower()
 
-    def _set_log_level(self, level):
+    async def _set_log_level(self, level):
         self.log.setLevel(level.upper())
 
-    def prepare(self):
+    async def prepare(self):
         """Gets executed before every experiment run."""
         pass
 
-    def finish(self):
+    async def finish(self):
         """Gets executed after every experiment run."""
         pass
 
@@ -205,42 +196,30 @@ class Experiment(Parameterizable):
                 return acq
         raise ExperimentError("Acquisition with name `{}' not found".format(name))
 
-    @casync
-    @check(source=['running'], target=['standby'])
-    def abort(self):
-        self._state_value = 'aborting'
-        LOG.info('Experiment aborted')
-        for acq in self.acquisitions:
-            acq.abort().join()
-        self._state_value = 'standby'
-
-    def acquire(self):
+    async def acquire(self):
         """
         Acquire data by running the acquisitions. This is the method which implements
         the data acquisition and should be overriden if more functionality is required,
         unlike :meth:`~.Experiment.run`.
         """
         for acq in wrap_iterable(self._acquisitions):
-            if self.state != 'running':
+            if await self.get_state() != 'running':
                 break
-            acq()
+            await acq()
 
-    @casync
+    @command()
     @check(source=['standby', 'error'], target='standby')
-    def run(self):
-        """
-        run()
-
-        Compute the next iteration and run the :meth:`~.base.Experiment.acquire`.
-        """
-        self._state_value = 'running'
+    @transition(immediate='running', target='standby')
+    async def run(self):
         start_time = time.time()
         handler = None
+        iteration = await self.get_iteration()
+        separate_scans = await self.get_separate_scans()
 
         try:
             if self.walker:
-                if self.separate_scans:
-                    self.walker.descend(self.name_fmt.format(self.iteration))
+                if separate_scans:
+                    self.walker.descend((await self.get_name_fmt()).format(iteration))
                 if os.path.exists(self.walker.current):
                     # We might have a dummy walker which doesn't create the directory
                     handler = logging.FileHandler(os.path.join(self.walker.current,
@@ -249,32 +228,41 @@ class Experiment(Parameterizable):
                                                   '- %(message)s')
                     handler.setFormatter(formatter)
                     self.log.addHandler(handler)
-            self.log.info(self)
-            LOG.debug('Experiment iteration %d start', self.iteration)
-            self.prepare()
-            self.acquire()
-        except:
-            self._state_value = 'error'
-            LOG.exception('Error while running experiment')
+            self.log.info(await self.info_table)
+            LOG.debug('Experiment iteration %d start', iteration)
+            await self.prepare()
+            await self.acquire()
+        except asyncio.CancelledError:
+            # This is normal, no special state needed -> standby
+            LOG.warn('Experiment cancelled')
+        except Exception as e:
+            # Something bad happened and we can't know what, so set the state to error
+            LOG.warn(f"Error `{e}' while running experiment")
+            raise StateError('error', msg=str(e))
+        except KeyboardInterrupt:
+            LOG.warn('Experiment cancelled by keyboard interrupt')
+            self._state_value = 'standby'
             raise
         finally:
             try:
-                self.finish()
-            except:
-                self._state_value = 'error'
-                LOG.exception('Error while running experiment')
-                raise
+                await self.finish()
+            except Exception as e:
+                LOG.warn(f"Error `{e}' while finalizing experiment")
+                raise StateError('error', msg=str(e))
             finally:
-                if self.separate_scans and self.walker:
+                if separate_scans and self.walker:
                     self.walker.ascend()
                 LOG.debug('Experiment iteration %d duration: %.2f s',
-                          self.iteration, time.time() - start_time)
+                          iteration, time.time() - start_time)
                 if handler:
                     handler.close()
                     self.log.removeHandler(handler)
-                self.iteration += 1
+                await self.set_iteration(iteration + 1)
 
-        self._state_value = 'standby'
+
+class AcquisitionError(Exception):
+    """Acquisition-related exceptions."""
+    pass
 
 
 class ExperimentError(Exception):

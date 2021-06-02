@@ -1,5 +1,4 @@
 """Experiment automation based on on-line data analysis."""
-from concert.casync import casync
 
 
 class ClosedLoop(object):
@@ -15,40 +14,39 @@ class ClosedLoop(object):
                         -- control <--
 
     """
-    def initialize(self):
+    async def initialize(self):
         """Bring the experimental setup to some defined initial (reference) state."""
         pass
 
-    def measure(self):
+    async def measure(self):
         """Conduct a measurement from data acquisition to analysis."""
         pass
 
-    def control(self):
+    async def control(self):
         """React on the result of a measurement."""
         pass
 
-    def compare(self):
+    async def compare(self):
         """Return True if the metric is satisfied, False otherwise. This is the decision making
         process.
         """
         raise NotImplementedError
 
-    @casync
-    def run(self, max_iterations=10):
+    async def run(self, max_iterations=10):
         """
         run(self, max_iterations=10)
 
         Run the loop until the metric is satisfied, if we don't converge in *max_iterations* then
         the run is considered unsuccessful and False is returned, otherwise True.
         """
-        self.initialize()
+        await self.initialize()
 
         for i in range(max_iterations):
-            self.measure()
-            if self.compare():
+            await self.measure()
+            if await self.compare():
                 return True
             else:
-                self.control()
+                await self.control()
 
         return False
 
@@ -57,5 +55,5 @@ class DummyLoop(ClosedLoop):
 
     """A dummy optimization loop."""
 
-    def compare(self):
+    async def compare(self):
         return True

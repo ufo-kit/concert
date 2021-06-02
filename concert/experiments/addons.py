@@ -2,11 +2,8 @@
 the acquired data, e.g. write images to disk, do tomographic reconstruction etc.
 """
 import logging
-import numpy as np
-from concert.casync import threaded
-from concert.coroutines.base import broadcast, coroutine
-from concert.coroutines.filters import queue
-from concert.coroutines.sinks import Accumulate, Result
+from concert.coroutines.base import async_generate
+from concert.coroutines.sinks import Accumulate
 
 
 LOG = logging.getLogger(__name__)
@@ -136,15 +133,10 @@ class ImageWriter(Addon):
     .. py:attribute:: walker
 
     A :class:`~concert.storage.Walker` instance
-
-    .. py:attribute:: casync
-
-    If True write images casynchronously
     """
 
-    def __init__(self, acquisitions, walker, casync=True):
+    def __init__(self, acquisitions, walker):
         self.walker = walker
-        self._casync = casync
         self._writers = {}
         super(ImageWriter, self).__init__(acquisitions)
 
@@ -163,14 +155,12 @@ class ImageWriter(Addon):
 
     def _write_sequence(self, acquisition, block):
         """Wrap the walker and write data."""
-        def wrapped_writer():
+        # TODO: what with block?
+        async def wrapped_writer(producer):
             """Returned wrapper."""
             try:
                 self.walker.descend(acquisition.name)
-                coro = self.walker.write()
-                if self._casync:
-                    coro = queue(coro, process_all=True, block=block, make_deepcopy=False)
-                return coro
+                await self.walker.write(producer)
             finally:
                 self.walker.ascend()
 
@@ -178,95 +168,33 @@ class ImageWriter(Addon):
 
 
 class OnlineReconstruction(Addon):
-    def __init__(self, experiment, reco_args, process_normalization=False,
-                 consumer=None, block=False, wait_for_projections=False,
-                 walker=None, slice_directory='online-slices'):
-        from multiprocessing.pool import ThreadPool
-        from threading import Event
+    def __init__(self, experiment, reco_args, do_normalization=True,
+                 average_normalization=True, walker=None, slice_directory='online-slices'):
         from concert.ext.ufo import GeneralBackprojectManager
 
         self.experiment = experiment
-        self.dark_result = Result()
-        self.flat_result = Result()
-        self.manager = GeneralBackprojectManager(reco_args)
+        self.manager = GeneralBackprojectManager(reco_args,
+                                                 average_normalization=average_normalization)
         self.walker = walker
         self.slice_directory = slice_directory
-        self.process_normalization = process_normalization
-        self._pool = ThreadPool(processes=2)
-        self._events = {'darks': Event(), 'flats': Event()}
-        self.consumer = consumer
-        self.block = block
-        self.wait_for_projections = wait_for_projections
         self._consumers = {}
-        super(OnlineReconstruction, self).__init__(experiment.acquisitions)
+        self._do_normalization = do_normalization
+        super().__init__(experiment.acquisitions)
 
-    @threaded
-    def _average_images(self, queue, im_type):
-        average = None
-        i = 0
-        while True:
-            image = queue.get()
-            if image is None:
-                if im_type == 'darks':
-                    self.manager.dark = average
-                else:
-                    self.manager.flat = average
-                self._events[im_type].set()
-                LOG.debug('%s pre-processing done', im_type)
-                break
-
-            if self.process_normalization:
-                if average is None:
-                    average = np.zeros_like(image, dtype=np.float32)
-                average = (average * i + image) / (i + 1)
-                i += 1
-            else:
-                average = image
-
-    def _create_averaging(self, im_type):
-        @coroutine
-        def create_averaging_coro():
-            import queue as queue_module
-
-            self._events[im_type].clear()
-            queue = queue_module.Queue()
-            self._average_images(queue, im_type)
-            try:
-                while True:
-                    image = yield
-                    queue.put(image)
-            except GeneratorExit:
-                queue.put(None)
-
-        return create_averaging_coro
-
-    def _reconstruct(self):
-        if hasattr(self.experiment, 'darks') and hasattr(self.experiment, 'flats'):
-            events = list(self._events.values()) if self.process_normalization else None
-        else:
-            events = None
-        consumers = []
-        write_coro = None
-
-        if self.consumer:
-            consumers.append(self.consumer)
+    async def _reconstruct(self, producer):
+        await self.manager.backproject(producer)
         if self.walker:
-            self.walker.descend(self.slice_directory)
-            write_coro = self.walker.write(dsetname='slice_{:>04}.tif')
-            self.walker.ascend()
-            consumers.append(write_coro)
-        consumer = broadcast(*consumers) if consumers else None
-
-        return self.manager(consumer=consumer, block=self.block, wait_for_events=events,
-                            wait_for_projections=self.wait_for_projections)
+            with self.walker.inside(self.slice_directory):
+                producer = async_generate(self.manager.volume)
+                await self.walker.write(producer, dsetname='slice_{:>04}.tif')
 
     def _attach(self):
-        if hasattr(self.experiment, 'darks') and hasattr(self.experiment, 'flats'):
-            self._consumers[self.experiment.darks] = self._create_averaging('darks')
-            self._consumers[self.experiment.flats] = self._create_averaging('flats')
+        if self._do_normalization:
+            self._consumers[self.experiment.darks] = self.manager.update_darks
+            self._consumers[self.experiment.flats] = self.manager.update_flats
         self._consumers[self.experiment.radios] = self._reconstruct
 
-        for acq, consumer in list(self._consumers.items()):
+        for acq, consumer in self._consumers.items():
             acq.consumers.append(consumer)
 
     def _detach(self):

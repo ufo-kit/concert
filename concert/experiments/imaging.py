@@ -3,26 +3,26 @@ import numpy as np
 from concert.quantities import q
 
 
-def frames(num_frames, camera, callback=None):
+async def frames(num_frames, camera, callback=None):
     """
     A generator which takes *num_frames* using *camera*. *callback* is called
     after every taken frame.
     """
-    if camera.state == 'recording':
-        camera.stop_recording()
+    if await camera.get_state() == 'recording':
+        await camera.stop_recording()
 
-    camera['trigger_source'].stash().join()
-    camera.trigger_source = camera.trigger_sources.SOFTWARE
+    await camera['trigger_source'].stash()
+    await camera.set_trigger_source(camera.trigger_sources.SOFTWARE)
 
     try:
-        with camera.recording():
+        async with camera.recording():
             for i in range(num_frames):
-                camera.trigger()
-                yield camera.grab()
+                await camera.trigger()
+                yield await camera.grab()
                 if callback:
-                    callback()
+                    await callback()
     finally:
-        camera['trigger_source'].restore().join()
+        await camera['trigger_source'].restore()
 
 
 def tomo_angular_step(frame_width):
