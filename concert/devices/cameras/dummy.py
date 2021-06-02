@@ -1,14 +1,12 @@
 """This module provides a simple dummy camera."""
 import asyncio
-import glob
-import os
 import time
 import numpy as np
-from concert.coroutines.base import run_in_executor, run_in_loop
+from concert.coroutines.base import run_in_executor
 from concert.quantities import q
 from concert.base import transition, Quantity
 from concert.devices.cameras import base
-from concert.storage import read_image
+from concert.readers import TiffSequenceReader
 
 
 class Base(base.Camera):
@@ -145,72 +143,34 @@ class FileCamera(Base):
 
     def __init__(self, pattern, reset_on_start=True, start_index=0):
         # Let users change the directory
-        self.pattern = pattern
         super(FileCamera, self).__init__()
-
-        self._start_index = start_index
-        self.index = 0
-        self._image_index = 0
+        self._reader = TiffSequenceReader(pattern)
+        self.index = start_index
         self.reset_on_start = reset_on_start
-        if os.path.isdir(pattern):
-            self.filenames = [os.path.join(pattern, file_name) for file_name in
-                              sorted(os.listdir(pattern))]
-        else:
-            self.filenames = sorted(glob.glob(pattern))
-
-        if not self.filenames:
-            raise base.CameraError("No files found")
-
-        run_in_loop(self._read_next_file())
-        run_in_loop(self._fastforward())
-        self._roi_width = self._image.shape[-1] * q.pixel
-        self._roi_height = self._image.shape[-2] * q.pixel
+        self._roi_height = 0 * q.px
+        self._roi_width = 0 * q.px
 
     @transition(target='recording')
     async def _record_real(self):
         if self.reset_on_start:
             self.index = 0
-            self._image_index = 0
-            await self._read_next_file()
-            await self._fastforward()
-
-    async def _read_next_file(self):
-        if self.index < len(self.filenames):
-            self._image = await run_in_executor(read_image, self.filenames[self.index])
-            self._image_index = 0
-            self.index += 1
-            if self._image.ndim == 2:
-                # Make sure the image is 3D so that grab can be simpler
-                self._image = self._image[np.newaxis, :]
-        else:
-            self._image = None
-
-    async def _fastforward(self):
-        image_index = self._image.shape[0]
-        while image_index <= self._start_index:
-            await self._read_next_file()
-            if self._image is None:
-                raise base.CameraError('Not enough files for specified start index')
-            image_index += self._image.shape[0]
-
-        self._image_index = self._start_index - image_index + self._image.shape[0]
 
     async def _grab_real(self):
-        if self._image is None:
-            result = None
+        roi_x0 = await self.get_roi_x0()
+        roi_y0 = await self.get_roi_y0()
+        if await self.get_roi_height():
+            y_region = (roi_y0 + await self.get_roi_height()).magnitude
         else:
-            roi_x0 = await self.get_roi_x0()
-            roi_y0 = await self.get_roi_y0()
-            y_region = roi_y0 + await self.get_roi_height()
-            x_region = roi_x0 + await self.get_roi_width()
-            result = self._image[self._image_index,
-                                 roi_y0.magnitude:y_region.magnitude,
-                                 roi_x0.magnitude:x_region.magnitude]
-            self._image_index += 1
-            if self._image_index == self._image.shape[0]:
-                await self._read_next_file()
+            y_region = None
+        if await self.get_roi_width():
+            x_region = (roi_x0 + await self.get_roi_width()).magnitude
+        else:
+            x_region = None
 
-        return result
+        image = await run_in_executor(self._reader.read, self.index)
+        self.index += 1
+
+        return image[roi_y0.magnitude:y_region, roi_x0.magnitude:x_region]
 
 
 class BufferedCamera(Camera, base.BufferedMixin):
