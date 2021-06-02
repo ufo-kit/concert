@@ -64,6 +64,7 @@ class DummyDevice(Device):
             return self._slow
         except asyncio.CancelledError:
             LOG.log(AIODEBUG, 'get slow cancelled %s', self._slow)
+            raise
         except KeyboardInterrupt:
             # do not scream
             LOG.debug("KeyboardInterrupt caught while getting")
@@ -76,6 +77,7 @@ class DummyDevice(Device):
             self._slow = value
         except asyncio.CancelledError:
             LOG.log(AIODEBUG, 'set slow cancelled %s', value)
+            raise
 
     async def _get_value(self):
         """Get the real value."""
@@ -111,6 +113,7 @@ class DummyDevice(Device):
             return value
         except asyncio.CancelledError:
             LOG.log(AIODEBUG, f'Doing nothing cancelled: {value}')
+            raise
 
 
 class SelectionDevice(Device):
