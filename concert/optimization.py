@@ -9,57 +9,56 @@ This module provides execution routines and algorithms for optimization.
 """
 import logging
 from functools import wraps
-from concert.casync import casync
+from concert.coroutines.base import run_in_executor, run_in_loop_thread_blocking
 from concert.quantities import q
 
 
 LOG = logging.getLogger(__name__)
 
 
-@casync
-def optimize(function, x_0, algorithm, alg_args=(), alg_kwargs=None,
-             consumer=None):
+async def optimize(function, x_0, algorithm, alg_args=(), alg_kwargs=None,
+                   callback=None):
     """
-    optimize(function, x_0, algorithm, alg_args=(), alg_kwargs=None, consumer=None)
+    optimize(function, x_0, algorithm, alg_args=(), alg_kwargs=None, callback=None)
 
-    Optimize y = *function* (x), where *x_0* is the initial guess.
-    *algorithm* is the optimization algorithm to be used::
+    Optimize y = await *function* (x), so *function* must be a coroutine function. *x_0* is the
+    initial guess. *algorithm* is the optimization algorithm to be used::
 
         algorithm(x_0, *alg_args, **alg_kwargs)
 
-    *consumer* receives all the (x, y) values as they are obtained.
+    *callback* is a callable called with all the (x, y) values as they are obtained.
     """
     alg_kwargs = {} if alg_kwargs is None else alg_kwargs
     data = []
 
-    def evaluate(x_val):
+    async def evaluate(x_val):
         """Execute y = f(*x*), save (x, y) pair and return y."""
-        result = function(x_val)
+        result = await function(x_val)
         pair = x_val, result
-        if consumer:
-            consumer.send(pair)
+        if callback:
+            await callback(pair)
         data.append(pair)
 
         return result
 
-    result = algorithm(evaluate, x_0, *alg_args, **alg_kwargs)
+    result = await algorithm(evaluate, x_0, *alg_args, **alg_kwargs)
 
     return result, data
 
 
-def optimize_parameter(parameter, feedback, x_0, algorithm, alg_args=(),
-                       alg_kwargs=None, consumer=None):
+async def optimize_parameter(parameter, feedback, x_0, algorithm, alg_args=(),
+                             alg_kwargs=None, callback=None):
     """
-    Optimize *parameter* and use the *feedback* (a callable)
+    Optimize *parameter* and use the *feedback* (a coroutine function)
     as a result. Other arguments are the same as by :func:`optimize`.
     The function to be optimized is determined as follows::
 
-        parameter.set(x)
-        y = feedback()
+        await parameter.set(x)
+        y = await feedback()
 
-    *consumer* is the same as by :func:`optimize`.
+    *callback* is the same as by :func:`optimize`.
     """
-    def function(x_val):
+    async def function(x_val):
         """
         Create a function from setting a parameter and getting a feedback.
         """
@@ -70,16 +69,16 @@ def optimize_parameter(parameter, feedback, x_0, algorithm, alg_args=(),
         if parameter.upper is not None:
             if parameter.upper is not None and x_val > parameter.upper:
                 x_val = parameter.upper
-        parameter.set(x_val).join()
+        await parameter.set(x_val)
 
-        return feedback()
+        return await feedback()
 
-    return optimize(function, x_0, algorithm, alg_args=alg_args,
-                    alg_kwargs=alg_kwargs, consumer=consumer)
+    return await optimize(function, x_0, algorithm, alg_args=alg_args,
+                          alg_kwargs=alg_kwargs, callback=callback)
 
 
-def halver(function, x_0, initial_step=None, epsilon=None,
-           max_iterations=100):
+async def halver(function, x_0, initial_step=None, epsilon=None,
+                 max_iterations=100):
     """
     Halving the interval, evaluate *function* based on *param*. Use
     *initial_step*, *epsilon* precision and *max_iterations*.
@@ -96,7 +95,7 @@ def halver(function, x_0, initial_step=None, epsilon=None,
     i = 0
     last_x = x_0
 
-    y_0 = function(x_0)
+    y_0 = await function(x_0)
     # Remember the best x and y
     best = x_0, y_0
 
@@ -111,7 +110,7 @@ def halver(function, x_0, initial_step=None, epsilon=None,
     x_0 = move(x_0, direction, step)
 
     while i < max_iterations:
-        y_1 = function(x_0)
+        y_1 = await function(x_0)
 
         if step < epsilon:
             break
@@ -133,7 +132,7 @@ def halver(function, x_0, initial_step=None, epsilon=None,
         i += 1
 
     # Apply the best known value
-    function(best[0])
+    await function(best[0])
 
     return best[0]
 
@@ -147,9 +146,22 @@ def _quantized(strip_func):
     @wraps(strip_func)
     def stripped(function):
         @wraps(function)
-        def wrapper(eval_func, x_0, *args, **kwargs):
-            q_func = lambda x: eval_func(q.Quantity(strip_func(x), x_0.units))
-            dim_less = function(q_func, x_0.magnitude, *args, **kwargs)
+        async def wrapper(eval_func, x_0, *args, **kwargs):
+            def q_func(x):
+                """We need to run the objective function in a separate thread and loop because we
+                have been called from a running event loop and have things to do in an event loop
+                and can't use the running one.
+                """
+                coro = eval_func(q.Quantity(strip_func(x), x_0.units))
+                return run_in_loop_thread_blocking(coro)
+
+            def to_run_in_exec():
+                """Run the optimization *function* in a pool so that we comply with the async nature
+                of concert.
+                """
+                return function(q_func, x_0.magnitude, *args, **kwargs)
+
+            dim_less = await run_in_executor(to_run_in_exec)
             return q.Quantity(dim_less, x_0.units)
         return wrapper
 
