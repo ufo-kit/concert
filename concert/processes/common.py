@@ -1,14 +1,13 @@
+import asyncio
+import math
 from itertools import product
 import numpy as np
 import logging
-from scipy.ndimage.filters import gaussian_filter
-from concert.casync import casync, wait
 from concert.quantities import q
 from concert.measures import rotation_axis
 from concert.optimization import halver, optimize_parameter
-from concert.imageprocessing import center_of_mass, flat_correct, find_needle_tips
-from concert.coroutines.base import coroutine
-from concert.helpers import expects, Numeric
+from concert.imageprocessing import flat_correct, find_needle_tips
+from concert.helpers import expects, is_iterable, Numeric
 from concert.devices.motors.base import LinearMotor, RotationMotor
 from concert.devices.shutters.base import Shutter
 from concert.devices.cameras.base import Camera
@@ -18,174 +17,104 @@ from concert.progressbar import wrap_iterable
 LOG = logging.getLogger(__name__)
 
 
-def _pull_first(tuple_list):
-        for tup in tuple_list:
-            yield tup[0]
+async def scan(params, values, feedback, go_back=False):
+    """Multi-dimensional scan of :class:`concert.base.Parameter` instances *params*, which are set
+    to *values*. *feedback* is a coroutine function without parameters called after every iteration.
+    If *go_back* is True, the original parameter values are restored at the end.
 
+    If *params* is just one parameter and *values* is one list of values, perform a 1D scan. In this
+    case tuples (x, y) are returned where x are the individual elements from the list of *values*
+    and y = feedback() is called after every value setting.
 
-def scan(feedback, regions, callbacks=None):
-    """A multidimensional scan. *feedback* is a callable which takes no arguments and provides
-    feedback after some parameter is changed. *regions* specifies the scanned parameter, it is
-    either a :class:`concert.helpers.Region` or a list of those for multidimensional scan. The
-    fastest changing parameter is the last one specified. *callbacks* is a dictionary in the form
-    {region: function}, where *function* is a callable with no arguments (just like *feedback*) and
-    is called every time the parameter in *region* is changed. One would use a scan for example like
-    this::
+    If *params* is a list of parameters and *values* is a list of lists, assign values[i] to
+    params[i] and do a multi-dimensional scan, where last parameter changes the fastest (in other
+    words a nested scan of all parameters, where *feedback* is called for every combination of
+    parameter values. The combinations are obtained as a cartesian product of the *values*. For
+    example, scanning camera exposure times and motor positions with values=[[1, 2] * q.s, [3, 5] *
+    q.mm], would result in this::
 
-        import numpy as np
-        from concert.casync import resolve
-        from concert.helpers import Region
+    [((1 * q.s, 3 * q.mm), feedback()), ((1 * q.s, 5 * q.mm), feedback()),
+     ((2 * q.s, 3 * q.mm), feedback()), ((2 * q.s, 5 * q.mm), feedback())]
 
-        def take_flat_field():
-            # Do something here
-            pass
+    In general, for n parameters and lists of values, returned are tuples ((x_0, ..., x_{n-1}), y),
+    where y = feedback() is called after every value setting (any parameter change). Parameter
+    setting occurs in parallel, is waited for and then *feedback* is called.
 
-        exp_region = Region(camera['exposure_time'], np.linspace(1, 100, 100) * q.ms)
-        position_region = Region(motor['position'], np.linspace(0, 180, 1000) * q.deg)
-        callbacks = {exp_region: take_flat_field}
+    A simple 1D example::
 
-        # This is a 2D scan with position_region in the inner loop. It acquires a tomogram, changes
-        # the exposure time and continues like this until all exposure times are exhausted.
-        # Take_flat_field is called every time the exposure_time of the camera is changed
-        # (in this case after every tomogram) and you can use it to correct the acquired images.
-        for result in resolve(scan(camera.grab, [exp_region, position_region],
-                              callbacks=callbacks)):
-            # Do something real instead of just a print
-            print result
+        async for vector in scan(camera['exposure_time'], np.arange(1, 10, 1) * q.s, feedback):
+            print(vector) # prints (1 * q.s, feedback()) and so on
 
-    From the execution order it is equivalent to (in reality there is more for making the code
-    casynchronous)::
+    2D example::
 
-        for exp_time in np.linspace(1, 100, 100) * q.ms:
-            for position in np.linspace(0, 180, 1000) * q.deg:
-                yield feedback()
+        params = [camera['exposure_time'], motor['position']]
+        values = [np.arange(1, 10, 1) * q.s, np.arange(5, 15, 2) * q.mm]
+        async for vector in scan(params, values, feedback):
+            print(vector) # prints ((1 * q.s, 5 * q.mm), feedback()) and so on
 
     """
-    changes = []
-    if not isinstance(regions, (list, tuple, np.ndarray)):
-        regions = [regions]
+    params = params if is_iterable(params) else [params]
+    ndim = len(params)
+    values = values if is_iterable(values[0]) else [values]
 
-    if callbacks is None:
-        callbacks = {}
+    if ndim > 1 and len(params) != len(values):
+        raise RuntimeError
+    num_iterations = math.prod([len(vals) for vals in values])
 
-    # Changes store the indices at which parameters change, e.g. for two parameters and interval
-    # lengths 2 for first and 3 for second changes = [3, 1], i. e. first parameter is changed when
-    # the flattened iteration index % 3 == 0, second is changed every iteration.
-    # we do this because parameter setting might be expensive even if the value does not change
-    current_mul = 1
-    for i in range(len(regions))[::-1]:
-        changes.append(current_mul)
-        current_mul *= len(regions[i].values)
-    changes.reverse()
+    if go_back:
+        for param in params:
+            await param.stash()
 
-    def get_changed(index):
-        """Returns a tuple of indices of changed parameters at given iteration *index*."""
-        return [i for i in range(len(regions)) if index % changes[i] == 0]
-
-    @casync
-    def get_value(index, tup, previous):
-        """Get value after setting parameters, *index* is the flattened iteration index, *tup* are
-        all the parameter values, *previous* is the previous future or None if this is the first
-        time.
-        """
-        if previous:
-            previous.join()
-
-        changed = get_changed(index)
-        futures = []
-        for i in changed:
-            futures.append(regions[i].parameter.set(tup[i]))
-        wait(futures)
-
-        for i in changed:
-            if regions[i] in callbacks:
-                callbacks[regions[i]]()
-
-        return tup + (feedback(),)
-
-    future = None
-
-    for i, tup in wrap_iterable(enumerate(product(*regions))):
-        future = get_value(i, tup, future)
-        yield future
+    try:
+        for vector in wrap_iterable(product(*values), total=num_iterations):
+            setters = [params[i].set(vector[i]) for i in range(len(vector))]
+            await asyncio.gather(*setters)
+            yield (vector[0] if ndim == 1 else vector, await feedback())
+    finally:
+        if go_back:
+            for param in params:
+                await param.restore()
 
 
-def scan_param_feedback(scan_param_regions, feedback_param, callbacks=None):
+async def ascan(param, start, stop, step, feedback, go_back=False):
+    """A convenience function to perform a 1D scan on parameter *param*, scan from *start* value to
+    *stop* with *step*. *feedback* and *go_back* are the same as in the :func:`.scan`. This function
+    just computes the values from *start*, *stop*, *step* and then calls :func:`.scan`::
+
+        scan(param, values, feedback=feedback, go_back=go_back))
     """
-    Convenience function to scan some parameters and measure another parameter.
+    if start.units != stop.units or stop.units != step.units:
+        raise RuntimeError
+    region = np.arange(start.magnitude, stop.magnitude, step.magnitude) * start.units
 
-    Scan the *scan_param_regions* parameters and measure *feedback_param*.
+    async for item in scan(param, region, feedback, go_back=go_back):
+        yield item
+
+
+async def dscan(param, delta, step, feedback, go_back=False):
+    """A convenience function to perform a 1D scan on parameter *param*, scan from its current value
+    to some *delta* with *step*. *feedback* and *go_back* are the same as in the :func:`.scan`. This
+    function just computes the start and stop values and calls :func:`.ascan`::
+
+        start = await param.get()
+        ascan(param, start, start + delta, step, feedback, go_back=go_back)
     """
-    def feedback():
-        return feedback_param.get().result()
+    start = await param.get()
 
-    return scan(feedback, scan_param_regions, callbacks=callbacks)
-
-
-def ascan(param_list, n_intervals, handler, initial_values=None):
-    """
-    For each of the *n_intervals* and for each of the *(parameter, start,
-    stop)* tuples in *param_list*, calculate a set value from *(stop - start) /
-    n_intervals* and set *parameter* to it::
-
-        ascan([(motor['position'], 0 * q.mm, 2 * q.mm)], 5, handler)
-
-    When all devices have reached the set point *handler* is called with a list
-    of the parameters as its first argument.
-
-    If *initial_values* is given, it must be a list with the same length as
-    *devices* containing start values from where each device is scanned.
-    """
-    parameters = [param for param in _pull_first(param_list)]
-
-    if initial_values:
-        if len(param_list) != len(initial_values):
-            raise ValueError("*initial_values* must match *parameter_list*")
-    else:
-        initial_values = []
-
-        for param in parameters:
-            if param.unit:
-                initial_values.append(0 * param.unit)
-            else:
-                initial_values.append(0)
-
-    initialized_params = list([x[0] + (x[1],) for x in zip(param_list, initial_values)])
-
-    for i in range(n_intervals + 1):
-        futures = []
-
-        for param, start, stop, init in initialized_params:
-            step = (stop - start) / n_intervals
-            value = init + start + i * step
-            futures.append(param.set(value))
-
-        wait(futures)
-        handler(parameters)
-
-
-def dscan(parameter_list, n_intervals, handler):
-    """
-    For each of the *n_intervals* and for each of the *(parameter, start,
-    stop)* tuples in *param_list*, calculate a set value from *(stop - start) /
-    n_intervals* and set *parameter*.
-    """
-    initial_values = [param.get().result()
-                      for param in _pull_first(parameter_list)]
-
-    return ascan(parameter_list, n_intervals, handler, initial_values)
+    async for item in ascan(param, start, start + delta, step, feedback, go_back=go_back):
+        yield item
 
 
 @expects(Camera, LinearMotor, measure=None, opt_kwargs=None,
-         plot_consumer=None, frame_consumer=None)
-def focus(camera, motor, measure=np.std, opt_kwargs=None,
-          plot_consumer=None, frame_consumer=None):
+         plot_callback=None, frame_callback=None)
+async def focus(camera, motor, measure=np.std, opt_kwargs=None,
+                plot_callback=None, frame_callback=None):
     """
     Focus *camera* by moving *motor*. *measure* is a callable that computes a
     scalar that has to be maximized from an image taken with *camera*.
     *opt_kwargs* are keyword arguments sent to the optimization algorithm.
-    *plot_consumer* is fed with y values from the optimization and
-    *frame_consumer* is fed with the incoming frames.
+    *plot_callback* is fed with y values from the optimization and
+    *frame_callback* is fed with the incoming frames.
 
     This function is returning a future encapsulating the focusing event. Note,
     that the camera is stopped from recording as soon as the optimal position
@@ -195,110 +124,105 @@ def focus(camera, motor, measure=np.std, opt_kwargs=None,
         opt_kwargs = {'initial_step': 0.5 * q.mm,
                       'epsilon': 1e-2 * q.mm}
 
-    def get_measure():
-        camera.trigger()
-        frame = camera.grab()
-        if frame_consumer:
-            frame_consumer.send(frame)
+    async def get_measure():
+        await camera.trigger()
+        frame = await camera.grab()
+        if frame_callback:
+            await frame_callback(frame)
         return - measure(frame)
 
-    @coroutine
-    def filter_optimization():
+    async def filter_optimization(xy):
         """
         Filter the optimization's (x, y) subresults to only the y part,
         otherwise the the plot update is not lucid.
         """
-        while True:
-            tup = yield
-            if plot_consumer:
-                plot_consumer.send(tup[1])
+        if plot_callback:
+            await plot_callback(xy[1])
 
-    camera.trigger_source = camera.trigger_sources.SOFTWARE
-    camera.start_recording()
-    f = optimize_parameter(motor['position'], get_measure, motor.position,
-                           halver, alg_kwargs=opt_kwargs,
-                           consumer=filter_optimization())
-    f.add_done_callback(lambda unused: camera.stop_recording())
-    return f
+    await camera['trigger_source'].stash()
+    await camera.set_trigger_source(camera.trigger_sources.SOFTWARE)
+
+    try:
+        async with camera.recording():
+            await optimize_parameter(motor['position'], get_measure,
+                                     await motor.get_position(),
+                                     halver, alg_kwargs=opt_kwargs,
+                                     callback=filter_optimization)
+    finally:
+        await camera['trigger_source'].restore()
 
 
-@casync
 @expects(Camera, RotationMotor, num_frames=Numeric(1), shutter=Shutter,
          flat_motor=LinearMotor, flat_position=Numeric(1, q.m), y_0=Numeric(1),
-         y_1=Numeric(1), frame_consumer=None)
-def acquire_frames_360(camera, rotation_motor, num_frames, shutter=None, flat_motor=None,
-                       flat_position=None, y_0=0, y_1=None, frame_consumer=None):
+         y_1=Numeric(1), frame_callback=None)
+async def acquire_frames_360(camera, rotation_motor, num_frames, shutter=None, flat_motor=None,
+                             flat_position=None, y_0=0, y_1=None, frame_callback=None):
     """
     acquire_frames_360(camera, rotation_motor, num_frames, shutter=None, flat_motor=None,
-                       flat_position=None, y_0=0, y_1=None, frame_consumer=None)
+                       flat_position=None, y_0=0, y_1=None, frame_callback=None)
 
     Acquire frames around a circle.
     """
-    frames = []
     flat = None
-    if camera.state == 'recording':
-        camera.stop_recording()
-    camera['trigger_source'].stash().join()
-    camera.trigger_source = camera.trigger_sources.SOFTWARE
+    frames = []
+    if await camera.get_state() == 'recording':
+        await camera.stop_recording()
+    await camera['trigger_source'].stash()
+    await camera.set_trigger_source(camera.trigger_sources.SOFTWARE)
 
     try:
-        camera.start_recording()
-        if shutter:
-            if shutter.state != 'closed':
-                shutter.close().join()
-            camera.trigger()
-            dark = camera.grab()[y_0:y_1]
-            shutter.open().join()
-        if flat_motor and flat_position is not None:
-            radio_position = flat_motor.position
-            flat_motor.position = flat_position
-            camera.trigger()
-            flat = camera.grab()[y_0:y_1]
-            flat_motor.position = radio_position
-        for i in range(num_frames):
-            rotation_motor.move(2 * np.pi / num_frames * q.rad).join()
-            camera.trigger()
-            frame = camera.grab()[y_0:y_1].astype(np.float)
-            if flat is not None:
-                frame = flat_correct(frame, flat, dark=dark)
-                frame = np.nan_to_num(-np.log(frame))
-                # Huge numbers can also cause trouble
-                frame[np.abs(frame) > 1e6] = 0
-            else:
-                frame = frame.max() - frame
-            if frame_consumer:
-                frame_consumer.send(frame)
-            frames.append(frame)
-
+        async with camera.recording():
+            if shutter:
+                if await shutter.get_state() != 'closed':
+                    await shutter.close()
+                await camera.trigger()
+                dark = (await camera.grab())[y_0:y_1]
+                await shutter.open()
+            if flat_motor and flat_position is not None:
+                radio_position = await flat_motor.get_position()
+                await flat_motor.set_position(flat_position)
+                await camera.trigger()
+                flat = (await camera.grab())[y_0:y_1]
+                await flat_motor.set_position(radio_position)
+            for i in range(num_frames):
+                await rotation_motor.move(2 * np.pi / num_frames * q.rad)
+                await camera.trigger()
+                frame = (await camera.grab())[y_0:y_1].astype(np.float)
+                if flat is not None:
+                    frame = flat_correct(frame, flat, dark=dark)
+                    frame = np.nan_to_num(-np.log(frame))
+                    # Huge numbers can also cause trouble
+                    frame[np.abs(frame) > 1e6] = 0
+                else:
+                    frame = frame.max() - frame
+                frames.append(frame)
+                if frame_callback:
+                    await frame_callback(frame)
         return frames
-    except Exception as e:
-        LOG.error(e)
-        raise
     finally:
-        camera.stop_recording()
         # No side effects
-        camera['trigger_source'].restore().join()
+        await camera['trigger_source'].restore()
 
 
-@casync
 @expects(Camera, RotationMotor, x_motor=RotationMotor, z_motor=RotationMotor,
          get_ellipse_points=find_needle_tips, num_frames=Numeric(1), metric_eps=Numeric(1, q.deg),
          position_eps=Numeric(1, q.deg), max_iterations=Numeric(1),
          initial_x_coeff=Numeric(1, q.dimensionless), initial_z_coeff=Numeric(1, q.dimensionless),
          shutter=Shutter, flat_motor=LinearMotor, flat_position=Numeric(1, q.m),
-         y_0=Numeric(1), y_1=Numeric(1), get_ellipse_points_kwargs=None, frame_consumer=None)
-def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
-                        get_ellipse_points=find_needle_tips, num_frames=10, metric_eps=None,
-                        position_eps=0.1 * q.deg, max_iterations=5,
-                        initial_x_coeff=1 * q.dimensionless, initial_z_coeff=1 * q.dimensionless,
-                        shutter=None, flat_motor=None, flat_position=None, y_0=0, y_1=None,
-                        get_ellipse_points_kwargs=None, frame_consumer=None):
+         y_0=Numeric(1), y_1=Numeric(1), get_ellipse_points_kwargs=None, frame_callback=None)
+async def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
+                              get_ellipse_points=find_needle_tips, num_frames=10, metric_eps=None,
+                              position_eps=0.1 * q.deg, max_iterations=5,
+                              initial_x_coeff=1 * q.dimensionless,
+                              initial_z_coeff=1 * q.dimensionless,
+                              shutter=None, flat_motor=None, flat_position=None, y_0=0, y_1=None,
+                              get_ellipse_points_kwargs=None, frame_callback=None):
     """
     align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
     get_ellipse_points=find_needle_tips, num_frames=10, metric_eps=None,
     position_eps=0.1 * q.deg, max_iterations=5, initial_x_coeff=1 * q.dimensionless,
     initial_z_coeff=1 * q.dimensionless, shutter=None, flat_motor=None, flat_position=None,
-    y_0=0, y_1=None, get_ellipse_points_kwargs=None, frame_consumer=None)
+    y_0=0, y_1=None, get_ellipse_points_kwargs=None, frame_callback=None)
 
     Align rotation axis. *camera* is used to obtain frames, *rotation_motor* rotates the sample
     around the tomographic axis of rotation, *x_motor* turns the sample around x-axis, *z_motor*
@@ -318,8 +242,8 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
     first iteration. If we move the camera instead of the rotation stage, it is often necessary to
     acquire fresh flat fields. In order to make an up-to-date flat correction, specify *shutter* if
     you want fresh dark fields and specify *flat_motor* and *flat_position* to acquire flat fields.
-    Crop acquired images to *y_0* and *y_1*. *frame_consumer* is a coroutine which will receive the
-    frames acquired at different sample positions.
+    Crop acquired images to *y_0* and *y_1*. *frame_callback* is a coroutine function which will be
+    called and awaited for all acquired frames.
 
     The procedure finishes when it finds the minimum angle between an ellipse extracted from the
     sample movement and respective axes or the found angle drops below *metric_eps*. The axis of
@@ -332,38 +256,39 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
         get_ellipse_points_kwargs = {}
 
     if not x_motor and not z_motor:
-        raise ValueError("At least one of the x, z motors must be given")
+        raise ProcessError("At least one of the x, z motors must be given")
 
-    def make_step(i, motor, position_last, angle_last, angle_current, initial_coeff,
-                  rotation_type):
+    async def make_step(i, motor, position_last, angle_last, angle_current, initial_coeff,
+                        rotation_type):
+        cur_pos = await motor.get_position()
         LOG.debug("%s: i: %d, last angle: %s, angle: %s, last position: %s, position: %s",
                   rotation_type, i, angle_last.to(q.deg), angle_current.to(q.deg),
-                  position_last.to(q.deg), motor.position.to(q.deg))
+                  position_last.to(q.deg), cur_pos.to(q.deg))
         if i > 0:
             # Assume linear mapping between the computed angles and motor motion
             if angle_current == angle_last:
                 coeff = 0 * q.dimensionless
             else:
-                coeff = (motor.position - position_last) / (angle_current - angle_last)
+                coeff = (cur_pos - position_last) / (angle_current - angle_last)
         else:
             coeff = initial_coeff
-        position_last = motor.position
+        position_last = cur_pos
         angle_last = angle_current
 
         # Move relative, i.e. if *angle_current* should go to 0, then we need to move in the
         # other direction with *coeff* applied
         LOG.debug("%s coeff: %s, Next position: %s", rotation_type, coeff.to_base_units(),
-                  (motor.position - coeff * angle_current).to(q.deg))
-        future = motor.move(-coeff * angle_current)
+                  (cur_pos - coeff * angle_current).to(q.deg))
+        await motor.move(-coeff * angle_current)
 
-        return (future, position_last, angle_last)
+        return (position_last, angle_last)
 
-    def go_to_best_index(motor, history):
+    async def go_to_best_index(motor, history):
         positions, angles = list(zip(*history))
         best_index = np.argmin(np.abs([angle.to_base_units().magnitude for angle in angles]))
         LOG.debug("Best iteration: %d, position: %s, angle: %s",
                   best_index, positions[best_index].to(q.deg), angles[best_index].to(q.deg))
-        motor.position = positions[best_index]
+        await motor.set_position(positions[best_index])
 
     roll_history = []
     pitch_history = []
@@ -371,66 +296,73 @@ def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
 
     if z_motor:
         roll_angle_last = 0 * q.deg
-        roll_position_last = z_motor.position
+        roll_position_last = await z_motor.get_position()
         roll_continue = True
     if x_motor:
         pitch_angle_last = 0 * q.deg
-        pitch_position_last = x_motor.position
+        pitch_position_last = await x_motor.get_position()
         pitch_continue = True
 
     for i in range(max_iterations):
-        frames = acquire_frames_360(camera, rotation_motor, num_frames, shutter=shutter,
-                                    flat_motor=flat_motor, flat_position=flat_position,
-                                    y_0=y_0, y_1=y_1, frame_consumer=frame_consumer).result()
+        frames = await acquire_frames_360(camera, rotation_motor, num_frames, shutter=shutter,
+                                          flat_motor=flat_motor, flat_position=flat_position,
+                                          y_0=y_0, y_1=y_1, frame_callback=frame_callback)
         tips = get_ellipse_points(frames, **get_ellipse_points_kwargs)
         roll_angle_current, pitch_angle_current, center = rotation_axis(tips)
-        futures = []
+        coros = []
+        x_coro = z_coro = None
         if metric_eps is None:
             metric_eps = np.rad2deg(np.arctan(1 / frames[0].shape[1])) * q.deg
             LOG.debug('Automatically computed metric epsilon: %s', metric_eps)
 
         if z_motor and roll_continue:
-            roll_history.append((z_motor.position, roll_angle_current))
+            z_pos = await z_motor.get_position()
+            roll_history.append((z_pos, roll_angle_current))
             if (np.abs(roll_angle_current) >= metric_eps and
-                    (np.abs(roll_position_last - z_motor.position) >= position_eps or i == 0)):
-                roll_res = make_step(i, z_motor, roll_position_last, roll_angle_last,
-                                     roll_angle_current, initial_z_coeff, 'roll')
-                roll_future, roll_position_last, roll_angle_last = roll_res
-                futures.append(roll_future)
+                    (np.abs(roll_position_last - z_pos) >= position_eps or i == 0)):
+                z_coro = make_step(i, z_motor, roll_position_last, roll_angle_last,
+                                   roll_angle_current, initial_z_coeff, 'roll')
+                coros.append(z_coro)
             else:
                 LOG.debug("Roll epsilon reached")
                 roll_continue = False
         if x_motor and pitch_continue:
-            pitch_history.append((x_motor.position, pitch_angle_current))
+            x_pos = await x_motor.get_position()
+            pitch_history.append((x_pos, pitch_angle_current))
             if (np.abs(pitch_angle_current) >= metric_eps and
-                    (np.abs(pitch_position_last - x_motor.position) >= position_eps or i == 0)):
-                pitch_res = make_step(i, x_motor, pitch_position_last, pitch_angle_last,
-                                      pitch_angle_current, initial_x_coeff, 'pitch')
-                pitch_future, pitch_position_last, pitch_angle_last = pitch_res
-                futures.append(pitch_future)
+                    (np.abs(pitch_position_last - x_pos) >= position_eps or i == 0)):
+                x_coro = make_step(i, x_motor, pitch_position_last, pitch_angle_last,
+                                   pitch_angle_current, initial_x_coeff, 'pitch')
+                coros.append(x_coro)
             else:
                 LOG.debug("Pitch epsilon reached")
                 pitch_continue = False
 
-        if not futures:
-            # If there are no futures the motors have reached positions at which the computed
+        if not coros:
+            # If there are no coros the motors have reached positions at which the computed
             # angles are below threshold
             break
 
-        wait(futures)
+        step_results = await asyncio.gather(*coros)
+        if x_coro:
+            # Regardless from x_coro and z_coro to be present, x_coro is always added last, so pop
+            # it first
+            pitch_position_last, pitch_angle_last = step_results.pop()
+        if z_coro:
+            roll_position_last, roll_angle_last = step_results.pop()
 
     if i == max_iterations - 1:
         LOG.info('Maximum iterations reached')
 
     if z_motor:
-        go_to_best_index(z_motor, roll_history)
+        await go_to_best_index(z_motor, roll_history)
     if x_motor:
-        go_to_best_index(x_motor, pitch_history)
+        await go_to_best_index(x_motor, pitch_history)
 
     return (roll_history, pitch_history, center)
 
 
-class ProcessException(Exception):
+class ProcessError(Exception):
 
     """
     Exception raised by a process when something goes wrong with the procedure
