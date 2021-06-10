@@ -3,9 +3,11 @@ Image processing module for manipulating image data, e.g. filtered
 backprojection, flat field correction and other operations on images.
 """
 
+import asyncio
 import numpy as np
 import logging
 from scipy.signal import fftconvolve
+from concert.coroutines.base import run_in_executor, start
 from concert.quantities import q
 
 
@@ -41,15 +43,16 @@ def ramp_filter(width):
     return np.fft.fftshift(np.abs(base)) * 2.0 / width
 
 
-def find_needle_tips(images):
-    """Get sample tips from images."""
+async def find_needle_tips(producer):
+    """Get sample tips in images from *producer*."""
     tips = []
+    coros = []
 
-    for image in images:
-        tip = find_needle_tip(image)
-        if tip is not None:
-            tips.append(tip)
+    async for image in producer:
+        # start forces the coroutine to start immediately
+        coros.append(start(run_in_executor(find_needle_tip, image)))
 
+    tips = [tip for tip in await asyncio.gather(*coros) if tip is not None]
     LOG.debug('Needle tips: %s', np.array(tips).tolist())
 
     if len(tips) == 0:
@@ -75,16 +78,16 @@ def find_needle_tip(image):
     return np.mean(coords, axis=0) if coords else None
 
 
-def find_sphere_centers(images, supersampling=1, correlation_threshold=None):
-    """Get sphere centers from *images* by finding the image with the largest portion of a sphere
-    inside (the sphere may partially go out of the FOV) and correlate other images with the found
-    one, from which relative shifts are computed and converted to absolute sphere centers. This is
-    done by first computing the center of mass of the best image and then subtracting the respective
-    shifts. Use *supersampling* for sub-pixel precision and filter out the centers for which the
-    correlation coefficient computed by :func:`.compute_pearson_correlation_coefficient` is worse
-    than *correlation_threshold*. The correlation coefficient is computed by shifting an image based
-    on the shift found by correlation and computing the correlation coefficient of such shifted
-    image with respect to the best one.
+async def find_sphere_centers(producer, supersampling=1, correlation_threshold=None):
+    """Get sphere centers in images from *producer*.  by finding the image with the largest portion
+    of a sphere inside (the sphere may partially go out of the FOV) and correlate other images with
+    the found one, from which relative shifts are computed and converted to absolute sphere centers.
+    This is done by first computing the center of mass of the best image and then subtracting the
+    respective shifts. Use *supersampling* for sub-pixel precision and filter out the centers for
+    which the correlation coefficient computed by :func:`.compute_pearson_correlation_coefficient`
+    is worse than *correlation_threshold*. The correlation coefficient is computed by shifting an
+    image based on the shift found by correlation and computing the correlation coefficient of such
+    shifted image with respect to the best one.
     """
     def _touches_border(mask):
         y, x = np.where(mask)
@@ -99,16 +102,26 @@ def find_sphere_centers(images, supersampling=1, correlation_threshold=None):
         indices = np.where(t < 0)
         t[indices] = t[indices] + images[0].shape[axis]
 
-    masks = []
-    found_completely_in_fov = False
-    for (i, image) in enumerate(images):
+    def _process_one(image):
         mask = segment_convex_object(image)
+        return (image, mask, not _touches_border(mask))
+
+    coros = []
+    masks = []
+    images = []
+    found_completely_in_fov = False
+    async for image in producer:
+        coros.append(start(run_in_executor(_process_one, image)))
+
+    results = await asyncio.gather(*coros)
+
+    for i, (image, mask, in_fov) in enumerate(results):
+        images.append(image)
         masks.append(mask)
-        if not _touches_border(mask):
-            LOG.debug('Sphere completely in FOV in image %d', i)
-            found_completely_in_fov = True
+        if in_fov:
             a = image
-            break
+            found_completely_in_fov = True
+            LOG.debug('Sphere completely in FOV in image %d', i)
 
     if not found_completely_in_fov:
         nonzero = [np.count_nonzero(msk) for msk in masks]
@@ -121,9 +134,8 @@ def find_sphere_centers(images, supersampling=1, correlation_threshold=None):
     if correlation_threshold:
         r = np.empty(len(shifts))
         for (i, (dy, dx)) in enumerate(shifts):
-            r[i] = compute_pearson_correlation_coefficient(a, images[i],
-                                                           int(np.round(dx)),
-                                                           int(np.round(dy)))
+            r[i] = await run_in_executor(compute_pearson_correlation_coefficient,
+                                         a, images[i], int(np.round(dx)), int(np.round(dy)))
         LOG.debug("Correlation coefficients: %s", r)
         shifts = shifts[np.where(r > correlation_threshold)]
 
