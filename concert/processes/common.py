@@ -1,8 +1,11 @@
 import asyncio
 import math
+import time
 from itertools import product
 import numpy as np
 import logging
+from concert.coroutines.base import broadcast
+from concert.coroutines.sinks import Result
 from concert.quantities import q
 from concert.measures import rotation_axis
 from concert.optimization import halver, optimize_parameter
@@ -114,7 +117,7 @@ async def focus(camera, motor, measure=np.std, opt_kwargs=None,
     scalar that has to be maximized from an image taken with *camera*.
     *opt_kwargs* are keyword arguments sent to the optimization algorithm.
     *plot_callback* is fed with y values from the optimization and
-    *frame_callback* is fed with the incoming frames.
+    *frame_callback* is a coroutine function fed with the incoming frames.
 
     This function is returning a future encapsulating the focusing event. Note,
     that the camera is stopped from recording as soon as the optimal position
@@ -154,17 +157,16 @@ async def focus(camera, motor, measure=np.std, opt_kwargs=None,
 
 @expects(Camera, RotationMotor, num_frames=Numeric(1), shutter=Shutter,
          flat_motor=LinearMotor, flat_position=Numeric(1, q.m), y_0=Numeric(1),
-         y_1=Numeric(1), frame_callback=None)
+         y_1=Numeric(1))
 async def acquire_frames_360(camera, rotation_motor, num_frames, shutter=None, flat_motor=None,
-                             flat_position=None, y_0=0, y_1=None, frame_callback=None):
+                             flat_position=None, y_0=0, y_1=None):
     """
     acquire_frames_360(camera, rotation_motor, num_frames, shutter=None, flat_motor=None,
-                       flat_position=None, y_0=0, y_1=None, frame_callback=None)
+                       flat_position=None, y_0=0, y_1=None)
 
     Acquire frames around a circle.
     """
     flat = None
-    frames = []
     if await camera.get_state() == 'recording':
         await camera.stop_recording()
     await camera['trigger_source'].stash()
@@ -195,10 +197,7 @@ async def acquire_frames_360(camera, rotation_motor, num_frames, shutter=None, f
                     frame[np.abs(frame) > 1e6] = 0
                 else:
                     frame = frame.max() - frame
-                frames.append(frame)
-                if frame_callback:
-                    await frame_callback(frame)
-        return frames
+                yield frame
     finally:
         # No side effects
         await camera['trigger_source'].restore()
@@ -209,20 +208,20 @@ async def acquire_frames_360(camera, rotation_motor, num_frames, shutter=None, f
          position_eps=Numeric(1, q.deg), max_iterations=Numeric(1),
          initial_x_coeff=Numeric(1, q.dimensionless), initial_z_coeff=Numeric(1, q.dimensionless),
          shutter=Shutter, flat_motor=LinearMotor, flat_position=Numeric(1, q.m),
-         y_0=Numeric(1), y_1=Numeric(1), get_ellipse_points_kwargs=None, frame_callback=None)
+         y_0=Numeric(1), y_1=Numeric(1), get_ellipse_points_kwargs=None, frame_consumer=None)
 async def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
                               get_ellipse_points=find_needle_tips, num_frames=10, metric_eps=None,
                               position_eps=0.1 * q.deg, max_iterations=5,
                               initial_x_coeff=1 * q.dimensionless,
                               initial_z_coeff=1 * q.dimensionless,
                               shutter=None, flat_motor=None, flat_position=None, y_0=0, y_1=None,
-                              get_ellipse_points_kwargs=None, frame_callback=None):
+                              get_ellipse_points_kwargs=None, frame_consumer=None):
     """
     align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
     get_ellipse_points=find_needle_tips, num_frames=10, metric_eps=None,
     position_eps=0.1 * q.deg, max_iterations=5, initial_x_coeff=1 * q.dimensionless,
     initial_z_coeff=1 * q.dimensionless, shutter=None, flat_motor=None, flat_position=None,
-    y_0=0, y_1=None, get_ellipse_points_kwargs=None, frame_callback=None)
+    y_0=0, y_1=None, get_ellipse_points_kwargs=None, frame_consumer=None)
 
     Align rotation axis. *camera* is used to obtain frames, *rotation_motor* rotates the sample
     around the tomographic axis of rotation, *x_motor* turns the sample around x-axis, *z_motor*
@@ -242,8 +241,8 @@ async def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None
     first iteration. If we move the camera instead of the rotation stage, it is often necessary to
     acquire fresh flat fields. In order to make an up-to-date flat correction, specify *shutter* if
     you want fresh dark fields and specify *flat_motor* and *flat_position* to acquire flat fields.
-    Crop acquired images to *y_0* and *y_1*. *frame_callback* is a coroutine function which will be
-    called and awaited for all acquired frames.
+    Crop acquired images to *y_0* and *y_1*. *frame_consumer* is a coroutine function which will be
+    fed with all acquired frames.
 
     The procedure finishes when it finds the minimum angle between an ellipse extracted from the
     sample movement and respective axes or the found angle drops below *metric_eps*. The axis of
@@ -290,6 +289,9 @@ async def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None
                   best_index, positions[best_index].to(q.deg), angles[best_index].to(q.deg))
         await motor.set_position(positions[best_index])
 
+    async def extract_points(producer):
+        return await get_ellipse_points(producer, **get_ellipse_points_kwargs)
+
     roll_history = []
     pitch_history = []
     center = None
@@ -303,16 +305,27 @@ async def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None
         pitch_position_last = await x_motor.get_position()
         pitch_continue = True
 
+    frames_result = Result()
     for i in range(max_iterations):
-        frames = await acquire_frames_360(camera, rotation_motor, num_frames, shutter=shutter,
-                                          flat_motor=flat_motor, flat_position=flat_position,
-                                          y_0=y_0, y_1=y_1, frame_callback=frame_callback)
-        tips = get_ellipse_points(frames, **get_ellipse_points_kwargs)
+        acq_consumers = [extract_points, frames_result]
+        if frame_consumer:
+            acq_consumers.append(frame_consumer)
+        tips_start = time.perf_counter()
+        frame_producer = acquire_frames_360(camera, rotation_motor, num_frames, shutter=shutter,
+                                            flat_motor=flat_motor, flat_position=flat_position,
+                                            y_0=y_0, y_1=y_1)
+
+        coros = broadcast(frame_producer, *acq_consumers)
+        try:
+            tips = (await asyncio.gather(*coros))[1]
+        except Exception as tips_exc:
+            raise ProcessError('Error finding reference points') from tips_exc
+        LOG.debug('Found %d points in %g s', len(tips), time.perf_counter() - tips_start)
         roll_angle_current, pitch_angle_current, center = rotation_axis(tips)
         coros = []
         x_coro = z_coro = None
         if metric_eps is None:
-            metric_eps = np.rad2deg(np.arctan(1 / frames[0].shape[1])) * q.deg
+            metric_eps = np.rad2deg(np.arctan(1 / frames_result.result.shape[1])) * q.deg
             LOG.debug('Automatically computed metric epsilon: %s', metric_eps)
 
         if z_motor and roll_continue:
@@ -354,10 +367,13 @@ async def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None
     if i == max_iterations - 1:
         LOG.info('Maximum iterations reached')
 
+    # Move to the best known position
+    coros = []
     if z_motor:
-        await go_to_best_index(z_motor, roll_history)
+        coros.append(go_to_best_index(z_motor, roll_history))
     if x_motor:
-        await go_to_best_index(x_motor, pitch_history)
+        coros.append(go_to_best_index(x_motor, pitch_history))
+    await asyncio.gather(*coros)
 
     return (roll_history, pitch_history, center)
 
