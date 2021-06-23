@@ -235,3 +235,12 @@ class PrioItem:
 
     priority: int
     data: Any=field(compare=False)
+
+
+def is_iterable(item):
+    """Is *item* iterable or not."""
+    try:
+        iter(item)
+        return True
+    except:
+        return False
