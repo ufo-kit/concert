@@ -15,16 +15,18 @@ class DummyGradientMeasure(object):
     """Gradient measure that returns a quadratic fall-off of *parameter* from
     *max_position*."""
 
-    def __init__(self, parameter, max_position):
+    def __init__(self, parameter, max_position, negative=False):
         self.max_position = max_position
+        self.negative = negative
         self._max_gradient = 1e4
         self._param = parameter
 
-    def __call__(self):
-        value = self._param.get().result()
+    async def __call__(self):
+        value = await self._param.get()
         position = value.to(self.max_position.units).magnitude
-        return self._max_gradient - \
-            (position - self.max_position.magnitude) ** 2
+        result = self._max_gradient - (position - self.max_position.magnitude) ** 2
+
+        return -result if self.negative else result
 
 
 class Area(object):
