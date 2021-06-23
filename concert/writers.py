@@ -15,8 +15,9 @@ class ImageWriter(object):
 class TiffWriter(ImageWriter):
     def __init__(self, filename, bytes_per_file, append=False):
         import tifffile
+        # 2 ** 25 from tifffile
         self._writer = tifffile.TiffWriter(filename, append=append,
-                                           bigtiff=bytes_per_file >= 2 ** 31)
+                                           bigtiff=bytes_per_file >= 2 ** 32 - 2 ** 25)
 
     def write(self, image):
         self._writer.save(image)
