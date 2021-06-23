@@ -10,19 +10,21 @@ class TestIO(TestCase):
         self.io = IO(port_value=0)
         self.port = 0
 
-    def test_read(self):
-        self.assertEqual(0, self.io.read_port(self.port))
+    async def test_read(self):
+        self.assertEqual(0, await self.io.read_port(self.port))
 
-    def test_write(self):
+    async def test_write(self):
         value = 1
-        self.io.write_port(self.port, value)
-        self.assertEqual(value, self.io.read_port(self.port))
+        await self.io.write_port(self.port, value)
+        self.assertEqual(value, await self.io.read_port(self.port))
 
-    def test_non_existent_read(self):
-        self.assertRaises(IODeviceError, self.io.read_port, 1)
+    async def test_non_existent_read(self):
+        with self.assertRaises(IODeviceError):
+            await self.io.read_port(1)
 
-    def test_non_existent_write(self):
-        self.assertRaises(IODeviceError, self.io.write_port, 1, 0)
+    async def test_non_existent_write(self):
+        with self.assertRaises(IODeviceError):
+            await self.io.write_port(1, 0)
 
 
 class TestSignal(TestCase):
@@ -30,25 +32,26 @@ class TestSignal(TestCase):
     def setUp(self):
         self.signal = Signal()
 
-    def test_on(self):
-        self.signal.on()
-        self.assertEqual(self.signal.state, 'on')
+    async def test_on(self):
+        await self.signal.on()
+        self.assertEqual(await self.signal.get_state(), 'on')
 
         with self.assertRaises(TransitionNotAllowed):
-            self.signal.on()
+            await self.signal.on()
 
-    def test_off(self):
-        self.signal.on()
-        self.signal.off()
-        self.assertEqual(self.signal.state, 'off')
+    async def test_off(self):
+        await self.signal.on()
+        await self.signal.off()
+        self.assertEqual(await self.signal.get_state(), 'off')
 
         with self.assertRaises(TransitionNotAllowed):
-            self.signal.off()
+            await self.signal.off()
 
-    def test_trigger(self):
-        self.signal.trigger()
-        self.assertEqual(self.signal.state, 'off')
+    async def test_trigger(self):
+        await self.signal.trigger()
+        self.assertEqual(await self.signal.get_state(), 'off')
 
         # Test forbidden state
-        self.signal.on()
-        self.assertRaises(TransitionNotAllowed, self.signal.trigger)
+        await self.signal.on()
+        with self.assertRaises(TransitionNotAllowed):
+            await self.signal.trigger()

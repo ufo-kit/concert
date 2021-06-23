@@ -23,8 +23,8 @@ class BlurringCamera(DummyCameraBase):
         self._original = scipy.misc.ascent()
         self.motor = motor
 
-    def _grab_real(self):
-        sigma = abs((self.motor.position - FOCUS_POSITION).magnitude)
+    async def _grab_real(self):
+        sigma = abs((await self.motor.get_position() - FOCUS_POSITION).magnitude)
         return fourier.fourier_gaussian(self._original, sigma)
 
 
@@ -35,22 +35,22 @@ class TestProcesses(TestCase):
         self.camera = Camera()
         self.shutter = Shutter()
 
-    def test_focusing(self):
-        self.motor.position = 40. * q.mm
+    async def test_focusing(self):
+        await self.motor.set_position(40. * q.mm)
         camera = BlurringCamera(self.motor)
-        focus(camera, self.motor).join()
-        assert_almost_equal(self.motor.position, FOCUS_POSITION, 1e-2)
+        await focus(camera, self.motor)
+        assert_almost_equal(await self.motor.get_position(), FOCUS_POSITION, 1e-2)
 
-    def test_acquire_dark(self):
-        self.assertTrue(isinstance(acquire_dark(self.camera, self.shutter).result(), np.ndarray))
+    async def test_acquire_dark(self):
+        self.assertTrue(isinstance(await acquire_dark(self.camera, self.shutter), np.ndarray))
 
-    def test_acquire_image_with_beam(self):
-        frame = acquire_image_with_beam(self.camera, self.shutter, self.motor, 1 * q.mm).result()
+    async def test_acquire_image_with_beam(self):
+        frame = await acquire_image_with_beam(self.camera, self.shutter, self.motor, 1 * q.mm)
         self.assertTrue(isinstance(frame, np.ndarray))
-        self.assertEqual(self.motor.position, 1 * q.mm)
+        self.assertEqual(await self.motor.get_position(), 1 * q.mm)
 
-    def test_determine_rotation_axis(self):
+    async def test_determine_rotation_axis(self):
         rot_motor = RotationMotor()
-        axis = determine_rotation_axis(self.camera, self.shutter, self.motor, rot_motor,
-                                       1 * q.mm, 3 * q.mm).result()
+        axis = await determine_rotation_axis(self.camera, self.shutter, self.motor, rot_motor,
+                                             1 * q.mm, 3 * q.mm)
         self.assertTrue(isinstance(axis, q.Quantity))

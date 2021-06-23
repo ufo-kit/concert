@@ -1,20 +1,16 @@
+import asyncio
 import numpy as np
-from concert.coroutines.base import coroutine, broadcast, inject
-from concert.coroutines.filters import (absorptivity, backproject, flat_correct, average_images,
-                                        queue, sinograms, downsize, stall, PickSlice, Timer,
-                                        process)
+from concert.coroutines.base import *
+from concert.coroutines.filters import (absorptivity, flat_correct, average_images,
+                                        downsize, stall, Timer)
 from concert.coroutines.sinks import null, Result, Accumulate
+from concert.quantities import q
 from concert.tests import assert_almost_equal, TestCase
 
 
-def generator():
-    for i in range(5):
-        yield i
-
-
-def frame_producer(consumer, num_frames=3, shape=(2, 2)):
+async def produce_frames(num_frames=3, shape=(2, 2)):
     for i in range(num_frames):
-        consumer.send(np.ones(shape=shape) * (i + 1))
+        yield np.ones(shape=shape) * (i + 1)
 
 
 class TestCoroutines(TestCase):
@@ -22,139 +18,216 @@ class TestCoroutines(TestCase):
     def setUp(self):
         super(TestCoroutines, self).setUp()
         self.data = None
-        self.data_2 = None
-        self.stack = []
         self.iteration = 0
 
-    def producer(self, consumer, num_items=5):
+    async def produce(self, num_items=5):
         for i in range(num_items):
-            consumer.send(i)
+            yield i
             self.iteration += 1
 
-    @coroutine
-    def consume(self):
-        while True:
-            self.data = yield
+    async def consume(self, producer):
+        async for data in producer:
+            self.data = data
 
-    @coroutine
-    def consume_2(self):
-        while True:
-            self.data_2 = yield
+    async def test_broadcast(self):
 
-    @coroutine
-    def stack_consume(self):
-        while True:
-            item = yield
-            self.stack.append(item)
+        async def consume(producer):
+            nonlocal data
+            async for item in producer:
+                data = item
 
-    def test_broadcast(self):
-        self.producer(broadcast(self.consume(), self.consume_2()))
+        data = None
+        coros = broadcast(self.produce(), self.consume, consume)
+        await asyncio.gather(*coros)
         self.assertEqual(self.data, 4)
-        self.assertEqual(self.data_2, 4)
+        self.assertEqual(data, 4)
 
-    def test_sinogenerator(self):
-        n = 4
+    async def test_broadcast_consumer_break(self):
 
-        result = Result()
-        frame_producer(sinograms(n, result()), num_frames=8, shape=(4, 4))
+        async def consume(producer):
+            nonlocal data
+            async for item in producer:
+                data = item
+                break
 
-        sinos = result.result
-        # One sinogram
-        one = np.tile(np.array([5, 6, 7, 8])[:, np.newaxis], [1, n])
-        np.testing.assert_almost_equal(sinos, np.tile(one, [n, 1, 1]))
-
-    def test_injection(self):
-        inject(generator(), self.consume())
+        data = None
+        coros = broadcast(self.produce(), self.consume, consume)
+        await asyncio.gather(*coros)
+        # First gets the whole stream, the breaking one just the item before break
         self.assertEqual(self.data, 4)
+        self.assertEqual(data, 0)
 
-    def test_null(self):
-        self.producer(null())
+    async def test_broadcast_cancel(self):
+        produced = asyncio.Event()
+
+        async def produce():
+            for i in range(3):
+                yield i
+                produced.set()
+                # Allow future.cancel() to kick in
+                await asyncio.sleep(0)
+
+        coros = broadcast(produce(), self.consume)
+        future = asyncio.gather(*coros)
+        await produced.wait()
+        future.cancel()
+        await asyncio.wait([future])
+        self.assertEqual(self.data, 0)
+
+    async def test_feed_queue(self):
+        produced = asyncio.Event()
+        item = None
+
+        async def produce():
+            for i in range(3):
+                yield i
+                produced.set()
+                # Allow future.cancel() to kick in
+                await asyncio.sleep(0)
+
+        def blocking_consumer(queue, check_cancelled=False):
+            nonlocal item
+            while True:
+                item = queue.get()
+                # print(f'{item.data}:{item.priority}')
+                queue.task_done()
+                if item.data is None:
+                    break
+
+        future = start(feed_queue(produce(), blocking_consumer))
+        await future
+        # Normal operation, priority with counter must arrive with None as data
+        self.assertEqual(item.priority, 4)
+        self.assertEqual(item.data, None)
+        produced.clear()
+
+        future = start(feed_queue(produce(), blocking_consumer))
+        await produced.wait()
+        future.cancel()
+        # TODO: for some reason simple "await future" hangs forever, perhaps a bug in the test
+        # suite?
+        await asyncio.wait([future])
+        # On cancel, the highest priority (0) must arrive with None as data
+        self.assertTrue(future.cancelled())
+        self.assertEqual(item.priority, 0)
+        self.assertEqual(item.data, None)
+
+    async def test_wait_until(self):
+        ran = False
+
+        async def do_slowly():
+            nonlocal ran
+            await asyncio.sleep(0.1)
+            ran = True
+
+        async def condition():
+            return ran
+
+        await asyncio.gather(wait_until(condition), do_slowly())
+        self.assertTrue(ran)
+        ran = False
+
+        await asyncio.gather(wait_until(condition, timeout=10 * q.s), do_slowly())
+        self.assertTrue(ran)
+        ran = False
+
+        with self.assertRaises(WaitError):
+            await asyncio.gather(wait_until(condition, timeout=0.001 * q.s), do_slowly())
+
+    def test_run_in_loop(self):
+        async def consume():
+            return 1
+
+        self.assertEqual(run_in_loop(consume()), 1)
+
+    async def test_run_in_loop_thread_blocking(self):
+        async def process():
+            return 1
+
+        def blocking():
+            return run_in_loop_thread_blocking(process())
+
+        async def run_async_code_in_blocking():
+            return blocking()
+
+        self.assertEqual(await run_async_code_in_blocking(), 1)
+
+    async def test_run_in_executor(self):
+        def blocking(arg):
+            return arg
+
+        self.assertEqual(await run_in_executor(blocking, 'foo'), 'foo')
+
+    async def test_start(self):
+        future = start(null(self.produce()))
+        self.assertTrue(isinstance(future, asyncio.Future))
+        await asyncio.sleep(.1)
+        self.assertTrue(self.iteration != 0)
+
+    async def test_null(self):
+        await null(self.produce())
         self.assertEqual(5, self.iteration)
 
-    def test_averager(self):
-        frame_producer(average_images(self.consume()))
+    async def test_averager(self):
+        await self.consume(average_images(produce_frames()))
         truth = np.ones((2, 2)) * 2
         np.testing.assert_almost_equal(self.data, truth)
 
-    def test_flat_correct(self):
+    async def test_flat_correct(self):
         shape = (2, 2)
         dark = np.ones(shape)
         flat = np.ones(shape) * 10
         truth_base = np.ones(shape)
 
-        @coroutine
-        def check():
+        async def check(producer):
             i = 1
-            while True:
-                frame = yield
+            async for frame in producer:
                 value = (i - 1) / 9.0
                 np.testing.assert_almost_equal(frame, truth_base * value)
                 i += 1
 
-        frame_producer(flat_correct(flat, check(), dark=dark))
+        await check(flat_correct(flat, produce_frames(), dark=dark))
 
-    def test_absorptivity(self):
+    async def test_absorptivity(self):
         truth_base = np.ones((2, 2))
 
-        @coroutine
-        def check():
+        async def check(producer):
             i = 1
-            while True:
-                frame = yield
+            async for frame in producer:
                 np.testing.assert_almost_equal(frame, -np.log(truth_base * i))
                 i += 1
-        frame_producer(absorptivity(check()))
+        await check(absorptivity(produce_frames()))
 
-    def test_result_object(self):
+    async def test_result_object(self):
         result = Result()
-        self.producer(result())
+        await result(self.produce())
         self.assertEqual(result.result, 4)
 
-    def test_downsize(self):
-        frame_producer(downsize(self.stack_consume(), x_slice=(2, 6, 2), y_slice=(3, 10, 3),
-                                z_slice=(2, 8, 3)), num_frames=10, shape=(10, 10))
-        result = np.array(self.stack)
+    async def test_downsize(self):
+        acc = Accumulate()
+        await acc(downsize(produce_frames(num_frames=10, shape=(10, 10)),
+                           x_slice=(2, 6, 2), y_slice=(3, 10, 3), z_slice=(2, 8, 3)))
+        result = np.array(acc.items)
         ones = np.ones(shape=(3, 2))
 
         self.assertEqual(result.shape, (2, 3, 2))
         np.testing.assert_almost_equal(result[0], ones * 3)
         np.testing.assert_almost_equal(result[1], ones * 6)
 
-    def test_stall(self):
+    async def test_stall(self):
         # Simple case, no modulo
-        self.producer(stall(self.stack_consume(), per_shot=5), num_items=10)
-        self.assertEqual(self.stack, [4, 9])
+        acc = Accumulate()
+        await acc(stall(self.produce(num_items=10), per_shot=5))
+        self.assertEqual(acc.items, [4, 9])
 
         # More iterations than total items
-        self.stack = []
-        self.producer(stall(self.stack_consume(), per_shot=8, flush_at=13), num_items=26)
-        self.assertEqual(self.stack, [7, 12, 20, 25])
+        await acc(stall(self.produce(num_items=26), per_shot=8, flush_at=13))
+        self.assertEqual(acc.items, [7, 12, 20, 25])
 
-    def test_slicepick(self):
-        def produce_volume(consumer):
-            vol = np.ones((2, 2, 2))
-            vol[1] *= 2
-            consumer.send(vol)
-
-        pick = PickSlice(0)
-
-        produce_volume(pick(self.consume()))
-        np.testing.assert_almost_equal(self.data, np.ones((2, 2)))
-
-        pick.index = 1
-        produce_volume(pick(self.consume()))
-        np.testing.assert_almost_equal(self.data, np.ones((2, 2)) * 2)
-
-    def test_queue(self):
-        frame_producer(queue(null()))
-
-    def test_backproject(self):
-        frame_producer(backproject(1, null()))
-
-    def test_accumulate(self):
-        def run_test(data, shape=None, dtype=None):
+    async def test_accumulate(self):
+        async def run_test(data, shape=None, dtype=None):
             accumulate = Accumulate(shape=shape, dtype=dtype)
-            inject(data, accumulate())
+            await accumulate(async_generate(data))
             np.testing.assert_equal(accumulate.items, data)
             target_type = np.ndarray if shape else list
             self.assertTrue(isinstance(accumulate.items, target_type))
@@ -164,20 +237,17 @@ class TestCoroutines(TestCase):
         shape = (4, 4, 4)
         dtype = np.ushort
         data = np.ones(shape, dtype=dtype)
-        run_test(data)
-        run_test(data, shape=shape, dtype=dtype)
-
-    def test_process(self):
-        result = Result()
-        inject((1,), process(lambda x: -x, result()))
-        self.assertEqual(-1, result.result)
+        await run_test(data)
+        await run_test(data, shape=shape, dtype=dtype)
 
 
 class TestTimer(TestCase):
 
     def setUp(self):
         self.timer = Timer()
-        inject([1, 2, 3], self.timer(null()))
+
+    async def asyncSetUp(self):
+        await null(self.timer(async_generate([1, 2, 3])))
 
     def test_durations(self):
         self.assertEqual(len(self.timer.durations), 3)

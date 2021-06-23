@@ -142,22 +142,21 @@ class SimulationCamera(DummyBaseCamera):
         """Ellipsoid center."""
         return self._ellipsoid_center
 
-    def create_needle(self):
+    async def create_needle(self):
         """Create sample rotated about axis of rotation."""
         matrix = np.identity(4, np.float)
 
         matrix = translate((0, self.y_position, 0), matrix)
 
-        matrix = rot_z(self.z_axis_param.get().result(), matrix)
-        matrix = rot_x(self.x_axis_param.get().result(), matrix)
+        matrix = rot_z(await self.z_axis_param.get(), matrix)
+        matrix = rot_x(await self.x_axis_param.get(), matrix)
 
         center = np.dot(np.linalg.inv(matrix),
-                (0, self.size / 8 / self.scale[1], 0, 1)) + \
-            self.size / 2
+                        (0, self.size / 8 / self.scale[1], 0, 1)) + self.size / 2
         # Ellipse center.
         self._center = self.size - center[1], center[0]
 
-        matrix = rot_y(self.y_axis_param.get().result(), matrix)
+        matrix = rot_y(await self.y_axis_param.get(), matrix)
         matrix = translate((self.rotation_radius, 0, 0), matrix)
 
         matrix = scale(self.scale, matrix)
@@ -166,5 +165,5 @@ class SimulationCamera(DummyBaseCamera):
 
         return sphere(self.size, self.radius, matrix)
 
-    def _grab_real(self):
-        return get_projection(self.create_needle())
+    async def _grab_real(self):
+        return get_projection(await self.create_needle())

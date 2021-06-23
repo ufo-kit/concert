@@ -1,4 +1,3 @@
-from concert.base import FSMError
 from concert.tests import TestCase
 from concert.quantities import q
 from concert.devices.motors.base import RotationMotor as BaseRotationMotor
@@ -10,10 +9,10 @@ class ImproperlyImplemented(BaseRotationMotor):
         super(ImproperlyImplemented, self).__init__()
         self._value = 0
 
-    def _get_position(self):
+    async def _get_position(self):
         return self._value
 
-    def _set_position(self, value):
+    async def _set_position(self, value):
         self._value = value
 
 
@@ -21,7 +20,7 @@ class BreakingMotor(ImproperlyImplemented):
     def __init__(self):
         super(BreakingMotor, self).__init__()
 
-    def _get_state(self):
+    async def _get_state(self):
         return 'standby'
 
 

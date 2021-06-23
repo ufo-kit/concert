@@ -30,29 +30,28 @@ def suppress_logging():
 
 
 def assert_almost_equal(x, y, epsilon=1e-10):
-    """Discard unit on x and y and assert that they are almost equal"""
-    x = x.to_base_units().magnitude
-    y = y.to_base_units().magnitude
+    """Discard unit on x and y and assert that they are almost equal."""
+    try:
+        x[0]
+    except:
+        x = [x]
 
-    assert len(np.where(np.abs(x - y) > epsilon)[0]) == 0, "{} != {} (within {})".format(x, y,
-                                                                                         epsilon)
+    try:
+        y[0]
+    except:
+        y = [y]
+
+    assert len(x) == len(y)
+
+    for i in range(len(x)):
+        diff = np.abs(x[i] - y[i]).to_base_units().magnitude
+        assert diff <= epsilon, f"x != y at i={i}: {x[i]} != {y[i]} (within {epsilon})"
 
 
-class TestCase(unittest.TestCase):
+class TestCase(unittest.IsolatedAsyncioTestCase):
 
     """Base class for tests which suppress logger output."""
 
     def setUp(self):
         suppress_logging()
         cfg.PROGRESS_BAR = False
-
-
-class VisitChecker(object):
-
-    """Use this to check that a callback was called."""
-
-    def __init__(self):
-        self.visited = False
-
-    def visit(self, *args, **kwargs):
-        self.visited = True

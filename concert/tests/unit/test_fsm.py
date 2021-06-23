@@ -1,9 +1,8 @@
-import time
+import asyncio
 from concert.tests import TestCase
 from concert.base import (transition, check, StateError, TransitionNotAllowed, State, Parameter,
                           FSMError)
 from concert.quantities import q
-from concert.casync import casync
 from concert.devices.base import Device
 
 
@@ -22,51 +21,51 @@ class SomeDevice(Device):
         self._error = False
 
     @transition(target='standby')
-    def make_transition(self):
-        pass
+    async def make_transition(self):
+        if self.faulty:
+            raise RuntimeError
 
     @check(source='standby', target='moving')
     @transition(target='moving')
-    def start_moving(self, velocity):
+    async def start_moving(self, velocity):
         self.velocity = velocity
 
     @check(source='*', target='standby')
     @transition(target='standby')
-    def stop_moving(self):
+    async def stop_moving(self):
         self.velocity = STOP_VELOCITY
 
-    @casync
     @check(source='standby', target='standby')
     @transition(immediate='moving', target='standby')
-    def move_some_time(self, velocity, duration):
+    async def move_some_time(self, velocity, duration):
         self.velocity = velocity
-        time.sleep(duration)
+        await asyncio.sleep(duration)
         self.velocity = STOP_VELOCITY
 
     @check(source=['standby', 'moving'], target='standby')
     @transition(target='standby')
-    def stop_no_matter_what(self):
+    async def stop_no_matter_what(self):
         self.velocity = STOP_VELOCITY
 
-    def _get_state(self):
+    async def _get_state(self):
         if self.faulty:
-            raise RuntimeError()
+            raise RuntimeError
         if self._error:
             return 'error'
         return 'standby' if not self.velocity else 'moving'
 
     @check(source='*', target=['standby', 'moving'])
-    def set_velocity(self, velocity):
+    async def set_velocity(self, velocity):
         self.velocity = velocity
 
     @check(source='*', target=['ok', 'error'])
-    def make_error(self):
+    async def make_error(self):
         self._error = True
         raise StateError('error')
 
     @check(source='error', target='standby')
     @transition(target='standby')
-    def reset(self):
+    async def reset(self):
         self._error = False
 
 
@@ -79,12 +78,12 @@ class BaseDevice(Device):
 
     @check(source='standby', target='in-base')
     @transition(target='in-base')
-    def switch_base(self):
+    async def switch_base(self):
         pass
 
     @check(source='*', target='standby')
     @transition(target='standby')
-    def reset(self):
+    async def reset(self):
         pass
 
 
@@ -96,7 +95,7 @@ class DerivedDevice(BaseDevice):
 
     @check(source='standby', target='in-derived')
     @transition(target='in-derived')
-    def switch_derived(self):
+    async def switch_derived(self):
         pass
 
 
@@ -104,7 +103,7 @@ class StatelessDevice(Device):
     foo = Parameter(check=check(source='*', target='*'))
 
     @transition(target='changed')
-    def change(self):
+    async def change(self):
         pass
 
 
@@ -114,80 +113,79 @@ class TestStateMachine(TestCase):
         super(TestStateMachine, self).setUp()
         self.device = SomeDevice()
 
-    def test_state_per_device(self):
+    async def test_state_per_device(self):
         d1 = SomeDevice()
         d2 = SomeDevice()
 
-        d2.start_moving(MOVE_VELOCITY)
-        self.assertNotEqual(d1.state, d2.state)
+        await d2.start_moving(MOVE_VELOCITY)
+        self.assertNotEqual(await d1.get_state(), await d2.get_state())
 
-    def test_defaults(self):
-        self.device.state == 'standby'
+    async def test_defaults(self):
+        await self.device.get_state() == 'standby'
 
-    def test_valid_transition(self):
-        self.device.start_moving(MOVE_VELOCITY)
-        self.assertEqual(self.device.state, 'moving')
+    async def test_valid_transition(self):
+        await self.device.start_moving(MOVE_VELOCITY)
+        self.assertEqual(await self.device.get_state(), 'moving')
 
-        self.device.stop_moving()
-        self.assertEqual(self.device.state, 'standby')
+        await self.device.stop_moving()
+        self.assertEqual(await self.device.get_state(), 'standby')
 
-    def test_casync_transition(self):
-        future = self.device.move_some_time(MOVE_VELOCITY, 0.01)
-        future.join()
-        self.assertEqual(self.device.state, 'standby')
+    async def test_casync_transition(self):
+        await self.device.move_some_time(MOVE_VELOCITY, 0.01)
+        self.assertEqual(await self.device.get_state(), 'standby')
 
-    def test_multiple_source_states(self):
-        self.device.stop_no_matter_what()
-        self.assertEqual(self.device.state, 'standby')
+    async def test_multiple_source_states(self):
+        await self.device.stop_no_matter_what()
+        self.assertEqual(await self.device.get_state(), 'standby')
 
-        self.device.start_moving(MOVE_VELOCITY)
-        self.device.stop_no_matter_what()
+        await self.device.start_moving(MOVE_VELOCITY)
+        await self.device.stop_no_matter_what()
 
-        self.assertEqual(self.device.state, 'standby')
+        self.assertEqual(await self.device.get_state(), 'standby')
 
-    def test_multiple_target_states(self):
-        self.device.set_velocity(MOVE_VELOCITY)
-        self.assertEqual(self.device.state, 'moving')
+    async def test_multiple_target_states(self):
+        await self.device.set_velocity(MOVE_VELOCITY)
+        self.assertEqual(await self.device.get_state(), 'moving')
 
-        self.device.set_velocity(STOP_VELOCITY)
-        self.assertEqual(self.device.state, 'standby')
+        await self.device.set_velocity(STOP_VELOCITY)
+        self.assertEqual(await self.device.get_state(), 'standby')
 
-    def test_inheritance(self):
+    async def test_inheritance(self):
         device = DerivedDevice()
 
-        device.switch_base()
-        self.assertEqual(device.state, 'in-base')
+        await device.switch_base()
+        self.assertEqual(await device.get_state(), 'in-base')
 
         with self.assertRaises(TransitionNotAllowed):
-            device.switch_base()
+            await device.switch_base()
 
         with self.assertRaises(TransitionNotAllowed):
-            device.switch_derived()
+            await device.switch_derived()
 
-        device.reset()
-        self.assertEqual(device.state, 'standby')
+        await device.reset()
+        self.assertEqual(await device.get_state(), 'standby')
 
-        device.switch_derived()
-        self.assertEqual(device.state, 'in-derived')
-
-        with self.assertRaises(TransitionNotAllowed):
-            device.switch_derived()
+        await device.switch_derived()
+        self.assertEqual(await device.get_state(), 'in-derived')
 
         with self.assertRaises(TransitionNotAllowed):
-            device.switch_base()
+            await device.switch_derived()
 
-        device.reset()
-        self.assertEqual(device.state, 'standby')
+        with self.assertRaises(TransitionNotAllowed):
+            await device.switch_base()
 
-    def test_errors(self):
+        await device.reset()
+        self.assertEqual(await device.get_state(), 'standby')
+
+    async def test_errors(self):
         with self.assertRaises(StateError):
-            self.device.make_error()
+            await self.device.make_error()
 
-        self.assertEqual(self.device.state, 'error')
-        self.device.reset()
-        self.assertEqual(self.device.state, 'standby')
+        self.assertEqual(await self.device.get_state(), 'error')
+        await self.device.reset()
+        self.assertEqual(await self.device.get_state(), 'standby')
 
-    def test_state_setting(self):
+    async def test_state_setting(self):
         with self.assertRaises(AttributeError):
             self.device.state = 'foo'
 
@@ -196,19 +194,19 @@ class TestStateMachine(TestCase):
         with self.assertRaises(FSMError):
             dev.foo = 1
 
-    def test_stateless_transition(self):
+    async def test_stateless_transition(self):
         dev = StatelessDevice()
         with self.assertRaises(FSMError):
-            dev.change()
+            await dev.change()
 
-    def test_transition_exception(self):
+    async def test_transition_exception(self):
         dev = SomeDevice()
         dev.faulty = True
         with self.assertRaises(RuntimeError):
-            dev.make_transition()
+            await dev.make_transition()
 
-    def test_check_exception(self):
+    async def test_check_exception(self):
         dev = SomeDevice()
         dev.faulty = True
         with self.assertRaises(RuntimeError):
-            dev.start_moving()
+            await dev.start_moving()

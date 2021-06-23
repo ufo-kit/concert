@@ -1,4 +1,5 @@
 import numpy as np
+from concert.coroutines.base import async_generate
 from concert.devices.motors.dummy import ContinuousRotationMotor
 from concert.quantities import q
 from concert.imageprocessing import (compute_rotation_axis, normalize, find_sphere_centers)
@@ -82,14 +83,14 @@ class TestSphereSegmentation(TestCase):
                                        scales=(0.5, 0.5, 0.5),
                                        y_position=0)
 
-    def acquire_frames(self, num_frames=10):
+    async def acquire_frames(self, num_frames=10):
         da = 360 * q.degree / num_frames
         images = []
         centers = []
 
         for i in range(10):
-            self.y_motor.move(da).join()
-            images.append(self.camera.grab())
+            await self.y_motor.move(da)
+            images.append(await self.camera.grab())
             centers.append(self.camera.ellipsoid_center)
 
         return (images, centers)
@@ -97,26 +98,26 @@ class TestSphereSegmentation(TestCase):
     def check(self, gt, measured):
         assert np.all(np.abs(np.fliplr(gt) - measured) < 1)
 
-    def test_sphere_fully_inside(self):
-        (frames, gt) = self.acquire_frames()
-        centers = find_sphere_centers(frames)
+    async def test_sphere_fully_inside(self):
+        (frames, gt) = await self.acquire_frames()
+        centers = await find_sphere_centers(async_generate(frames))
         self.check(gt, centers)
 
-    def test_sphere_some_partially_outside(self):
+    async def test_sphere_some_partially_outside(self):
         self.camera.rotation_radius = self.camera.size // 2
-        (frames, gt) = self.acquire_frames()
-        centers = find_sphere_centers(frames)
+        (frames, gt) = await self.acquire_frames()
+        centers = await find_sphere_centers(async_generate(frames))
         self.check(gt, centers)
 
-    def test_sphere_all_partially_outside(self):
+    async def test_sphere_all_partially_outside(self):
         self.camera.size = 128
         self.camera.rotation_radius = self.camera.size // 2
         self.camera.scale = (.25, .25, .25)
-        frames = self.acquire_frames()[0]
-        centers = find_sphere_centers(frames, correlation_threshold=0.9)
+        frames = (await self.acquire_frames())[0]
+        centers = await find_sphere_centers(async_generate(frames), correlation_threshold=0.9)
         roll, pitch = rotation_axis(centers)[:2]
 
         # No sphere is completely in the FOV, filter the ones with low correlation coefficient and
         # at least coarsely close match should be found to the ellipse
-        assert np.abs(roll - self.z_motor.position) < 1 * q.deg
-        assert np.abs(pitch - self.x_motor.position) < 1 * q.deg
+        assert np.abs(roll - await self.z_motor.get_position()) < 1 * q.deg
+        assert np.abs(pitch - await self.x_motor.get_position()) < 1 * q.deg

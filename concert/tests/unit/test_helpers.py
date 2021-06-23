@@ -2,8 +2,7 @@ import time
 from concert.tests import TestCase, suppressed_logging
 from concert.quantities import q
 from concert.helpers import measure
-from concert.measures import rotation_axis
-from concert.processes.common import focus, align_rotation_axis, find_beam
+from concert.processes.common import focus, align_rotation_axis, ProcessError
 from concert.devices.motors.dummy import LinearMotor, RotationMotor
 from concert.devices.cameras.dummy import Camera
 
@@ -17,21 +16,21 @@ class TestExpects(TestCase):
         self.linear_motor2 = LinearMotor()
         self.rotation_motor = RotationMotor()
 
-    def test_focus_func_arguments_type_error(self):
+    async def test_focus_func_arguments_type_error(self):
         with self.assertRaises(TypeError):
-            focus(self.camera, self.rotation_motor)
+            await focus(self.camera, self.rotation_motor)
 
-    def test_focus_function_arguments(self):
-        focus(self.camera, self.linear_motor)
+    async def test_focus_function_arguments(self):
+        await focus(self.camera, self.linear_motor)
 
-    def test_align_rotation_axis_func_type_error(self):
+    async def test_align_rotation_axis_func_type_error(self):
         with self.assertRaises(TypeError):
-            align_rotation_axis(self.camera, self.linear_motor).result()
+            await align_rotation_axis(self.camera, self.linear_motor).result()
         with self.assertRaises(TypeError):
-            align_rotation_axis(
+            await align_rotation_axis(
                 self.camera, self.rotation_motor, self.linear_motor).result()
         with self.assertRaises(TypeError):
-            align_rotation_axis(
+            await align_rotation_axis(
                 self.camera,
                 self.rotation_motor,
                 self.rotation_motor,
@@ -40,7 +39,7 @@ class TestExpects(TestCase):
                     10,
                     20]).result()
         with self.assertRaises(TypeError):
-            align_rotation_axis(
+            await align_rotation_axis(
                 self.camera,
                 self.rotation_motor,
                 self.rotation_motor,
@@ -48,27 +47,10 @@ class TestExpects(TestCase):
                 num_frames=10 *
                 q.mm).result()
 
-    def test_align_rotation_axis_function(self):
-        align_rotation_axis(
-            self.camera, self.rotation_motor, x_motor=self.rotation_motor)
-
-    def test_find_beam_func_arguments_type_error(self):
-        with self.assertRaises(TypeError):
-            f = find_beam(self.camera, self.rotation_motor, self.linear_motor)
-            f.result()
-        with self.assertRaises(TypeError):
-            f = find_beam(self.camera, self.linear_motor, self.linear_motor2, [1, 2])
-            f.result()
-        with self.assertRaises(TypeError):
-            f = find_beam(self.camera, self.linear_motor, self.linear_motor2, [1, 2, 3] * q.um)
-            f.result()
-        with self.assertRaises(TypeError):
-            f = find_beam(self.camera, self.linear_motor, self.linear_motor2, [1, 2] * q.deg)
-            f.result()
-
-    def test_find_beam_function_arguments(self):
-        find_beam(self.camera, self.linear_motor, self.linear_motor2,
-                  [1, 1] * q.um, [1, 1] * q.um, [1, 1] * q.um)
+    async def test_align_rotation_axis_function(self):
+        with self.assertRaises(ProcessError):
+            # Dummy camera, so no tips in noise
+            await align_rotation_axis(self.camera, self.rotation_motor, x_motor=self.rotation_motor)
 
 
 @suppressed_logging

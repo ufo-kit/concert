@@ -1,6 +1,5 @@
-from concert.casync import wait
 from concert.base import Parameter, ParameterError
-from concert.devices.base import Device, abort
+from concert.devices.base import abort_all_devices, Device
 from concert.tests import TestCase, suppressed_logging
 from concert.devices.scales.dummy import Scales, TarableScales
 from concert.devices.pumps.dummy import Pump
@@ -34,13 +33,13 @@ class MockDevice(Device):
         super(MockDevice, self).__init__()
         self.aborted = False
 
-    def _get_readonly(self):
+    async def _get_readonly(self):
         return 1
 
-    def _set_writeonly(self, value):
+    async def _set_writeonly(self, value):
         pass
 
-    def _abort(self):
+    async def _abort(self):
         self.aborted = True
 
 
@@ -50,9 +49,9 @@ class TestDevice(TestCase):
         super(TestDevice, self).setUp()
         self.device = MockDevice()
 
-    def test_accessor_functions(self):
-        self.assertEqual(self.device.get_readonly().result(), 1)
-        self.device.set_writeonly(0).join()
+    async def test_accessor_functions(self):
+        self.assertEqual(await self.device.get_readonly(), 1)
+        await self.device.set_writeonly(0)
 
     def test_iterable(self):
         for param in self.device:
@@ -64,12 +63,13 @@ class TestDevice(TestCase):
 
         self.assertRaises(ParameterError, query_invalid_param)
 
-    # def test_str(self):
-    #     table = get_default_table(["Parameter", "Value"])
-    #     table.border = False
-    #     table.add_row(["readonly", "1"])
-    #     table.add_row(["state", Device.NA])
-    #     self.assertEqual(str(self.device), table.get_string())
+    def test_str(self):
+        from concert.session.utils import get_default_table
+        table = get_default_table(["Parameter", "Value"])
+        table.border = False
+        table.add_row(["readonly", "1"])
+        table.add_row(["writeonly", "N/A"])
+        self.assertEqual(str(self.device), table.get_string())
 
     def test_context_manager(self):
         # This is just a functional test, we don't cover synchronization issues
@@ -82,13 +82,13 @@ class TestDevice(TestCase):
         with self.device['writeonly']:
             pass
 
-    def test_abort(self):
-        self.device.abort().join()
+    async def test_abort(self):
+        await self.device.abort()
         self.assertTrue(self.device.aborted)
 
-    def test_abort_all(self):
+    async def test_abort_all(self):
         devices = [self.device, MockDevice()]
-        wait(abort(devices))
+        await abort_all_devices(devices)
 
         for device in devices:
             self.assertTrue(device.aborted)

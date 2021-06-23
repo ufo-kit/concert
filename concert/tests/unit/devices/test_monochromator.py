@@ -18,10 +18,10 @@ class WavelengthMonochromator(Monochromator):
         super(WavelengthMonochromator, self).__init__()
         self._wavelength = random.random() * 1e-10 * q.m
 
-    def _get_wavelength_real(self):
+    async def _get_wavelength_real(self):
         return self._wavelength
 
-    def _set_wavelength_real(self, wavelength):
+    async def _set_wavelength_real(self, wavelength):
         self._wavelength = wavelength
 
 

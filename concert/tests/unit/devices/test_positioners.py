@@ -17,17 +17,17 @@ class TestAxis(TestCase):
         self.motor = LinearMotor()
         self.motor.position = 0 * q.mm
 
-    def test_positive_direction(self):
+    async def test_positive_direction(self):
         # Test positive direction
         axis = Axis('x', self.motor, direction=1)
-        axis.set_position(1 * q.mm).join()
-        assert_almost_equal(self.motor.position, axis.get_position().result())
+        await axis.set_position(1 * q.mm)
+        assert_almost_equal(await self.motor.get_position(), await axis.get_position())
 
-    def test_negative_direction(self):
+    async def test_negative_direction(self):
         # Test positive direction
         axis = Axis('x', self.motor, direction=-1)
-        axis.set_position(-1 * q.mm).join()
-        assert_almost_equal(self.motor.position, - axis.get_position().result())
+        await axis.set_position(-1 * q.mm)
+        assert_almost_equal(await self.motor.get_position(), - (await axis.get_position()))
 
 
 class TestPositioners(TestCase):
@@ -46,7 +46,7 @@ class TestPositioners(TestCase):
         # Test non-existent axis
         del self.positioner.translators['x']
         with self.assertRaises(PositionerError):
-            self.positioner.set_position(position).join()
+            self.positioner.position = position
 
         # The remaining axes must work
         position = (0.0, 1.0, 2.0) * q.mm
@@ -73,7 +73,7 @@ class TestPositioners(TestCase):
         # Test non-existent axis
         del self.positioner.rotators['x']
         with self.assertRaises(PositionerError):
-            self.positioner.set_orientation(orientation).join()
+            self.positioner.orientation = orientation
 
         # Also nan must work
         orientation = (np.nan, 1.0, 2.0) * q.rad
@@ -84,39 +84,39 @@ class TestPositioners(TestCase):
         self.positioner.orientation = (0.0, 1.0, 2.0) * q.rad
         # assert_almost_equal(orientation[1:], self.positioner.orientation[1:])
 
-    def test_move(self):
+    async def test_move(self):
         position = (1.0, 2.0, 3.0) * q.mm
-        self.positioner.move(position).join()
-        assert_almost_equal(position, self.positioner.position)
+        await self.positioner.move(position)
+        assert_almost_equal(position, await self.positioner.get_position())
 
-    def test_rotate(self):
+    async def test_rotate(self):
         orientation = (1.0, 2.0, 3.0) * q.rad
-        self.positioner.rotate(orientation).join()
-        assert_almost_equal(orientation, self.positioner.orientation)
+        await self.positioner.rotate(orientation)
+        assert_almost_equal(orientation, await self.positioner.get_orientation())
 
-    def test_right(self):
-        self.positioner.right(1 * q.mm).join()
-        assert_almost_equal((1.0, 0.0, 0.0) * q.mm, self.positioner.position)
+    async def test_right(self):
+        await self.positioner.right(1 * q.mm)
+        assert_almost_equal((1.0, 0.0, 0.0) * q.mm, await self.positioner.get_position())
 
-    def test_left(self):
-        self.positioner.left(1 * q.mm).join()
-        assert_almost_equal((-1.0, 0.0, 0.0) * q.mm, self.positioner.position)
+    async def test_left(self):
+        await self.positioner.left(1 * q.mm)
+        assert_almost_equal((-1.0, 0.0, 0.0) * q.mm, await self.positioner.get_position())
 
-    def test_up(self):
-        self.positioner.up(1 * q.mm).join()
-        assert_almost_equal((0.0, 1.0, 0.0) * q.mm, self.positioner.position)
+    async def test_up(self):
+        await self.positioner.up(1 * q.mm)
+        assert_almost_equal((0.0, 1.0, 0.0) * q.mm, await self.positioner.get_position())
 
-    def test_down(self):
-        self.positioner.down(1 * q.mm).join()
-        assert_almost_equal((0.0, -1.0, 0.0) * q.mm, self.positioner.position)
+    async def test_down(self):
+        await self.positioner.down(1 * q.mm)
+        assert_almost_equal((0.0, -1.0, 0.0) * q.mm, await self.positioner.get_position())
 
-    def test_forward(self):
-        self.positioner.forward(1 * q.mm).join()
-        assert_almost_equal((0.0, 0.0, 1.0) * q.mm, self.positioner.position)
+    async def test_forward(self):
+        await self.positioner.forward(1 * q.mm)
+        assert_almost_equal((0.0, 0.0, 1.0) * q.mm, await self.positioner.get_position())
 
-    def test_back(self):
-        self.positioner.back(1 * q.mm).join()
-        assert_almost_equal((0.0, 0.0, -1.0) * q.mm, self.positioner.position)
+    async def test_back(self):
+        await self.positioner.back(1 * q.mm)
+        assert_almost_equal((0.0, 0.0, -1.0) * q.mm, await self.positioner.get_position())
 
 
 class TestImagingPositioner(TestCase):
@@ -129,40 +129,42 @@ class TestImagingPositioner(TestCase):
         self._pixel_width_position = self.positioner.detector.pixel_width.to(q.m).magnitude
         self._pixel_height_position = self.positioner.detector.pixel_height.to(q.m).magnitude
 
-    def test_move(self):
-        pixel_width = self.positioner.detector.pixel_width.to(q.m).magnitude
-        pixel_height = self.positioner.detector.pixel_height.to(q.m).magnitude
+    async def test_move(self):
+        pixel_width = (await self.positioner.detector.get_pixel_width()).to(q.m).magnitude
+        pixel_height = (await self.positioner.detector.get_pixel_height()).to(q.m).magnitude
 
-        self.positioner.move((100.0, 200.0, 0.0) * q.pixel).join()
+        await self.positioner.move((100.0, 200.0, 0.0) * q.pixel)
         position = (100.0 * pixel_width, 200.0 * pixel_height, 0.0) * q.m
-        assert_almost_equal(position, self.positioner.position)
+        assert_almost_equal(position, await self.positioner.get_position())
 
         # Cannot move in z-direction by pixel size
         with self.assertRaises(PositionerError):
-            self.positioner.move((1.0, 2.0, 3.0) * q.pixel).join()
+            await self.positioner.move((1.0, 2.0, 3.0) * q.pixel)
 
-    def test_right(self):
-        self.positioner.right(1 * q.px).join()
-        assert_almost_equal((self._pixel_width_position, 0.0, 0.0) * q.m, self.positioner.position)
+    async def test_right(self):
+        await self.positioner.right(1 * q.px)
+        assert_almost_equal((self._pixel_width_position, 0.0, 0.0) * q.m,
+                            await self.positioner.get_position())
 
-    def test_left(self):
-        self.positioner.left(1 * q.px).join()
+    async def test_left(self):
+        await self.positioner.left(1 * q.px)
         assert_almost_equal((- self._pixel_width_position, 0.0, 0.0) * q.m,
-                            self.positioner.position)
+                            await self.positioner.get_position())
 
-    def test_up(self):
-        self.positioner.up(1 * q.px).join()
-        assert_almost_equal((0.0, self._pixel_height_position, 0.0) * q.m, self.positioner.position)
+    async def test_up(self):
+        await self.positioner.up(1 * q.px)
+        assert_almost_equal((0.0, self._pixel_height_position, 0.0) * q.m,
+                            await self.positioner.get_position())
 
-    def test_down(self):
-        self.positioner.down(1 * q.px).join()
+    async def test_down(self):
+        await self.positioner.down(1 * q.px)
         assert_almost_equal((0.0, - self._pixel_height_position, 0.0) * q.m,
-                            self.positioner.position)
+                            await self.positioner.get_position())
 
-    def test_forward(self):
+    async def test_forward(self):
         with self.assertRaises(PositionerError):
-            self.positioner.forward(1 * q.px).join()
+            await self.positioner.forward(1 * q.px)
 
-    def test_back(self):
+    async def test_back(self):
         with self.assertRaises(PositionerError):
-            self.positioner.back(1 * q.px).join()
+            await self.positioner.back(1 * q.px)

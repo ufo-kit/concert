@@ -1,4 +1,4 @@
-from concert.base import State, StateError
+from concert.base import State, FSMError
 from concert.devices.base import Device
 from concert.tests import TestCase
 
@@ -15,7 +15,7 @@ class ImplicitSoftwareDevice(Device):
 
 class CustomizedDevice(Device):
 
-    def state_getter(self):
+    async def state_getter(self):
         return 'custom'
 
     state = State(fget=state_getter)
@@ -32,15 +32,16 @@ class RealDevice(Device):
     def change_state(self):
         self._state = 'moved'
 
-    def _get_state(self):
+    async def _get_state(self):
         return self._state
 
 
 class TestState(TestCase):
 
-    def test_bad(self):
+    async def test_bad(self):
         device = BadDevice()
-        self.assertRaises(StateError, device['state'].get().result)
+        with self.assertRaises(FSMError):
+            await device['state'].get()
 
     def test_real_device(self):
         device = RealDevice()

@@ -2,21 +2,32 @@
 Test experiments. Logging is disabled, so just check the directory and log
 files creation.
 """
+import asyncio
 import numpy as np
 import os.path as op
 import tempfile
 import shutil
-from time import sleep
 from concert.quantities import q
-from concert.coroutines.base import coroutine, inject
+from concert.coroutines.base import start
 from concert.coroutines.sinks import Accumulate
 from concert.experiments.base import Acquisition, Experiment, ExperimentError
 from concert.experiments.imaging import (tomo_angular_step, tomo_max_speed,
                                          tomo_projections_number, frames)
 from concert.experiments.addons import Addon, Consumer, ImageWriter, Accumulator
 from concert.devices.cameras.dummy import Camera
-from concert.tests import TestCase, suppressed_logging, assert_almost_equal, VisitChecker
+from concert.tests import TestCase, suppressed_logging, assert_almost_equal
 from concert.storage import DummyWalker, DirectoryWalker
+
+
+class VisitChecker(object):
+
+    """Use this to check that a callback was called."""
+
+    def __init__(self):
+        self.visited = False
+
+    async def visit(self, *args, **kwargs):
+        self.visited = True
 
 
 class DummyAddon(Addon):
@@ -36,9 +47,9 @@ class ExperimentSimple(Experiment):
         acq = Acquisition("test", self._run_test_acq)
         super(ExperimentSimple, self).__init__([acq], walker)
 
-    def _run_test_acq(self):
+    async def _run_test_acq(self):
         for i in range(10):
-            sleep(0.1)
+            await asyncio.sleep(0.1)
             yield np.random.random((100, 100))
 
 
@@ -47,8 +58,11 @@ class ExperimentException(Experiment):
         acq = Acquisition("test", self._run_test_acq)
         super(ExperimentException, self).__init__([acq], walker)
 
-    def _run_test_acq(self):
+    async def _run_test_acq(self):
+        for i in range(2):
+            yield i
         raise Exception("Run test acq")
+
 
 @suppressed_logging
 def test_tomo_angular_step():
@@ -71,16 +85,12 @@ def test_tomo_max_speed():
     assert_almost_equal(truth, tomo_max_speed(width * q.px, frame_rate))
 
 
-@suppressed_logging
-def test_frames():
-    @coroutine
-    def count():
-        while True:
-            yield
-            count.i += 1
-    count.i = 0
-    inject(frames(5, Camera()), count())
-    assert count.i == 5
+class TestImagingFunctions(TestCase):
+
+    async def test_frames(self):
+        acc = Accumulate()
+        await acc(frames(5, Camera()))
+        assert len(acc.items) == 5
 
 
 class TestAcquisition(TestCase):
@@ -91,33 +101,20 @@ class TestAcquisition(TestCase):
         self.acquisition = Acquisition('foo', self.produce, consumers=[self.consume],
                                        acquire=self.acquire)
 
-    def test_connect(self):
-        self.acquisition.connect()
-        self.assertEqual(1, self.item)
-
-    def test_run(self):
-        self.acquisition()
+    async def test_run(self):
+        await self.acquisition()
         self.assertTrue(self.acquired)
         self.assertEqual(1, self.item)
 
-    def test_split_run(self):
-        """First acquire data, then process."""
-        self.acquisition.acquire()
-        self.assertTrue(self.acquired)
-        self.assertEqual(self.item, None)
-        self.acquisition.connect()
-        self.assertEqual(1, self.item)
-
-    def acquire(self):
+    async def acquire(self):
         self.acquired = True
 
-    def produce(self):
+    async def produce(self):
         yield 1
 
-    @coroutine
-    def consume(self):
-        while True:
-            self.item = yield
+    async def consume(self, producer):
+        async for item in producer:
+            self.item = item
 
 
 class TestExperimentBase(TestCase):
@@ -136,18 +133,17 @@ class TestExperimentBase(TestCase):
         self.num_produce = 2
         self.item = None
 
-    def acquire(self):
+    async def acquire(self):
         self.acquired += 1
 
-    def produce(self):
+    async def produce(self):
         self.visited += 1
         for i in range(self.num_produce):
             yield i
 
-    @coroutine
-    def consume(self):
-        while True:
-            self.item = yield
+    async def consume(self, producer):
+        async for item in producer:
+            self.item = item
 
 
 class TestExperiment(TestExperimentBase):
@@ -157,12 +153,12 @@ class TestExperiment(TestExperimentBase):
         self.experiment = Experiment(self.acquisitions, self.walker, name_fmt=self.name_fmt)
         self.visit_checker = VisitChecker()
 
-    def test_run(self):
-        self.experiment.run().join()
+    async def test_run(self):
+        await self.experiment.run()
         self.assertEqual(self.visited, len(self.experiment.acquisitions))
         self.assertEqual(self.acquired, len(self.experiment.acquisitions))
 
-        self.experiment.run().join()
+        await self.experiment.run()
         self.assertEqual(self.visited, 2 * len(self.experiment.acquisitions))
 
         truth = set([op.join(self.root, self.name_fmt.format(i + 1)) for i in range(2)])
@@ -170,20 +166,6 @@ class TestExperiment(TestExperimentBase):
 
         # Consumers must be called
         self.assertTrue(self.item is not None)
-
-    def test_split_run(self):
-        for acq in self.acquisitions:
-            acq.acquire()
-
-        self.assertEqual(self.acquired, len(self.experiment.acquisitions))
-        self.assertEqual(self.visited, 0)
-
-        for acq in self.acquisitions:
-            acq.connect()
-
-        # No more acquisitions made
-        self.assertEqual(self.acquired, len(self.experiment.acquisitions))
-        self.assertEqual(self.visited, len(self.experiment.acquisitions))
 
     def test_swap(self):
         self.experiment.swap(self.foo, self.bar)
@@ -207,25 +189,25 @@ class TestExperiment(TestExperimentBase):
         self.assertFalse(hasattr(self.experiment, 'bar'))
         self.assertNotIn(self.bar, self.experiment.acquisitions)
 
-    def test_prepare(self):
+    async def test_prepare(self):
         self.experiment.prepare = self.visit_checker.visit
-        self.experiment.run().join()
+        await self.experiment.run()
         self.assertTrue(self.visit_checker.visited)
 
-    def test_finish(self):
+    async def test_finish(self):
         self.experiment.finish = self.visit_checker.visit
-        self.experiment.run().join()
+        await self.experiment.run()
         self.assertTrue(self.visit_checker.visited)
 
-    def test_consumer_addon(self):
+    async def test_consumer_addon(self):
         accumulate = Accumulate()
         Consumer([self.acquisitions[0]], accumulate)
-        self.experiment.run().join()
+        await self.experiment.run()
         self.assertEqual(accumulate.items, list(range(self.num_produce)))
 
-    def test_image_writing(self):
-        ImageWriter(self.acquisitions, self.walker, casync=False)
-        self.experiment.run().join()
+    async def test_image_writing(self):
+        ImageWriter(self.acquisitions, self.walker)
+        await self.experiment.run()
 
         scan_name = self.name_fmt.format(1)
         # Check if the writing coroutine has been attached
@@ -236,9 +218,9 @@ class TestExperiment(TestExperimentBase):
             self.assertTrue(self.walker.exists(foo))
             self.assertTrue(self.walker.exists(bar))
 
-    def test_accumulation(self):
+    async def test_accumulation(self):
         acc = Accumulator(self.acquisitions)
-        self.experiment.run().join()
+        await self.experiment.run()
 
         for acq in self.acquisitions:
             self.assertEqual(acc.items[acq], list(range(self.num_produce)))
@@ -275,24 +257,24 @@ class TestExperimentStates(TestCase):
         self.data_dir = tempfile.mkdtemp()
         self.walker = DirectoryWalker(root=self.data_dir)
 
-    def test_experiment_state_normal(self):
+    async def test_experiment_state_normal(self):
         exp = ExperimentSimple(self.walker)
-        self.assertEqual(exp.state, "standby")
-        exp_handle = exp.run()
-        sleep(0.1)
-        self.assertEqual(exp.state, "running")
-        exp_handle.join()
-        self.assertEqual(exp.state, "standby")
-        exp_handle = exp.run()
-        sleep(0.1)
-        self.assertEqual(exp.state, "running")
-        exp.abort().join()
-        self.assertEqual(exp.state, "standby")
-        exp_handle.join()
+        self.assertEqual(await exp.get_state(), "standby")
+        exp_handle = start(exp.run())
+        await asyncio.sleep(0.2)
+        self.assertEqual(await exp.get_state(), "running")
+        await exp_handle
+        self.assertEqual(await exp.get_state(), "standby")
+        exp_handle = start(exp.run())
+        await asyncio.sleep(0.2)
+        self.assertEqual(await exp.get_state(), "running")
+        exp_handle.cancel()
+        await exp_handle
+        self.assertEqual(await exp.get_state(), "standby")
 
-    def test_experiment_exception(self):
+    async def test_experiment_exception(self):
         exp = ExperimentException(self.walker)
-        self.assertEqual(exp.state, "standby")
-        exp_handle = exp.run()
-        sleep(0.1)
-        self.assertEqual(exp.state, "error")
+        self.assertEqual(await exp.get_state(), "standby")
+        with self.assertRaises(Exception):
+            await exp.run()
+        self.assertEqual(await exp.get_state(), "error")

@@ -9,21 +9,23 @@ class TestXrayTube(TestCase):
     def setUp(self):
         self.tube = XRayTube()
 
-    def test_on(self):
-        if self.tube.state != 'off':
-            self.tube.off().join()
+    async def test_on(self):
+        if await self.tube.get_state() != 'off':
+            await self.tube.off()
 
-        self.tube.on().join()
-        self.assertEqual('on', self.tube.state)
-        self.assertRaises(TransitionNotAllowed, self.tube.on().join)
+        await self.tube.on()
+        self.assertEqual('on', await self.tube.get_state())
+        with self.assertRaises(TransitionNotAllowed):
+            await self.tube.on()
 
-    def test_off(self):
-        if self.tube.state != 'on':
-            self.tube.on().join()
+    async def test_off(self):
+        if await self.tube.get_state() != 'on':
+            await self.tube.on()
 
-        self.tube.off().join()
-        self.assertEqual('off', self.tube.state)
-        self.assertRaises(TransitionNotAllowed, self.tube.off().join)
+        await self.tube.off()
+        self.assertEqual('off', await self.tube.get_state())
+        with self.assertRaises(TransitionNotAllowed):
+            await self.tube.off()
 
     def test_power(self):
         self.tube.current = 2 * q.A

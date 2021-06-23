@@ -8,18 +8,20 @@ class TestGripper(TestCase):
     def setUp(self):
         self.gripper = Gripper()
 
-    def test_grip(self):
-        if self.gripper.state != 'released':
-            self.gripper.release().join()
+    async def test_grip(self):
+        if await self.gripper.get_state() != 'released':
+            await self.gripper.release()
 
-        self.gripper.grip().join()
-        self.assertEqual('gripped', self.gripper.state)
-        self.assertRaises(TransitionNotAllowed, self.gripper.grip().join)
+        await self.gripper.grip()
+        self.assertEqual('gripped', await self.gripper.get_state())
+        with self.assertRaises(TransitionNotAllowed):
+            await self.gripper.grip()
 
-    def test_release(self):
-        if self.gripper.state != 'gripped':
-            self.gripper.grip().join()
+    async def test_release(self):
+        if await self.gripper.get_state() != 'gripped':
+            await self.gripper.grip()
 
-        self.gripper.release().join()
-        self.assertEqual('released', self.gripper.state)
-        self.assertRaises(TransitionNotAllowed, self.gripper.release().join)
+        await self.gripper.release()
+        self.assertEqual('released', await self.gripper.get_state())
+        with self.assertRaises(TransitionNotAllowed):
+            await self.gripper.release()

@@ -1,7 +1,6 @@
 from datetime import datetime
 import numpy as np
 from concert.tests import TestCase
-from concert.coroutines.base import coroutine
 from concert.quantities import q
 from concert.devices.cameras.dummy import Camera, BufferedCamera
 from concert.devices.cameras.pco import Timestamp, TimestampError
@@ -14,12 +13,8 @@ class TestDummyCamera(TestCase):
         self.background = np.ones((256, 256), dtype=np.uint16)
         self.camera = Camera(background=self.background)
 
-    def test_grab(self):
-        frame = self.camera.grab()
-        self.assertIsNotNone(frame)
-
-    def test_grab_casync(self):
-        frame = self.camera.grab_casync().result()
+    async def test_grab(self):
+        frame = await self.camera.grab()
         self.assertIsNotNone(frame)
 
     def test_trigger_source(self):
@@ -37,46 +32,46 @@ class TestDummyCamera(TestCase):
         self.assertTrue(hasattr(self.camera, "sensor_pixel_width"))
         self.assertTrue(hasattr(self.camera, "sensor_pixel_height"))
 
-    def test_buffered_camera(self):
+    async def test_buffered_camera(self):
         camera = BufferedCamera()
-        for i, item in enumerate(camera.readout_buffer()):
-            pass
-        self.assertEqual(i, 2)
+        i = 0
+        async for item in camera.readout_buffer():
+            i += 1
+        self.assertEqual(i, 3)
 
-    def test_context_manager(self):
+    async def test_context_manager(self):
         camera = Camera()
 
-        with camera.recording():
-            self.assertEqual(camera.state, 'recording')
-            camera.grab()
+        async with camera.recording():
+            self.assertEqual(await camera.get_state(), 'recording')
+            await camera.grab()
 
-        self.assertEqual(camera.state, 'standby')
+        self.assertEqual(await camera.get_state(), 'standby')
 
-    def test_stream(self):
-        @coroutine
-        def check():
-            while True:
-                yield
+    async def test_stream(self):
+        async def check(producer):
+            async for image in producer:
                 check.ok = True
-                self.camera.stop_recording()
+                await self.camera.stop_recording()
+                break
         check.ok = False
 
-        self.camera.stream(check()).join()
+        await check(self.camera.stream())
         self.assertTrue(check.ok)
 
-    def test_grab_convert(self):
-        def grab():
+    async def test_grab_convert(self):
+        async def grab():
             return np.mgrid[:5, :5][1]
 
         self.camera._grab_real = grab
         self.camera.convert = np.fliplr
-        image = self.camera.grab()
-        np.testing.assert_equal(image, grab()[:, ::-1])
+        image = await self.camera.grab()
+        np.testing.assert_equal(image, (await grab())[:, ::-1])
 
-    def test_simulate(self):
-        self.assertTrue(np.any(self.background - self.camera.grab()))
+    async def test_simulate(self):
+        self.assertTrue(np.any(self.background - await self.camera.grab()))
         camera = Camera(background=self.background, simulate=False)
-        np.testing.assert_equal(self.background, camera.grab())
+        np.testing.assert_equal(self.background, await camera.grab())
 
 
 class TestPCOTimeStamp(TestCase):

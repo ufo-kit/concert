@@ -8,9 +8,9 @@ class TestDummyShutter(TestCase):
         super(TestDummyShutter, self).setUp()
         self.shutter = DummyShutter()
 
-    def test_open(self):
-        self.assertEqual(self.shutter.state, 'open')
+    async def test_open(self):
+        self.assertEqual(await self.shutter.get_state(), 'open')
 
-    def test_close(self):
-        self.shutter.close().join()
-        self.assertEqual(self.shutter.state, 'closed')
+    async def test_close(self):
+        await self.shutter.close()
+        self.assertEqual(await self.shutter.get_state(), 'closed')

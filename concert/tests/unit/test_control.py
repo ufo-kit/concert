@@ -16,16 +16,16 @@ class VisitorLoop(ClosedLoop):
         self.controlled = False
         self.iteration = 1
 
-    def initialize(self):
+    async def initialize(self):
         self.initialized = True
 
-    def measure(self):
+    async def measure(self):
         self.measured = True
 
-    def control(self):
+    async def control(self):
         self.controlled = True
 
-    def compare(self):
+    async def compare(self):
         self.compared = True
         self.iteration += 1
 
@@ -36,12 +36,12 @@ class TestOptimizationLoop(TestCase):
     def setUp(self):
         self.loop = VisitorLoop()
 
-    def test_all_called(self):
-        self.loop.run().join()
+    async def test_all_called(self):
+        await self.loop.run()
         self.assertTrue(self.loop.initialized)
         self.assertTrue(self.loop.measured)
         self.assertTrue(self.loop.controlled)
 
-    def test_run(self):
-        self.assertFalse(self.loop.run(max_iterations=1).result())
-        self.assertTrue(self.loop.run().result())
+    async def test_run(self):
+        self.assertFalse(await self.loop.run(max_iterations=1))
+        self.assertTrue(await self.loop.run())
