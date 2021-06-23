@@ -1,7 +1,7 @@
 import time
 from concert.tests import TestCase, suppressed_logging
 from concert.quantities import q
-from concert.helpers import measure
+from concert.helpers import is_iterable, measure
 from concert.processes.common import focus, align_rotation_axis, ProcessError
 from concert.devices.motors.dummy import LinearMotor, RotationMotor
 from concert.devices.cameras.dummy import Camera
@@ -63,3 +63,24 @@ def test_measure_execution():
     result, elapsed = sleeping()
     assert(result == 123)
     assert(elapsed > 0.001 * q.s)
+
+
+@suppressed_logging
+def test_is_iterable():
+    iterables = [(1, 2), [1, 2], {1, 2}]
+    noniterables = [1, None, 1 * q.mm]
+
+    # Standard stuff
+    for item in iterables:
+        assert is_iterable(item)
+
+    # array * unit
+    for item in iterables[:2]:
+        item = item * q.mm
+        assert is_iterable(item)
+
+    # item * unit, item * unit
+    assert is_iterable([1 * q.mm, 2 * q.mm])
+
+    for item in noniterables:
+        assert not is_iterable(item)
