@@ -59,15 +59,15 @@ class SocketConnection(object):
         return result
 
 
-def get_tango_device(uri, peer=None):
+async def get_tango_device(uri, peer=None):
     """
     Get a Tango device by specifying its *uri*. If *peer* is given change the
     tango_host specifying which database to connect to. Format is host:port
     as a string.
     """
-    import PyTango
+    from tango.asyncio import DeviceProxy
     # TODO: check if there is a way to adjust the host in PyTango.
     if peer is not None:
         os.environ["TANGO_HOST"] = peer
 
-    return PyTango.DeviceProxy(uri)
+    return await DeviceProxy(uri)
