@@ -3,6 +3,7 @@ import os
 import logging
 import socket
 from threading import Lock
+from concert.quantities import q
 
 
 LOG = logging.getLogger(__name__)
@@ -59,15 +60,19 @@ class SocketConnection(object):
         return result
 
 
-def get_tango_device(uri, peer=None):
+def get_tango_device(uri, peer=None, timeout=10*q.s):
     """
-    Get a Tango device by specifying its *uri*. If *peer* is given change the
-    tango_host specifying which database to connect to. Format is host:port
-    as a string.
+    Get a Tango device by specifying its *uri*. If *peer* is given change the tango_host specifying
+    which database to connect to. Format is host:port as a string. *timeout* sets the device's
+    general timeout. It is converted to milliseconds, converted to integer and then the tango
+    device's `set_timout_millis` is called with the converted integer value.
     """
     import PyTango
     # TODO: check if there is a way to adjust the host in PyTango.
     if peer is not None:
         os.environ["TANGO_HOST"] = peer
 
-    return PyTango.DeviceProxy(uri, green_mode=PyTango.GreenMode.Asyncio)
+    device = PyTango.DeviceProxy(uri, green_mode=PyTango.GreenMode.Asyncio)
+    device.set_timeout_millis(int(timeout.to(q.ms).magnitude))
+
+    return device
