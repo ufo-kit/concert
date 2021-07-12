@@ -78,6 +78,29 @@ def find_needle_tip(image):
     return np.mean(coords, axis=0) if coords else None
 
 
+async def find_sphere_centers_by_mass(producer, border_crossing_ok=True):
+    """Get sphere centers in images from *producer* by computing their center of mass. The images
+    must be absorption images. If *border_crossing_ok* is False skip images where sphere goes
+    outside the field of view.
+    """
+    def _process_one(image):
+        mask = segment_convex_object(image)
+        mean_bg = image[mask == 0].mean()
+        # Subtract mean of the background to correct for a global grey value offset
+        tip = center_of_mass(image - mean_bg)
+        if not border_crossing_ok and _touches_border(mask):
+            LOG.debug('Skipping border-crossing image with center of mass (x, y) = %s', tip[::-1])
+            tip = None
+
+        return tip
+
+    coros = []
+    async for image in producer:
+        coros.append(start(run_in_executor(_process_one, image)))
+
+    return [tip for tip in await asyncio.gather(*coros) if tip is not None]
+
+
 async def find_sphere_centers(producer, supersampling=1, correlation_threshold=None):
     """Get sphere centers in images from *producer*.  by finding the image with the largest portion
     of a sphere inside (the sphere may partially go out of the FOV) and correlate other images with
@@ -89,11 +112,6 @@ async def find_sphere_centers(producer, supersampling=1, correlation_threshold=N
     image based on the shift found by correlation and computing the correlation coefficient of such
     shifted image with respect to the best one.
     """
-    def _touches_border(mask):
-        y, x = np.where(mask)
-
-        return (min(y) == 0 or max(y) == mask.shape[0] - 1
-                or min(x) == 0 or max(x) == mask.shape[1] - 1)
 
     def _wrap(tips, axis):
         t = tips[:, axis]
@@ -212,6 +230,13 @@ def segment_convex_object(image):
         mask = _segment(thr, greater=sgn == 1)
 
     return mask
+
+
+def _touches_border(mask):
+    y, x = np.where(mask)
+
+    return (min(y) == 0 or max(y) == mask.shape[0] - 1
+            or min(x) == 0 or max(x) == mask.shape[1] - 1)
 
 
 def _find_peak_subpix(peak, image, supersampling=16):
