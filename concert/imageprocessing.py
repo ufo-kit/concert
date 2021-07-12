@@ -153,7 +153,7 @@ def segment_convex_object(image):
     """
     try:
         from skimage.filters import threshold_otsu
-        from skimage.morphology import convex_hull_image, label
+        from skimage.morphology import dilation, disk, convex_hull_image, label
     except ImportError as e:
         print("You need to install scikit-image in order to use this function")
         LOG.error(e)
@@ -200,9 +200,11 @@ def segment_convex_object(image):
         mask = imask
         sgn = -1
 
-    # Refine the segmentation, set the threshold to roughly FWTM of the background standard
-    # deviation.
-    indices = np.where(1 - mask)
+    # Refine the segmentation of an object in image by setting the threshold to roughly FWTM of
+    # the background standard deviation. Find the background by dilating the mask (in case some
+    # object pixels are in the mask) by a small disk and then taking the inverse. sgn controls
+    # whether the object is dark or bright (sgn = 1 for bright).
+    indices = np.where(1 - dilation(mask, selem=disk(20)))
     mean_bg = image[indices].mean()
     std_bg = image[indices].std()
     thr = mean_bg + sgn * 5 * std_bg
