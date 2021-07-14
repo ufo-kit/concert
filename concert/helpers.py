@@ -63,13 +63,22 @@ def memoize(func):
     """
     memo = {}
 
-    def wrapper(*args):
-        if args in memo:
-            return memo[args]
+    if inspect.iscoroutinefunction(func):
+        async def wrapper(*args):
+            if args in memo:
+                return memo[args]
 
-        result = func(*args)
-        memo[args] = result
-        return result
+            result = await func(*args)
+            memo[args] = result
+            return result
+    else:
+        def wrapper(*args):
+            if args in memo:
+                return memo[args]
+
+            result = func(*args)
+            memo[args] = result
+            return result
 
     return wrapper
 
