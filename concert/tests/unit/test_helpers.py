@@ -1,7 +1,8 @@
+import inspect
 import time
 from concert.tests import TestCase, suppressed_logging
 from concert.quantities import q
-from concert.helpers import is_iterable, measure
+from concert.helpers import is_iterable, measure, memoize
 from concert.processes.common import focus, align_rotation_axis, ProcessError
 from concert.devices.motors.dummy import LinearMotor, RotationMotor
 from concert.devices.cameras.dummy import Camera
@@ -84,3 +85,37 @@ def test_is_iterable():
 
     for item in noniterables:
         assert not is_iterable(item)
+
+
+class TestMemoize(TestCase):
+    def test_ordinary_func(self):
+        ran = False
+
+        @memoize
+        def func(arg):
+            nonlocal ran
+            ran = True
+            return arg + 1
+
+        self.assertFalse(inspect.iscoroutinefunction(func))
+        self.assertEqual(func(1), 2)
+        self.assertTrue(ran)
+        ran = False
+        self.assertEqual(func(1), 2)
+        self.assertFalse(ran)
+
+    async def test_coro_func(self):
+        ran = False
+
+        @memoize
+        async def afunc(arg):
+            nonlocal ran
+            ran = True
+            return arg + 1
+
+        self.assertTrue(inspect.iscoroutinefunction(afunc))
+        self.assertEqual(await afunc(1), 2)
+        self.assertTrue(ran)
+        ran = False
+        self.assertEqual(await afunc(1), 2)
+        self.assertFalse(ran)
