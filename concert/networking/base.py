@@ -1,8 +1,7 @@
 """Connection protocols for network communication."""
+import asyncio
 import os
 import logging
-import socket
-from threading import Lock
 from concert.quantities import q
 
 
@@ -18,44 +17,53 @@ class SocketConnection(object):
 
     def __init__(self, host, port, return_sequence="\n"):
         self._peer = (host, port)
-        self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._sock.settimeout(20)
-        self._lock = Lock()
+        self._reader = None
+        self._writer = None
+        self._lock = asyncio.Lock()
         self.return_sequence = return_sequence
-        self._sock.connect(self._peer)
 
-    def __del__(self):
-        self._sock.close()
+    async def connect(self):
+        """Open connection."""
+        self._reader, self._writer = await asyncio.open_connection(*self._peer)
 
-    def send(self, data):
+    async def close(self):
+        """Close connection."""
+        self._writer.close()
+        await self._writer.wait_closed()
+
+    async def send(self, data):
         """
         Send *data* to the peer. The return sequence characters
         are appended to the data before it is sent.
         """
+        if not self._reader:
+            await self.connect()
+
         LOG.debug('Sending {0}'.format(data))
         data += self.return_sequence
-        self._sock.sendall(data.encode('ascii'))
+        self._writer.write(data.encode('ascii'))
+        await self._writer.drain()
 
-    def recv(self):
+    async def recv(self):
         """
         Read data from the socket. The result is first stripped
         from the trailing return sequence characters and then returned.
         """
-        try:
-            result = self._sock.recv(1024)
-            if result.endswith(self.return_sequence):
-                # Strip the command-ending character
-                result = result.rstrip(self.return_sequence)
-            LOG.debug('Received {0}'.format(result))
-            return result
-        except socket.timeout:
-            LOG.warn('Reading from %s:%i timed out' % self._peer)
+        if not self._reader:
+            await self.connect()
 
-    def execute(self, data):
-        """Execute command and wait for response (thread safe)."""
-        with self._lock:
-            self.send(data)
-            result = self.recv()
+        result = (await self._reader.read(1024)).decode('ascii')
+        if result.endswith(self.return_sequence):
+            # Strip the command-ending character
+            result = result.rstrip(self.return_sequence)
+        LOG.debug('Received {0}'.format(result))
+        return result
+
+    async def execute(self, data):
+        """Execute command and wait for response (coroutine-safe, not thread-safe)."""
+        async with self._lock:
+            await self.send(data)
+            result = await self.recv()
 
         return result
 
