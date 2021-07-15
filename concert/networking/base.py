@@ -19,7 +19,7 @@ class SocketConnection(object):
         self._peer = (host, port)
         self._reader = None
         self._writer = None
-        self._lock = asyncio.Lock()
+        self.lock = asyncio.Lock()
         self.return_sequence = return_sequence
 
     async def connect(self):
@@ -61,7 +61,7 @@ class SocketConnection(object):
 
     async def execute(self, data):
         """Execute command and wait for response (coroutine-safe, not thread-safe)."""
-        async with self._lock:
+        async with self.lock:
             await self.send(data)
             result = await self.recv()
 
