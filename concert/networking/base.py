@@ -44,15 +44,15 @@ class SocketConnection(object):
         self._writer.write(data.encode('ascii'))
         await self._writer.drain()
 
-    async def recv(self):
+    async def recv(self, num=1024):
         """
-        Read data from the socket. The result is first stripped
-        from the trailing return sequence characters and then returned.
+        Read *num* bytes from the socket. The result is first stripped from the trailing return
+        sequence characters and then returned.
         """
         if not self._reader:
             await self.connect()
 
-        result = (await self._reader.read(1024)).decode('ascii')
+        result = (await self._reader.read(num)).decode('ascii')
         if result.endswith(self.return_sequence):
             # Strip the command-ending character
             result = result.rstrip(self.return_sequence)
