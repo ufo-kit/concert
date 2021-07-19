@@ -3,6 +3,7 @@ import asyncio
 import os
 import logging
 from concert.quantities import q
+from concert.config import AIODEBUG
 
 
 LOG = logging.getLogger(__name__)
@@ -21,6 +22,16 @@ class SocketConnection(object):
         self._writer = None
         self.lock = asyncio.Lock()
         self.return_sequence = return_sequence
+
+    async def __aenter__(self):
+        LOG.log(AIODEBUG, 'Socket connection enter')
+        await self.connect()
+
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        LOG.log(AIODEBUG, 'Socket connection exit')
+        await self.close()
 
     async def connect(self):
         """Open connection."""
