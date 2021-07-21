@@ -13,10 +13,12 @@ class _PositionMixin(object):
     def __init__(self):
         self._position = 0 * q.mm
         self._moving = False
+        self._stop_evt = asyncio.Event()
         self._lower_hard_limit = -np.inf * q.mm
         self._upper_hard_limit = np.inf * q.mm
 
     async def _set_position(self, position):
+        self._stop_evt.clear()
         try:
             direction = 0
             motion_velocity = await self.get_motion_velocity()
@@ -45,12 +47,14 @@ class _PositionMixin(object):
             pass
         finally:
             self._moving = False
+            self._stop_evt.set()
 
     async def _get_position(self):
         return self._position
 
     async def _stop(self):
         self._moving = False
+        await self._stop_evt.wait()
 
     async def _set_motion_velocity(self, vel):
         self._motion_velocity = vel
