@@ -33,11 +33,9 @@ class _PositionMixin(object):
                     self._position += direction * motion_velocity * MOVEMENT_TIME_STEPS
                     await asyncio.sleep(MOVEMENT_TIME_STEPS.to(q.s).magnitude)
                     if self._position < self._lower_hard_limit:
-                        self._moving = False
                         self._position = self._lower_hard_limit
                         raise HardLimitError('hard-limit')
                     if self._position > self._upper_hard_limit:
-                        self._moving = False
                         self._position = self._upper_hard_limit
                         raise HardLimitError('hard-limit')
                 if self._moving:
@@ -118,9 +116,6 @@ class ContinuousLinearMotor(LinearMotor, base.ContinuousLinearMotor):
                 start(self.set_position(-np.inf * q.mm))
         if vel.magnitude == 0:
             start(self.stop())
-
-    async def _stop(self):
-        self._moving = False
 
 
 class RotationMotor(_PositionMixin, base.RotationMotor):
