@@ -143,8 +143,7 @@ class ImageWriter(Addon):
     def _attach(self):
         """Attach all acquisitions."""
         for acq in self.acquisitions:
-            block = True if acq == self.acquisitions[-1] else False
-            self._writers[acq] = self._write_sequence(acq, block)
+            self._writers[acq] = self._write_sequence(acq)
             acq.consumers.append(self._writers[acq])
 
     def _detach(self):
@@ -153,9 +152,8 @@ class ImageWriter(Addon):
             acq.consumers.remove(self._writers[acq])
             del self._writers[acq]
 
-    def _write_sequence(self, acquisition, block):
+    def _write_sequence(self, acquisition):
         """Wrap the walker and write data."""
-        # TODO: what with block?
         async def wrapped_writer(producer):
             """Returned wrapper."""
             try:
