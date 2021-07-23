@@ -1,7 +1,9 @@
 #! python
 
+import asyncio
 import argparse
 import contextlib
+import functools
 import logging
 import os
 import re
@@ -15,8 +17,12 @@ import zipfile
 import concert
 import concert.config
 import concert.session.management as cs
+from concert.commands import COMMANDS
 from concert.helpers import Command
 from concert.ext.cmd import plugins
+
+
+LOG = logging.getLogger(__name__)
 
 
 def docstring_summary(doc):
@@ -33,28 +39,6 @@ def cmp_versions(v1, v2):
     n1 = normalize(v1)
     n2 = normalize(v2)
     return (n1 > n2) - (n1 < n2)
-
-
-def get_ipython_shell(config=None):
-    import IPython
-    import concert.casync
-
-    version = IPython.__version__
-    shell = None
-
-    # Jeez, let's see what comes next ...
-    if cmp_versions(version, '0.11') < 0:
-        from IPython.Shell import IPShellEmbed
-        shell = IPShellEmbed()
-    elif cmp_versions(version, '1.0') < 0:
-        from IPython.frontend.terminal.embed import \
-            InteractiveShellEmbed
-        shell = InteractiveShellEmbed(config=config, banner1='')
-    else:
-        from IPython.terminal.embed import InteractiveShellEmbed
-        shell = InteractiveShellEmbed(config=config, banner1='')
-
-    return shell
 
 
 def get_prompt_config(session_name):
@@ -354,7 +338,6 @@ class StartCommand(Command):
     def run(self, session=None, filename=None,
             non_interactive=False,
             logto='file', logfile=None, loglevel=None):
-        from concert.session.utils import abort
 
         if session:
             cs.exit_if_not_exists(session)
@@ -379,15 +362,6 @@ class StartCommand(Command):
         # Add session path, so that sessions can import other sessions
         sys.path.append(cs.path())
 
-        # ctrl-c handling
-        orig_sigint_handler = signal.getsignal(signal.SIGINT)
-
-        def concert_sigint_handler(sig, frame):
-            abort()
-            orig_sigint_handler(sig, frame)
-
-        signal.signal(signal.SIGINT, concert_sigint_handler)
-
         if non_interactive:
             if session:
                 exec(compile(open(cs.path(session), "rb").read(), cs.path(session), 'exec'), globals())
@@ -404,12 +378,49 @@ class StartCommand(Command):
             self.run_shell(module)
 
     def run_shell(self, module=None):
+        import IPython
+        from IPython.terminal.embed import InteractiveShellEmbed
         from concert.base import (UnitError, LimitError, ParameterError,
                                   ReadAccessError, WriteAccessError, LockError)
+        from concert.session.utils import abort_awaiting
+
+        # ctrl-c handling (abort whatever what is running in the foreground (blocks))
+        orig_sigint_handler = signal.getsignal(signal.SIGINT)
+
+        # Cancel running tasks in IPython's asyncio event loop
+        def concert_sigint_handler(sig, frame):
+            LOG.info('KeyboardInterrupt in awaiting mode')
+            aborted = abort_awaiting()
+            LOG.debug('Aborted: %s', aborted)
+            if not aborted:
+                # If there is a task being awaited cancel it and swallow the exception so that we
+                # don't flood the terminal with the stack trace, otherwise do the usual business
+                # TODO: we may still keep hanging if the task being cancelled calls a blocking
+                # function not in executor.
+                orig_sigint_handler(sig, frame)
+
+        signal.signal(signal.SIGINT, concert_sigint_handler)
 
         def _handler(_shell, _etype, evalue, _traceback_, tb_offset=None):
-            print("Sorry, {0}".format(str(evalue)))
+            if _etype == asyncio.CancelledError:
+                # Silently log the error message without polluting the terminal
+                messages = traceback.extract_tb(_traceback_).format()
+                if len(messages) > 1:
+                    messages = messages[1:]
+                LOG.info('asyncio.CancelledError\n' + ''.join(messages))
+            elif _etype == KeyboardInterrupt:
+                # Silently log the error message without polluting the terminal
+                messages = traceback.extract_tb(_traceback_).format()
+                if len(messages) > 2:
+                    # Skip IPython part and our sigint handler
+                    messages = messages[1:-1]
+                LOG.info('KeyboardInterrupt in normal mode\n' + ''.join(messages))
+            else:
+                print("Sorry, {0}".format(str(evalue)))
             return None
+
+        def _abort_all_awaiting(event):
+            abort_awaiting(background=True)
 
         print("Welcome to Concert {0}".format(concert.__version__))
 
@@ -418,21 +429,33 @@ class StartCommand(Command):
 
         attrs = [attr for attr in dir(module) if not attr.startswith('_')]
         mvars = dict((attr, getattr(module, attr)) for attr in attrs)
-        globals().update(mvars)
+        mvars.update(COMMANDS)
 
         try:
-            exceptions = (UnitError, LimitError, ParameterError,
-                          ReadAccessError, WriteAccessError, LockError)
+            exceptions = (UnitError, LimitError, ParameterError, ReadAccessError, WriteAccessError,
+                          LockError, KeyboardInterrupt, asyncio.CancelledError)
 
             config = get_prompt_config(module.__name__) if module else get_prompt_config('concert')
 
             if not module:
                 from concert.quantities import q
 
-            shell = get_ipython_shell()
+            shell = InteractiveShellEmbed(banner1='', user_module=module, user_ns=mvars)
+            # Tasks created with asyncio.ensure_future(...) are started immediately
+            shell.enable_gui(gui='asyncio')
             shell.prompts = config(shell)
+            # jedi may invoke the code which creates a new event loop in prompt_toolkit which breaks
+            # things like sockets, which live throughout the session and thus rely on a single event
+            # loop. If this becomes unmaintainable, consider using trio or curio.
+            # To the code invocation: it happens mostly in descriptor access, e.g.
+            # motor.pos<Tab> invokes the motor.position in a new loop and that is not permissible
+            # within the simple SocketConnection class which internal state is bound to the loop
+            # within which it was created.
+            shell.Completer.use_jedi = False
 
             shell.set_custom_exc(exceptions, _handler)
+            # ctrl-k (abort everything, also background awaitables)
+            shell.pt_app.key_bindings.add('c-k')(_abort_all_awaiting)
             shell()
         except ImportError as exception:
             msg = "You must install IPython to run the Concert shell: {0}"
