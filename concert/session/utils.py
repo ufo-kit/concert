@@ -128,6 +128,19 @@ def pdoc(hide_blacklisted=True):
     print(table.get_string())
 
 
+def cdoc():
+    """Render device documentation."""
+    from concert.commands import COMMANDS
+
+    field_names = ["Name", "Description"]
+    table = get_default_table(field_names)
+
+    for name in sorted(COMMANDS):
+        table.add_row([name, inspect.getdoc(COMMANDS[name])])
+
+    print(table.get_string())
+
+
 def code_of(func):
     """Show implementation of *func*."""
     source = inspect.getsource(func)
