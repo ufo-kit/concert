@@ -1,17 +1,20 @@
+import asyncio
 import logging
 import math
 import os
 import inspect
 import subprocess
-import time
 import prettytable
-from concert.casync import threaded, wait
-from concert.devices.base import abort as device_abort
+import concert
+from concert.config import AIODEBUG
 from concert.devices.base import Device
-from concert.quantities import q
+from concert.session.management import path as get_session_path
 
 
 LOG = logging.getLogger(__name__)
+# These are additional library paths which define coroutines which can be aborted by ctrl-k in
+# concert session
+ABORTABLE_PATHS = []
 
 
 def _get_param_description_table(device, max_width):
@@ -155,36 +158,59 @@ def code_of(func):
         print(source)
 
 
-def abort():
-    """Abort all actions related with parameters on all devices."""
-    from concert.devices.base import Device
-    from concert.experiments.base import Acquisition, Experiment
-
-    # First abort experiments
-    futures = [ex.abort() for (name, ex) in _current_instances(Experiment)]
-    # Then acquisitions, in case there are some standalone ones
-    futures += [acq.abort() for (name, acq) in _current_instances(Acquisition)]
-    futures += device_abort((device for (name, device) in _current_instances(Device)))
-
-    return futures
-
-
-@threaded
-def check_emergency_stop(check, poll_interval=0.1*q.s, exit_session=False):
+def abort_awaiting(background=False):
+    """Abort task currently being awaited in the session. Return True if there is a task being
+    awaited, otherwise False. This function does not touch tasks running in the background unless
+    *background* is True, in which case it cancels all awaitables.
     """
-    check_emergency_stop(check, poll_interval=0.1*q.s, exit_session=False)
-    If a callable *check* returns True abort is called. Then until it clears to False nothing is
-    done and then the process begins again. *poll_interval* is the interval at which *check* is
-    called. If *exit_session* is True the session exits when the emergency stop occurs.
-    """
-    while True:
-        if check():
-            futures = abort()
-            LOG.error('Emergency stop')
-            wait(futures)
-            if exit_session:
-                os.abort()
-            while check():
-                # Wait until the flag clears
-                time.sleep(poll_interval.to(q.s).magnitude)
-        time.sleep(poll_interval.to(q.s).magnitude)
+    import concert.coroutines.base as cbase
+
+    def get_task_name(task):
+        return task.get_coro().__qualname__
+
+    def get_task_directory(task):
+        return os.path.dirname(task.get_coro().cr_code.co_filename)
+
+    if cbase._TLOOP:
+        tasks = asyncio.all_tasks(loop=cbase._TLOOP)
+        LOG.log(AIODEBUG, 'Running %d tasks in separate thread:%s', len(tasks),
+                '\n'.join([get_task_name(task) for task in tasks]))
+        for task in tasks:
+            name = get_task_name(task)
+            LOG.log(AIODEBUG, f"Cancelling task `{name}' with result {task.cancel()}")
+
+    loop = asyncio.get_event_loop()
+    try:
+        LOG.debug('Global abort called, loop: %d, IPython loop: %d', id(loop),
+                  id(get_ipython().pt_loop))
+    except NameError:
+        LOG.debug('NameError in pid: %d', os.getpid())
+
+    # Abortable is everything in concert, session and user-defined paths
+    abortable_paths = [os.path.dirname(inspect.getfile(concert)),
+                       get_session_path()] + ABORTABLE_PATHS
+    tasks = asyncio.all_tasks(loop=loop)
+    LOG.log(AIODEBUG, 'Running %d tasks:\n%s', len(tasks),
+            '\n'.join([get_task_name(task) for task in tasks]))
+
+    for task in tasks:
+        name = get_task_name(task)
+        abortable = False
+        if background:
+            # ctrl-k, cancel everything from us
+            for path in abortable_paths:
+                if get_task_directory(task).startswith(path):
+                    abortable = True
+                    break
+        elif 'run_cell_async' in name:
+            # TODO: make this cleaner and robust (run_cell_async may change its name and so on)
+            abortable = True
+        if abortable:
+            # We either abort everything which is enabled for aborting or the current coroutine
+            # which is being awaited in the session
+            cancelled_result = task.cancel()
+            LOG.log(AIODEBUG, "Cancelling task `%s' with result %s", name, cancelled_result)
+            if not background:
+                return True
+
+    return False
