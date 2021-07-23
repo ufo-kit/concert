@@ -70,11 +70,13 @@ class SocketConnection(object):
         LOG.debug('Received {0}'.format(result))
         return result
 
-    async def execute(self, data):
-        """Execute command and wait for response (coroutine-safe, not thread-safe)."""
+    async def execute(self, data, num=1024):
+        """Execute command and wait for response (coroutine-safe, not thread-safe). Read *num* bytes
+        from the socket.
+        """
         async with self.lock:
             await self.send(data)
-            result = await self.recv()
+            result = await self.recv(num=num)
 
         return result
 
