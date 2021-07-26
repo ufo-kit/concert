@@ -6,7 +6,6 @@ import logging
 import functools
 import inspect
 import types
-import threading
 from concert.helpers import memoize
 from concert.coroutines.base import run_in_loop, wait_until
 from concert.quantities import q
@@ -501,17 +500,18 @@ class ParameterValue(object):
     """Value object of a :class:`.Parameter`."""
 
     def __init__(self, instance, parameter):
-        self._lock = threading.Lock()
+        self._lock = asyncio.Lock()
         self._locked = False
         self._instance = instance
         self._parameter = parameter
         self._saved = []
 
-    def __enter__(self):
-        self._lock.acquire()
+    async def __aenter__(self):
+        await self._lock.acquire()
+
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    async def __aexit__(self, exc_type, exc, tb):
         self._lock.release()
 
     def __lt__(self, other):

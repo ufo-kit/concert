@@ -1,5 +1,4 @@
 import asyncio
-import threading
 import logging
 from concert.base import Parameterizable
 from concert.commands import command
@@ -27,14 +26,15 @@ class Device(Parameterizable):
         # We have to create the lock early on because it will be accessed in
         # any add_parameter calls, especially those in the Parameterizable base
         # class
-        self._lock = threading.Lock()
+        self._lock = asyncio.Lock()
         super(Device, self).__init__()
 
-    def __enter__(self):
-        self._lock.acquire()
+    async def __aenter__(self):
+        await self._lock.acquire()
+
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    async def __aexit__(self, exc_type, exc, tb):
         self._lock.release()
 
     @command()
