@@ -36,8 +36,8 @@ async def scan(params, values, feedback, go_back=False):
     example, scanning camera exposure times and motor positions with values=[[1, 2] * q.s, [3, 5] *
     q.mm], would result in this::
 
-    [((1 * q.s, 3 * q.mm), feedback()), ((1 * q.s, 5 * q.mm), feedback()),
-     ((2 * q.s, 3 * q.mm), feedback()), ((2 * q.s, 5 * q.mm), feedback())]
+        [((1 * q.s, 3 * q.mm), feedback()), ((1 * q.s, 5 * q.mm), feedback()),
+         ((2 * q.s, 3 * q.mm), feedback()), ((2 * q.s, 5 * q.mm), feedback())]
 
     In general, for n parameters and lists of values, returned are tuples ((x_0, ..., x_{n-1}), y),
     where y = feedback() is called after every value setting (any parameter change). Parameter

@@ -59,7 +59,7 @@ def run_in_loop_thread_blocking(coroutine):
 
 
 def run_in_executor(func, *args):
-    """Run a blocking function *func* with signature func(*args) in an executor."""
+    """Run a blocking function *func* with signature func(\*args) in an executor."""
     # Leave this here for now, if there are problems with the normal run_in_executor returning a
     # future then let's re-visit
     # """Run a blocking function *func* with signature func(*args) in an executor, wrap the future
@@ -94,7 +94,7 @@ def start(coroutine):
 
 
 async def ensure_coroutine(func, *args, **kwargs):
-    """*func*(**args*, ***kwargs*) returns an awaitable which is wrapped here into a real coroutine.
+    """func(\*args, \*\*kwargs) returns an awaitable which is wrapped here into a real coroutine.
     This is useful for turuning futures from other libraries, like Tango, into real coroutines.
     """
     return await func(*args, **kwargs)
@@ -170,7 +170,7 @@ def broadcast(producer, *consumers):
 
 async def feed_queue(producer, func, *args):
     """Feed function *func* with items from *producer* in a separete thread. The signatute must be
-    func(queue, *args) where elements in the queue are instances of `concert.helpers.PrioItem`.
+    func(queue, \*args) where elements in the queue are instances of :class:`concert.helpers.PrioItem`.
     """
     loop = asyncio.get_running_loop()
     pqueue = queue.PriorityQueue()
