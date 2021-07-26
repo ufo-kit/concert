@@ -48,7 +48,7 @@ Devices
 Asynchronous execution
 ----------------------
 
-.. automodule:: concert.async
+.. automodule:: concert.coroutines.base
     :members:
 
 
@@ -88,9 +88,6 @@ Socket Connections
 ------------------
 
 .. autoclass:: concert.networking.base.SocketConnection
-    :members:
-
-.. autoclass:: concert.networking.aerotech.Connection
     :members:
 
 

@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 import sys
 import os
-from concert import __version__
-
 sys.path.insert(0, os.path.abspath('..'))
+from concert import __version__
 
 _authors = [u'Matthias Vogelgesang',
             u'Tomas Farago']

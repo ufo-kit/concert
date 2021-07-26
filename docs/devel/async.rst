@@ -1,79 +1,79 @@
-======================
-Asynchronous execution
-======================
+.. _concurrent-execution:
 
-Concurrency
-===========
 
-Every user defined function or method *must* be synchronous (blocking). To
-define a function as asynchronous, use the :func:`.async` decorator::
+====================
+Concurrent execution
+====================
 
-    from concert.async import async
+Concert relies on concurrency_ instead of parallelism_ because what mostly
+happens is communication with devices, which is I/O bound. This is realized via
+*coroutines* and Python's asyncio_ module. A *coroutine* is a function defined
+as ``async def`` and inside it can yield execution for other coroutines via the
+``await`` keyword. In Concert, there are three ways to execute coroutines:
 
-    @async
-    def synchronous_function():
-        # long running operation
+    1. as non-blocking *tasks*,
+    2. via the blocking ``await`` syntax,
+    3. as blocking commands.
+
+An example::
+
+    import asyncio
+    from concert.coroutines.base import start
+    from concert.commands import create_command
+
+    async def corofunc():
+        await asyncio.sleep(0.1)
         return 1
 
-Every asynchronous function returns a *Future* that can be used for explicit
-synchronization::
+    task = start(corofunc()) # doesn't block
+    await task # this blocks
+    await corofunc() # this blocks too
+    cmd = create_command(corofunc) # convenience function
+    cmd() # this blocks too
 
-    future = synchronous_function()
-    print(future.done())
-    result = future.result()
 
-Every future that is returned by Concert, has an additional method ``join``
-that will block until execution finished and raise the exception that might
-have been raised in the wrapped function. It will also return the future to
-gather the result::
+There are many commands which Concert defines for convenience, use the
+``cdoc()`` function. A more reallistic example::
 
-    try:
-        future = synchronous_function().join()
-        result = future.result()
-    except:
-        print("synchronous_function raised an exception")
+    from concert.coroutines.base import start
+    from concert.devices.motors.dummy import LinearMotor
 
-You can assign a cleanup function for a future which will be called when the
-future is cancelled. You can specify the cleanup function by callable with no
-arguments and pass it as ``future.cancel_operation``. The callable is then
-invoked on ``cancel``.
+    motor = LinearMotor()
+    task = start(motor.home()) # this doesn't block
+    await task # this blocks
+    await motor.home() # this blocks too
+    home(motor) # this blocks too, Concert defines the home command
 
-You can invoke future's ``cancel`` method by pressing *ctrl-c* once you invoke
-``join`` or ``result``. If you use ``gevent`` futures, the future execution
-stops and ``cancel`` is invoked. If you use ``concurrent`` futures, keep in mind
-that their execution is always finished! However, once it is, the ``cancel`` is
-invoked.
+Please note that you cannot use blocking commands from within an ``async def``
+function. If you are writing such a function, you must make sure your code is
+cooperative and use the ``await`` syntax. The commands are for user convenience
+for the command line only. In case you are unsure if a function you are going to
+use is a coroutine function, use ``iscoroutinefunction(func)`` test, which
+returns ``True`` if you need to use ``func`` with one of the three mechanisms
+above. If it returns ``False``, ``func`` is an ordinary function and you can
+simply invoke it. For more examples please refer to concert examples_.
 
-The asynchronous execution provided by Concert deals with concurrency. If the
-user wants to employ real parallelism they should make use of the
-multiprocessing module which provides functionality not limited by Python's
-global interpreter lock.
+You can cancel running coroutines which are being ``await``\ed by pressing
+*ctrl-c*. This for instance stops a motor. If you want to cancel *all* running
+coroutines, including the ones running in the background, press *ctrl-k*.
 
 
 Synchronization
 ---------------
 
-When using the asynchronous getters and setters of :class:`.Device` and
-:class:`.Parameter`, processes can not be sure if other processes or the user
-manipulate the device during the execution. To lock devices or specific
-parameters, processes can use them as context managers::
+When using the concurrent getters and setters of :class:`.Device` and
+:class:`.Parameter`, coroutines can not be sure if other coroutines manipulate
+the device. To lock devices or specific parameters, coroutines can use devices
+with context managers::
 
-    with motor, pump['foo']:
-        motor.position = 2 * q.mm
-        pump.foo = 1 * q.s
+    async with shutter, motor['position']:
+        await motor.set_position(2 * q.mm)
+        await shutter.open()
 
-Inside the ``with`` environment, the process has exclusive access to the devices
+Inside the ``async with`` environment, a coroutine has exclusive access to the devices
 and parameters.
 
-
-Disable asynchronous execution
-------------------------------
-
-Testing and debugging asynchronous code can be difficult at times because the
-real source of an error is hidden behind calls from different places. To disable
-asynchronous execution (but still keeping the illusion of having Futures
-returned), you can import :data:`.ENABLE_ASYNC` and set it to ``False`` *before*
-importing anything else from Concert.
-
-Concert provides a Nose plugin that adds a ``--disable-async`` flag to the test
-runner which, you can use to customize :data:`.ENABLE_ASYNC`.
+.. _concurrency: https://en.wikipedia.org/wiki/Concurrency_(computer_science)
+.. _parallelism: https://en.wikipedia.org/wiki/Parallel_computing
+.. _asyncio: https://docs.python.org/3/library/asyncio.html
+.. _examples: https://github.com/ufo-kit/concert-examples

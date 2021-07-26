@@ -17,8 +17,8 @@ get a reference to the parameter object by using the index operator::
 To set and get parameters explicitly , you can use the :meth:`Parameter.get`
 and :meth:`Parameter.set` methods::
 
-    pos_parameter.set(1 * q.mm)
-    print (pos_parameter.get().result())
+    await pos_parameter.set(1 * q.mm)
+    print (await pos_parameter.get())
 
 Both methods will return a *Future*. A future is a promise that a result will be
 delivered when asked for. In the mean time other things can and should happen
@@ -62,13 +62,13 @@ go back to the same place it came from. For these cases you can use
 :meth:`Device.restore` to go back. Because this is done in a stacked fashion,
 you can, for example, model local coordinate pretty easily::
 
-   motor.stash()
+   await motor.stash()
 
    # Do movements aka modify the "local" coordinate system
-   motor.move(1 * q.mm)
+   await motor.move(1 * q.mm)
 
    # Go back to the original state
-   motor.restore()
+   await motor.restore()
 
 
 Locking parameters

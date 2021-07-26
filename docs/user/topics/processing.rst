@@ -9,60 +9,53 @@ Coroutines provide a way to process data and yield execution until more data is
 produced. *Generators* represent the source of data and can be used as normal
 iterators, e.g.  in a ``for`` loop. Coroutines can use the output of a generator
 to either process data and output a new result item in a *filter* fashion or
-process the data without further results in a *sink* fashion.
+process the data without further results in a *sink* fashion. For more on
+coroutines, see :ref:`concurrent-execution`.
 
-Coroutines are simple functions that get their input by calling yield on the
-right side or as an argument. Because they need to be started in a particular
-way, it is useful to decorate a coroutine with the :func:`.coroutine`
-decorator::
+Data processing with coroutines uses generators and iterates over their items
+like this::
 
-    from concert.coroutines.base import coroutine
+    async def producer(num):
+        for i in range(num):
+            yield i
 
-    @coroutine
-    def printer():
-        while True:
-            item = yield
+    async def printer(producer):
+        async for item in producer:
             print(item)
 
-This coroutine fetches data items and prints them one by one. Because no data is
+    # Usage:
+    await printer(producer(10))
+
+*printer* coroutine fetches data items and prints them one by one. Because no data is
 produced, this coroutine falls into the sink category. Concert provides some
 common pre-defined sinks in the :mod:`.sinks` module.
 
 Filters hook into the data stream and process the input to produce some output.
 For example, to generate a stream of squared input, you would write::
 
-    @coroutine
     def square(consumer):
-        while True:
-            item = yield
-            consumer.send(item**2)
+        async for item in producer:
+            yield item ** 2
+
+    # Usage:
+    await printer(square(producer(10)))
 
 You can find a variety of pre-defined filters in the :mod:`.filters` module.
 
 
-Connecting data sources with coroutines
----------------------------------------
-
-In order to connect a *generator* that ``yields`` data to a *filter* or a *sink*
-it is necessary to bootstrap the pipeline by using the :func:`.inject` function,
-which forwards generated data to a coroutine::
-
-    from concert.coroutines.base import inject
-
-    def generator(n):
-        for i in range(n):
-            yield i
-
-    # Use the output of generator to feed into printer
-    inject(generator(5), printer())
+Broadcasting
+------------
 
 To fan out a single input stream to multiple consumers, you can use the
-:func:`.broadcast` like this::
+:func:`.broadcast`. Its first argument is the producer and the rest are
+consumers. :func:`.broadcast` creates the connections from producer to consumers
+and returns a list of coroutines, which can be used by :func:`asyncio.gather`
+function, like this::
 
     from concert.coroutines.base import broadcast
 
-    source(5, broadcast(printer(),
-                        square(printer())))
+    coros = broadcast(producer(10), printer, printer)
+    await asyncio.gather(*coros)
 
 
 High-performance processing
@@ -95,7 +88,7 @@ the UFO data processing framework. The simplest example could look like this::
     proc = InjectProcess(writer)
 
     proc.start()
-    proc.insert(scipy.misc.lena())
+    await proc.insert(scipy.misc.ascent())
     proc.wait()
 
 
@@ -113,14 +106,5 @@ Viewing processed data
 ======================
 
 Concert has a Matplotlib integration to simplify viewing 1D time series with the
-:class:`.PyplotViewer` and 2D image data with the :class:`.PyplotImageViewer`::
-
-    from concert.devices.cameras.dummy import Camera
-    from concert.ext.viewers import PyplotImageViewer
-
-    # Create a camera and execute something with it in recording state
-    camera = Camera()
-    with camera.recording():
-        # Create a viewer and show one frame
-        viewer = PyplotImageViewer()
-        viewer.show(camera.grab())
+:class:`.PyplotViewer`. For 2D, there are multiple implementations, for details
+see :ref:`viewers`.

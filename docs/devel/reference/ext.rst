@@ -9,23 +9,11 @@ to make sure, that the appropriate libraries and modules are installed.
 UFO Processing
 --------------
 
-Base objects
-~~~~~~~~~~~~
-
-.. autoclass:: concert.ext.ufo.PluginManager
-    :members:
-
-.. autoclass:: concert.ext.ufo.InjectProcess
+.. automodule:: concert.ext.ufo
     :members:
 
 
-Coroutines
-~~~~~~~~~~
-
-.. autoclass:: concert.ext.ufo.Backproject
-    :show-inheritance:
-    :members:
-
+.. _viewers:
 
 Viewers
 -------

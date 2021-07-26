@@ -20,34 +20,34 @@ consumer. We need to do this because generators cannot be "restarted".
 It is very important that you enclose the executive part of the production and
 consumption code in `try-finally` to ensure proper clean up. E.g. if a producer
 starts rotating a motor, then in the `finally` clause there should be the call
-`motor.stop().join()`.
+`await motor.stop()`.
 
 An example of an acquisition could look like this::
 
-    from concert.coroutines.base import coroutine
     from concert.experiments.base import Acquisition
 
     # This is a real generator, num_items is provided somewhere in our session
-    def produce():
+    async def produce():
         try:
             for i in range(num_items):
                 yield i
         finally:
             # Clean up here
+            pass
 
     # A simple coroutine sink which prints items
-    @coroutine
-    def consumer():
+    async def consume(producer):
         try:
-            while True:
-                item = yield
-                print item
+            async for item in producer:
+                print(item)
         finally:
             # Clean up here
+            pass
 
-    acquisition = Acquisition('foo', produce, consumers=[consumer])
+    acquisition = Acquisition('foo', produce, consumers=[consume])
     # Now we can run the acquisition
-    acquisition()
+    await acquisition()
+
 
 .. autoclass:: concert.experiments.base.Acquisition
     :members:
@@ -72,7 +72,7 @@ running the acquisition above and storing log with
     acquisitions = [Acquisition('foo', produce)]
     experiment = Experiment(acquisitions, walker)
 
-    future = experiment.run()
+    await experiment.run()
 
 .. autoclass:: concert.experiments.base.Experiment
     :members:
@@ -88,25 +88,8 @@ Advanced
 Sometimes we need finer control over when exactly is the data acquired and worry
 about the download later. We can use the *acquire* argument to
 :class:`~.base.Acquisition`. This means that the data acquisition can be invoked
-independently from the processing stage. By default, the
-:class:`~.base.Acquisition` calls its *acquire* and then connects the processing
-immediately. To use the separate acquisition we may e.g. reimplement the
-:meth:`.base.Experiment.acquire` method::
-
-    class SplitExperiment(Experiment):
-
-        def acquire(self):
-            # Here we acquire
-            for acq in self.acquisitions:
-                acq.acquire()
-
-            # Do something in between
-            pass
-
-            # Here we process
-            for acq in self.acquisitions:
-                acq.connect()
-
+before data download. :class:`~.base.Acquisition` calls its *acquire* first and
+only when it is finished connects producer with consumers.
 
 Imaging
 -------
@@ -144,7 +127,7 @@ their data acquisition. For example, to save images on disk::
     writer = ImageWriter(experiment.acquisitions, experiment.walker)
     writer.attach()
     # Now images are written on disk
-    experiment.run()
+    await experiment.run()
     # To remove the writing addon
     writer.detach()
 
