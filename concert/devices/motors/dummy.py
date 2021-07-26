@@ -50,6 +50,9 @@ class _PositionMixin(object):
     async def _get_position(self):
         return self._position
 
+    async def _home(self):
+        await self.set_position(0 * q.mm)
+
     async def _stop(self):
         self._moving = False
         await self._stop_evt.wait()
