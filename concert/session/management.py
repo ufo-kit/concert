@@ -17,6 +17,7 @@ _SESSION_TEMPLATE = """\"\"\"# *{doc}* session manual
 \"\"\"
 
 import logging
+from inspect import iscoroutinefunction
 import concert
 concert.require("{version}")
 
