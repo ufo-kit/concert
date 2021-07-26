@@ -6,7 +6,6 @@ import numpy as np
 import concert.config as cfg
 from concert.quantities import q
 from concert.imageprocessing import ramp_filter
-from concert.casync import threaded
 from concert.imageprocessing import flat_correct as make_flat_correct
 
 
