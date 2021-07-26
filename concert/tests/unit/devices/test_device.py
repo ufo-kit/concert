@@ -11,19 +11,6 @@ from concert.devices.photodiodes.dummy import PhotoDiode
 from concert.devices.lightsources.dummy import LightSource
 
 
-@suppressed_logging
-def test_dummies():
-    Scales()
-    TarableScales()
-    Pump()
-    IO()
-    Monochromator()
-    Shutter()
-    StorageRing()
-    PhotoDiode()
-    LightSource()
-
-
 class MockDevice(Device):
 
     readonly = Parameter()
@@ -49,6 +36,17 @@ class TestDevice(TestCase):
         super(TestDevice, self).setUp()
         self.device = MockDevice()
 
+    def test_dummies(self):
+        Scales()
+        TarableScales()
+        Pump()
+        IO()
+        Monochromator()
+        Shutter()
+        StorageRing()
+        PhotoDiode()
+        LightSource()
+
     async def test_accessor_functions(self):
         self.assertEqual(await self.device.get_readonly(), 1)
         await self.device.set_writeonly(0)
@@ -71,15 +69,15 @@ class TestDevice(TestCase):
         table.add_row(["writeonly", "N/A"])
         self.assertEqual(str(self.device), table.get_string())
 
-    def test_context_manager(self):
+    async def test_context_manager(self):
         # This is just a functional test, we don't cover synchronization issues
         # here.
-        with self.device as d:
-            d.readonly
-            d.writeonly = 2
+        async with self.device as d:
+            await d.get_readonly()
+            await d.set_writeonly(2)
 
-    def test_parameter_lock_acquisition(self):
-        with self.device['writeonly']:
+    async def test_parameter_lock_acquisition(self):
+        async with self.device['writeonly']:
             pass
 
     async def test_abort(self):
