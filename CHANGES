@@ -4,6 +4,68 @@ Changelog
 Here you can see the full list of changes between each Concert release.
 
 
+Version 0.30
+------------
+
+- Simplify scans, no ``Region`` and no need of using ``resolve`` on the result
+
+
+Features
+~~~~~~~~
+
+- Online reconstruction is capable of doing the flat correction with image
+  averaging
+- ``concert.experiments.addons.ImageWriter`` blocks for every acquisition
+- Introduced commands [move(motor, amount)] for enabling blocking execution
+
+Viewers
+-------
+
+- Subclass Parameterizeable, properties turned into parameters
+- Added Simple matplotlib backend without colorbar but faster
+- Added PyQtGraphViewer
+- Added downsampling parameter
+- Added show_refresh_rate parameter
+- Parameter limits accepts "stream", i.e. the limits are updated for the first
+  image of __call__ and then kept the same, "auto" updates limits for every
+  image and a tuple fixes them to min and max.
+
+
+API breaks
+~~~~~~~~~~
+
+- Removed ``queue``, ``sinograms``, ``backproject``, ``PickSlice``, ``process``
+  coroutines from ``concert.coroutines.filters``
+- Removed ``Backproject``, ``FlatCorrectedBackproject``, ``FlatCorrect`` (was
+  there twice), ``center_rotation_axis``, ``compute_rotation_axis`` from
+  ``concert.ext.ufo``
+- Removed ``concert.networking.aerotech`` and ``concert.networking.wago``
+- Removed ``concert.devices.motors.crio``
+- Removed ``concert.helpers.hasattr_raise_exceptions``
+- Removed ``Future.cancel_operation``, cancellation is implemented via
+  ``asyncio.CancelledError``
+- Removed ``concert.helpers.Region``
+- Removed devices:
+    - ``concert.devices.motors.aerotech``
+    - ``concert.devices.io.aerotech``
+    - ``concert.devices.lightsources.fiberlite``
+    - ``concert.devices.lightsources.led.``
+    - ``concert.devices.photodiodes.edmundoptics``
+    - ``concert.devices.scales.adventurer``
+    - ``concert.devices.monochromators.newport.py``
+- Removed processes:
+    - ``concert.processes.common.find_beam``
+    - ``concert.processes.common.drift_to_beam``
+    - ``concert.processes.common.center_to_beam``
+    - ``concert.processes.common.scan_param_feedback``
+- Removed ``concert.session.utils.check_emergency_stop``
+- Removed callbacks from ``concert.processes.common.scan``
+- Removed ``concert.experiments.base.Acquisition.connect`` for simplicity, i.e.
+  the acquisition and consumption of data happens always at the same time, for
+  special behavior, special classes/functions should be used
+
+
+
 Version 0.11
 ------------
 
