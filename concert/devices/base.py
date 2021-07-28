@@ -14,9 +14,9 @@ class Device(Parameterizable):
 
     It implements the context protocol to provide locking::
 
-        with device:
+        async with device:
             # device is locked
-            device.parameter = 1 * q.m
+            await device.set_parameter(1 * q.m)
             ...
 
         # device is unlocked again
