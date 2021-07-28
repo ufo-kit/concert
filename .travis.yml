@@ -11,10 +11,10 @@ before_install:
     - sudo apt-get install -qq python3-numpy python3-scipy 
 
 install:
-    - pip install .
-    - pip install -r requirements.txt
     - pip install nose-exclude
     - pip install scikit-image
+    - pip install -r requirements.txt
+    - pip install .
 
 script:
     - python runtests.py --attr='!skip-travis' --cover-package=concert concert
