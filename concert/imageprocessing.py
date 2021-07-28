@@ -358,8 +358,8 @@ def center_of_mass(frame):
     if total == 0:
         return np.array([-1, -1])
     else:
-        y = (frame.sum(1)*np.arange(frm_shape[0])).sum() / total
-        x = (frame.sum(0)*np.arange(frm_shape[1])).sum() / total
+        y = (frame.sum(1) * np.arange(frm_shape[0])).sum() / total
+        x = (frame.sum(0) * np.arange(frm_shape[1])).sum() / total
         return np.array([y, x])
 
 

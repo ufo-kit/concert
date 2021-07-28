@@ -331,8 +331,8 @@ async def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None
         if z_motor and roll_continue:
             z_pos = await z_motor.get_position()
             roll_history.append((z_pos, roll_angle_current))
-            if (np.abs(roll_angle_current) >= metric_eps and
-                    (np.abs(roll_position_last - z_pos) >= position_eps or i == 0)):
+            if (np.abs(roll_angle_current) >= metric_eps
+                    and (np.abs(roll_position_last - z_pos) >= position_eps or i == 0)):
                 z_coro = make_step(i, z_motor, roll_position_last, roll_angle_last,
                                    roll_angle_current, initial_z_coeff, 'roll')
                 coros.append(z_coro)
@@ -342,8 +342,8 @@ async def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None
         if x_motor and pitch_continue:
             x_pos = await x_motor.get_position()
             pitch_history.append((x_pos, pitch_angle_current))
-            if (np.abs(pitch_angle_current) >= metric_eps and
-                    (np.abs(pitch_position_last - x_pos) >= position_eps or i == 0)):
+            if (np.abs(pitch_angle_current) >= metric_eps
+                    and (np.abs(pitch_position_last - x_pos) >= position_eps or i == 0)):
                 x_coro = make_step(i, x_motor, pitch_position_last, pitch_angle_last,
                                    pitch_angle_current, initial_x_coeff, 'pitch')
                 coros.append(x_coro)

@@ -1,11 +1,7 @@
-from copy import deepcopy
-import queue as queue_module
 import logging
 import time
 import numpy as np
-import concert.config as cfg
 from concert.quantities import q
-from concert.imageprocessing import ramp_filter
 from concert.imageprocessing import flat_correct as make_flat_correct
 
 

@@ -308,13 +308,13 @@ class PyplotImageViewer(ImageViewerBase):
     def _make_updater(self):
         if self._has_colorbar:
             return _PyplotImageUpdater(
-                    self._queue, self._imshow_kwargs, limits=self._limits, title=self._title,
-                    show_refresh_rate=self._show_refresh_rate
-                )
-        return _SimplePyplotImageUpdater(
                 self._queue, self._imshow_kwargs, limits=self._limits, title=self._title,
                 show_refresh_rate=self._show_refresh_rate
             )
+        return _SimplePyplotImageUpdater(
+            self._queue, self._imshow_kwargs, limits=self._limits, title=self._title,
+            show_refresh_rate=self._show_refresh_rate
+        )
 
     def reset(self):
         """Reset the viewer's state."""
@@ -820,8 +820,8 @@ class _PyplotImageUpdater(_PyplotImageUpdaterBase):
     def update_colorbar(self):
         """Update the colorbar (rescale and redraw)."""
         shape = self.mpl_image.get_size()
-        if (shape[1] > shape[0] and self.colorbar.orientation == 'vertical' or
-                shape[0] >= shape[1] and self.colorbar.orientation == 'horizontal'):
+        if (shape[1] > shape[0] and self.colorbar.orientation == 'vertical'
+                or shape[0] >= shape[1] and self.colorbar.orientation == 'horizontal'):
             self.colorbar.remove()
             self.make_colorbar()
 

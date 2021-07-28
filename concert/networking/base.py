@@ -81,7 +81,7 @@ class SocketConnection(object):
         return result
 
 
-def get_tango_device(uri, peer=None, timeout=10*q.s):
+def get_tango_device(uri, peer=None, timeout=10 * q.s):
     """
     Get a Tango device by specifying its *uri*. If *peer* is given change the tango_host specifying
     which database to connect to. Format is host:port as a string. *timeout* sets the device's

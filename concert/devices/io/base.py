@@ -31,7 +31,7 @@ class Signal(Device):
         await self._off()
 
     @check(source='off', target='off')
-    async def trigger(self, duration=10*q.ms):
+    async def trigger(self, duration=10 * q.ms):
         """
         trigger(duration=10*q.ms)
 

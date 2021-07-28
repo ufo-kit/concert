@@ -690,8 +690,8 @@ class GeneralBackprojectManager(Parameterizable):
                     raise GeneralBackprojectManagerError('Projections have different '
                                                          'shape from normalization images')
                 in_shape = (self.args.number,) + projection.shape
-                if (self.projections is None or in_shape != self.projections.shape or
-                        projection.dtype != self.projections.dtype):
+                if (self.projections is None or in_shape != self.projections.shape
+                        or projection.dtype != self.projections.dtype):
                     self.projections = np.empty(in_shape, dtype=projection.dtype)
 
             if self._num_received_projections < self.args.number:
@@ -765,8 +765,8 @@ class GeneralBackprojectManager(Parameterizable):
             async with condition:
                 # Either there is an image to consume, or last image has come and we have consumed
                 # all of them
-                await condition.wait_for(lambda: len(images) > i or
-                                         condition.done and i == len(images))
+                await condition.wait_for(lambda: len(images) > i
+                                         or condition.done and i == len(images))
                 if condition.done and i == len(images):
                     break
             yield images[i]
@@ -843,8 +843,8 @@ class GeneralBackprojectManager(Parameterizable):
         try:
             if not self._processing_task:
                 self._processing_task = start(self._distribute(reuse_normalization=True,
-                                                               do_normalization=self.darks and
-                                                               self.flats))
+                                                               do_normalization=self.darks
+                                                               and self.flats))
             await asyncio.gather(self._copy_projections(producer), self._processing_task)
         except asyncio.CancelledError:
             if self._processing_task and not self._processing_task.cancelled():

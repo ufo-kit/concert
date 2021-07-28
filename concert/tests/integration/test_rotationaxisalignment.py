@@ -73,8 +73,8 @@ class TestDummyAlignment(TestCase):
                                       x_motor=self.x_motor,
                                       z_motor=self.z_motor)
 
-        self.assertEqual("Sample off-centering too " +
-                         "small, enlarge rotation radius.",
+        self.assertEqual("Sample off-centering too "
+                         + "small, enlarge rotation radius.",
                          str(ctx.exception))
 
     @slow

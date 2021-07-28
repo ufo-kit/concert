@@ -45,8 +45,8 @@ class TestExpects(TestCase):
                 self.rotation_motor,
                 self.rotation_motor,
                 self.rotation_motor,
-                num_frames=10 *
-                q.mm).result()
+                num_frames=10 * q.m
+            ).result()
 
     async def test_align_rotation_axis_function(self):
         with self.assertRaises(ProcessError):

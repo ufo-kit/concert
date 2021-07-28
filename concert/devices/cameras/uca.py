@@ -87,7 +87,7 @@ class Camera(base.Camera):
             self.uca = self._manager.get_camerah(name, params)
         except GLib.GError as ge:
             raise base.CameraError(str(ge))
-        except:
+        except Exception:
             raise base.CameraError("`{0}' is not a valid camera".format(name))
 
         units = {

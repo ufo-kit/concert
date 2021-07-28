@@ -20,8 +20,8 @@ class TestOptimizers(TestCase):
         self.motor.upper = float('Inf') * q.mm
 
     async def feedback(self):
-        return ((await self.motor.get_position()).to(q.mm).magnitude -
-                self.center.to(q.mm).magnitude) ** 2
+        return ((await self.motor.get_position()).to(q.mm).magnitude
+                - self.center.to(q.mm).magnitude) ** 2
 
     async def check(self):
         assert_almost_equal((await self.motor.get_position()).to(q.mm),

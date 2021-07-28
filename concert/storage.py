@@ -112,8 +112,8 @@ def write_images(pqueue, writer=TiffWriter, prefix="image_{:>05}.tif", start_ind
             if not append and (not im_writer or written + image.nbytes > bytes_per_file):
                 if im_writer:
                     im_writer.close()
-                    LOG.debug('Writer "{}" closed'.format(prefix.format(start_index +
-                                                                        file_index - 1)))
+                    LOG.debug('Writer "{}" closed'.format(prefix.format(start_index
+                                                                        + file_index - 1)))
                 im_writer = writer(prefix.format(start_index + file_index), bytes_per_file)
                 file_index += 1
                 written = 0

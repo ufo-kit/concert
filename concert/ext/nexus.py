@@ -60,8 +60,8 @@ class Hdf5Walker(Walker):
                 dsetname = dsetname or self.dsetname
 
                 if dsetname in self._current:
-                    raise StorageError("`{}' is not empty".format(self._current.name + '/' +
-                                                                  dsetname))
+                    raise StorageError("`{}' is not empty".format(self._current.name + '/'
+                                                                  + dsetname))
 
                 dset = self._current.create_dataset(dsetname, shape, maxshape=maxshape,
                                                     dtype=data.dtype)

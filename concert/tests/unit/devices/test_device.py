@@ -1,6 +1,6 @@
 from concert.base import Parameter, ParameterError
 from concert.devices.base import abort_all_devices, Device
-from concert.tests import TestCase, suppressed_logging
+from concert.tests import TestCase
 from concert.devices.scales.dummy import Scales, TarableScales
 from concert.devices.pumps.dummy import Pump
 from concert.devices.io.dummy import IO

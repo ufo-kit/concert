@@ -6,7 +6,7 @@ from concert.quantities import q
 from concert.devices.motors import base
 import numpy as np
 
-MOVEMENT_TIME_STEPS = 0.01*q.s
+MOVEMENT_TIME_STEPS = 0.01 * q.s
 
 
 class _PositionMixin(object):
@@ -75,7 +75,7 @@ class LinearMotor(_PositionMixin, base.LinearMotor):
 
     """A linear step motor dummy."""
 
-    motion_velocity = Quantity(q.mm/q.s)
+    motion_velocity = Quantity(q.mm / q.s)
 
     def __init__(self, position=None, upper_hard_limit=None, lower_hard_limit=None):
         base.LinearMotor.__init__(self)
@@ -125,7 +125,7 @@ class RotationMotor(_PositionMixin, base.RotationMotor):
 
     """A rotational step motor dummy."""
 
-    motion_velocity = Quantity(q.deg/q.s)
+    motion_velocity = Quantity(q.deg / q.s)
 
     def __init__(self, upper_hard_limit=None, lower_hard_limit=None):
         base.RotationMotor.__init__(self)

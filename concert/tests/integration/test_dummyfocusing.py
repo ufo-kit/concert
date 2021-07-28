@@ -41,7 +41,7 @@ class TestDummyFocusing(TestCase):
 
     def setUp(self):
         super(TestDummyFocusing, self).setUp()
-        self.motor = LinearMotor(upper_hard_limit=2000*q.mm, lower_hard_limit=-2000*q.mm)
+        self.motor = LinearMotor(upper_hard_limit=2000 * q.mm, lower_hard_limit=-2000 * q.mm)
         self.motor.position = 0 * q.mm
         self.feedback = DummyGradientMeasure(self.motor['position'],
                                              18.75 * q.mm, negative=True)

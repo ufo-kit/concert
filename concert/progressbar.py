@@ -7,7 +7,7 @@ import inspect
 try:
     import tqdm
     from tqdm.asyncio import tqdm as atqdm
-except:
+except ImportError:
     cfg.PROGRESS_BAR = False
 
 

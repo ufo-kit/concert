@@ -243,7 +243,7 @@ class PrioItem:
     """To be used in combination with `queue.PriorityQueue`."""
 
     priority: int
-    data: Any=field(compare=False)
+    data: Any = field(compare=False)
 
 
 def is_iterable(item):
@@ -251,5 +251,5 @@ def is_iterable(item):
     try:
         iter(item)
         return True
-    except:
+    except Exception:
         return False

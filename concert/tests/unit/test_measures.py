@@ -138,7 +138,7 @@ class TestRotationAxisMeasure(TestCase):
         await self.z_motor.set_position(0 * q.deg)
         eps = 0.1 * q.deg
         await align_rotation_axis(self.image_source, self.y_motor, x_motor=self.x_motor,
-                                  z_motor=self.z_motor, initial_x_coeff=2*q.dimensionless,
+                                  z_motor=self.z_motor, initial_x_coeff=2 * q.dimensionless,
                                   metric_eps=eps)
 
         assert np.abs(await self.x_motor.get_position()) < eps

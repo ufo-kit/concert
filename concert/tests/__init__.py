@@ -33,12 +33,12 @@ def assert_almost_equal(x, y, epsilon=1e-10):
     """Discard unit on x and y and assert that they are almost equal."""
     try:
         x[0]
-    except:
+    except Exception:
         x = [x]
 
     try:
         y[0]
-    except:
+    except Exception:
         y = [y]
 
     assert len(x) == len(y)

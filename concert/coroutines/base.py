@@ -170,7 +170,8 @@ def broadcast(producer, *consumers):
 
 async def feed_queue(producer, func, *args):
     """Feed function *func* with items from *producer* in a separete thread. The signatute must be
-    func(queue, \*args) where elements in the queue are instances of :class:`concert.helpers.PrioItem`.
+    func(queue, \*args) where elements in the queue are instances of
+    :class:`concert.helpers.PrioItem`.
     """
     loop = asyncio.get_running_loop()
     pqueue = queue.PriorityQueue()

@@ -26,7 +26,7 @@ class Pco(Camera):
             await self.set_acquire_mode(self.uca.enum_values.acquire_mode.AUTO)
             await self.set_storage_mode(self.uca.enum_values.storage_mode.RECORDER)
             await self.set_record_mode(self.uca.enum_values.record_mode.RING_BUFFER)
-        except:
+        except Exception:
             pass
 
         async for image in super().stream():
@@ -92,9 +92,9 @@ class Dimax(Pco, base.BufferedMixin):
             num_frames = recorded_frames.magnitude
 
         if not 0 < num_frames <= recorded_frames:
-            raise base.CameraError("Number of frames {} ".format(num_frames) +
-                                   "must be more than zero and less than the recorded " +
-                                   "number of frames {}".format(recorded_frames))
+            raise base.CameraError("Number of frames {} ".format(num_frames)
+                                   + "must be more than zero and less than the recorded "
+                                   + "number of frames {}".format(recorded_frames))
 
         try:
             self.uca.start_readout()

@@ -25,7 +25,7 @@ async def _test_getter(device):
 
 
 async def _test_target(device):
-    return 10*q.mm
+    return 10 * q.mm
 
 
 class FooDevice(BaseDevice):
@@ -123,8 +123,8 @@ class RestrictedFooDevice(FooDevice):
 class ExternalLimitDevice(BaseDevice):
 
     foo = Quantity(q.mm,
-                   external_lower_getter=lambda: -5*q.mm,
-                   external_upper_getter=lambda: 5*q.mm)
+                   external_lower_getter=lambda: -5 * q.mm,
+                   external_upper_getter=lambda: 5 * q.mm)
 
     def __init__(self, value):
         super(ExternalLimitDevice, self).__init__()
@@ -296,7 +296,7 @@ class TestParameter(TestCase):
         self.assertEqual(device._value, 0 * q.mm)
 
     def test_readonly_value(self):
-        device = FooDevice(0*q.mm)
+        device = FooDevice(0 * q.mm)
         self.assertEqual(device.bar, 5 * q.m)
         self.assertEqual(device['bar'].writable, False)
         with self.assertRaises(WriteAccessError):
@@ -313,7 +313,7 @@ class TestParameter(TestCase):
         device.test = 1 * q.mm
         self.assertEqual(device.test, 1 * q.mm)
         self.assertEqual(device['test'].target_readable, True)
-        self.assertEqual(device['test'].target, 10*q.mm)
+        self.assertEqual(device['test'].target, 10 * q.mm)
 
     def test_name_for_log(self):
         device = FooDevice(0 * q.mm)
@@ -386,8 +386,8 @@ class TestQuantity(TestCase):
             dev['foo'].upper = -2 * q.m
 
     async def test_external_limits(self):
-        dev = ExternalLimitDevice(0*q.mm)
-        self.assertEqual(dev['foo'].lower, -5*q.mm)
+        dev = ExternalLimitDevice(0 * q.mm)
+        self.assertEqual(dev['foo'].lower, -5 * q.mm)
         self.assertEqual(dev['foo'].upper, 5 * q.mm)
 
         dev['foo'].upper = 2 * q.mm
