@@ -6,14 +6,21 @@ Concurrent execution
 ====================
 
 Concert relies on concurrency_ instead of parallelism_ because what mostly
-happens is communication with devices, which is I/O bound. This is realized via
-*coroutines* and Python's asyncio_ module. A *coroutine* is a function defined
-as ``async def`` and inside it can yield execution for other coroutines via the
-``await`` keyword. In Concert, there are three ways to execute coroutines:
+happens is communication with devices, which is I/O bound. Concurrency is
+realized via *coroutines* and Python's asyncio_ module. A *coroutine* is a
+function defined as ``async def`` and inside it can yield execution for other
+coroutines via the ``await`` keyword. When you call a *coroutine function*, it
+returns a *coroutine* object, but the code of that function is not yet executed.
+One way of invoking execution in a *blocking* way is by the ``await`` keyword
+followed by a coroutine object. This will block the session until the coroutine
+is finished.  Alternatively, you can start the execution in a *non-blocking* way
+by calling :py:func:`.start` and get the control back immediately.
+:py:func:`.start` returns a task_ object, which can also be ``await``\ed.
+Overall, in Concert there are three ways to execute coroutines:
 
-    1. as non-blocking *tasks*,
-    2. via the blocking ``await`` syntax,
-    3. as blocking commands.
+    1. as *non-blocking* *tasks*,
+    2. via the *blocking* ``await`` syntax,
+    3. as a *blocking* *command*.
 
 An example::
 
@@ -58,6 +65,19 @@ You can cancel running coroutines which are being ``await``\ed by pressing
 coroutines, including the ones running in the background, press *ctrl-k*.
 
 
+Concurrency
+-----------
+
+Concurrent execution itself is realized via asyncio's tools, like gather_, which
+executes given coroutines concurrently and returns their results::
+
+    async def corofunc():
+        await asyncio.sleep(0.1)
+        return 1
+
+    await asyncio.gather(corofunc(), corofunc())
+
+
 Synchronization
 ---------------
 
@@ -76,4 +96,6 @@ and parameters.
 .. _concurrency: https://en.wikipedia.org/wiki/Concurrency_(computer_science)
 .. _parallelism: https://en.wikipedia.org/wiki/Parallel_computing
 .. _asyncio: https://docs.python.org/3/library/asyncio.html
+.. _task: https://docs.python.org/3/library/asyncio-task.html#task-object
 .. _examples: https://github.com/ufo-kit/concert-examples
+.. _gather: https://docs.python.org/3/library/asyncio-task.html#asyncio.gather

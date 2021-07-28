@@ -15,19 +15,15 @@ get a reference to the parameter object by using the index operator::
     pos_parameter = motor['position']
 
 To set and get parameters explicitly , you can use the :meth:`Parameter.get`
-and :meth:`Parameter.set` methods::
+and :meth:`Parameter.set` coroutine methods::
 
     await pos_parameter.set(1 * q.mm)
     print (await pos_parameter.get())
 
-Both methods will return a *Future*. A future is a promise that a result will be
-delivered when asked for. In the mean time other things can and should happen
-concurrently. As you can see, to get the result of a future you call its
-``result()`` method. In case you call ``join()``, which just waits until a future
-execution is finished, or ``result()`` and you press *ctrl-c* the parameter's
-cancelling action will be called (see below for more detail).  If you use
-``gevent`` futures, the code will even stop execution before the cancelling
-action is called, so you should get to a safe state sooner.
+Both methods return a coroutine (see :ref:`concurrent-execution` for details)
+and give the control back to you, so that other things can (and should) happen
+concurrently. As you can see, to get the result of a coroutine you use the
+``await`` keyword.
 
 An easier way to set and get parameter values are properties via the
 dot-name-notation::
@@ -40,17 +36,20 @@ As you can see, accessing parameters this way will *always be synchronous* and
 you are setting a parameter the function will stop and a cancelling action will
 be called, like stopping a motor, so that you don't accidentaly crush your
 devices. However, please be aware that this is up to device implementation, so
-you shuld check if the device you are using is safe in this manner.
+you should check if the device you are using is safe in this manner.
 
 Parameter objects are not only used to communicate with a device but also carry
 meta data information about the parameter. The most important ones are
-:attr:`Parameter.name`, :attr:`Parameter.unit` and the doc string describing the
-parameter. Moreover, parameters can be queried for access rights using :attr:`Parameter.writable`.
+:attr:`Parameter.name`, :attr:`Quantity.unit` (in case of a parameter having a
+physical unit, like motor's position) and the doc string describing the
+parameter. Moreover, parameters can be queried for access rights using
+:attr:`Parameter.writable`.
 
 To get all parameters of an object, you can iterate over the device itself ::
 
     for param in motor:
         print("{0} => {1}".format(param.unit if hasattr(param,'unit') else None, param.name))
+
 
 Saving state
 ------------

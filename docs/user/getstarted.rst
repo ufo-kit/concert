@@ -115,6 +115,9 @@ In case you are interested in the implementation of a function, you can use
 
 .. _pint: https://pint.readthedocs.org/en/latest/
 
+How to execute more things concurrently and how to stop execution can be found
+in :ref:`concurrent-execution`.
+
 
 Creating a session
 ==================
