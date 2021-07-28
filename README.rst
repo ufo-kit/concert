@@ -4,8 +4,8 @@ Concert
 .. image:: https://badge.fury.io/py/concert.png
     :target: http://badge.fury.io/py/concert
 
-.. image:: https://travis-ci.org/ufo-kit/concert.png?branch=master
-    :target: https://travis-ci.org/ufo-kit/concert
+.. image:: https://travis-ci.com/ufo-kit/concert.png?branch=master
+    :target: https://travis-ci.com/ufo-kit/concert
 
 .. image:: https://coveralls.io/repos/ufo-kit/concert/badge.png?branch=master
     :target: https://coveralls.io/r/ufo-kit/concert?branch=master
