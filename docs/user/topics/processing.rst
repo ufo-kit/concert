@@ -107,4 +107,6 @@ Viewing processed data
 
 Concert has a Matplotlib integration to simplify viewing 1D time series with the
 :class:`.PyplotViewer`. For 2D, there are multiple implementations, for details
-see :ref:`viewers`.
+see :ref:`viewers` and Concert examples_.
+
+.. _examples: https://github.com/ufo-kit/concert-examples/blob/master/pyplotimageviewer-example.py
