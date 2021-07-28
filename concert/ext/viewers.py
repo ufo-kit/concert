@@ -231,21 +231,13 @@ class ImageViewerBase(ViewerBase):
         self._title = title
         self._downsampling = downsampling
         self._limits = limits
-        self._new_stream = False
 
     async def __call__(self, producer: Callable, size: int = None, force: bool = False):
-        self._new_stream = True
+        # In case limits are set to 'stream' we need to reset clim
+        self._queue.put(('clim', self._limits))
         return await super().__call__(producer, size=None, force=force)
 
     def _show(self, item):
-        if self._new_stream or self._proc is None or not self._proc.is_alive():
-            # We have been called as a coroutine or haven's stated at all yet
-            self._new_stream = False
-            if self._limits == 'stream':
-                # Limits are locked to the first image in stream
-                image = item[::self._downsampling, ::self._downsampling]
-                self._queue.put(('clim', (image.min(), image.max())))
-
         self._queue.put(('image', item[::self._downsampling, ::self._downsampling]))
 
     async def _get_downsampling(self):
@@ -307,17 +299,22 @@ class PyplotImageViewer(ImageViewerBase):
 
     def __init__(self, imshow_kwargs: dict = None, fast: bool = True, limits: str = 'stream',
                  downsampling: int = 1, title: str = "", show_refresh_rate: bool = False):
-        super().__init__(title=title, show_refresh_rate=show_refresh_rate)
+        super().__init__(limits=limits, downsampling=downsampling, title=title,
+                         show_refresh_rate=show_refresh_rate)
         self._has_colorbar = not fast
         self._imshow_kwargs = {} if imshow_kwargs is None else imshow_kwargs
         self._make_imshow_defaults()
 
     def _make_updater(self):
         if self._has_colorbar:
-            return _PyplotImageUpdater(self._queue, self._imshow_kwargs, self._has_colorbar,
-                                       title=self._title, show_refresh_rate=self._show_refresh_rate)
-        return _SimplePyplotImageUpdater(self._queue, self._imshow_kwargs, title=self._title,
-                                         show_refresh_rate=self._show_refresh_rate)
+            return _PyplotImageUpdater(
+                    self._queue, self._imshow_kwargs, limits=self._limits, title=self._title,
+                    show_refresh_rate=self._show_refresh_rate
+                )
+        return _SimplePyplotImageUpdater(
+                self._queue, self._imshow_kwargs, limits=self._limits, title=self._title,
+                show_refresh_rate=self._show_refresh_rate
+            )
 
     def reset(self):
         """Reset the viewer's state."""
@@ -367,10 +364,13 @@ class _PyQtGraphUpdater:
         except Empty:
             pass
 
-    def draw_image(self, image):
+    def update_all(self, image):
         """Display *image*."""
         now = time.perf_counter()
         self.view.imageItem.setImage(image, autoLevels=self.clim == 'auto', autoDownsample=True)
+        if self.clim == 'stream':
+            self.clim = (image.min(), image.max())
+            self.sync_image_and_clim()
 
         if self.show_refresh_rate:
             if now - self.last_text_time > 0.5:
@@ -395,7 +395,7 @@ class _PyQtGraphUpdater:
             self.view = pg.ImageView(view=self.plot)
             self.make_refresh_rate_text()
 
-        self.draw_image(image)
+        self.update_all(image)
 
         if first:
             self.update_limits(self.clim)
@@ -405,8 +405,8 @@ class _PyQtGraphUpdater:
         # Store no matter if there is an image already or not
         self.clim = clim
 
-        if not self.view:
-            # No image has been displayed yet
+        if not self.view or self.clim == 'stream':
+            # No image has been displayed yet or the limits will be set with the next image
             return
 
         if clim == 'auto':
@@ -417,10 +417,9 @@ class _PyQtGraphUpdater:
             self.view.ui.histogram.autoHistogramRange()
             return
 
-        if clim == 'stream':
-            # Set to current image and keep it that way
-            self.clim = (self.view.imageItem.image.min(), self.view.imageItem.image.max())
+        self.sync_image_and_clim()
 
+    def sync_image_and_clim(self):
         self.view.imageItem.setLevels(self.clim)
         # Synchronize histogram range and current image range drawn as lines
         self.view.imageItem.setImage(self.view.imageItem.image, autoLevels=False,
@@ -664,11 +663,43 @@ class _PyplotImageUpdaterBase(_PyplotUpdaterBase):
 
     def process_image(self, image):
         """Display *image*."""
+        if self.mpl_image is not None and self.mpl_image.get_size() != image.shape:
+            self.reset()
+
+        if self.mpl_image:
+            # Either removed by shape change or first time drawing
+            self.update_all(image)
+        else:
+            self.make_image(image)
+
+    def make_image(self, image):
+        """Setup everything and display *image* for the first time."""
         raise NotImplementedError
+
+    def update_all(self, image):
+        """Update everything which needs to be updated when new *image* arrives."""
+        self.mpl_image.set_data(image)
+        self.update_refresh_rate_text()
+        if self.clim in ['auto', 'stream']:
+            # If the limit is not set to a value we autoscale
+            new_lower = float(image.min())
+            new_upper = float(image.max())
+            if self.limits_changed(new_lower, new_upper):
+                self.mpl_image.set_clim(new_lower, new_upper)
+            if self.clim == 'stream':
+                self.clim = self.mpl_image.get_clim()
 
     def update_limits(self, clim):
         """Update limits (black and white point)."""
-        raise NotImplementedError
+        # Store no matter if there is an image already or not
+        self.clim = clim
+
+        if self.mpl_image is None or clim == 'stream':
+            return
+
+        image = self.mpl_image.get_array()
+        clim = (image.min(), image.max())
+        self.mpl_image.set_clim(clim)
 
     def update_colormap(self, colormap):
         """Update colormap."""
@@ -762,37 +793,10 @@ class _PyplotImageUpdater(_PyplotImageUpdaterBase):
 
         return artists
 
-    def process_image(self, image):
-        """Process the incoming *image*."""
-        if self.mpl_image is not None and \
-                self.mpl_image.get_size() != image.shape:
-            # When the shape changes the axes needs to be reset
-            self.mpl_image.axes.figure.clear()
-            self.mpl_image = None
-            self.colorbar = None
-
-        if self.mpl_image is None:
-            # Either removed by shape change or first time drawing
-            self.make_image(image)
-        else:
-            self.update_all(image)
-
     def update_limits(self, clim):
-        # Store no matter if there is an image already or not
-        self.clim = clim
-
-        if self.mpl_image is None:
-            return
-
-        if clim in ['auto', 'stream']:
-            image = self.mpl_image.get_array()
-            clim = (image.min(), image.max())
-            if clim == 'stream':
-                # Set to current image and keep it that way
-                self.clim = (image.min(), image.max())
-
-        self.mpl_image.set_clim(clim)
-        self.update_colorbar()
+        super().update_limits(clim)
+        if self.mpl_image:
+            self.update_colorbar()
 
     def update_colormap(self, colormap):
         """Update colormap to *colormap*."""
@@ -804,15 +808,14 @@ class _PyplotImageUpdater(_PyplotImageUpdaterBase):
 
     def update_all(self, image):
         """Update image and colorbar."""
-        self.mpl_image.set_data(image)
-        self.update_refresh_rate_text()
-        if self.clim == 'auto':
-            # If the limit is not set to a value we autoscale
-            new_lower = float(image.min())
-            new_upper = float(image.max())
-            if self.limits_changed(new_lower, new_upper):
-                self.mpl_image.set_clim(new_lower, new_upper)
-                self.update_colorbar()
+        super().update_all(image)
+        self.update_colorbar()
+
+    def reset(self, *args):
+        # We need to get rid of the colorbar as well
+        self.mpl_image.axes.figure.clear()
+        self.mpl_image = None
+        self.colorbar = None
 
     def update_colorbar(self):
         """Update the colorbar (rescale and redraw)."""
@@ -871,7 +874,7 @@ class _SimplePyplotImageUpdater(_PyplotImageUpdaterBase):
 
         Note:
         plt.pause makes the window steal focus aggresively (mpl 3.1.2) and after minimizing it pops
-        right back up. This keeps happening until user maniputes the image via the toolbar. Doing
+        right back up. This keeps happening until user manipulates the image via the toolbar. Doing
         things manually via draw_idle and starting the event loop seems to do the trick, for now...
         """
         # plt.pause(0.01)
@@ -895,31 +898,28 @@ class _SimplePyplotImageUpdater(_PyplotImageUpdaterBase):
         if self.text:
             self.axes.draw_artist(self.text)
 
-    def redraw(self):
-        """Redraw scene."""
-        if self.clim in ['auto', 'stream']:
-            # If the limit is not set to a value we autoscale
-            new_lower = float(self.mpl_image.get_array().min())
-            new_upper = float(self.mpl_image.get_array().max())
-            if self.clim == 'stream':
-                self.clim = (new_lower, new_upper)
-            if self.limits_changed(new_lower, new_upper):
-                self.mpl_image.set_clim(new_lower, new_upper)
-        self.axes.draw_artist(self.mpl_image)
-        if self.text:
-            self.axes.draw_artist(self.text)
-        self.fig.canvas.blit(self.fig.bbox)
-        self.fig.canvas.flush_events()
+    def make_image(self, image):
+        """Create a new matplotlib image."""
+        import matplotlib.pyplot as plt
+
+        self.mpl_image = self.axes.imshow(image, animated=True, **self.imshow_kwargs)
+        if self.clim not in ['auto', 'stream']:
+            self.mpl_image.set_clim(self.clim)
+        self.make_refresh_rate_text(animated=True)
+        # This makes sure axes BBox fits the newly displayed image
+        self.axes.relim()
+        # In case we were panning/zooming, this will reset the position
+        self.axes.autoscale()
+        # This will reset toolbar buttons
+        self.axes.figure.canvas.toolbar.update()
+        plt.show(block=False)
+        plt.pause(0.1)
+        self.background = self.fig.canvas.copy_from_bbox(self.fig.bbox)
 
     def update_limits(self, clim):
-        self.clim = clim
-        if self.mpl_image is None:
-            return
-
-        if clim not in ['auto', 'stream']:
-            self.mpl_image.set_clim(clim)
-
-        self.redraw()
+        super().update_limits(clim)
+        if self.mpl_image:
+            self.redraw()
 
     def update_colormap(self, colormap):
         """Update colormap to *colormap*."""
@@ -929,6 +929,19 @@ class _SimplePyplotImageUpdater(_PyplotImageUpdaterBase):
 
         # Save for after reset
         self.imshow_kwargs["cmap"] = colormap
+
+    def update_all(self, image):
+        self.fig.canvas.restore_region(self.background)
+        super().update_all(image)
+        self.redraw()
+
+    def redraw(self):
+        """Redraw scene."""
+        self.axes.draw_artist(self.mpl_image)
+        if self.text:
+            self.axes.draw_artist(self.text)
+        self.fig.canvas.blit(self.fig.bbox)
+        self.fig.canvas.flush_events()
 
     def process_image(self, image):
         import matplotlib.pyplot as plt
@@ -942,30 +955,7 @@ class _SimplePyplotImageUpdater(_PyplotImageUpdaterBase):
             self.fig.canvas.mpl_connect('close_event', self.on_close)
             self.closed = False
 
-        if self.mpl_image:
-            if self.mpl_image.get_array().shape != image.shape:
-                # Make sure the image is not screwed up if panned/zoomed previously
-                self.reset()
-            else:
-                self.fig.canvas.restore_region(self.background)
-                self.mpl_image.set_data(image)
-                self.update_refresh_rate_text()
-                self.redraw()
-        if not self.mpl_image:
-            # Not an else clause because we could have set mpl_image to None in the previous if
-            self.mpl_image = self.axes.imshow(image, animated=True, **self.imshow_kwargs)
-            if self.clim not in ['auto', 'stream']:
-                self.mpl_image.set_clim(self.clim)
-            self.make_refresh_rate_text(animated=True)
-            # This makes sure axes BBox fits the newly displayed image
-            self.axes.relim()
-            # In case we were panning/zooming, this will reset the position
-            self.axes.autoscale()
-            # This will reset toolbar buttons
-            self.axes.figure.canvas.toolbar.update()
-            plt.show(block=False)
-            plt.pause(0.1)
-            self.background = self.fig.canvas.copy_from_bbox(self.fig.bbox)
+        super().process_image(image)
 
 
 class ViewerError(Exception):
