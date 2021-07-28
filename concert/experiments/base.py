@@ -73,6 +73,7 @@ class Experiment(Parameterizable):
     reinitialize some experiment parts or want to attach some logging output.
 
     .. py:attribute:: acquisitions
+        :noindex:
 
         A list of acquisitions this experiment is composed of
 
