@@ -1,8 +1,10 @@
-futures
+ipython
+matplotlib
 nose
-prettytable
-pyxdg
-pint>=0.12
 numpy
+pint>=0.12
+prettytable
+pyqtgraph
+pyxdg
 scipy
 tifffile
