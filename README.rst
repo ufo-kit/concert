@@ -1,6 +1,9 @@
 Concert
 =======
 
+.. image:: https://img.shields.io/badge/Python-3.8+-blue
+    :target: https://www.python.org/downloads
+
 .. image:: https://badge.fury.io/py/concert.png
     :target: http://badge.fury.io/py/concert
 
