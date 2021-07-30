@@ -1,7 +1,7 @@
 import asyncio
-import math
 import time
 from itertools import product
+from functools import reduce
 import numpy as np
 import logging
 from concert.coroutines.base import broadcast
@@ -62,7 +62,7 @@ async def scan(params, values, feedback, go_back=False):
 
     if ndim > 1 and len(params) != len(values):
         raise RuntimeError
-    num_iterations = math.prod([len(vals) for vals in values])
+    num_iterations = reduce(lambda x, y: x * y, [len(vals) for vals in values])
 
     if go_back:
         for param in params:
