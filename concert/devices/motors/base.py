@@ -81,12 +81,6 @@ class _PositionMixin(Device):
     async def _stop(self):
         raise AccessorNotImplementedError
 
-    async def _abort(self):
-        """Abort by default stops. If the motor provides a real emergency stop, _abort should be
-        overriden.
-        """
-        await self.stop()
-
 
 class LinearMotor(_PositionMixin):
 

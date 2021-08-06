@@ -40,10 +40,6 @@ class DummyDevice(Device):
         self._slow = slow
         self._sleep_time = 0.5 * q.s
 
-    async def _abort(self):
-        LOG.debug('Aborted')
-        self._state_value = 'aborted'
-
     async def _get_sleep_time(self):
         return self._sleep_time
 
