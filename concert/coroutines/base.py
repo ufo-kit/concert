@@ -1,5 +1,6 @@
 import asyncio
 import concert.config
+import concurrent.futures
 import queue
 import logging
 import time
@@ -41,6 +42,10 @@ def run_in_loop_thread_blocking(coroutine):
     """
     global _TLOOP
 
+    if _TLOOP:
+        raise RuntimeError('Another coroutine is already running in a separate thread. '
+                           'Currently only one coroutine can run in a separate thread at a time.')
+
     def run():
         _TLOOP.run_forever()
 
@@ -51,6 +56,8 @@ def run_in_loop_thread_blocking(coroutine):
     try:
         future = asyncio.run_coroutine_threadsafe(coroutine, _TLOOP)
         return future.result()
+    except concurrent.futures.CancelledError as e:
+        LOG.log(AIODEBUG, 'run_in_loop_thread_blocking: %s cancelled', coroutine.__qualname__)
     finally:
         _TLOOP.call_soon_threadsafe(_TLOOP.stop)
         thread.join()
