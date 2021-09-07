@@ -8,6 +8,7 @@ import prettytable
 import concert
 from concert.config import AIODEBUG
 from concert.devices.base import Device
+from concert.quantities import q
 from concert.session.management import path as get_session_path
 
 
@@ -158,7 +159,7 @@ def code_of(func):
         print(source)
 
 
-def abort_awaiting(background=False):
+def abort_awaiting(background=False, skip=None):
     """Abort task currently being awaited in the session. Return True if there is a task being
     awaited, otherwise False. This function does not touch tasks running in the background unless
     *background* is True, in which case it cancels all awaitables.
@@ -218,6 +219,9 @@ def abort_awaiting(background=False):
 
     for task in tasks:
         name = get_task_name(task)
+        if skip and name in skip:
+            LOG.log(AIODEBUG, 'Skipping task %s', name)
+            continue
         abortable = False
         if background:
             # ctrl-k, cancel everything from us
@@ -241,3 +245,22 @@ def abort_awaiting(background=False):
         loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
 
     return False
+
+
+async def check_emergency_stop(check, poll_interval=0.1 * q.s, exit_session=False):
+    """
+    check_emergency_stop(check, poll_interval=0.1*q.s, exit_session=False)
+    If a callable *check* returns True abort is called. Then until it clears to False nothing is
+    done and then the process begins again. *poll_interval* is the interval at which *check* is
+    called. If *exit_session* is True the session exits when the emergency stop occurs.
+    """
+    while True:
+        if check():
+            LOG.error('Emergency stop')
+            abort_awaiting(background=True, skip='check_emergency_stop')
+            if exit_session:
+                os.abort()
+            while check():
+                # Wait until the flag clears
+                await asyncio.sleep(poll_interval.to(q.s).magnitude)
+        await asyncio.sleep(poll_interval.to(q.s).magnitude)
