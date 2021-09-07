@@ -164,6 +164,16 @@ def abort_awaiting(background=False):
     *background* is True, in which case it cancels all awaitables.
     """
     import concert.coroutines.base as cbase
+    import functools
+    import threading
+
+    # Figure out if we are in a callback (ctrl-c or ctrl-k) or check_emergency_stop
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        loop_running = False
+    else:
+        loop_running = True
 
     def get_task_name(task):
         return task.get_coro().__qualname__
@@ -172,12 +182,24 @@ def abort_awaiting(background=False):
         return os.path.dirname(task.get_coro().cr_code.co_filename)
 
     if cbase._TLOOP:
+        def thread_callback(event, task):
+            event.set()
+
         tasks = asyncio.all_tasks(loop=cbase._TLOOP)
         LOG.log(AIODEBUG, 'Running %d tasks in separate thread:%s', len(tasks),
                 '\n'.join([get_task_name(task) for task in tasks]))
+        events = []
         for task in tasks:
+            events.append(threading.Event())
+            task.add_done_callback(functools.partial(thread_callback, events[-1]))
             name = get_task_name(task)
             LOG.log(AIODEBUG, f"Cancelling task `{name}' with result {task.cancel()}")
+
+        # _TLOOP is running here, so we cannot schedule a gathering coroutine, so we create an Event
+        # for every coroutine and set it in the add_done_callback and wait for it, which blocks the
+        # main thread until everything has been cancelled and completed.
+        for event in events:
+            event.wait()
 
     loop = asyncio.get_event_loop()
     try:
@@ -190,6 +212,7 @@ def abort_awaiting(background=False):
     abortable_paths = [os.path.dirname(inspect.getfile(concert)),
                        get_session_path()] + ABORTABLE_PATHS
     tasks = asyncio.all_tasks(loop=loop)
+    pending = []
     LOG.log(AIODEBUG, 'Running %d tasks:\n%s', len(tasks),
             '\n'.join([get_task_name(task) for task in tasks]))
 
@@ -209,8 +232,12 @@ def abort_awaiting(background=False):
             # We either abort everything which is enabled for aborting or the current coroutine
             # which is being awaited in the session
             cancelled_result = task.cancel()
+            pending.append(task)
             LOG.log(AIODEBUG, "Cancelling task `%s' with result %s", name, cancelled_result)
             if not background:
                 return True
+
+    if not loop_running:
+        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
 
     return False
