@@ -27,12 +27,9 @@ class TestAborting(TestCase):
     def test_abort_awaiting_background(self):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        start(corofunc(self))
+        task = start(corofunc(self))
         abort_awaiting(background=True)
-        loop = asyncio.get_event_loop()
-        tasks = asyncio.all_tasks(loop=loop)
-        res = loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
-        self.assertEqual(type(res[0]), asyncio.CancelledError)
+        assert task.cancelled()
 
     def test_abort_awaiting_thread(self):
         result = None
