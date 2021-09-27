@@ -18,7 +18,6 @@ import concert
 import concert.config
 import concert.session.management as cs
 from concert.commands import COMMANDS
-from concert.helpers import Command
 from concert.ext.cmd import plugins
 
 
@@ -52,7 +51,28 @@ def get_prompt_config(session_name):
     return MyPrompt
 
 
-class InitCommand(Command):
+class SubCommand(object):
+
+    """Base sub-command class (concert [subcommand])."""
+
+    def __init__(self, name, opts):
+        """
+        SubCommand objects are loaded at run-time and injected into Concert's
+        command parser.
+
+        *name* denotes the name of the sub-command parser, e.g. "mv" for the
+        MoveCommand. *opts* must be an argparse-compatible dictionary
+        of command options.
+        """
+        self.name = name
+        self.opts = opts
+
+    def run(self, *args, **kwargs):
+        """Run the command"""
+        raise NotImplementedError
+
+
+class InitCommand(SubCommand):
 
     """Create a new session."""
 
@@ -74,7 +94,7 @@ class InitCommand(Command):
             cs.create(session, imports.split())
 
 
-class EditCommand(Command):
+class EditCommand(SubCommand):
 
     """Edit a session."""
 
@@ -92,7 +112,7 @@ class EditCommand(Command):
         subprocess.call([editor, cs.path(session)])
 
 
-class LogCommand(Command):
+class LogCommand(SubCommand):
 
     """Show session logs."""
 
@@ -135,7 +155,7 @@ class LogCommand(Command):
             pass
 
 
-class ShowCommand(Command):
+class ShowCommand(SubCommand):
 
     """Show available sessions or details of a given *session*."""
 
@@ -163,7 +183,7 @@ class ShowCommand(Command):
                 print("  %s" % session)
 
 
-class MoveCommand(Command):
+class MoveCommand(SubCommand):
 
     """Move session *source* to *target*."""
 
@@ -185,7 +205,7 @@ class MoveCommand(Command):
         print("Renamed {} -> {}".format(source, target))
 
 
-class CopyCommand(Command):
+class CopyCommand(SubCommand):
 
     """Copy session *source* to *target*."""
 
@@ -207,7 +227,7 @@ class CopyCommand(Command):
         print("Copied {} -> {}".format(source, target))
 
 
-class RemoveCommand(Command):
+class RemoveCommand(SubCommand):
 
     """Remove one or more sessions."""
 
@@ -223,7 +243,7 @@ class RemoveCommand(Command):
             cs.remove(session)
 
 
-class ImportCommand(Command):
+class ImportCommand(SubCommand):
 
     """Import an existing *session*."""
 
@@ -302,7 +322,7 @@ class ImportCommand(Command):
         return urllib.parse.urlunsplit(result)
 
 
-class ExportCommand(Command):
+class ExportCommand(SubCommand):
 
     """Export all sessions as a Zip archive."""
 
@@ -319,7 +339,7 @@ class ExportCommand(Command):
                 archive.writestr(os.path.basename(path), open(path).read())
 
 
-class StartCommand(Command):
+class StartCommand(SubCommand):
 
     """Start a session."""
 
@@ -462,7 +482,7 @@ class StartCommand(Command):
             print(msg.format(exception))
 
 
-class DocsCommand(Command):
+class DocsCommand(SubCommand):
 
     """Create documentation of *session* docstring."""
 
