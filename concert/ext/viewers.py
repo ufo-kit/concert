@@ -697,8 +697,10 @@ class _PyplotImageUpdaterBase(_PyplotUpdaterBase):
         if self.mpl_image is None or clim == 'stream':
             return
 
-        image = self.mpl_image.get_array()
-        clim = (image.min(), image.max())
+        if clim == 'auto':
+            image = self.mpl_image.get_array()
+            clim = (image.min(), image.max())
+
         self.mpl_image.set_clim(clim)
 
     def update_colormap(self, colormap):
