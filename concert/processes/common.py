@@ -4,7 +4,7 @@ from itertools import product
 from functools import reduce
 import numpy as np
 import logging
-from concert.coroutines.base import broadcast
+from concert.coroutines.base import background, broadcast
 from concert.coroutines.sinks import Result
 from concert.quantities import q
 from concert.measures import rotation_axis
@@ -108,6 +108,7 @@ async def dscan(param, delta, step, feedback, go_back=False):
         yield item
 
 
+@background
 @expects(Camera, LinearMotor, measure=None, opt_kwargs=None,
          plot_callback=None, frame_callback=None)
 async def focus(camera, motor, measure=np.std, opt_kwargs=None,
@@ -203,6 +204,7 @@ async def acquire_frames_360(camera, rotation_motor, num_frames, shutter=None, f
         await camera['trigger_source'].restore()
 
 
+@background
 @expects(Camera, RotationMotor, x_motor=RotationMotor, z_motor=RotationMotor,
          get_ellipse_points=find_needle_tips, num_frames=Numeric(1), metric_eps=Numeric(1, q.deg),
          position_eps=Numeric(1, q.deg), max_iterations=Numeric(1),

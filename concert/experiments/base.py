@@ -7,8 +7,7 @@ import asyncio
 import logging
 import os
 import time
-from concert.commands import command
-from concert.coroutines.base import broadcast
+from concert.coroutines.base import background, broadcast
 from concert.coroutines.sinks import null
 from concert.progressbar import wrap_iterable
 from concert.base import check, Parameterizable, Parameter, Selection, State, StateError, transition
@@ -46,6 +45,7 @@ class Acquisition(object):
             raise TypeError('acquire must be a coroutine function')
         self.acquire = acquire
 
+    @background
     async def __call__(self):
         """Run the acquisition, i.e. acquire the data and connect the producer and consumers."""
         LOG.debug(f"Running acquisition '{self.name}'")
@@ -208,7 +208,7 @@ class Experiment(Parameterizable):
                 break
             await acq()
 
-    @command()
+    @background
     @check(source=['standby', 'error'], target='standby')
     @transition(immediate='running', target='standby')
     async def run(self):

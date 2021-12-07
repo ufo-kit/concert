@@ -9,13 +9,14 @@ This module provides execution routines and algorithms for optimization.
 """
 import logging
 from functools import wraps
-from concert.coroutines.base import run_in_executor, run_in_loop_thread_blocking
+from concert.coroutines.base import background, run_in_executor, run_in_loop_thread_blocking
 from concert.quantities import q
 
 
 LOG = logging.getLogger(__name__)
 
 
+@background
 async def optimize(function, x_0, algorithm, alg_args=(), alg_kwargs=None,
                    callback=None):
     """
@@ -46,6 +47,7 @@ async def optimize(function, x_0, algorithm, alg_args=(), alg_kwargs=None,
     return result, data
 
 
+@background
 async def optimize_parameter(parameter, feedback, x_0, algorithm, alg_args=(),
                              alg_kwargs=None, callback=None):
     """
@@ -77,6 +79,7 @@ async def optimize_parameter(parameter, feedback, x_0, algorithm, alg_args=(),
                           alg_kwargs=alg_kwargs, callback=callback)
 
 
+@background
 async def halver(function, x_0, initial_step=None, epsilon=None,
                  max_iterations=100):
     """

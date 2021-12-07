@@ -46,6 +46,7 @@ coordinates and rotation around "y"::
 """
 import asyncio
 import numpy as np
+from concert.coroutines.base import background
 from concert.quantities import q
 from concert.base import Quantity
 from concert.devices.base import Device
@@ -71,6 +72,7 @@ class Axis(object):
         self.direction = direction
         self.position = position
 
+    @background
     async def get_position(self):
         """
         get_position()
@@ -79,6 +81,7 @@ class Axis(object):
         """
         return (await self.motor.get_position()) * self.direction
 
+    @background
     async def set_position(self, position):
         """Set the *position* asynchronously with respect to axis direction."""
         return await self.motor.set_position(position * self.direction)
@@ -112,6 +115,7 @@ class Positioner(Device):
             else:
                 self.rotators[axis.coordinate] = axis
 
+    @background
     async def move(self, position):
         """
         move(position)
@@ -120,6 +124,7 @@ class Positioner(Device):
         """
         await self.set_position(await self.get_position() + position)
 
+    @background
     async def rotate(self, angles):
         """
         rotate(angles)
@@ -128,6 +133,7 @@ class Positioner(Device):
         """
         await self.set_orientation(await self.get_orientation() + angles)
 
+    @background
     async def right(self, value):
         """
         right(value)
@@ -135,6 +141,7 @@ class Positioner(Device):
         Move right by *value*."""
         return await self.move(_vectorize(value, 'x'))
 
+    @background
     async def left(self, value):
         """
         left(value)
@@ -142,6 +149,7 @@ class Positioner(Device):
         Move left by *value*."""
         return await self.right(-value)
 
+    @background
     async def up(self, value):
         """
         up(value)
@@ -150,6 +158,7 @@ class Positioner(Device):
         """
         return await self.move(_vectorize(value, 'y'))
 
+    @background
     async def down(self, value):
         """
         down(value)
@@ -158,6 +167,7 @@ class Positioner(Device):
         """
         return await self.up(-value)
 
+    @background
     async def forward(self, value):
         """
         forward(value)
@@ -166,6 +176,7 @@ class Positioner(Device):
         """
         return await self.move(_vectorize(value, 'z'))
 
+    @background
     async def back(self, value):
         """
         back(value)

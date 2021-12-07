@@ -3,6 +3,7 @@ Imaging positioner which enables us to move around by specyfying distances
 in the number of pixels.
 """
 import numpy as np
+from concert.coroutines.base import background
 from concert.quantities import q
 from concert.devices.positioners import base
 
@@ -18,6 +19,7 @@ class Positioner(base.Positioner):
         super(Positioner, self).__init__(axes, position=position)
         self.detector = detector
 
+    @background
     async def move(self, position):
         """Move by specified *position* which can be given in meters or pixels."""
         # Is there a better way to check units?

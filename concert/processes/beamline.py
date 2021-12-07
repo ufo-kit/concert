@@ -2,6 +2,7 @@
 import asyncio
 import numpy as np
 from concert.quantities import q
+from concert.coroutines.base import background
 from concert.imageprocessing import compute_rotation_axis, flat_correct
 from concert.helpers import expects, Numeric
 from concert.devices.motors.base import LinearMotor, RotationMotor
@@ -9,6 +10,7 @@ from concert.devices.cameras.base import Camera
 from concert.devices.shutters.base import Shutter
 
 
+@background
 @expects(Camera, Shutter)
 async def acquire_dark(camera, shutter):
     """Use *camera* and *shutter* to acquire a dark field."""
@@ -18,6 +20,7 @@ async def acquire_dark(camera, shutter):
     return await _grab_software_trigger(camera)
 
 
+@background
 @expects(Camera, Shutter, LinearMotor, Numeric(1, q.mm))
 async def acquire_image_with_beam(camera, shutter, flat_motor, position):
     """Use *camera*, *shutter* and *flat_motor* to move the sample to the *position* and acquire an
@@ -32,6 +35,7 @@ async def acquire_image_with_beam(camera, shutter, flat_motor, position):
     return await _grab_software_trigger(camera)
 
 
+@background
 @expects(Camera, Shutter, LinearMotor, RotationMotor, Numeric(1, q.mm), Numeric(1, q.mm))
 async def determine_rotation_axis(camera, shutter, flat_motor, rotation_motor, flat_position,
                                   radio_position):

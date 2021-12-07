@@ -7,7 +7,7 @@ import asyncio
 import numpy as np
 import logging
 from scipy.signal import fftconvolve
-from concert.coroutines.base import run_in_executor, start
+from concert.coroutines.base import background, run_in_executor
 from concert.quantities import q
 
 
@@ -43,6 +43,7 @@ def ramp_filter(width):
     return np.fft.fftshift(np.abs(base)) * 2.0 / width
 
 
+@background
 async def find_needle_tips(producer):
     """Get sample tips in images from *producer*."""
     tips = []
@@ -50,7 +51,7 @@ async def find_needle_tips(producer):
 
     async for image in producer:
         # start forces the coroutine to start immediately
-        coros.append(start(run_in_executor(find_needle_tip, image)))
+        coros.append(run_in_executor(find_needle_tip, image))
 
     tips = [tip for tip in await asyncio.gather(*coros) if tip is not None]
     LOG.debug('Needle tips: %s', np.array(tips).tolist())
@@ -78,6 +79,7 @@ def find_needle_tip(image):
     return np.mean(coords, axis=0) if coords else None
 
 
+@background
 async def find_sphere_centers_by_mass(producer, border_crossing_ok=True):
     """Get sphere centers in images from *producer* by computing their center of mass. The images
     must be absorption images. If *border_crossing_ok* is False skip images where sphere goes
@@ -96,11 +98,12 @@ async def find_sphere_centers_by_mass(producer, border_crossing_ok=True):
 
     coros = []
     async for image in producer:
-        coros.append(start(run_in_executor(_process_one, image)))
+        coros.append(run_in_executor(_process_one, image))
 
     return [tip for tip in await asyncio.gather(*coros) if tip is not None]
 
 
+@background
 async def find_sphere_centers(producer, supersampling=1, correlation_threshold=None):
     """Get sphere centers in images from *producer*.  by finding the image with the largest portion
     of a sphere inside (the sphere may partially go out of the FOV) and correlate other images with
@@ -129,7 +132,7 @@ async def find_sphere_centers(producer, supersampling=1, correlation_threshold=N
     images = []
     found_completely_in_fov = False
     async for image in producer:
-        coros.append(start(run_in_executor(_process_one, image)))
+        coros.append(run_in_executor(_process_one, image))
 
     results = await asyncio.gather(*coros)
 

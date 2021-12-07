@@ -1,6 +1,7 @@
 import asyncio
 import concert.config
 import concurrent.futures
+import functools
 import queue
 import logging
 import time
@@ -25,7 +26,7 @@ def run_in_loop(coroutine):
     and return the result.  On KeyboardInterrupt, the task is cancelled.
     """
     loop = asyncio.get_event_loop()
-    task = loop.create_task(coroutine)
+    task = asyncio.ensure_future(coroutine, loop=loop)
 
     try:
         result = loop.run_until_complete(task)
@@ -98,6 +99,15 @@ def start(coroutine):
     execution immediately (as of IPython version 7.22)
     """
     return asyncio.ensure_future(coroutine)
+
+
+def background(coroutine):
+    """Same as :func:`.start`, just meant to be used as a decorator."""
+    @functools.wraps(coroutine)
+    def inner(*args, **kwargs):
+        return start(coroutine(*args, **kwargs))
+
+    return inner
 
 
 async def ensure_coroutine(func, *args, **kwargs):

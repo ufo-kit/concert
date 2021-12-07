@@ -7,6 +7,7 @@ sets. It uses NeXpy_ to interface with NeXus.
 .. _NeXpy: http://wiki.nexusformat.org/NeXpy
 """
 from logging import StreamHandler
+from concert.coroutines.base import background
 from concert.storage import Walker, StorageError
 
 try:
@@ -49,6 +50,7 @@ class Hdf5Walker(Walker):
         """Check if *paths* exist."""
         return '/'.join(paths) in self.current
 
+    @background
     async def write(self, producer, dsetname=None):
         """Write frames from *producer* to data set *dsetname*."""
         i = 0

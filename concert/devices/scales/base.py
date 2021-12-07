@@ -1,5 +1,6 @@
 """Base scales module for implementing scales."""
 
+from concert.coroutines.base import background
 from concert.devices.base import Device
 from concert.base import Quantity, AccessorNotImplementedError
 from concert.quantities import q
@@ -31,6 +32,7 @@ class TarableScales(Scales):
     def __init__(self):
         super(TarableScales, self).__init__()
 
+    @background
     async def tare(self):
         """
         tare()

@@ -4,7 +4,7 @@ Cameras supported by the libuca library.
 import functools
 import logging
 import numpy as np
-from concert.coroutines.base import run_in_executor
+from concert.coroutines.base import background, run_in_executor
 from concert.quantities import q
 from concert.base import Parameter, Quantity, transition
 from concert.helpers import Bunch
@@ -158,14 +158,17 @@ class Camera(base.Camera):
         self._record_shape = None
         self._record_dtype = None
 
+    @background
     @transition(target='readout')
     async def start_readout(self):
         self.uca.start_readout()
 
+    @background
     @transition(target='standby')
     async def stop_readout(self):
         self.uca.stop_readout()
 
+    @background
     async def grab(self, index=None):
         return self.convert(await self._grab_real(index))
 

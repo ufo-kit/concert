@@ -7,7 +7,7 @@ import functools
 import inspect
 import types
 from concert.helpers import memoize
-from concert.coroutines.base import run_in_loop, wait_until
+from concert.coroutines.base import background, run_in_loop, wait_until
 from concert.quantities import q
 
 
@@ -557,6 +557,7 @@ class ParameterValue(object):
     def target(self):
         return run_in_loop(self.get_target())
 
+    @background
     async def get(self, wait_on=None):
         """
         Get coroutine obtaining the concrete *value* of this object.
@@ -574,6 +575,7 @@ class ParameterValue(object):
         except AccessorNotImplementedError:
             raise ReadAccessError(self.name)
 
+    @background
     async def get_target(self, wait_on=None):
         """
         Get coroutine obtaining target value of this object.
@@ -589,6 +591,7 @@ class ParameterValue(object):
         except AccessorNotImplementedError:
             raise TargetAccessError(self.name)
 
+    @background
     async def set(self, value, wait_on=None):
         """
         Set concrete *value* on the object.
@@ -621,6 +624,7 @@ class ParameterValue(object):
             msg = "set {}::{}='{}'"
             LOG.info(msg.format(name, self._parameter.name, value))
 
+    @background
     async def stash(self):
         """Save the current value internally on a growing stack.
 
@@ -635,6 +639,7 @@ class ParameterValue(object):
         else:
             self._saved.append(await self.get())
 
+    @background
     async def restore(self):
         """Restore the last value saved with :meth:`.ParameterValue.stash`.
 
@@ -668,6 +673,7 @@ class ParameterValue(object):
         """Unlock parameter for writing."""
         self._locked = False
 
+    @background
     async def wait(self, value, sleep_time=1e-1 * q.s, timeout=None):
         """Wait until the parameter value is *value*. *sleep_time* is the time to sleep
         between consecutive checks. *timeout* specifies the maximum waiting time.
@@ -682,6 +688,7 @@ class StateValue(ParameterValue):
 
     """Special :class:`.ParameterValue` implementing state parameter."""
 
+    @background
     async def get(self, wait_on=None):
         if wait_on:
             await wait_on
@@ -809,12 +816,14 @@ class QuantityValue(ParameterValue):
     def unit(self):
         return self._parameter.unit
 
+    @background
     async def get(self, wait_on=None):
         value = await super(QuantityValue, self).get(wait_on=wait_on)
 
         if value is not None:
             return self._parameter.convert(value)
 
+    @background
     async def set(self, value, wait_on=None):
         """
         Set concrete *value* on the object.
@@ -854,6 +863,7 @@ class QuantityValue(ParameterValue):
         converted = self._parameter.convert(value)
         await super(QuantityValue, self).set(converted, wait_on=wait_on)
 
+    @background
     async def wait(self, value, eps=None, sleep_time=1e-1 * q.s, timeout=None):
         """Wait until the parameter value is *value*. *eps* is the allowed discrepancy between the
         actual value and *value*. *sleep_time* is the time to sleep between consecutive checks.
@@ -886,6 +896,7 @@ class SelectionValue(ParameterValue):
     def __init__(self, instance, selection):
         super(SelectionValue, self).__init__(instance, selection)
 
+    @background
     async def set(self, value, wait_on=None):
         """
         Set concrete *value* on the object.
@@ -1031,6 +1042,7 @@ class Parameterizable(object):
         if not hasattr(self, '_get_target_' + param.name):
             setattr(self, '_get_target_' + param.name, _getter_target_not_implemented)
 
+    @background
     async def stash(self):
         """
         Save all writable parameters that can be restored with
@@ -1041,6 +1053,7 @@ class Parameterizable(object):
         """
         await asyncio.gather(*(param.stash() for param in self if param.writable))
 
+    @background
     async def restore(self):
         """Restore all parameters saved with :meth:`.Parameterizable.stash`."""
         await asyncio.gather(*(param.restore() for param in self if param.writable))

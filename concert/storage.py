@@ -4,7 +4,7 @@ import os
 import logging
 import tifffile
 from logging import FileHandler, Formatter
-from concert.coroutines.base import feed_queue
+from concert.coroutines.base import background, feed_queue
 from concert.writers import TiffWriter
 
 
@@ -195,6 +195,7 @@ class Walker(object):
         """Ascend from current depth."""
         raise NotImplementedError
 
+    @background
     async def write(self, producer, dsetname=None):
         """Coroutine for writing data set *dsetname*."""
         raise NotImplementedError
@@ -220,6 +221,7 @@ class DummyWalker(Walker):
         if self._current != self._root:
             self._current = os.path.dirname(self._current)
 
+    @background
     async def write(self, producer, dsetname=None):
         dsetname = dsetname or self.dsetname
         path = os.path.join(self._current, dsetname)
