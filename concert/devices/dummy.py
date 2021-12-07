@@ -2,6 +2,7 @@
 import asyncio
 import logging
 from concert.base import check, Parameter, Quantity, Selection, State, transition
+from concert.coroutines.base import background
 from concert.config import AIODEBUG
 from concert.devices.base import Device
 from concert.quantities import q
@@ -97,6 +98,7 @@ class DummyDevice(Device):
         """The real value setter."""
         self._value = value
 
+    @background
     async def do_nothing(self, value=None):
         """Do nothing. For testing task canellation."""
         await self._do_nothing(value=value)

@@ -15,11 +15,11 @@ As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 """
 import asyncio
 import logging
+from concert.coroutines.base import background
 from concert.quantities import q
 from concert.base import Quantity, State, check, AccessorNotImplementedError
 from concert.devices.base import Device
 from concert.config import MOTOR_VELOCITY_SAMPLING_TIME as dT
-from concert.commands import command
 
 
 LOG = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ class _PositionMixin(Device):
     def __init__(self):
         super(_PositionMixin, self).__init__()
 
-    @command()
+    @background
     async def move(self, delta):
         """
         move(delta)
@@ -40,7 +40,7 @@ class _PositionMixin(Device):
         Move motor by *delta* user units."""
         await self.set_position(await self.get_position() + delta)
 
-    @command()
+    @background
     @check(source=['hard-limit', 'moving'], target='standby')
     async def stop(self):
         """
@@ -49,7 +49,7 @@ class _PositionMixin(Device):
         Stop the motion."""
         await self._stop()
 
-    @command()
+    @background
     @check(source='*', target=['standby', 'hard-limit'])
     async def home(self):
         """
@@ -59,12 +59,12 @@ class _PositionMixin(Device):
         """
         await self._home()
 
-    @command()
+    @background
     @check(source='disabled', target='standby')
     async def enable(self):
         await self._enable()
 
-    @command()
+    @background
     @check(source='standby', target='disabled')
     async def disable(self):
         await self._disable()

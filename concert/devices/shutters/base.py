@@ -1,6 +1,6 @@
 """Shutter Device."""
 from concert.base import check, State, AccessorNotImplementedError
-from concert.commands import command
+from concert.coroutines.base import background
 from concert.devices.base import Device
 
 
@@ -13,7 +13,7 @@ class Shutter(Device):
     def __init__(self):
         super(Shutter, self).__init__()
 
-    @command(name='sopen')
+    @background
     @check(source='closed', target='open')
     async def open(self):
         """open()
@@ -21,7 +21,7 @@ class Shutter(Device):
         Open the shutter."""
         await self._open()
 
-    @command(name='sclose')
+    @background
     @check(source='open', target='closed')
     async def close(self):
         """close()

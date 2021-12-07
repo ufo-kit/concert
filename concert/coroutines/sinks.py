@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from concert.config import AIODEBUG
+from concert.coroutines.base import background
 
 
 LOG = logging.getLogger(__name__)
@@ -15,6 +16,7 @@ class Result(object):
     def __init__(self):
         self.result = None
 
+    @background
     async def __call__(self, producer):
         """
         __call__(self, producer)
@@ -26,6 +28,7 @@ class Result(object):
             self.result = item
 
 
+@background
 async def null(producer):
     """
     null(producer)
@@ -49,6 +52,7 @@ class Accumulate(object):
 
         self.items = [] if shape is None else np.empty(shape, dtype=dtype)
 
+    @background
     def __call__(self, producer):
         """
         __call__(self, producer)

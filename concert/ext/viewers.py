@@ -11,8 +11,7 @@ from subprocess import Popen
 from typing import Callable
 import numpy as np
 from concert.base import Parameterizable, Parameter
-from concert.coroutines.base import run_in_executor
-from concert.commands import command
+from concert.coroutines.base import background, run_in_executor
 from concert.quantities import q
 
 
@@ -67,6 +66,7 @@ class ViewerBase(Parameterizable):
         self._proc = None
         # __del__ is not going to help because it's never called from our concert session
 
+    @background
     async def __call__(self, producer, size=0, force=False):
         """
         Display stream from *producer*. If *size* is specified, stop after displaying *size* items.
@@ -81,7 +81,7 @@ class ViewerBase(Parameterizable):
 
             i += 1
 
-    @command()
+    @background
     async def show(self, item, force=False):
         """Push *item* to the queue for display in a separate proces. If *force* is True make sure
         the item is displayed, otherwise it may be skipped if there is something in the queue
@@ -232,6 +232,7 @@ class ImageViewerBase(ViewerBase):
         self._downsampling = downsampling
         self._limits = limits
 
+    @background
     async def __call__(self, producer: Callable, size: int = None, force: bool = False):
         # In case limits are set to 'stream' we need to reset clim
         self._queue.put(('clim', self._limits))

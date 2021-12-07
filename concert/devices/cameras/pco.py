@@ -4,6 +4,7 @@ import asyncio
 import time
 from datetime import datetime
 import numpy as np
+from concert.coroutines.base import background
 from concert.devices.cameras import base
 from concert.devices.cameras.uca import Camera
 from concert.quantities import q
@@ -47,10 +48,12 @@ class PCO4000(Pco):
         self._last_grab_time = None
         super().__init__()
 
+    @background
     async def start_recording(self):
         super().start_recording()
         self._lock_access = True
 
+    @background
     async def stop_recording(self):
         self._lock_access = False
         super().stop_recording()
@@ -78,6 +81,7 @@ class Dimax(Pco, base.BufferedMixin):
 
     """A pco.dimax camera implementation."""
 
+    @background
     async def start_recording(self):
         await super().start_recording()
         # By low frame rates the camera returns status that it is already recording, whereas it is

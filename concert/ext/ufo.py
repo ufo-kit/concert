@@ -26,7 +26,7 @@ except ImportError:
 
 from concert.base import Parameterizable, State, check, transition
 from concert.config import PERFDEBUG
-from concert.coroutines.base import async_generate, run_in_executor, run_in_loop, start
+from concert.coroutines.base import background, async_generate, run_in_executor, run_in_loop, start
 from concert.imageprocessing import filter_low_frequencies
 
 
@@ -134,6 +134,7 @@ class InjectProcess(object):
         if not self._started:
             self._started = True
 
+    @background
     async def insert(self, array, node=None, index=0):
         """
         Insert *array* into the *node*'s *index* input.
@@ -160,6 +161,7 @@ class InjectProcess(object):
 
         await run_in_executor(_insert_real, array, node, index)
 
+    @background
     async def result(self, leave_index=None):
         """Get result from *leave_index* if not None, all leaves if None. Returns a list of results
         in case *leave_index* is None or one result for the specified leave_index.
@@ -395,10 +397,12 @@ class GeneralBackproject(InjectProcess):
                               node=node, index=0)
         LOG.log(PERFDEBUG, '%s averaging duration: %g s', what, time.perf_counter() - start)
 
+    @background
     async def average_darks(self, producer):
         await self._average(producer, self.dark_avg)
         self._darks_averaged = True
 
+    @background
     async def average_flats(self, producer):
         await self._average(producer, self.flat_avg)
         self._flats_averaged = True
@@ -818,6 +822,7 @@ class GeneralBackprojectManager(Parameterizable):
         self._processing_task = None
         self._num_received_projections = self._num_processed_projections = 0
 
+    @background
     @check(source='standby', target='*')
     @transition(immediate='running', target='standby')
     async def update_darks(self, producer):
@@ -826,6 +831,7 @@ class GeneralBackprojectManager(Parameterizable):
         """
         await self._copy_normalization(producer, self.darks, self._darks_condition)
 
+    @background
     @check(source='standby', target='*')
     @transition(immediate='running', target='standby')
     async def update_flats(self, producer):
@@ -834,6 +840,7 @@ class GeneralBackprojectManager(Parameterizable):
         """
         await self._copy_normalization(producer, self.flats, self._flats_condition)
 
+    @background
     @check(source='standby', target='*')
     async def backproject(self, producer):
         """Backproject projections from *producer*."""

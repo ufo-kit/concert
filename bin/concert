@@ -17,7 +17,6 @@ import zipfile
 import concert
 import concert.config
 import concert.session.management as cs
-from concert.commands import COMMANDS
 from concert.ext.cmd import plugins
 
 
@@ -449,7 +448,6 @@ class StartCommand(SubCommand):
 
         attrs = [attr for attr in dir(module) if not attr.startswith('_')]
         mvars = dict((attr, getattr(module, attr)) for attr in attrs)
-        mvars.update(COMMANDS)
 
         try:
             exceptions = (UnitError, LimitError, ParameterError, ReadAccessError, WriteAccessError,

@@ -2,6 +2,7 @@
 
 import asyncio
 from concert.base import AccessorNotImplementedError, State, check
+from concert.coroutines.base import background
 from concert.quantities import q
 from concert.devices.base import Device
 
@@ -12,6 +13,7 @@ class Signal(Device):
 
     state = State(default='off')
 
+    @background
     @check(source='off', target='on')
     async def on(self):
         """
@@ -21,6 +23,7 @@ class Signal(Device):
         """
         await self._on()
 
+    @background
     @check(source='on', target='off')
     async def off(self):
         """
@@ -30,6 +33,7 @@ class Signal(Device):
         """
         await self._off()
 
+    @background
     @check(source='off', target='off')
     async def trigger(self, duration=10 * q.ms):
         """
@@ -70,11 +74,13 @@ class IO(Device):
         if port not in self._ports:
             raise IODeviceError("Port `{}' not found".format(port))
 
+    @background
     async def read_port(self, port):
         """Read a *port*."""
         self._check(port)
         return await self._read_port(port)
 
+    @background
     async def write_port(self, port, value):
         """Write a *value* to the *port*."""
         self._check(port)

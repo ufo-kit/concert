@@ -1,7 +1,7 @@
 """A gripper can grip and release objects."""
 
-from concert.commands import command
 from concert.base import check, State
+from concert.coroutines.base import background
 from concert.devices.base import Device
 
 
@@ -11,7 +11,7 @@ class Gripper(Device):
 
     state = State(default='released')
 
-    @command()
+    @background
     @check(source='gripped', target='released')
     async def release(self):
         """
@@ -21,7 +21,7 @@ class Gripper(Device):
         """
         await self._release()
 
-    @command()
+    @background
     @check(source='released', target='gripped')
     async def grip(self):
         """

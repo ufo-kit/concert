@@ -51,7 +51,10 @@ class _PositionMixin(object):
         return self._position
 
     async def _home(self):
+        print('start homing')
+        await asyncio.sleep(1)
         await self.set_position(0 * q.mm)
+        print('homes')
 
     async def _stop(self):
         self._moving = False

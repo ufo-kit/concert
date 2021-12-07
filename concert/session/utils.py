@@ -7,6 +7,7 @@ import subprocess
 import prettytable
 import concert
 from concert.config import AIODEBUG
+from concert.coroutines.base import background
 from concert.devices.base import Device
 from concert.quantities import q
 from concert.session.management import path as get_session_path
@@ -132,19 +133,6 @@ def pdoc(hide_blacklisted=True):
     print(table.get_string())
 
 
-def cdoc():
-    """Render device documentation."""
-    from concert.commands import COMMANDS
-
-    field_names = ["Name", "Description"]
-    table = get_default_table(field_names)
-
-    for name in sorted(COMMANDS):
-        table.add_row([name, inspect.getdoc(COMMANDS[name])])
-
-    print(table.get_string())
-
-
 def code_of(func):
     """Show implementation of *func*."""
     source = inspect.getsource(func)
@@ -247,6 +235,7 @@ def abort_awaiting(background=False, skip=None):
     return False
 
 
+@background
 async def check_emergency_stop(check, poll_interval=0.1 * q.s, exit_session=False):
     """
     check_emergency_stop(check, poll_interval=0.1*q.s, exit_session=False)

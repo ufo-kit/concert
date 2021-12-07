@@ -1,4 +1,5 @@
 """Experiment automation based on on-line data analysis."""
+from concert.coroutines.base import background
 
 
 class ClosedLoop(object):
@@ -32,6 +33,7 @@ class ClosedLoop(object):
         """
         raise NotImplementedError
 
+    @background
     async def run(self, max_iterations=10):
         """
         run(self, max_iterations=10)
