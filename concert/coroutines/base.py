@@ -90,15 +90,13 @@ def run_in_executor(func, *args):
 
 
 def start(coroutine):
-    """Start *coroutine*'s execution right away. This is supposed to be used for user convenience,
-    e.g. when they want to start some action without having to deal with asyncio, e.g.
-    motor.set_position(pos).
-
-    This calls `asyncio.ensure_future` on the *coroutine* which wraps it into a `asyncio.Task`. We
-    have to use this function instead of `asyncio.creat_task`, otherwise IPython would not start its
-    execution immediately (as of IPython version 7.22)
+    """Wrap *coroutine* into a task and start its execution right away. The returned task will also
+    be cancellable by ctrl-k.
     """
-    return asyncio.ensure_future(coroutine)
+    task = asyncio.ensure_future(coroutine)
+    task._is_concert_task = True
+
+    return task
 
 
 def background(coroutine):
