@@ -18,12 +18,16 @@ class MockDevice(Device):
 
     def __init__(self):
         super(MockDevice, self).__init__()
+        self.aborted = False
 
     async def _get_readonly(self):
         return 1
 
     async def _set_writeonly(self, value):
         pass
+
+    async def _emergency_stop(self):
+        self.aborted = True
 
 
 class TestDevice(TestCase):
@@ -75,3 +79,7 @@ class TestDevice(TestCase):
     async def test_parameter_lock_acquisition(self):
         async with self.device['writeonly']:
             pass
+
+    async def test_emergency_stop(self):
+        await self.device.emergency_stop()
+        self.assertTrue(self.device.aborted)

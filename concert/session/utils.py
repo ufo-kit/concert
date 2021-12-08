@@ -158,6 +158,7 @@ def abort_awaiting(background=False, skip=None):
         loop_running = False
     else:
         loop_running = True
+    LOG.log(AIODEBUG, 'async code: %s', loop_running)
 
     def get_task_name(task):
         return task.get_coro().__qualname__
@@ -220,7 +221,33 @@ def abort_awaiting(background=False, skip=None):
                 return True
 
     if not loop_running:
+        # In case we are called directly in the session
         loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+
+    if background or not loop_running:
+        # Either ctrl-k or ctrl-c in a non-async function
+        # Use ipython magic because _current_instances won't work here (different stack)
+        try:
+            uns = get_ipython().user_ns
+        except NameError:
+            # Invoked from tests
+            return False
+        devices = [(name, value) for name, value in uns.items() if isinstance(value, Device)]
+        emergency_stops = []
+        emergency_device_names = []
+        for name, value in uns.items():
+            if not name.startswith('_') and isinstance(value, Device):
+                # ipython adds _1, _2, ... variables to user_ns when people type variable names in
+                # the shell
+                LOG.info("Emergency stop on `%s'", name)
+                emergency_stops.append(value.emergency_stop())
+                emergency_device_names.append(name)
+        if not loop_running:
+            results = loop.run_until_complete(asyncio.gather(*emergency_stops,
+                                                             return_exceptions=True))
+            for i, result in enumerate(results):
+                LOG.log(AIODEBUG, "Emergency stop result for `%s': %s",
+                        emergency_device_names[i], result)
 
     return False
 

@@ -34,3 +34,7 @@ class Shutter(Device):
 
     async def _close(self):
         raise AccessorNotImplementedError
+
+    async def _emergency_stop(self):
+        if await self.get_state() == 'open':
+            await self.close()

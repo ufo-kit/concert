@@ -113,6 +113,11 @@ class DummyDevice(Device):
             LOG.log(AIODEBUG, f'Doing nothing cancelled: {value}')
             raise
 
+    async def _emergency_stop(self):
+        LOG.debug('Emergency stop on a dummy device')
+        await asyncio.sleep(0.5)
+        self._state_value = 'aborted'
+
 
 class SelectionDevice(Device):
 
