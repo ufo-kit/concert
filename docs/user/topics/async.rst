@@ -62,8 +62,9 @@ A more reallistic example::
 You can cancel running tasks which are being ``await``\ed by pressing *ctrl-c*.
 This for instance stops a motor. By *ctlr-k*, you can also cancel *all* running
 background tasks which were started by the :py:func:`.start` function or
-:py:func:`.background` decorator.
-
+:py:func:`.background` decorator. On the top of cancellation, *ctrl-k* will call
+:meth:`.Device.emergency_stop` on all devices in order to bring them to a
+standstill.
 
 Concurrency
 -----------

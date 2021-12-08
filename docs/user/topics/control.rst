@@ -98,3 +98,12 @@ one can do::
     # This will not work anymore
     motor.unlock()
     # You will get a LockError
+
+
+
+Emergency stop
+--------------
+
+On *ctrl-k*, the background tasks are cancelled and on top of that on all
+devices :meth:`.Device.emergency_stop` will be called in order to bring them to
+a standstill.

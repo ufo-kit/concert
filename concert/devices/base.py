@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from concert.base import Parameterizable
+from concert.coroutines.base import background
 
 
 LOG = logging.getLogger(__name__)
@@ -35,3 +36,12 @@ class Device(Parameterizable):
 
     async def __aexit__(self, exc_type, exc, tb):
         self._lock.release()
+
+    @background
+    async def emergency_stop(self):
+        """Emergency stop."""
+        await self._emergency_stop()
+
+    async def _emergency_stop(self):
+        """Emergency stop implementation."""
+        pass
