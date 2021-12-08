@@ -20,11 +20,11 @@ of the ``async def`` functions in Concert are wrapped into tasks by the
 :py:func:`.background` decorator, so you do not need to use the
 :py:func:`.start` in order to start execution immediately. You should however
 keep this in mind when writing your own coroutines and decorate them (see below)
-if you want them to be automatically started upon invocation.  Overall, in
+if you want them to be automatically started upon invocation. Overall, in
 Concert there are two ways to execute coroutines:
 
     1. as *non-blocking* *tasks*,
-    2. via the *blocking* ``await`` syntax,
+    2. as *blocking* *tasks* in combination with the ``await`` syntax
 
 An example::
 
@@ -59,9 +59,10 @@ A more reallistic example::
     await task # this blocks
     await motor.home() # this blocks too
 
-You can cancel running coroutines which are being ``await``\ed by pressing
-*ctrl-c*. This for instance stops a motor. If you want to cancel *all* running
-coroutines, including the ones running in the background, press *ctrl-k*.
+You can cancel running tasks which are being ``await``\ed by pressing *ctrl-c*.
+This for instance stops a motor. By *ctlr-k*, you can also cancel *all* running
+background tasks which were started by the :py:func:`.start` function or
+:py:func:`.background` decorator.
 
 
 Concurrency

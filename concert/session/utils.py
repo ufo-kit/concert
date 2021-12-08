@@ -5,18 +5,13 @@ import os
 import inspect
 import subprocess
 import prettytable
-import concert
 from concert.config import AIODEBUG
 from concert.coroutines.base import background
 from concert.devices.base import Device
 from concert.quantities import q
-from concert.session.management import path as get_session_path
 
 
 LOG = logging.getLogger(__name__)
-# These are additional library paths which define coroutines which can be aborted by ctrl-k in
-# concert session
-ABORTABLE_PATHS = []
 
 
 def _get_param_description_table(device, max_width):
@@ -197,9 +192,6 @@ def abort_awaiting(background=False, skip=None):
     except NameError:
         LOG.debug('NameError in pid: %d', os.getpid())
 
-    # Abortable is everything in concert, session and user-defined paths
-    abortable_paths = [os.path.dirname(inspect.getfile(concert)),
-                       get_session_path()] + ABORTABLE_PATHS
     tasks = asyncio.all_tasks(loop=loop)
     pending = []
     LOG.log(AIODEBUG, 'Running %d tasks:\n%s', len(tasks),
@@ -211,13 +203,11 @@ def abort_awaiting(background=False, skip=None):
             LOG.log(AIODEBUG, 'Skipping task %s', name)
             continue
         abortable = False
-        if background:
+        if background and hasattr(task, '_is_concert_task'):
             # ctrl-k, cancel everything from us
-            for path in abortable_paths:
-                if get_task_directory(task).startswith(path):
-                    abortable = True
-                    break
+            abortable = True
         elif 'run_cell_async' in name:
+            # ctrl-c
             # TODO: make this cleaner and robust (run_cell_async may change its name and so on)
             abortable = True
         if abortable:

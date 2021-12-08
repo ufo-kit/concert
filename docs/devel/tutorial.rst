@@ -299,13 +299,3 @@ In case changing a parameter value causes a state transition, add a
                             check=check(source='*', target='moving'))
 
         foo = Parameter(check=check(source='*', target='*'))
-
-
-Cancelling background tasks
-===========================
-
-Concert's *ctrl-k* cancels coroutines defined in Concert, the current session
-and in the :data:`.ABORTABLE_PATHS` list. If you want your library to be
-cancellable by *ctrl-k*, you should add this line to your ``__init__.py``::
-
-    concert.session.utils.ABORTABLE_PATHS.append(__file__)
