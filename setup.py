@@ -12,6 +12,8 @@ if hasattr(os, 'geteuid') and os.geteuid() == 0:
 
 setup(
     name='concert',
+    # For tests it is 3.8, but let's be a bit relaxed
+    python_requires='>=3.7',
     version=__version__,
     author='Matthias Vogelgesang',
     author_email='matthias.vogelgesang@kit.edu',
