@@ -226,6 +226,8 @@ def segment_convex_object(image):
     # object pixels are in the mask) by a small disk and then taking the inverse. sgn controls
     # whether the object is dark or bright (sgn = 1 for bright).
     indices = np.where(1 - dilation(mask, selem=disk(20)))
+    if not len(indices[0]):
+        return None
     mean_bg = image[indices].mean()
     std_bg = image[indices].std()
     thr = mean_bg + sgn * 5 * std_bg
