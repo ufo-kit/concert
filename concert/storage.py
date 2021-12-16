@@ -278,7 +278,8 @@ class DirectoryWalker(Walker):
         """Check if *paths* exist."""
         return os.path.exists(os.path.join(self.current, *paths))
 
-    def write(self, producer, dsetname=None):
+    @background
+    async def write(self, producer, dsetname=None):
         dsetname = dsetname or self.dsetname
 
         if self._dset_exists(dsetname):
@@ -288,8 +289,8 @@ class DirectoryWalker(Walker):
 
         prefix = os.path.join(self._current, dsetname)
 
-        return feed_queue(producer, write_images, self._writer, prefix,
-                          self._start_index, self._bytes_per_file)
+        return await feed_queue(producer, write_images, self._writer, prefix,
+                                self._start_index, self._bytes_per_file)
 
     def _dset_exists(self, dsetname):
         """Check if *dsetname* exists on the current level."""
