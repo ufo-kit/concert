@@ -10,6 +10,10 @@ Concert
 .. image:: https://app.travis-ci.com/ufo-kit/concert.svg?branch=master
     :target: https://app.travis-ci.com/github/ufo-kit/concert
 
+.. image:: https://readthedocs.org/projects/concert/badge/?version=latest
+    :target: http://concert.readthedocs.io/en/latest/?badge=latest
+    :alt: Documentation Status
+
 .. image:: https://coveralls.io/repos/ufo-kit/concert/badge.png?branch=master
     :target: https://coveralls.io/r/ufo-kit/concert?branch=master
 
