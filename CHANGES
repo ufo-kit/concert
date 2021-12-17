@@ -13,10 +13,15 @@ Version 0.30
 Features
 ~~~~~~~~
 
+- concurrency transition to asyncio, from user perspective the usage is more or
+  less the same, e.g. ``motor.move(1 * q.mm)`` starts relative motion in the
+  background, ``motor.position = 1 * q.mm`` sets the position in a blocking way.
+- ctrl-k cancels all background commands and calls ``emergency_stop`` on all
+  devices in the session
 - Online reconstruction is capable of doing the flat correction with image
   averaging
 - ``concert.experiments.addons.ImageWriter`` blocks for every acquisition
-- Introduced commands [move(motor, amount)] for enabling blocking execution
+
 
 Viewers
 -------
@@ -58,12 +63,13 @@ API breaks
     - ``concert.processes.common.drift_to_beam``
     - ``concert.processes.common.center_to_beam``
     - ``concert.processes.common.scan_param_feedback``
-- Removed ``concert.session.utils.check_emergency_stop``
 - Removed callbacks from ``concert.processes.common.scan``
 - Removed ``concert.experiments.base.Acquisition.connect`` for simplicity, i.e.
   the acquisition and consumption of data happens always at the same time, for
   special behavior, special classes/functions should be used
-
+- ``Device.abort`` replaced by ``Device.emergency_stop``
+- many functions which were not asynchronous before are now, e.g.
+  ``Camera.start_recording``
 
 
 Version 0.11
