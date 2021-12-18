@@ -1,6 +1,6 @@
-===============
-Writing devices
-===============
+===============================
+Writing devices and experiments
+===============================
 
 .. _get-the-code:
 
@@ -334,3 +334,37 @@ calls the :func:`user_lower_setter` if specified, otherwise just saves the value
 in a variable inside the quantity. The user-defined getters and setters are
 useful for invoking mechanisms beyond concert, e.g. updating the limits in a
 Tango database. The limits can be locked in a similar way to parameter locking.
+
+
+Creating a experiment class
+===========================
+
+A new Experiment inherits from :class:`.Experiment`.
+Like the :class:`.Device` an experiment class can also hold :class:`.Quantity` and :class:`.Parameter`.
+The logger from the :class:`.Experiment` will automatically write the values of these in the experiments log file.
+It also has a state parameter, showing the current experiments state.
+
+Each experiment consist of a set of :class:`.Acquisitions`, each generating images.
+An example experiment with one :class:`.Acquisitions` can look like this::
+
+    class MyExperiment(Experiment):
+        num_images = Parameter(help="number of images to acquire")
+
+        def __init__(self, camera, walker):
+            self._num_images = 5
+            self._camera = camera
+            image_acquisition = Acquisition("images", self._acquire_images)
+            super().__init__(acquisitions=[image_acquisition], walker=walker)
+
+        async def _get_num_images(self):
+            return self._num_images
+
+        async def _set_num_images(self, n):
+            self._num_images = int(n)
+
+        async def _acquire_images(self):
+            await self._camera.set_trigger_source("AUTO")
+            async with self._camera.recording():
+                for i in range(await self.get_num_images()):
+                    yield await self._camera.grab()
+
