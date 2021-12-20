@@ -79,6 +79,14 @@ monochromator etc.), a new module has to be added to the corresponding device
 class package. Inside the new module, the concrete device class must then import
 the base class, inherit from it and implement all abstract method stubs.
 
+Concert is based on `asyncio`_, see also the :ref:`user documentation
+<concurrent-execution>`. In order for the concurrent execution to work well, all
+concert code needs to adhere to the concepts of asyncio and the device
+implementations as well. That means that all methods which actually manipulate
+the device in any way need to be defined as *async def*. All parameter getters
+and setters already are defined in this way, and so have to be their underscored
+implementations (see below).
+
 Let's assume we want to add a new motor called ``FancyMotor``. We first create a
 new module called ``fancy.py`` in the ``concert/devices/motors`` directory
 package. In the ``fancy.py`` module, we first import the base class ::
@@ -95,17 +103,19 @@ In order to install all required parameters, we have to call the base
 constructor. Now, all that's left to do, is implementing the abstract methods that
 would raise a :exc:`.AccessorNotImplementedError`::
 
-        def _get_position(self):
+        async def _get_position(self):
             # the returned value must have units compatible with units set in
-            # the Quantity this getter implements
-            return self.position
+            # the Quantity this getter implements. In this case we just return
+            # some stored value
+            return self._read_position
 
-        def _set_position(self, position):
+        async def _set_position(self, position):
             # position is guaranteed to be in the units set by the respective
-            # Quantity
-            self.position = position
+            # Quantity. In this case just store the desired position in a
+            # private variable.
+            self._read_position = position
 
-We guarantee that in setters which implement a :class:`.Quantity`, like the
+We guarantee that setters which implement a :class:`.Quantity`, like the
 :meth:`._set_position` above, obtain the value in the exact same units as they
 were specified in the respective :class:`.Quantity` they implement. E.g. if the
 above :meth:`_set_position` implemented a quantity with units set in kilometers,
@@ -115,15 +125,23 @@ quantity but the value must be compatible, so the above :meth:`._get_position`
 could return millimeters and the user would get the value in kilometers, as
 defined in the respective :class:`.Quantity`.
 
-Parameter setters can be cancelled by hitting *ctrl-c*. If you want a parameter to
-make some cleanup action after *ctrl-c* is pressed, you should implement the
-``_cancel_param`` method in the device class, for the motor above you can write::
+Parameter setters can be cancelled by hitting *ctrl-c* or *ctrl-k*. If you want
+a parameter to make some cleanup action after *ctrl-c* is pressed, you should
+catch the ``asyncio.CancelledError`` exception, for the motor above you can
+write::
 
-        def _cancel_position(self):
-            # send stop command
+        async def _set_position(self, position):
+            try:
+                self._read_position = position
+            except asyncio.CancelledError:
+                # cleanup action goes here
+                raise   # re-raise the exception if needed
+
 
 And you are guaranteed that when you interrupt the setter the motor stops
 moving.
+
+.. _asyncio: https://docs.python.org/3/library/asyncio.html
 
 
 Creating a device class
@@ -172,8 +190,8 @@ explicit setters and getters in order to hook into the get and set process::
         def __init__(self):
             super(Pump, self).__init__()
 
-        def _intercept_get_flow_rate(self):
-            return self._get_flow_rate() * 10
+        async def _intercept_get_flow_rate(self):
+            return await self._get_flow_rate() * 10
 
         flow_rate = Quantity(q.m**3 / q.s,
                              fget=_intercept_get_flow_rate)
@@ -191,7 +209,7 @@ on implementation by subclasses, you have to raise an
 
         ...
 
-        def _set_flow_rate(self, flow_rate):
+        async def _set_flow_rate(self, flow_rate):
             raise AccessorNotImplementedError
 
 
@@ -224,10 +242,10 @@ comply with transitioning. Examples of such devices could look as follows::
         position = Quantity(q.m)
 
         @check(source='standby', target='moving')
-        def start(self):
+        async def start(self):
             ...
 
-        def _start(self):
+        async def _start(self):
             # the actual implementation of starting something
             ...
 
@@ -238,11 +256,11 @@ comply with transitioning. Examples of such devices could look as follows::
 
         ...
 
-        def _start(self):
+        async def _start(self):
             # Implementation communicates with hardware
             ...
 
-        def _get_state(self):
+        async def _get_state(self):
             # Get the state from the hardware
             ...
 
@@ -258,7 +276,7 @@ comply with transitioning. Examples of such devices could look as follows::
         ...
 
         @transition(target='moving')
-        def _start(self):
+        async def _start(self):
             ...
 
 The example above explains two devices with the same functionality, however, one
