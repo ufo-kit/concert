@@ -108,7 +108,7 @@ class Experiment(Parameterizable):
         self._name_fmt = name_fmt
         self._iteration = 1
         self.log = LOG
-        super(Experiment, self).__init__()
+        Parameterizable.__init__(self)
 
         if separate_scans and walker:
             # The data is not supposed to be overwritten, so find an iteration which
