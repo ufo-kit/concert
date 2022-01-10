@@ -91,7 +91,6 @@ class TestCoroutines(TestCase):
             nonlocal item
             while True:
                 item = queue.get()
-                # print(f'{item.data}:{item.priority}')
                 queue.task_done()
                 if item.data is None:
                     break

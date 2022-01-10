@@ -162,9 +162,6 @@ def broadcast(producer, *consumers):
                     used = num_consumers
                 else:
                     await consumed
-        except Exception as e:
-            print('broadcast duplicate cancelled', e)
-            raise
         finally:
             # Our consumer called break in its async for, remove it from waiting list
             num_consumers -= 1

@@ -1,11 +1,13 @@
 """Motor Dummy."""
 import asyncio
+import logging
 from concert.base import HardLimitError, Quantity
 from concert.coroutines.base import start
 from concert.quantities import q
 from concert.devices.motors import base
 import numpy as np
 
+LOG = logging.getLogger(__name__)
 MOVEMENT_TIME_STEPS = 0.01 * q.s
 
 
@@ -51,10 +53,10 @@ class _PositionMixin(object):
         return self._position
 
     async def _home(self):
-        print('start homing')
+        LOG.debug('start homing')
         await asyncio.sleep(1)
         await self.set_position(0 * q.mm)
-        print('homes')
+        LOG.debug('homes')
 
     async def _stop(self):
         self._moving = False
