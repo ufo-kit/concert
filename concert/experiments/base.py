@@ -16,7 +16,7 @@ from concert.base import check, Parameterizable, Parameter, Selection, State, St
 LOG = logging.getLogger(__name__)
 
 
-class Acquisition(object):
+class Acquisition(Parameterizable):
 
     """
     An acquisition acquires data, gets it and sends it to consumers.
@@ -35,6 +35,7 @@ class Acquisition(object):
         a coroutine function which acquires the data, takes no arguments, can be None.
 
     """
+    state = State(default='standby')
 
     def __init__(self, name, producer, consumers=None, acquire=None):
         self.name = name
@@ -44,8 +45,11 @@ class Acquisition(object):
         if acquire and not asyncio.iscoroutinefunction(acquire):
             raise TypeError('acquire must be a coroutine function')
         self.acquire = acquire
+        Parameterizable.__init__(self)
 
     @background
+    @check(source=['standby', 'error'], target='standby')
+    @transition(immediate='running', target='standby')
     async def __call__(self):
         """Run the acquisition, i.e. acquire the data and connect the producer and consumers."""
         LOG.debug(f"Running acquisition '{self.name}'")
