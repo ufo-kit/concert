@@ -130,13 +130,41 @@ async def get_external_upper():
 
 class ExternalLimitDevice(BaseDevice):
 
+    def __init__(self, value):
+        super(ExternalLimitDevice, self).__init__()
+        self._value = value
+
     foo = Quantity(q.mm,
                    external_lower_getter=get_external_lower,
                    external_upper_getter=get_external_upper)
 
-    def __init__(self, value):
-        super(ExternalLimitDevice, self).__init__()
-        self._value = value
+
+class UserLimitDevice(BaseDevice):
+
+    """A device which tunnles the limit setting via user-defined functions."""
+
+    foo = Quantity(q.mm)
+
+    def __init__(self):
+        super().__init__()
+        self['foo']._user_lower_getter = self.get_user_lower
+        self['foo']._user_lower_setter = self.set_user_lower
+        self['foo']._user_upper_getter = self.get_user_upper
+        self['foo']._user_upper_setter = self.set_user_upper
+        self.lower_via_func = None
+        self.upper_via_func = None
+
+    async def get_user_lower(self):
+        return self.lower_via_func
+
+    async def set_user_lower(self, value):
+        self.lower_via_func = value
+
+    async def get_user_upper(self):
+        return self.upper_via_func
+
+    async def set_user_upper(self, value):
+        self.upper_via_func = value
 
 
 class AccessorCheckDevice(Parameterizable):
@@ -409,6 +437,16 @@ class TestQuantity(TestCase):
 
         await dev['foo'].set_lower(-10 * q.mm)
         self.assertEqual(await dev['foo'].get_lower(), -5 * q.mm)
+
+    async def test_user_limits_getters_and_setters(self):
+        dev = UserLimitDevice()
+        await dev['foo'].set_lower(-1 * q.mm)
+        self.assertEqual(await dev['foo'].get_lower(), -1 * q.mm)
+        self.assertEqual(dev.lower_via_func, -1 * q.mm)
+
+        await dev['foo'].set_upper(1 * q.mm)
+        self.assertEqual(await dev['foo'].get_upper(), 1 * q.mm)
+        self.assertEqual(dev.upper_via_func, 1 * q.mm)
 
 
 class TestSelection(TestCase):
