@@ -732,19 +732,28 @@ class QuantityValue(ParameterValue):
 
     @property
     def lower(self):
-        if self.lower_user is None and self.lower_external is None:
-            return None
-        elif self.lower_user is None and self.lower_external is not None:
-            return self.lower_external
-        elif self.lower_user is not None and self.lower_external is None:
-            return self.lower_user
-        else:
-            return np.max((self.lower_user.to(self._parameter.unit).magnitude,
-                           self.lower_external.to(self._parameter.unit).magnitude),
-                          axis=0) * self._parameter.unit
+        return run_in_loop(self.get_lower())
 
     @lower.setter
     def lower(self, value):
+        run_in_loop(self.set_lower(value))
+
+    @background
+    async def get_lower(self):
+        lower_external = await self.get_lower_external()
+        if self.lower_user is None and lower_external is None:
+            return None
+        elif self.lower_user is None and lower_external is not None:
+            return lower_external
+        elif self.lower_user is not None and lower_external is None:
+            return self.lower_user
+        else:
+            return np.max((self.lower_user.to(self._parameter.unit).magnitude,
+                           lower_external.to(self._parameter.unit).magnitude),
+                          axis=0) * self._parameter.unit
+
+    @background
+    async def set_lower(self, value):
         if value is None:
             self._lower = None
             return
@@ -755,19 +764,28 @@ class QuantityValue(ParameterValue):
 
     @property
     def upper(self):
-        if self.upper_user is None and self.upper_external is None:
-            return None
-        elif self.upper_user is None and self.upper_external is not None:
-            return self.upper_external
-        elif self.upper_user is not None and self.upper_external is None:
-            return self.upper_user
-        else:
-            return np.min((self.upper_user.to(self._parameter.unit).magnitude,
-                           self.upper_external.to(self._parameter.unit).magnitude),
-                          axis=0) * self._parameter.unit
+        return run_in_loop(self.get_upper())
 
     @upper.setter
     def upper(self, value):
+        run_in_loop(self.set_upper(value))
+
+    @background
+    async def get_upper(self):
+        upper_external = await self.get_upper_external()
+        if self.upper_user is None and upper_external is None:
+            return None
+        elif self.upper_user is None and upper_external is not None:
+            return upper_external
+        elif self.upper_user is not None and upper_external is None:
+            return self.upper_user
+        else:
+            return np.min((self.upper_user.to(self._parameter.unit).magnitude,
+                           upper_external.to(self._parameter.unit).magnitude),
+                          axis=0) * self._parameter.unit
+
+    @background
+    async def set_upper(self, value):
         if value is None:
             self._upper = None
             return
@@ -786,30 +804,38 @@ class QuantityValue(ParameterValue):
 
     @property
     def lower_external(self):
+        return run_in_loop(self.get_lower_external())
+
+    @background
+    async def get_lower_external(self):
         if self._external_lower_getter is None:
             return None
         else:
-            return self._external_lower_getter()
+            return await self._external_lower_getter()
 
     @property
     def upper_external(self):
+        return run_in_loop(self.get_upper_external())
+
+    @background
+    async def get_upper_external(self):
         if self._external_upper_getter is None:
             return None
         else:
-            return self._external_upper_getter()
+            return await self._external_upper_getter()
 
     @property
     async def info_table(self):
         table = await super(QuantityValue, self).info_table
-        table.add_row(["lower", self.lower])
-        table.add_row(["upper", self.upper])
+        table.add_row(["lower", await self.get_lower()])
+        table.add_row(["upper", await self.get_upper()])
 
         if self._external_lower_getter is not None:
             table.add_row(["lower_user", self.lower_user])
-            table.add_row(["lower_external", self.lower_external])
+            table.add_row(["lower_external", await self.get_lower_external()])
         if self._external_upper_getter is not None:
             table.add_row(["upper_user", self.upper_user])
-            table.add_row(["upper_external", self.upper_external])
+            table.add_row(["upper_external", await self.get_upper_external()])
         return table
 
     @property
@@ -851,14 +877,16 @@ class QuantityValue(ParameterValue):
                 test_b = b[valid]
                 return np.all(test_a.to_base_units().magnitude <= test_b.to_base_units().magnitude)
 
-        if self.lower is not None:
-            if not leq(self.lower, value):
+        lower = await self.get_lower()
+        upper = await self.get_upper()
+        if lower is not None:
+            if not leq(lower, value):
                 msg = "{} is out of range [{}, {}]"
-                raise SoftLimitError(msg.format(value, self.lower, self.upper))
-        if self.upper is not None:
-            if not leq(value, self.upper):
+                raise SoftLimitError(msg.format(value, lower, upper))
+        if upper is not None:
+            if not leq(value, upper):
                 msg = "{} is out of range [{}, {}]"
-                raise SoftLimitError(msg.format(value, self.lower, self.upper))
+                raise SoftLimitError(msg.format(value, lower, upper))
 
         converted = self._parameter.convert(value)
         await super(QuantityValue, self).set(converted, wait_on=wait_on)
