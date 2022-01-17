@@ -82,16 +82,16 @@ class TestDummyFocusing(TestCase):
 
     @slow
     async def test_maximum_out_of_limits_right(self):
-        self.motor['position'].upper = 100 * q.mm
-        self.feedback.max_position = (self.motor['position'].upper + 50 * q.mm)
+        await self.motor['position'].set_upper(100 * q.mm)
+        self.feedback.max_position = (await self.motor['position'].get_upper() + 50 * q.mm)
 
         with self.assertRaises(HardLimitError):
             await self.run_optimization()
 
     @slow
     async def test_maximum_out_of_limits_left(self):
-        self.motor['position'].lower = -100 * q.mm
-        self.feedback.max_position = (self.motor['position'].lower - 50 * q.mm)
+        await self.motor['position'].set_lower(-100 * q.mm)
+        self.feedback.max_position = (await self.motor['position'].get_lower() - 50 * q.mm)
 
         with self.assertRaises(HardLimitError):
             await self.run_optimization()
