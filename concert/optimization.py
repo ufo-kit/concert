@@ -65,12 +65,14 @@ async def optimize_parameter(parameter, feedback, x_0, algorithm, alg_args=(),
         Create a function from setting a parameter and getting a feedback.
         """
         # Do not go out of the limits
-        if parameter.lower is not None:
-            if parameter.lower is not None and x_val < parameter.lower:
-                x_val = parameter.lower
-        if parameter.upper is not None:
-            if parameter.upper is not None and x_val > parameter.upper:
-                x_val = parameter.upper
+        lower = await parameter.get_lower()
+        upper = await parameter.get_upper()
+        if lower is not None:
+            if lower is not None and x_val < lower:
+                x_val = lower
+        if upper is not None:
+            if upper is not None and x_val > upper:
+                x_val = upper
         await parameter.set(x_val)
 
         return await feedback()
