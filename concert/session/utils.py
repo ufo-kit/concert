@@ -6,7 +6,7 @@ import inspect
 import subprocess
 import prettytable
 from concert.config import AIODEBUG
-from concert.coroutines.base import background
+from concert.coroutines.base import background, run_in_loop
 from concert.devices.base import Device
 from concert.quantities import q
 
@@ -36,7 +36,7 @@ def _get_param_value_table(device):
     table.header = False
 
     for param in device:
-        table.add_row([param.name, str(param.get().result())])
+        table.add_row([param.name, str(run_in_loop(param.get()))])
 
     if hasattr(device, 'state'):
         table.add_row(['state', device.state])
