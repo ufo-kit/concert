@@ -858,10 +858,10 @@ class QuantityValue(ParameterValue):
         table.add_row(["upper", await self.get_upper()])
 
         if self._external_lower_getter is not None:
-            table.add_row(["lower_user", self.lower_user])
+            table.add_row(["lower_user", await self.get_lower_user()])
             table.add_row(["lower_external", await self.get_lower_external()])
         if self._external_upper_getter is not None:
-            table.add_row(["upper_user", self.upper_user])
+            table.add_row(["upper_user", await self.get_upper_user()])
             table.add_row(["upper_external", await self.get_upper_external()])
         return table
 
