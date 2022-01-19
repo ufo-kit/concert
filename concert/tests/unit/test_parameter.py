@@ -448,6 +448,10 @@ class TestQuantity(TestCase):
         self.assertEqual(await dev['foo'].get_upper(), 1 * q.mm)
         self.assertEqual(dev.upper_via_func, 1 * q.mm)
 
+    def test_external_limits_info_table(self):
+        dev = ExternalLimitDevice(0 * q.mm)
+        str(dev['foo'])
+
 
 class TestSelection(TestCase):
 
