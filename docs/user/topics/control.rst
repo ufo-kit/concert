@@ -100,6 +100,39 @@ one can do::
     # You will get a LockError
 
 
+Limits
+------
+
+Limits allow you to restrict setting :class:`.Quantity` to a certain range. You
+can specify the :attr:`.Quantity.lower` and :attr:`.Quantity.upper` limits. Usage::
+
+    # Blocking version
+    motor['position'].lower = -10 * q.mm
+    print(motor['position'].lower)
+    # Coroutine version
+    await motor['position'].set_lower(-15 * q.mm)
+    print(await motor['position'].get_lower())
+
+    # Blocking version
+    motor['position'].upper = 10 * q.mm
+    print(motor['position'].upper)
+    # Coroutine version
+    await motor['position'].set_upper(15 * q.mm)
+    print(await motor['position'].get_upper())
+
+    # Locking
+    motor['position'].lock_limits()
+    # Will not work, you will get a LockError
+    motor['position'].lower = -10 * q.mm
+
+    motor['position'].unlock_limits()
+    # This will work again
+    motor['position'].lower = -10 * q.mm
+
+    motor['position'].lock_limits(permanent=True)
+    # This will not work anymore until you restart the session
+    motor['position'].unlock_limits()
+
 
 Emergency stop
 --------------

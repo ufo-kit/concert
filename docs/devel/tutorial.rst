@@ -317,3 +317,20 @@ In case changing a parameter value causes a state transition, add a
                             check=check(source='*', target='moving'))
 
         foo = Parameter(check=check(source='*', target='*'))
+
+
+Limits
+~~~~~~
+
+:class:`.Quantity` instances can have user-defined or external limits (e.g. read
+from a controller). There are :attr:`.Quantity.lower` and
+:attr:`.Quantity.upper` limits and they are obtained in the following way. If
+:func:`external_lower_getter` function is specified in the constructor of the
+quantity, it is used to get the lower limit. If it is not, then the user-defined
+limit is returned, and that is done either via the :func:`user_lower_getter`
+function if specified in the constructor of the quantity, or via the value
+saved in the quantity, set previousy by :meth:`.QuantityValue.set_lower`. The setter
+calls the :func:`user_lower_setter` if specified, otherwise just saves the value
+in a variable inside the quantity. The user-defined getters and setters are
+useful for invoking mechanisms beyond concert, e.g. updating the limits in a
+Tango database. The limits can be locked in a similar way to parameter locking.
