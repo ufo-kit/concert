@@ -112,14 +112,14 @@ class ContinuousLinearMotor(LinearMotor, base.ContinuousLinearMotor):
     async def _set_velocity(self, vel):
         if vel.magnitude > 0:
             await self.set_motion_velocity(vel)
-            if self['position'].upper:
-                start(self.set_position(self['position'].upper))
+            if await self['position'].get_upper():
+                start(self.set_position(await self['position'].get_upper()))
             else:
                 start(self.set_position(np.inf * q.mm))
         if vel.magnitude < 0:
             await self.set_motion_velocity(vel)
-            if self['position'].lower:
-                start(self.set_position(self['position'].lower))
+            if await self['position'].get_lower():
+                start(self.set_position(await self['position'].get_lower()))
             else:
                 start(self.set_position(-np.inf * q.mm))
         if vel.magnitude == 0:
@@ -163,14 +163,14 @@ class ContinuousRotationMotor(RotationMotor,
     async def _set_velocity(self, vel):
         if vel.magnitude > 0:
             await self.set_motion_velocity(vel)
-            if self['position'].upper:
-                start(self.set_position(self['position'].upper))
+            if await self['position'].get_upper():
+                start(self.set_position(await self['position'].get_upper()))
             else:
                 start(self.set_position(np.inf * q.deg))
         if vel.magnitude < 0:
             await self.set_motion_velocity(vel)
-            if self['position'].lower:
-                start(self.set_position(self['position'].lower))
+            if await self['position'].get_lower():
+                start(self.set_position(await self['position'].get_lower()))
             else:
                 start(self.set_position(-np.inf * q.deg))
         if vel.magnitude == 0:
