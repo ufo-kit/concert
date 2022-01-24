@@ -54,8 +54,11 @@ class ViewerBase(Parameterizable):
     separate process.
     """
 
-    def __init__(self):
+    force = Parameter(help='Make sure every item is displayed')
+
+    def __init__(self, force=False):
         super().__init__()
+        self._force = force
         self._queue = _MP_CTX.Queue()
         # This prevents hanging in the case we exit the session after something is put in the queue
         # and before it is consumed.
@@ -66,18 +69,25 @@ class ViewerBase(Parameterizable):
         self._proc = None
         # __del__ is not going to help because it's never called from our concert session
 
+    async def _set_force(self, value):
+        self._force = value
+
+    async def _get_force(self):
+        return self._force
+
     @background
-    async def __call__(self, producer, size=0, force=False):
+    async def __call__(self, producer, size=0, force=None):
         """
         Display stream from *producer*. If *size* is specified, stop after displaying *size* items.
-        If *force* is True make sure the item is displayed, otherwise it may be skipped if there is
-        something in the queue waiting to be shown.
+        If *force* is True make sure the item is displayed, if False it may be skipped if there is
+        something in the queue waiting to be shown, if it is None, the viewer's *force* parameter is
+        used.
         """
         i = 0
 
         async for item in producer:
             if not size or i < size:
-                await self.show(item, force=force)
+                await self.show(item, force=self._force if force is None else force)
 
             i += 1
 
@@ -233,7 +243,7 @@ class ImageViewerBase(ViewerBase):
         self._limits = limits
 
     @background
-    async def __call__(self, producer: Callable, size: int = None, force: bool = False):
+    async def __call__(self, producer: Callable, size: int = None, force: bool = None):
         # In case limits are set to 'stream' we need to reset clim
         self._queue.put(('clim', self._limits))
         return await super().__call__(producer, size=None, force=force)
