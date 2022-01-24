@@ -56,7 +56,7 @@ class ViewerBase(Parameterizable):
 
     force = Parameter(help='Make sure every item is displayed')
 
-    def __init__(self, force=False):
+    def __init__(self, force: bool = False):
         super().__init__()
         self._force = force
         self._queue = _MP_CTX.Queue()
@@ -156,8 +156,8 @@ class PyplotViewer(ViewerBase):
     autoscale = Parameter(help='Autoscale view')
 
     def __init__(self, style: str = "o", plot_kwargs: dict = None, autoscale: bool = True,
-                 title: str = ""):
-        super().__init__()
+                 title: str = "", force: bool = False):
+        super().__init__(force=force)
         self._autoscale = autoscale
         self._style = style
         self._plot_kwargs = plot_kwargs
@@ -235,8 +235,8 @@ class ImageViewerBase(ViewerBase):
     downsampling = Parameter(help='Display only every n-th pixel')
 
     def __init__(self, limits: str = 'stream', downsampling: int = 1, title: str = "",
-                 show_refresh_rate: bool = False):
-        super().__init__()
+                 show_refresh_rate: bool = False, force: bool = False):
+        super().__init__(force=force)
         self._show_refresh_rate = show_refresh_rate
         self._title = title
         self._downsampling = downsampling
@@ -309,9 +309,10 @@ class PyplotImageViewer(ImageViewerBase):
     colormap = Parameter(help='Colormap')
 
     def __init__(self, imshow_kwargs: dict = None, fast: bool = True, limits: str = 'stream',
-                 downsampling: int = 1, title: str = "", show_refresh_rate: bool = False):
+                 downsampling: int = 1, title: str = "", show_refresh_rate: bool = False,
+                 force: bool = False):
         super().__init__(limits=limits, downsampling=downsampling, title=title,
-                         show_refresh_rate=show_refresh_rate)
+                         show_refresh_rate=show_refresh_rate, force=force)
         self._has_colorbar = not fast
         self._imshow_kwargs = {} if imshow_kwargs is None else imshow_kwargs
         self._make_imshow_defaults()
@@ -352,7 +353,7 @@ class _PyQtGraphUpdater:
     """Fast PyQtGraph-based image viewing backend."""
 
     def __init__(self, queue: mp.Queue, limits: str = 'stream', title: str = "",
-                 show_refresh_rate: bool = False):
+                 show_refresh_rate: bool = False, force: bool = False):
         self.queue = queue
         self.title = title
         self.clim = limits
