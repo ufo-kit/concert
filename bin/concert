@@ -458,6 +458,14 @@ class StartCommand(SubCommand):
             if not module:
                 from concert.quantities import q
 
+            if IPython.version_info >= (8, 0):
+                # Ipython creates a new event loop in get_asyncio_loop function, but only sets it in
+                # the prompt_for_code of the
+                # IPython.terminal.interactiveshell.TerminalInteractiveShell, so when we use
+                # enabel_gui programatically, that loop setting will never be triggered. Thus, we do
+                # it ourselves before anything else happens.
+                from IPython.core.async_helpers import get_asyncio_loop
+                asyncio.set_event_loop(get_asyncio_loop())
             shell = InteractiveShellEmbed(banner1='', user_module=module, user_ns=mvars)
             # Tasks created with asyncio.ensure_future(...) are started immediately
             shell.enable_gui(gui='asyncio')
