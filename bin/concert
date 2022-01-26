@@ -47,6 +47,9 @@ def get_prompt_config(session_name):
         def in_prompt_tokens(self, cli=None):
             return [(Token, session_name), (Token.Prompt, ' > ')]
 
+        def out_prompt_tokens(self):
+            return []
+
     return MyPrompt
 
 
