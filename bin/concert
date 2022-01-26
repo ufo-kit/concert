@@ -446,9 +446,6 @@ class StartCommand(SubCommand):
         if module and module.__doc__:
             print(module.__doc__)
 
-        attrs = [attr for attr in dir(module) if not attr.startswith('_')]
-        mvars = dict((attr, getattr(module, attr)) for attr in attrs)
-
         try:
             exceptions = (UnitError, LimitError, ParameterError, ReadAccessError, WriteAccessError,
                           LockError, KeyboardInterrupt, asyncio.CancelledError)
@@ -466,7 +463,7 @@ class StartCommand(SubCommand):
                 # it ourselves before anything else happens.
                 from IPython.core.async_helpers import get_asyncio_loop
                 asyncio.set_event_loop(get_asyncio_loop())
-            shell = InteractiveShellEmbed(banner1='', user_module=module, user_ns=mvars)
+            shell = InteractiveShellEmbed(banner1='', user_module=module)
             # Tasks created with asyncio.ensure_future(...) are started immediately
             shell.enable_gui(gui='asyncio')
             shell.prompts = config(shell)
