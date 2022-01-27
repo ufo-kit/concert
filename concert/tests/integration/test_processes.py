@@ -1,31 +1,13 @@
 import numpy as np
-import scipy
-from scipy.ndimage import fourier
 from concert.tests import assert_almost_equal, TestCase
 from concert.quantities import q
-from concert.devices.cameras.dummy import Base as DummyCameraBase, Camera
+from concert.devices.cameras.dummy import Camera
 from concert.devices.motors.dummy import LinearMotor, RotationMotor
 from concert.devices.shutters.dummy import Shutter
 from concert.processes.common import focus
 from concert.processes.beamline import (acquire_dark, acquire_image_with_beam,
                                         determine_rotation_axis)
-
-
-MIN_POSITION = 0 * q.mm
-MAX_POSITION = 100 * q.mm
-FOCUS_POSITION = 35 * q.mm
-
-
-class BlurringCamera(DummyCameraBase):
-
-    def __init__(self, motor):
-        super(BlurringCamera, self).__init__()
-        self._original = scipy.misc.ascent()
-        self.motor = motor
-
-    async def _grab_real(self):
-        sigma = abs((await self.motor.get_position() - FOCUS_POSITION).magnitude)
-        return fourier.fourier_gaussian(self._original, sigma)
+from concert.tests.util.focus import BlurringCamera, FOCUS_POSITION
 
 
 class TestProcesses(TestCase):
