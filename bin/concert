@@ -466,6 +466,14 @@ class StartCommand(SubCommand):
                 # it ourselves before anything else happens.
                 from IPython.core.async_helpers import get_asyncio_loop
                 asyncio.set_event_loop(get_asyncio_loop())
+            # commit 34b06dc92a6978296296a6489d61afc2619a49ef enables us to use "q" again but
+            # disables e.g. this:
+            # concert > import time
+            # concert > def foo():
+            #               time.sleep(1)
+            #               return True
+            # -> NameError: name 'time' is not defined
+            # TODO: fix this so that both things work
             shell = InteractiveShellEmbed(banner1='', user_module=module)
             # Tasks created with asyncio.ensure_future(...) are started immediately
             shell.enable_gui(gui='asyncio')
