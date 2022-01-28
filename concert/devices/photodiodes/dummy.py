@@ -11,4 +11,4 @@ class PhotoDiode(base.PhotoDiode):
         super(PhotoDiode, self).__init__()
 
     async def _get_intensity(self):
-        return 1 * q.V / q.W
+        return 1 * q.V

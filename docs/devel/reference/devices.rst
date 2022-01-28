@@ -55,7 +55,13 @@ Monochromators
     :show-inheritance:
     :members:
 
+.. autoclass:: concert.devices.monochromators.doublemonochromator.Monochromator
+    :show-inheritance:
+    :members:
+
 .. autoclass:: concert.devices.monochromators.dummy.Monochromator
+
+.. autoclass:: concert.devices.monochromators.dummy.DoubleMonochromator
 
 
 Motors

@@ -1,10 +1,13 @@
 import random
-from concert.tests import assert_almost_equal, TestCase
+import numpy as np
+from concert.tests import assert_almost_equal, TestCase, slow
 from concert.quantities import q
 from concert.devices.monochromators.dummy import\
     Monochromator as DummyMonochromator
 from concert.devices.monochromators import base
 from concert.devices.monochromators.base import Monochromator
+from concert.devices.monochromators.dummy import DoubleMonochromator
+from concert.devices.photodiodes.dummy import PhotoDiode as DummyPhotoDiode
 
 
 class WavelengthMonochromator(Monochromator):
@@ -23,6 +26,21 @@ class WavelengthMonochromator(Monochromator):
 
     async def _set_wavelength_real(self, wavelength):
         self._wavelength = wavelength
+
+
+class PhotoDiode(DummyPhotoDiode):
+    """
+    Photo diode that returns an intensity distribution depending on the bragg_motor2 position.
+
+    """
+    def __init__(self, bragg_motor2):
+        self.bragg_motor = bragg_motor2
+        self.function = None
+        super().__init__()
+
+    async def _get_intensity(self):
+        x = (await self.bragg_motor.get_position()).to(q.deg).magnitude
+        return self.function(x) * q.V
 
 
 class TestDummyMonochromator(TestCase):
@@ -58,3 +76,50 @@ class TestDummyMonochromator(TestCase):
         assert_almost_equal(self.wave_mono.wavelength, self.wavelength)
         assert_almost_equal(base.wavelength_to_energy(self.wavelength),
                             self.wave_mono.energy)
+
+
+@slow
+class TestDummyDoubleMonochromator(TestCase):
+    def setUp(self):
+        super(TestDummyDoubleMonochromator, self).setUp()
+        self.mono = DoubleMonochromator()
+        self.diode = PhotoDiode(self.mono._motor_2)
+
+    def gaussian(self, x):
+        """
+        Gaussian centered around 0.2 with a sigma of 0.1.
+        """
+        mu = 0.2
+        sigma = 0.1
+        return np.exp(-(x-mu)**2/sigma**2)
+
+    def double_gaussian(self, x):
+        """
+        Double two gaussian functions centered around zero with a sigma of 0.2 each.
+        """
+        mu_1 = -0.2
+        mu_2 = 0.2
+        sigma = 0.2
+        return np.exp(-(x - mu_1) ** 2 / sigma ** 2) + np.exp(-(x - mu_2) ** 2 / sigma ** 2)
+
+    async def test_center(self):
+        """
+        This test configures the diode to return a gaussian profile with the center at 0.2 deg.
+        Then it is checked if the monochromator._motor2 is moved to 0.2 deg after the scan and the
+        select_maximum() function.
+        """
+        self.diode.function = self.gaussian
+        await self.mono.scan_bragg_angle(diode=self.diode, tune_range=1*q.deg, n_points=100)
+        await self.mono.select_maximum()
+        self.assertAlmostEqual(await self.mono._motor_2.get_position(), 0.2*q.deg, 2)
+
+    async def test_center_of_mass(self):
+        """
+        This test configures the diode to return a hat profile with the center at 0.0 deg.
+        Then it is checked if the monochromator._motor2 is moved to 0.0 deg after the scan and the
+        select_center_of_mass() function.
+        """
+        self.diode.function = self.double_gaussian
+        await self.mono.scan_bragg_angle(diode=self.diode, tune_range=1*q.deg, n_points=100)
+        await self.mono.select_center_of_mass()
+        self.assertAlmostEqual(await self.mono._motor_2.get_position(), 0.0*q.deg, 2)
