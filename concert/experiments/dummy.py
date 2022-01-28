@@ -56,12 +56,15 @@ class ImagingExperiment(Experiment):
         radios = Acquisition('radios', self.take_radios)
         super(ImagingExperiment, self).__init__([darks, flats, radios], walker=walker)
 
-    async def _produce_images(self, num):
+    async def _produce_images(self, num, mean=128, std=10):
         def make_random_image():
-            return np.random.normal(128., 10., size=self.shape).astype(self.dtype)
+            return np.random.normal(mean, std, size=self.shape).astype(self.dtype)
+
+        def make_const_image():
+            return (np.ones(self.shape) * mean).astype(self.dtype)
 
         if self.random == 'off':
-            image = await run_in_executor(np.zeros, self.shape, self.dtype)
+            image = await run_in_executor(make_const_image)
         elif self.random == 'single':
             image = await run_in_executor(make_random_image)
 
