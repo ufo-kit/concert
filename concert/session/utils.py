@@ -196,7 +196,6 @@ def abort_awaiting(background=False, skip=None):
         LOG.debug('NameError in pid: %d', os.getpid())
 
     tasks = asyncio.all_tasks(loop=loop)
-    pending = []
     LOG.log(AIODEBUG, 'Running %d tasks:\n%s', len(tasks),
             '\n'.join([get_task_name(task) for task in tasks]))
 
@@ -217,14 +216,9 @@ def abort_awaiting(background=False, skip=None):
             # We either abort everything which is enabled for aborting or the current coroutine
             # which is being awaited in the session
             cancelled_result = task.cancel()
-            pending.append(task)
             LOG.log(AIODEBUG, "Cancelling task `%s' with result %s", name, cancelled_result)
             if not background:
                 return True
-
-    if not loop_running:
-        # In case we are called directly in the session
-        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
 
     if background or not loop_running:
         # Either ctrl-k or ctrl-c in a non-async function
