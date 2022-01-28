@@ -220,7 +220,7 @@ def abort_awaiting(background=False, skip=None):
             if not background:
                 return True
 
-    if background or not loop_running:
+    if background:
         # Either ctrl-k or ctrl-c in a non-async function
         # Use ipython magic because _current_instances won't work here (different stack)
         try:
@@ -238,12 +238,6 @@ def abort_awaiting(background=False, skip=None):
                 LOG.info("Emergency stop on `%s'", name)
                 emergency_stops.append(value.emergency_stop())
                 emergency_device_names.append(name)
-        if not loop_running:
-            results = loop.run_until_complete(asyncio.gather(*emergency_stops,
-                                                             return_exceptions=True))
-            for i, result in enumerate(results):
-                LOG.log(AIODEBUG, "Emergency stop result for `%s': %s",
-                        emergency_device_names[i], result)
 
     return False
 

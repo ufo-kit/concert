@@ -64,7 +64,9 @@ This for instance stops a motor. By *ctlr-k*, you can also cancel *all* running
 background tasks which were started by the :py:func:`.start` function or
 :py:func:`.background` decorator. On the top of cancellation, *ctrl-k* will call
 :meth:`.Device.emergency_stop` on all devices in order to bring them to a
-standstill.
+standstill. Please note that if there is non-async function running, *ctrl-k*
+will only get triggered after it has finished. You can first cancel the running
+operation byt *ctrl-c* followed by *ctrl-k* to execute it as soon as possible.
 
 Concurrency
 -----------
