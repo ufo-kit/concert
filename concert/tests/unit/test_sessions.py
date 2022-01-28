@@ -25,11 +25,13 @@ class TestAborting(TestCase):
         self.started = Event()
         super().setUp()
 
-    def test_abort_awaiting_background(self):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+    async def test_abort_awaiting_background(self):
         task = start(corofunc(self))
-        abort_awaiting(background=True)
+        try:
+            abort_awaiting(background=True)
+            await task
+        except asyncio.CancelledError:
+            pass
         assert task.cancelled()
 
     def test_abort_awaiting_thread(self):
