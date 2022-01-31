@@ -5,7 +5,8 @@ sys.path.insert(0, os.path.abspath('..'))
 from concert import __version__
 
 _authors = [u'Matthias Vogelgesang',
-            u'Tomas Farago']
+            u'Tomas Farago',
+            u'Marcus Zuber']
 
 extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.intersphinx',

@@ -109,6 +109,63 @@ settings for conducting a tomographic experiment.
 .. autofunction:: concert.experiments.imaging.tomo_max_speed
 
 
+
+Synchrotron and X-Ray tube experiments
+--------------------------------------
+
+In :py:mod:`concert.experiments.synchrotron` and :py:mod:`concert.experiments.xraytube` implementations of Radiography, SteppedTomography,
+ContinuousTomography and SteppedSpiralTomography and ContinuousSpiralTomography are implemented for the two different
+source types.
+
+For detailed information how they are implemented, you can have a look at the base classes :class:`concert.experiments.imaging.Radiography`,
+:class:`concert.experiments.imaging.Tomography`, :class:`concert.experiments.imaging.SteppedTomography`, :class:`concert.experiments.imaging.ContinuousTomography`,
+:class:`concert.experiments.imaging.SteppedSpiralTomography` and :class:`concert.experiments.imaging.ContinuousSpiralTomography`.
+
+In the standard configuration, all experiments first acquire the dark images, then the flat images and the projection images of the sample at the end.
+This order can be adjusted by the :func:`~concert.experiments.base.Experiment.swap` command.
+
+Radiography
+"""""""""""
+
+.. autoclass:: concert.experiments.synchrotron.Radiography
+
+.. autoclass:: concert.experiments.xraytube.Radiography
+    :members: flat_position, radio_position, num_darks, num_flats, num_projections
+
+SteppedTomography
+"""""""""""""""""
+
+.. autoclass:: concert.experiments.synchrotron.SteppedTomography
+.. autoclass:: concert.experiments.xraytube.SteppedTomography
+    :members: flat_position, radio_position, num_darks, num_flats, num_projections, angular_range, start_angle
+
+
+
+ContinuousTomography
+""""""""""""""""""""
+
+.. autoclass:: concert.experiments.synchrotron.ContinuousTomography
+.. autoclass:: concert.experiments.xraytube.ContinuousTomography
+    :members: flat_position, radio_position, num_darks, num_flats, num_projections, angular_range, start_angle, velocity
+
+
+
+SteppedSpiralTomography
+"""""""""""""""""""""""
+
+.. autoclass:: concert.experiments.synchrotron.SteppedSpiralTomography
+.. autoclass:: concert.experiments.xraytube.SteppedSpiralTomography
+    :members: flat_position, radio_position, num_darks, num_flats, num_projections, angular_range, start_angle, start_position_vertical, vertical_shift_per_tomogram, sample_height
+
+
+ContinuousSpiralTomography
+""""""""""""""""""""""""""
+
+.. autoclass:: concert.experiments.synchrotron.ContinuousSpiralTomography
+.. autoclass:: concert.experiments.xraytube.ContinuousSpiralTomography
+    :members: flat_position, radio_position, num_darks, num_flats, num_projections, angular_range, start_angle, velocity,  start_position_vertical, vertical_shift_per_tomogram, sample_height
+
+
 Control
 -------
 
@@ -133,3 +190,50 @@ their data acquisition. For example, to save images on disk::
 
 .. automodule:: concert.experiments.addons
     :members:
+
+Running an experiment
+---------------------
+
+To demonstrate how a typical experiment can be run in an empty session with dummy devices::
+
+    from concert.storage import DirectoryWalker
+    from concert.ext.viewers import PyplotImageViewer
+    from concert.experiments.addons import Consumer, ImageWriter
+    from concert.devices.motors.dummy import LinearMotor, ContinuousRotationMotor
+    from concert.devices.camera.dummy import Camera
+    from concert.devices.shutters.dummy import Shutter
+
+    # Import experiment
+    from concert.experiments.synchrotron import ContinuousTomography
+
+    # Devices
+    camera = Camera()
+    shutter = Shutter()
+    flat_motor = LinearMotor()
+    tomo_motor = ContinuousRotationMotor()
+
+
+    viewer = PyplotImageViewer()
+    walker = DirectoryWalker(root="folder to write data")
+    exp = ContinuousTomography(walker=walker,
+                                flat_motor=flat_motor,
+                                tomography_motor=tomo_motor,
+                                radio_position=0*q.mm,
+                                flat_position=10*q.mm,
+                                camera=camera,
+                                shutter=shutter)
+
+    # Attach live_view to the experiment
+    live_view = Consumer(exp.acquisitions, viewer)
+
+    # Attach image writer to experiment
+    writer = ImageWriter(exp.acquisitions, walker)
+
+    # check all parameters by typing 'exp'
+
+    # Run the experiment
+    f = exp.run()
+
+    # Wait until the experiment is done
+    await f
+

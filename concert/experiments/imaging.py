@@ -1,6 +1,13 @@
-"""Imaging experiments usually conducted at synchrotrons."""
+"""Imaging experiments.
+
+For all classes the abstract functions *start_sample_exposure* and *stop_sample_exposure* need to be
+ implemented."""
+import asyncio
 import numpy as np
+import concert.storage
 from concert.quantities import q
+from concert.experiments.base import Experiment, Acquisition
+from concert.base import background, Parameter, Quantity, Parameterizable
 
 
 async def frames(num_frames, camera, callback=None):
@@ -60,3 +67,793 @@ def tomo_max_speed(frame_width, frame_rate):
     account the whole frame taking procedure (exposure + readout).
     """
     return tomo_angular_step(frame_width) * frame_rate
+
+
+class Radiography(Experiment):
+    """
+    Radiography experiment
+
+    This records dark images (without beam) and flat images (with beam and without the sample) as
+    well as the projections with the sample in the beam.
+    """
+
+    num_flats = Parameter()
+    """Number of images acquired for flatfield correction."""
+
+    num_darks = Parameter()
+    """Number of images acquired for dark correction."""
+
+    num_projections = Parameter()
+    """Number of projection images."""
+
+    radio_position = Quantity(q.mm)
+    """Position of the flat_motor to acquire projection images of the sample."""
+
+    flat_position = Quantity(q.mm)
+    """Position of the flat_motor to acquire images without the sample."""
+
+    def __init__(self, walker, flat_motor, radio_position, flat_position, camera, num_flats,
+                 num_darks, num_projections, separate_scans=True):
+        """
+        :param walker: Walker for storing experiment data.
+        :type walker: concert.storage.Walker
+        :param flat_motor: LinearMotor for moving sample in and out of the beam.
+        :type flat_motor: concert.devices.motors.base.LinearMotor
+        :param radio_position: Position of *flat_motor* that the sample is positioned in the beam.
+        :type radio_position: q.mm
+        :param flat_position: Position of *flat_motor* that the sample is positioned out of the
+            beam.
+        :type flat_position: q.mm
+        :param camera: Camera to acquire the images.
+        :type camera: concert.devices.cameras.base.Camera
+        :param num_flats: Number of images for flatfield correction.
+        :type num_flats: int
+        :param num_darks: Number of images for dark correction.
+        :type num_darks: int
+        :param num_projections: Number of projections.
+        :type num_projections: int
+        """
+        self._num_flats = num_flats
+        self._num_darks = num_darks
+        self._num_projections = num_projections
+        self._radio_position = radio_position
+        self._flat_position = flat_position
+        self._finished = None
+        self._flat_motor = flat_motor
+        self._camera = camera
+        darks_acq = Acquisition("darks", self._take_darks)
+        flats_acq = Acquisition("flats", self._take_flats)
+        radios_acq = Acquisition("radios", self._take_radios)
+        super().__init__([darks_acq, flats_acq, radios_acq], walker,
+                         separate_scans=separate_scans)
+
+    async def _last_acquisition_running(self) -> bool:
+        return await self.acquisitions[-1].get_state() == "running"
+
+    async def _get_num_flats(self):
+        return self._num_flats
+
+    async def _get_num_darks(self):
+        return self._num_darks
+
+    async def _get_num_projections(self):
+        return self._num_projections
+
+    async def _get_radio_position(self):
+        return self._radio_position
+
+    async def _get_flat_position(self):
+        return self._flat_position
+
+    async def _set_num_flats(self, n):
+        self._num_flats = int(n)
+
+    async def _set_num_darks(self, n):
+        self._num_darks = int(n)
+
+    async def _set_num_projections(self, n):
+        self._num_projections = int(n)
+
+    async def _set_flat_position(self, position):
+        self._flat_position = position
+
+    async def _set_radio_position(self, position):
+        self._radio_position = position
+
+    async def _prepare_flats(self):
+        """
+        Called before flat images are acquired.
+
+        The *flat_motor* is moved to the *flat_position* and :py:meth:`.start_sample_exposure()`
+        will be called.
+        """
+        await self._flat_motor.set_position(await self.get_flat_position())
+        await self.start_sample_exposure()
+
+    async def _finish_flats(self):
+        """
+        Called after all flat images are acquired.
+
+        Does nothing in this class.
+        """
+        pass
+
+    async def _prepare_darks(self):
+        """
+        Called before the dark images are acquired.
+
+        Calls :py:meth:`.stop_sample_exposure()`.
+        """
+        await self.stop_sample_exposure()
+
+    async def _finish_darks(self):
+        """
+        Called after all dark images are acquired.
+
+        Does nothing in this class.
+        """
+        pass
+
+    async def _prepare_radios(self):
+        """
+        Called before the projection images are acquired.
+
+        The *flat_motor* is moved to the *radio_position* and :py:meth:`.start_sample_exposure()`
+        will be called.
+        """
+        await self._flat_motor.set_position(await self.get_radio_position())
+        await self.start_sample_exposure()
+
+    async def _finish_radios(self):
+        """
+        Function that is called after all frames are acquired. It will be called only once.
+
+        This calls :py:meth:`.stop_sample_exposure()`.
+        """
+        if self._finished:
+            return
+        await self.stop_sample_exposure()
+        self._finished = True
+
+    @background
+    async def run(self):
+        self._finished = False
+        await super().run()
+
+    async def _take_radios(self):
+        """
+        Generator for projection images.
+
+        First :py:meth:`._prepare_radios()` is called. Afterwards :py:meth:`._produce_frames()`
+        generates the frames.
+        At the end :py:meth:`._finish_radios()` is called.
+        """
+        try:
+            await self._prepare_radios()
+            async for frame in self._produce_frames(self._num_projections):
+                yield frame
+        finally:
+            await self._finish_radios()
+
+    async def _take_flats(self):
+        """
+        Generator for taking flatfield images
+
+        First :py:meth:`._prepare_flats()` is called. Afterwards :py:meth:`._produce_frames()`
+        generates the frames.
+        At the end :py:meth:`._finish_flats()` is called.
+        """
+        try:
+            await self._prepare_flats()
+            async for frame in self._produce_frames(self._num_flats):
+                yield frame
+        finally:
+            await self._finish_flats()
+
+    async def _take_darks(self):
+        """
+        Generator for taking dark images
+
+        First :py:meth:`._prepare_darks()` is called. Afterwards :py:meth:`._produce_frames()`
+        generates the frames.
+        At the end :py:meth:`._finish_darks()` is called.
+        """
+        try:
+            await self._prepare_darks()
+            async for frame in self._produce_frames(self._num_darks):
+                yield frame
+        finally:
+            await self._finish_darks()
+
+    async def _produce_frames(self, number, **kwargs):
+        """
+        Generator of frames.
+        Sets the camera to auto-trigger and then grabs *number* of frames.
+
+        :param number: Number of frames that are generated
+        :type number: int
+        """
+        await self._camera.set_trigger_source("AUTO")
+        async with self._camera.recording():
+            for i in range(int(number)):
+                yield await self._camera.grab()
+
+    async def start_sample_exposure(self):
+        """
+        This function must implement in a way that the sample is exposed by radiation, like opening
+        a shutter or starting an X-ray tube.
+        """
+        raise NotImplementedError()
+
+    async def stop_sample_exposure(self):
+        """
+        This function must implement in a way that the sample is not exposed by radiation, like
+        closing a shutter or switching off an X-ray tube.
+        """
+        raise NotImplementedError()
+
+
+class Tomography(Radiography):
+    """
+       Tomography
+
+       Abstract implementation of a tomography experiment.
+       """
+
+    angular_range = Quantity(q.deg)
+    """Range for scanning the *tomography_motor*."""
+
+    start_angle = Quantity(q.deg)
+    """Initial position of the *tomography_motor*."""
+
+    def __init__(self, walker, flat_motor, tomography_motor, radio_position, flat_position, camera,
+                 num_flats=200, num_darks=200, num_projections=3000, angular_range=180 * q.deg,
+                 start_angle=0 * q.deg, separate_scans=True):
+        """
+        :param walker: Walker for storing experiment data.
+        :type walker: concert.storage.Walker
+        :param flat_motor: LinearMotor for moving sample in and out of the beam.
+        :type flat_motor: concert.devices.motors.base.LinearMotor
+        :param tomography_motor: RotationMotor for tomography.
+        :type tomography_motor: concert.devices.motors.base.RotationMotor
+        :param radio_position: Position of *flat_motor* that the sample is positioned in the beam.
+        :type radio_position: q.mm
+        :param flat_position: Position of *flat_motor* that the sample is positioned out of the
+            beam.
+        :type flat_position: q.mm
+        :param camera: Camera to acquire the images.
+        :type camera: concert.devices.cameras.base.Camera
+        :param num_flats: Number of images for flatfield correction.
+        :type num_flats: int
+        :param num_darks: Number of images for dark correction.
+        :type num_darks: int
+        :param num_projections: Number of projections.
+        :type num_projections: int
+        :param angular_range: Range for the scan of the *tomography_motor*.
+        :type angular_range: q.deg
+        :param start_angle: Start position of *tomography_motor* for the first projection.
+        :type start_angle: q.deg
+        """
+        self._angular_range = angular_range
+        self._start_angle = start_angle
+        self._tomography_motor = tomography_motor
+        super().__init__(walker=walker, flat_motor=flat_motor,
+                         radio_position=radio_position, flat_position=flat_position,
+                         camera=camera, num_flats=num_flats, num_darks=num_darks,
+                         num_projections=num_projections,
+                         separate_scans=separate_scans)
+
+    async def _get_angular_range(self):
+        return self._angular_range
+
+    async def _get_start_angle(self):
+        return self._start_angle
+
+    async def _set_angular_range(self, angle):
+        self._angular_range = angle
+
+    async def _set_start_angle(self, angle):
+        self._start_angle = angle
+
+    async def _prepare_radios(self):
+        """
+        Called before the projection images are acquired.
+
+        Moves the *tomography_motor* to the *start_angle* and calls
+        :py:meth:`.Radiography._prepare_radios()`.
+        """
+        await asyncio.gather(self._tomography_motor.set_position(await self.get_start_angle()),
+                             super()._prepare_radios())
+
+    async def _finish_radios(self):
+        """
+        Called after the projection images are acquired.
+
+        Moves the *tomography_motor* to the *start_angle* and calls
+        :py:meth:`.Radiography._finish_radios()`.
+        """
+        if self._finished:
+            return
+        await asyncio.gather(self._tomography_motor.set_position(await self.get_start_angle()),
+                             super()._finish_radios())
+        self._finished = True
+
+    async def _take_radios(self):
+        """
+        Abstract function for the generation of the projection images.
+        This function is implemented for the different acquisition schemes in the subclasses
+        :py:class:`SteppedTomography` and :py:class:`ContinuousTomography`.
+        """
+        raise NotImplementedError
+
+
+class SteppedTomography(Tomography):
+    """
+    Stepped tomography experiment
+    """
+    def __init__(self, walker, flat_motor, tomography_motor, radio_position, flat_position, camera,
+                 num_flats=200, num_darks=200, num_projections=3000, angular_range=180 * q.deg,
+                 start_angle=0 * q.deg,
+                 separate_scans=True):
+        super().__init__(walker=walker, flat_motor=flat_motor,
+                         tomography_motor=tomography_motor,
+                         radio_position=radio_position,
+                         flat_position=flat_position,
+                         camera=camera, num_flats=num_flats,
+                         num_darks=num_darks,
+                         num_projections=num_projections,
+                         angular_range=angular_range,
+                         start_angle=start_angle,
+                         separate_scans=separate_scans)
+        """
+        :param walker: Walker for storing experiment data.
+        :type walker: concert.storage.Walker
+        :param flat_motor: LinearMotor for moving sample in and out of the beam.
+        :type flat_motor: concert.devices.motors.base.LinearMotor
+        :param tomography_motor: RotationMotor for tomography scan.
+        :type tomography_motor: concert.devices.motors.base.ContinuousRotationMotor
+        :param radio_position: Position of *flat_motor* that the sample is positioned in the beam.
+        :type radio_position: q.mm
+        :param flat_position: Position of *flat_motor* that the sample is positioned out of the
+            beam.
+        :type radio_position: q.mm
+        :param camera: Camera to acquire the images.
+        :type camera: concert.devices.camera.base.Camera
+        :param num_flats: Number of images for flatfield correction.
+        :type num_flats: int
+        :param num_darks: Number of images for dark correction.
+        :type num_darks: int
+        :param num_projections: Number of projections.
+        :type num_projections: int
+        :param angular_range: Range for the scan of the *tomography_motor*.
+        :type angular_range: q.deg
+        :param start_angle: Start position of *tomography_motor* for the first projection.
+        :type start_angle: q.deg
+        """
+
+    async def _take_radios(self):
+        """
+        Generator for projection images.
+
+        First :py:meth:`._prepare_radios()` is called.
+        The camera is set to software trigger.
+        Then the tomography_motor will be moved to the positions
+        i * angular_range / num_projections + start_angle for i = [0, num_projections-1].
+        At each position one frame is triggered and grabbed.
+        """
+        try:
+            await self._prepare_radios()
+            await self._camera.set_trigger_source("SOFTWARE")
+            async with self._camera.recording():
+                for i in range(await self.get_num_projections()):
+                    await self._tomography_motor.set_position(
+                        i * await self.get_angular_range() / await self.get_num_projections() +
+                        await self.get_start_angle()
+                    )
+                    try:
+                        await self._camera.trigger()
+                    except:
+                        pass
+                    yield await self._camera.grab()
+        finally:
+            await self._finish_radios()
+
+
+class ContinuousTomography(Tomography):
+    """
+    Continuous Tomography
+
+    This implements a tomography with a continuous rotation of the sample. The camera must record
+    frames with a constant rate.
+    """
+    velocity = Quantity(q.deg / q.s)
+    """Velocity of the *tomography_motor* in the continuous scan."""
+
+    def __init__(self, walker, flat_motor, tomography_motor, radio_position, flat_position, camera,
+                 num_flats=200, num_darks=200, num_projections=3000, angular_range=180 * q.deg,
+                 start_angle=0 * q.deg, separate_scans=True):
+        """
+        :param walker: Walker for storing experiment data.
+        :type walker: concert.storage.Walker
+        :param flat_motor: LinearMotor for moving sample in and out of the beam.
+        :type flat_motor: concert.devices.motors.base.LinearMotor
+        :param tomography_motor: ContinuousRotationMotor for tomography scan.
+        :type tomography_motor: concert.devices.motors.base.ContinuousRotationMotor
+        :param radio_position: Position of *flat_motor* that the sample is positioned in the beam.
+        :type radio_position: q.mm
+        :param flat_position: Position of *flat_motor* that the sample is positioned out of the
+            beam.
+        :type flat_position: q.mm
+        :param camera: Camera to acquire the images.
+        :type camera: concert.devices.camera.base.Camera
+        :param num_flats: Number of images for flatfield correction.
+        :type num_flats: int
+        :param num_darks: Number of images for dark correction.
+        :type num_darks: int
+        :param num_projections: Number of projections.
+        :type num_projections: int
+        :param angular_range: Range for the scan of the *tomography_motor*.
+        :type angular_range: q.deg
+        :param start_angle: Start position of *tomography_motor* for the first projection.
+        :type start_angle: q.deg
+        """
+        Tomography.__init__(self, walker=walker, flat_motor=flat_motor,
+                            tomography_motor=tomography_motor,
+                            radio_position=radio_position, flat_position=flat_position,
+                            camera=camera, num_flats=num_flats, num_darks=num_darks,
+                            num_projections=num_projections, angular_range=angular_range,
+                            start_angle=start_angle, separate_scans=separate_scans)
+
+    async def _get_velocity(self):
+        angular_range = await self.get_angular_range()
+        num_projections = await self.get_num_projections()
+        fps = await self._camera.get_frame_rate()
+
+        return fps * angular_range / num_projections
+
+    async def _prepare_radios(self):
+        """
+        Called before projection images are acquired.
+
+        Calls :py:meth:`.Tomography._prepare_radios()` and stashed the *motion_velocity* property of
+        the *tomography_motor*.
+        """
+        await super()._prepare_radios()
+        if 'motion_velocity' in self._tomography_motor:
+            await self._tomography_motor['motion_velocity'].stash()
+
+    async def _finish_radios(self):
+        """
+        Called after the projections are acquired.
+
+        Stops the continuous motion of the *tomography_motor* and restores the *motion_velocity*.
+        Calls :py:meth:`.Tomography._finish_radios()` .
+        """
+        if self._finished:
+            return
+        await self._tomography_motor.stop()
+        if 'motion_velocity' in self._tomography_motor:
+            await self._tomography_motor['motion_velocity'].restore()
+        await super()._finish_radios()
+        self._finished = True
+
+    async def _take_radios(self):
+        """
+        Generator for the projection images.
+
+        The :py:meth:`_prepare_radios()` is called. Afterwards the velocity property of the
+        tomography_motor is set to correct velocity.
+        Then :py:meth:`_produce_frames()` will generate the images.
+        At the end :py:meth:`_finish_radios()` is called.
+        """
+        try:
+            await self._prepare_radios()
+            await self._tomography_motor.set_velocity(await self.get_velocity())
+
+            async for frame in self._produce_frames(await self.get_num_projections()):
+                yield frame
+        finally:
+            await self._finish_radios()
+
+
+class SpiralMixin(Parameterizable):
+    """
+    Mixin for spiral tomography.
+    """
+    start_position_vertical = Quantity(q.mm)
+    """Initial position of the vertical motor."""
+
+    vertical_shift_per_tomogram = Quantity(q.mm)
+    """Vertical shift per tomogram."""
+
+    sample_height = Quantity(q.mm)
+    """Height of the sample. *vertical_motor* will be scanned from *start_position_vertical* to
+    *sample_height* + *vertical_shift_per_tomogram* to sample the whole specimen.
+    """
+
+    num_tomograms = Parameter()
+    """Number of tomograms, that are required to cover the whole specimen."""
+
+    def __init__(self, vertical_motor, start_position_vertical, sample_height,
+                 vertical_shift_per_tomogram):
+        """
+        :param vertical_motor: LinearMotor to translate the sample along the tomographic axis.
+        :type vertical_motor: concert.devices.motors.base.LinearMotor
+        :param start_position_vertical: Start position of *vertical_motor*.
+        :type start_position_vertical: q.mm
+        :param sample_height: Height of the sample.
+        :type sample_height: q.mm
+        :param vertical_shift_per_tomogram: Distance *vertical_motor* is translated during one
+            *angular_range*.
+        :type vertical_shift_per_tomogram: q.mm
+        """
+        self._start_position_vertical = start_position_vertical
+        self._vertical_shift_per_tomogram = vertical_shift_per_tomogram
+        self._sample_height = sample_height
+        self._vertical_motor = vertical_motor
+        Parameterizable.__init__(self)
+
+    async def _get_start_position_vertical(self):
+        return self._start_position_vertical
+
+    async def _get_num_tomograms(self):
+        shift = await self.get_vertical_shift_per_tomogram()
+        height = await self.get_sample_height()
+
+        return abs(height / shift).to_base_units().magnitude + 1
+
+    async def _get_vertical_shift_per_tomogram(self):
+        return self._vertical_shift_per_tomogram
+
+    async def _get_sample_height(self):
+        return self._sample_height
+
+    async def _set_start_position_vertical(self, position):
+        self._start_position_vertical = position
+
+    async def _set_sample_height(self, height):
+        self._sample_height = height
+
+    async def _set_vertical_shift_per_tomogram(self, shift):
+        self._vertical_shift_per_tomogram = shift
+
+
+class SteppedSpiralTomography(SteppedTomography, SpiralMixin):
+    """
+    Stepped spiral tomography
+    """
+    def __init__(self, walker, flat_motor, tomography_motor, vertical_motor, radio_position,
+                 flat_position, camera, start_position_vertical, sample_height,
+                 vertical_shift_per_tomogram, num_flats=200, num_darks=200, num_projections=3000,
+                 angular_range=180 * q.deg, start_angle=0 * q.deg, separate_scans=True):
+        """
+        :param walker: Walker for storing experiment data.
+        :type walker: concert.storage.Walker
+        :param flat_motor: LinearMotor for moving sample in and out of the beam.
+        :type flat_motor: concert.devices.motors.base.LinearMotor
+        :param tomography_motor: RotationMotor for tomography scan.
+        :type tomography_motor: concert.devices.motors.base.RotationMotor
+        :param vertical_motor: LinearMotor to translate the sample along the tomographic axis.
+        :type vertical_motor: concert.devices.motors.base.LinearMotor
+        :param radio_position: Position of *flat_motor* that the sample is positioned in the beam.
+        :type radio_position: q.mm
+        :param flat_position: Position of *flat_motor* that the sample is positioned out of the
+            beam.
+        :type flat_position: q.mm
+        :param camera: Camera to acquire the images.
+        :type camera: concert.devices.cameras.base.Camera
+        :param start_position_vertical: Start position of *vertical_motor*.
+        :type start_position_vertical: q.mm
+        :param sample_height: Height of the sample.
+        :type sample_height: q.mm
+        :param vertical_shift_per_tomogram: Distance *vertical_motor* is translated during one
+            *angular_range*.
+        :type vertical_shift_per_tomogram: q.mm
+        :param num_flats: Number of images for flatfield correction.
+        :type num_flats: int
+        :param num_darks: Number of images for dark correction.
+        :type num_darks: int
+        :param num_projections: Number of projections.
+        :type num_projections: int
+        :param angular_range: Range for the scan of the *tomography_motor*.
+        :type angular_range: q.deg
+        :param start_angle: Start position of *tomography_motor* for the first projection.
+        :type start_angle: q.deg
+        """
+        SteppedTomography.__init__(self, walker=walker, flat_motor=flat_motor,
+                                   tomography_motor=tomography_motor,
+                                   radio_position=radio_position,
+                                   flat_position=flat_position,
+                                   camera=camera, num_flats=num_flats, num_darks=num_darks,
+                                   num_projections=num_projections, angular_range=angular_range,
+                                   start_angle=start_angle,
+                                   separate_scans=separate_scans)
+        SpiralMixin.__init__(self,
+                             vertical_motor=vertical_motor,
+                             vertical_shift_per_tomogram=vertical_shift_per_tomogram,
+                             sample_height=sample_height,
+                             start_position_vertical=start_position_vertical)
+
+    async def _prepare_radios(self):
+        """
+        Prepares the radios.
+
+        First :py:meth:`SteppedTomography._prepare_radios()` is called. Then the vertical_motor
+        is moved to *start_position_vertical*.
+        """
+        await SteppedTomography._prepare_radios(self)
+        await self._vertical_motor.set_position(await self.get_start_position_vertical())
+
+    async def _finish_radios(self):
+        """
+        Called after the projections are acquired.
+
+        First :py:meth:`SteppedTomorgaphy._finish_radios()` is called.
+        Then the tomorgraphy_motor is moved to the start angle and the vertical_motor is moved to
+        the start_position_vertical.
+        """
+        if self._finished:
+            return
+        await SteppedTomography._finish_radios(self)
+        await asyncio.gather(
+            self._tomography_motor.set_position(await self.get_start_angle()),
+            self._vertical_motor.set_position(await self.get_start_position_vertical())
+        )
+        self._finished = True
+
+    async def _take_radios(self):
+        """
+        Generator for projection images
+
+        First the :py:meth:`_prepare_radios()` is called. Then the camera is set to trigger_source
+        'SOFTWARE'.
+        Then num_projections * num_tomograms images are recorded. For each image i the
+        tomography_motor is moved to angular_range/num_projections * i.
+        The vertical motor is moved to vertical_shift_per_tomogram / num_projections * i`.
+        """
+        try:
+            num_projections = int(await self.get_num_projections() * await self.get_num_tomograms())
+            vertical_step = (await self.get_vertical_shift_per_tomogram() /
+                             await self.get_num_projections())
+            angular_step = await self.get_angular_range() / await self.get_num_projections()
+            await self._prepare_radios()
+            await self._camera.set_trigger_source("SOFTWARE")
+            async with self._camera.recording():
+                for i in range(num_projections):
+                    rot_position = i * angular_step + await self.get_start_angle()
+                    vertical_position = i * vertical_step + await self.get_start_position_vertical()
+                    await asyncio.gather(self._tomography_motor.set_position(rot_position),
+                                         self._vertical_motor.set_position(vertical_position))
+
+                    try:
+                        await self._camera.trigger()
+                    except:
+                        pass
+                    yield await self._camera.grab()
+        finally:
+            await self._finish_radios()
+
+
+class ContinuousSpiralTomography(ContinuousTomography, SpiralMixin):
+    """
+    Spiral Tomography
+
+    This implements a helical acquisition scheme, where the sample is translated perpendicular to
+    the beam while the sample is rotated and the projections are recorded.
+    """
+    vertical_velocity = Quantity(q.mm / q.s)
+
+    def __init__(self, walker, flat_motor, tomography_motor, vertical_motor, radio_position,
+                 flat_position, camera, start_position_vertical, sample_height,
+                 vertical_shift_per_tomogram, num_flats=200, num_darks=200, num_projections=3000,
+                 angular_range=180 * q.deg, start_angle=0 * q.deg, separate_scans=True):
+        """
+        :param walker: Walker for storing experiment data.
+        :type walker: concert.storage.Walker
+        :param flat_motor: LinearMotor for moving sample in and out of the beam.
+        :type flat_motor: concert.devices.motors.base.LinearMotor
+        :param tomography_motor: ContinuousRotationMotor for tomography scan.
+        :type tomography_motor: concert.devices.motors.base.ContinuousLinearMotor
+        :param vertical_motor: ContinuousLinearMotor to translate the sample along the tomographic
+            axis.
+        :type vertical_motor: concert.devices.motors.base.ContinuousLinearMotor
+        :param radio_position: Position of *flat_motor* that the sample is positioned in the beam.
+        :type radio_position: q.mm
+        :param flat_position: Position of *flat_motor* that the sample is positioned out of the
+            beam.
+        :type flat_position: q.mm
+        :param camera: Camera to acquire the images.
+        :type camera: concert.devices.cameras.base.Camera
+        :param start_position_vertical: Start position of *vertical_motor*.
+        :type start_position_vertical: q.mm
+        :param sample_height: Height of the sample.
+        :type sample_height: q.mm
+        :param vertical_shift_per_tomogram: Distance *vertical_motor* is translated during one
+            *angular_range*.
+        :type vertical_shift_per_tomogram: q.mm
+        :param num_flats: Number of images for flatfield correction.
+        :type num_flats: int
+        :param num_darks: Number of images for dark correction.
+        :type num_darks: int
+        :param num_projections: Number of projections.
+        :type num_projections: int
+        :param angular_range: Range for the scan of the *tomography_motor*.
+        :type angular_range: q.deg
+        :param start_angle: Start position of *tomography_motor* for the first projection.
+        :type start_angle: q.deg
+        """
+        ContinuousTomography.__init__(self, walker=walker, flat_motor=flat_motor,
+                                      tomography_motor=tomography_motor,
+                                      radio_position=radio_position,
+                                      flat_position=flat_position,
+                                      camera=camera, num_flats=num_flats, num_darks=num_darks,
+                                      num_projections=num_projections, angular_range=angular_range,
+                                      start_angle=start_angle,
+                                      separate_scans=separate_scans)
+        SpiralMixin.__init__(self, vertical_motor=vertical_motor,
+                             vertical_shift_per_tomogram=vertical_shift_per_tomogram,
+                             sample_height=sample_height,
+                             start_position_vertical=start_position_vertical)
+
+    async def _get_vertical_velocity(self):
+        shift = await self.get_vertical_shift_per_tomogram()
+        fps = await self._camera.get_frame_rate()
+        num = await self.get_num_projections()
+
+        return shift * fps / num
+
+    async def _prepare_radios(self):
+        """
+        Called before the projection images are acquired.
+
+        The :py:meth:`ContinuousTomography._prepare_radios()` is called and the vertical motor is
+        moved to vertica_start_position.
+        """
+        await asyncio.gather(
+            ContinuousTomography._prepare_radios(self),
+            self._vertical_motor.set_position(await self.get_start_position_vertical())
+        )
+
+    async def _finish_radios(self):
+        """
+        Called after the projection images are required.
+
+        First this stops sample exposure, stops the tomography_motor, stops the vertical_motor.
+        Then the *motion_velocity* of tomography_motor and vertical_motor is restored.
+        """
+        if self._finished:
+            return
+        await asyncio.gather(self.stop_sample_exposure(),
+                             self._tomography_motor.stop(),
+                             self._vertical_motor.stop())
+
+        if 'motion_velocity' in self._tomography_motor:
+            await self._tomography_motor['motion_velocity'].restore()
+        if 'motion_velocity' in self._vertical_motor:
+            await self._vertical_motor['motion_velocity'].restore()
+
+        await asyncio.gather(
+            self._tomography_motor.set_position(await self.get_start_angle()),
+            self._vertical_motor.set_position(await self.get_start_position_vertical())
+        )
+        self._finished = True
+
+    async def _take_radios(self):
+        """
+        Generator for the projection images.
+
+        The :py:meth:`_prepare_radios()` is called. Then the *motion_velocity* of the vertical_motor
+        is stashed. The velocities of the tomography_motor and the vertical_motor are set-
+        """
+        try:
+            await self._prepare_radios()
+            if 'motion_velocity' in self._vertical_motor:
+                await self._vertical_motor['motion_velocity'].stash()
+            await self._tomography_motor.set_velocity(await self.get_velocity())
+            await self._vertical_motor.set_velocity(await self.get_vertical_velocity())
+
+            num_projections = await self.get_num_projections() * await self.get_num_tomograms()
+            async for frame in self._produce_frames(num_projections):
+                yield frame
+        finally:
+            await self._finish_radios()
