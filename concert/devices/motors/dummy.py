@@ -42,9 +42,6 @@ class _PositionMixin(object):
                         raise HardLimitError('hard-limit')
                 if self._moving:
                     self._position = position
-        except asyncio.CancelledError:
-            # fall-through to finally
-            pass
         finally:
             self._moving = False
             self._stop_evt.set()
