@@ -396,6 +396,20 @@ class _PyQtGraphUpdater:
 
         self.last_time = now
 
+    def _pg_mouse_moved(self, ev):
+        if self.view.imageItem.sceneBoundingRect().contains(ev):
+            image = self.view.imageItem.image
+            pos = self.view.imageItem.mapFromScene(ev)
+            x = int(pos.x() + 0.5)
+            y = int(pos.y() + 0.5)
+            if y < image.shape[0] and x < image.shape[1]:
+                self.view.view.setTitle(
+                    f'x={x} y={y} [{self.view.imageItem.image[y, x]:g}]',
+                    bold=True
+                )
+        else:
+            self.view.view.setTitle('')
+
     def proces_image(self, image):
         """Process current *image* including window setup if it is a first image."""
         import pyqtgraph as pg
@@ -405,6 +419,7 @@ class _PyQtGraphUpdater:
             first = True
             self.plot = pg.PlotItem(title=self.title)
             self.view = pg.ImageView(view=self.plot)
+            self.view.imageItem.scene().sigMouseMoved.connect(self._pg_mouse_moved)
             self.make_refresh_rate_text()
 
         self.update_all(image)
