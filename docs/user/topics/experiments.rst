@@ -114,14 +114,14 @@ Synchrotron and X-Ray tube experiments
 --------------------------------------
 
 In :py:mod:`concert.experiments.synchrotron` and :py:mod:`concert.experiments.xraytube` implementations of Radiography, SteppedTomography,
-ContinuousTomography and SteppedSpiralTomography and ContinuousSpiralTomography are implemented for the two different
+ContinuousTomography and SteppedSpiralTomography, ContinuousSpiralTomography and GratingInterferometryStepping are implemented for the two different
 source types.
 
 For detailed information how they are implemented, you can have a look at the base classes :class:`concert.experiments.imaging.Radiography`,
 :class:`concert.experiments.imaging.Tomography`, :class:`concert.experiments.imaging.SteppedTomography`, :class:`concert.experiments.imaging.ContinuousTomography`,
-:class:`concert.experiments.imaging.SteppedSpiralTomography` and :class:`concert.experiments.imaging.ContinuousSpiralTomography`.
+:class:`concert.experiments.imaging.SteppedSpiralTomography`, :class:`concert.experiments.imaging.ContinuousSpiralTomography` and :class:`concert.experiments.imaging.GratingInterferometryStepping`.
 
-In the standard configuration, all experiments first acquire the dark images, then the flat images and the projection images of the sample at the end.
+In the standard configuration, all tomography and radiography experiments first acquire the dark images, then the flat images and the projection images of the sample at the end.
 This order can be adjusted by the :func:`~concert.experiments.base.Experiment.swap` command.
 
 Radiography
@@ -164,6 +164,20 @@ ContinuousSpiralTomography
 .. autoclass:: concert.experiments.synchrotron.ContinuousSpiralTomography
 .. autoclass:: concert.experiments.xraytube.ContinuousSpiralTomography
     :members: flat_position, radio_position, num_darks, num_flats, num_projections, angular_range, start_angle, velocity,  start_position_vertical, vertical_shift_per_tomogram, sample_height
+
+
+GratingInterferometryStepping
+"""""""""""""""""""""""""""""
+
+In this grating based phase contrast imaging implementation a single projection is generated.
+The grating is stepped with and without the sample while images are recorded.
+Dark images are also recorded.
+If the :class:`concert.experiments.addons.PhaseGratingSteppingFourierProcessing` addon is attached,
+directly the intensity, visibility and differential phase are reconstructed.
+
+.. autoclass:: concert.experiments.synchrotron.GratingInterferometryStepping
+.. autoclass:: concert.experiments.xraytube.GratingInterferometryStepping
+    :members: flat_position, radio_position, num_darks, grating_period, num_periods, num_steps_per_period, stepping_start_position, propagation_distance
 
 
 Control
