@@ -1,8 +1,8 @@
 """
 .. data:: MOTOR_VELOCITY_SAMPLING_TIME
 
-    Time step for calculation of motor velocity by measuring two postion
-    values. Longer values will create more acurate results but reading the
+    Time step for calculation of motor velocity by measuring two position
+    values. Longer values will create more accurate results but reading the
     velocity will take more time.
 
 .. data:: PROGRESS_BAR
