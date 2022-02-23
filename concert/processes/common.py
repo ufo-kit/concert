@@ -114,16 +114,16 @@ async def dscan(param, delta, step, feedback, go_back=False):
 async def focus(camera, motor, measure=np.std, opt_kwargs=None,
                 plot_callback=None, frame_callback=None):
     """
-    Focus *camera* by moving *motor*. *measure* is a callable that computes a
-    scalar that has to be maximized from an image taken with *camera*.
-    *opt_kwargs* are keyword arguments sent to the optimization algorithm.
-    *plot_callback* is fed with y values from the optimization and
-    *frame_callback* is a coroutine function fed with the incoming frames.
+    Focus *camera* by moving *motor*. *measure* is a callable that computes a scalar that has to be
+    maximized from an image taken with *camera*.  *opt_kwargs* are keyword arguments sent to the
+    optimization algorithm.  *plot_callback* is (x, y) values, where x is the iteration number and y
+    the metric result.  *frame_callback* is a coroutine function fed with the incoming frames.
 
-    This function is returning a future encapsulating the focusing event. Note,
-    that the camera is stopped from recording as soon as the optimal position
-    is found.
+    This function is returning a future encapsulating the focusing event. Note, that the camera is
+    stopped from recording as soon as the optimal position is found.
     """
+    x_linear = 0
+
     if opt_kwargs is None:
         opt_kwargs = {'initial_step': 0.5 * q.mm,
                       'epsilon': 1e-2 * q.mm}
@@ -135,13 +135,15 @@ async def focus(camera, motor, measure=np.std, opt_kwargs=None,
             await frame_callback(frame)
         return - measure(frame)
 
-    async def filter_optimization(xy):
+    async def linearize_optimization(xy):
         """
-        Filter the optimization's (x, y) subresults to only the y part,
+        Make the optimization's (x, y) x component monotonically increasing,
         otherwise the the plot update is not lucid.
         """
+        nonlocal x_linear
         if plot_callback:
-            await plot_callback(xy[1])
+            await plot_callback((x_linear, xy[1]))
+        x_linear += 1
 
     await camera['trigger_source'].stash()
     await camera.set_trigger_source(camera.trigger_sources.SOFTWARE)
@@ -151,7 +153,7 @@ async def focus(camera, motor, measure=np.std, opt_kwargs=None,
             await optimize_parameter(motor['position'], get_measure,
                                      await motor.get_position(),
                                      halver, alg_kwargs=opt_kwargs,
-                                     callback=filter_optimization)
+                                     callback=linearize_optimization)
     finally:
         await camera['trigger_source'].restore()
 
