@@ -87,8 +87,8 @@ async def ascan(param, start, stop, step, feedback, go_back=False, include_last=
 
         scan(param, values, feedback=feedback, go_back=go_back))
     """
-    if start.units != stop.units or stop.units != step.units:
-        raise RuntimeError
+    stop = stop.to(start.units)
+    step = step.to(start.units)
     region = np.arange(start.magnitude, stop.magnitude, step.magnitude)
     if include_last:
         region = np.concatenate((region, [stop.magnitude]))

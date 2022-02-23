@@ -45,6 +45,17 @@ class TestScan(TestCase):
         scanned = await run(include_last=False)
         compare_sequences(expected[:-1], scanned, assert_almost_equal)
 
+    async def test_ascan_units(self):
+        scanned = []
+        expected = [(0 * q.mm, 1 * q.dimensionless), (50 * q.mm, 1 * q.dimensionless),
+                    (100 * q.mm, 1 * q.dimensionless)]
+
+        async for pair in ascan(self.motor['position'], 0 * q.mm, 10 * q.cm,
+                                5 * q.cm, self.feedback):
+            scanned.append(pair)
+
+        compare_sequences(expected, scanned, assert_almost_equal)
+
     async def test_dscan(self):
         async def run(include_last=True):
             scanned = []
