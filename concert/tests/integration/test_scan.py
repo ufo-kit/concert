@@ -7,6 +7,7 @@ from concert.processes.common import scan, ascan, dscan
 
 
 def compare_sequences(first_sequence, second_sequence, assertion):
+    assert len(first_sequence) == len(second_sequence)
     for x, y in zip(first_sequence, second_sequence):
         assertion(x[0], y[0])
         assertion(x[1], y[1])
@@ -23,14 +24,15 @@ class TestScan(TestCase):
 
     async def test_ascan(self):
 
-        async def run():
+        async def run(include_last=True):
             scanned = []
             async for pair in ascan(self.motor['position'], 0 * q.mm, 10 * q.mm,
-                                    5 * q.mm, self.feedback):
+                                    5 * q.mm, self.feedback, include_last=include_last):
                 scanned.append(pair)
             return scanned
 
-        expected = [(0 * q.mm, 1 * q.dimensionless), (5 * q.mm, 1 * q.dimensionless)]
+        expected = [(0 * q.mm, 1 * q.dimensionless), (5 * q.mm, 1 * q.dimensionless),
+                    (10 * q.mm, 1 * q.dimensionless)]
 
         scanned = await run()
         compare_sequences(expected, scanned, assert_almost_equal)
@@ -39,20 +41,32 @@ class TestScan(TestCase):
         scanned = await run()
         compare_sequences(expected, scanned, assert_almost_equal)
 
+        # Exclude last
+        scanned = await run(include_last=False)
+        compare_sequences(expected[:-1], scanned, assert_almost_equal)
+
     async def test_dscan(self):
-        async def run():
+        async def run(include_last=True):
             scanned = []
-            async for pair in dscan(self.motor['position'], 10 * q.mm, 5 * q.mm, self.feedback):
+            async for pair in dscan(self.motor['position'], 10 * q.mm, 5 * q.mm, self.feedback,
+                                    include_last=include_last):
                 scanned.append(pair)
             return scanned
 
         scanned = await run()
-        expected = [(0 * q.mm, 1 * q.dimensionless), (5 * q.mm, 1 * q.dimensionless)]
+        expected = [(0 * q.mm, 1 * q.dimensionless), (5 * q.mm, 1 * q.dimensionless),
+                    (10 * q.mm, 1 * q.dimensionless)]
         compare_sequences(expected, scanned, assert_almost_equal)
 
         # Second scan, x values must be different
         scanned = await run()
-        expected = [(5 * q.mm, 1 * q.dimensionless), (10 * q.mm, 1 * q.dimensionless)]
+        expected = [(10 * q.mm, 1 * q.dimensionless), (15 * q.mm, 1 * q.dimensionless),
+                    (20 * q.mm, 1 * q.dimensionless)]
+        compare_sequences(expected, scanned, assert_almost_equal)
+
+        # Exclude last
+        scanned = await run(include_last=False)
+        expected = [(20 * q.mm, 1 * q.dimensionless), (25 * q.mm, 1 * q.dimensionless)]
         compare_sequences(expected, scanned, assert_almost_equal)
 
     async def test_scan(self):

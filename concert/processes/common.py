@@ -79,22 +79,25 @@ async def scan(params, values, feedback, go_back=False):
                 await param.restore()
 
 
-async def ascan(param, start, stop, step, feedback, go_back=False):
+async def ascan(param, start, stop, step, feedback, go_back=False, include_last=True):
     """A convenience function to perform a 1D scan on parameter *param*, scan from *start* value to
-    *stop* with *step*. *feedback* and *go_back* are the same as in the :func:`.scan`. This function
+    *stop* with *step*. *feedback* and *go_back* are the same as in the :func:`.scan`. If
+    *include_last* is True, the *stop* value will be included in the created values This function
     just computes the values from *start*, *stop*, *step* and then calls :func:`.scan`::
 
         scan(param, values, feedback=feedback, go_back=go_back))
     """
     if start.units != stop.units or stop.units != step.units:
         raise RuntimeError
-    region = np.arange(start.magnitude, stop.magnitude, step.magnitude) * start.units
+    region = np.arange(start.magnitude, stop.magnitude, step.magnitude)
+    if include_last:
+        region = np.concatenate((region, [stop.magnitude]))
 
-    async for item in scan(param, region, feedback, go_back=go_back):
+    async for item in scan(param, region * start.units, feedback, go_back=go_back):
         yield item
 
 
-async def dscan(param, delta, step, feedback, go_back=False):
+async def dscan(param, delta, step, feedback, go_back=False, include_last=True):
     """A convenience function to perform a 1D scan on parameter *param*, scan from its current value
     to some *delta* with *step*. *feedback* and *go_back* are the same as in the :func:`.scan`. This
     function just computes the start and stop values and calls :func:`.ascan`::
@@ -104,7 +107,8 @@ async def dscan(param, delta, step, feedback, go_back=False):
     """
     start = await param.get()
 
-    async for item in ascan(param, start, start + delta, step, feedback, go_back=go_back):
+    async for item in ascan(param, start, start + delta, step, feedback, go_back=go_back,
+                            include_last=include_last):
         yield item
 
 
