@@ -663,8 +663,8 @@ class _PyplotUpdater(_PyplotUpdaterBase):
             # For some reason the relim itself doesn't work, so we set the
             # limits to the new values explicitly
             if len(self.data[0]) > 1:
-                self.line.axes.set_xlim(min(self.data[0]), max(self.data[0]))
-                self.line.axes.set_ylim(min(self.data[1]), max(self.data[1]))
+                self.line.axes.set_xlim(min(self.data[0]) - 1e-7, max(self.data[0]) + 1e-7)
+                self.line.axes.set_ylim(min(self.data[1]) - 1e-7, max(self.data[1]) + 1e-7)
             self.line.axes.autoscale_view()
 
 
