@@ -214,13 +214,9 @@ class Camera(base.Camera):
         array = np.empty(self._record_shape, dtype=self._record_dtype)
         data = array.__array_interface__['data'][0]
 
-        if index is not None:
-            if await run_in_executor(self.uca.readout, data, index):
-                return array
-            else:
-                raise base.CameraError('No frame available')
-
-        if await run_in_executor(self.uca.grab, data):
-            return array
+        if index is None:
+            await run_in_executor(self.uca.grab, data)
         else:
-            raise base.CameraError('No frame available')
+            await run_in_executor(self.uca.readout, data, index)
+
+        return array
