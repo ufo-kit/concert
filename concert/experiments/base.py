@@ -221,20 +221,21 @@ class Experiment(Parameterizable):
         iteration = await self.get_iteration()
         separate_scans = await self.get_separate_scans()
 
+        if self.walker:
+            if separate_scans:
+                self.walker.descend((await self.get_name_fmt()).format(iteration))
+            if os.path.exists(self.walker.current):
+                # We might have a dummy walker which doesn't create the directory
+                handler = logging.FileHandler(os.path.join(self.walker.current,
+                                                           'experiment.log'))
+                formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s '
+                                              '- %(message)s')
+                handler.setFormatter(formatter)
+                self.log.addHandler(handler)
+        self.log.info(await self.info_table)
+        LOG.debug('Experiment iteration %d start', iteration)
+
         try:
-            if self.walker:
-                if separate_scans:
-                    self.walker.descend((await self.get_name_fmt()).format(iteration))
-                if os.path.exists(self.walker.current):
-                    # We might have a dummy walker which doesn't create the directory
-                    handler = logging.FileHandler(os.path.join(self.walker.current,
-                                                               'experiment.log'))
-                    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s '
-                                                  '- %(message)s')
-                    handler.setFormatter(formatter)
-                    self.log.addHandler(handler)
-            self.log.info(await self.info_table)
-            LOG.debug('Experiment iteration %d start', iteration)
             await self.prepare()
             await self.acquire()
         except asyncio.CancelledError:
