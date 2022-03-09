@@ -2,6 +2,7 @@
 import contextlib
 import os
 import logging
+import re
 import tifffile
 from logging import FileHandler, Formatter
 from concert.coroutines.base import background, feed_queue
@@ -294,14 +295,7 @@ class DirectoryWalker(Walker):
 
     def _dset_exists(self, dsetname):
         """Check if *dsetname* exists on the current level."""
-        bad = '{' not in dsetname
-
-        try:
-            dsetname.format(0)
-        except ValueError:
-            bad = True
-
-        if bad:
+        if not re.match('.*{.*}.*', dsetname):
             raise ValueError('dsetname `{}\' has wrong format'.format(dsetname))
 
         filenames = os.listdir(self._current)
