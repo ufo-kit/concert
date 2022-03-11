@@ -4,7 +4,9 @@ import functools
 import logging
 from dataclasses import dataclass, field
 from typing import Any
+from pint.errors import DimensionalityError
 
+import numpy as np
 
 LOG = logging.getLogger(__name__)
 
@@ -232,3 +234,59 @@ def is_iterable(item):
         return True
     except Exception:
         return False
+
+
+def arange(start, stop, step):
+    """
+    This function wraps numpy.arange but strips the units before and adds the unit later at the
+    numpy.array.
+
+    :param start:
+    :type start: concert.quantities.q.Quantity
+    :param stop:
+    :type stop: concert.quantities.q.Quantity
+    :param step:
+    :type step: concert.quantities.q.Quantity
+    :return:
+    """
+    try:
+        unit = start.unit
+        start = start.to(unit).magnitude
+        stop = stop.to(unit).magnitude
+        step = step.to(unit).magnitude
+    except AttributeError:
+        raise Exception("start, stop and step need to be Quantities.")
+    except DimensionalityError:
+        raise Exception("start, stop and step units are not convertable into each other.")
+    except Exception as e:
+        raise e
+    return np.arange(start=start, stop=stop, step=step) * unit
+
+
+def linspace(start, stop, num, endpoint=True):
+    """
+    This function wraps numpy.linspace but strips the units before and adds the unit later at the
+    numpy.array.
+
+    :param start: First value
+    :type start: concert.quantities.q.Quantity
+    :param stop:
+    :type stop: concert.quantities.q.Quantity
+    :param num:
+    :type num: int
+    :param endpoint:
+    :type endpoint: bool
+    :return: numpy.array with the length *num* and entries equally distributed within *start* and
+        *stop*.
+    """
+    try:
+        unit = start.unit
+        start = start.to(unit).magnitude
+        stop = stop.to(unit).magnitude
+    except AttributeError:
+        raise Exception("start and stop need to be Quantities.")
+    except DimensionalityError:
+        raise Exception("start and stop units are not convertable into each other.")
+    except Exception as e:
+        raise e
+    return np.linspace(start, stop, num, endpoint=endpoint) * unit
