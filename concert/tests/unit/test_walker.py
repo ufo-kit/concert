@@ -14,13 +14,27 @@ class TestWalker(TestCase):
         self.walker = DummyWalker()
         self.data = [0, 1]
 
-    def check(self):
-        truth = set([op.join('', 'foo', str(i)) for i in self.data])
-        self.assertEqual(self.walker.paths, truth)
+    def check(self, subdir=''):
+        truth = set([op.join(subdir, 'foo', str(i)) for i in self.data])
+        self.assertTrue(truth.issubset(self.walker.paths))
+
+    async def test_create_writer_no_subdir(self):
+        await self.walker.create_writer(async_generate(self.data), dsetname='foo')
+        self.check()
+        self.assertEqual(self.walker.current, '')
+
+    async def test_create_writer_with_subdir(self):
+        await self.walker.create_writer(async_generate(self.data), name='inside', dsetname='foo')
+        self.check(subdir='inside')
+        self.assertEqual(self.walker.current, '')
 
     async def test_coroutine(self):
         await self.walker.write(async_generate(self.data), dsetname='foo')
         self.check()
+
+    async def test_lock(self):
+        async with self.walker:
+            self.assertTrue(self.walker._lock.locked)
 
 
 class TestDirectoryWalker(TestCase):
