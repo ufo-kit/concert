@@ -286,7 +286,7 @@ class DirectoryWalker(Walker):
 
         super(DirectoryWalker, self).__init__(root, dsetname=dsetname,
                                               log=log, log_handler=log_handler)
-        self._writer = writer
+        self.writer = writer
         self._bytes_per_file = bytes_per_file
         self._start_index = start_index
 
@@ -315,7 +315,7 @@ class DirectoryWalker(Walker):
 
         prefix = os.path.join(self._current, dsetname)
 
-        return feed_queue(producer, write_images, self._writer, prefix,
+        return feed_queue(producer, write_images, self.writer, prefix,
                           self._start_index, self._bytes_per_file)
 
     def _dset_exists(self, dsetname):
