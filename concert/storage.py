@@ -1,7 +1,8 @@
 """Storage implementations."""
-import contextlib
+import asyncio
 import os
 import logging
+import re
 import tifffile
 from logging import FileHandler, Formatter
 from concert.coroutines.base import background, feed_queue
@@ -141,6 +142,7 @@ class Walker(object):
         self.dsetname = dsetname
         self._log = log
         self._log_handler = log_handler
+        self._lock = asyncio.Lock()
 
         if self._log:
             self._log_handler.setLevel(logging.INFO)
@@ -154,13 +156,13 @@ class Walker(object):
             self._log_handler.close()
             self._log.removeHandler(self._log_handler)
 
-    @contextlib.contextmanager
-    def inside(self, name):
-        self.descend(name)
-        try:
-            yield
-        finally:
-            self.ascend()
+    async def __aenter__(self):
+        await self._lock.acquire()
+
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        self._lock.release()
 
     def home(self):
         """Return to root."""
@@ -195,10 +197,33 @@ class Walker(object):
         """Ascend from current depth."""
         raise NotImplementedError
 
+    def create_writer(self, producer, name=None, dsetname=None):
+        """
+        Create a writer coroutine for writing data set *dsetname* with images from *producer*
+        inside. If *name* is given, descend to it first and once the writer is created ascend back.
+        This way, the writer can operate in *name* and the walker can be safely used to move around
+        and create other writers elsewhere while the created writer is working. The returned
+        coroutine is not guaranteed to be wrapped into a :class:`.asyncio.Task`, hence to be started
+        immediately.  This function also does not block after creating the writer. This is useful
+        for splitting the preparation of writing (creating directories, ...) and the I/O itself.
+        """
+        if name:
+            self.descend(name)
+
+        try:
+            return self._create_writer(producer, dsetname=dsetname)
+        finally:
+            if name:
+                self.ascend()
+
     @background
     async def write(self, producer, dsetname=None):
-        """Coroutine for writing data set *dsetname*."""
-        raise NotImplementedError
+        """
+        Create a coroutine for writing data set *dsetname* with images from *producer*. The
+        execution starts immediately in the background and await will block until the images are
+        written.
+        """
+        return await self._create_writer(producer, dsetname=dsetname)
 
 
 class DummyWalker(Walker):
@@ -221,15 +246,17 @@ class DummyWalker(Walker):
         if self._current != self._root:
             self._current = os.path.dirname(self._current)
 
-    @background
-    async def write(self, producer, dsetname=None):
+    def _create_writer(self, producer, dsetname=None):
         dsetname = dsetname or self.dsetname
         path = os.path.join(self._current, dsetname)
 
-        i = 0
-        async for item in producer:
-            self._paths.add(os.path.join(path, str(i)))
-            i += 1
+        async def _append_paths():
+            i = 0
+            async for item in producer:
+                self._paths.add(os.path.join(path, str(i)))
+                i += 1
+
+        return _append_paths()
 
 
 class DirectoryWalker(Walker):
@@ -278,8 +305,7 @@ class DirectoryWalker(Walker):
         """Check if *paths* exist."""
         return os.path.exists(os.path.join(self.current, *paths))
 
-    @background
-    async def write(self, producer, dsetname=None):
+    def _create_writer(self, producer, dsetname=None):
         dsetname = dsetname or self.dsetname
 
         if self._dset_exists(dsetname):
@@ -289,19 +315,12 @@ class DirectoryWalker(Walker):
 
         prefix = os.path.join(self._current, dsetname)
 
-        return await feed_queue(producer, write_images, self._writer, prefix,
-                                self._start_index, self._bytes_per_file)
+        return feed_queue(producer, write_images, self._writer, prefix,
+                          self._start_index, self._bytes_per_file)
 
     def _dset_exists(self, dsetname):
         """Check if *dsetname* exists on the current level."""
-        bad = '{' not in dsetname
-
-        try:
-            dsetname.format(0)
-        except ValueError:
-            bad = True
-
-        if bad:
+        if not re.match('.*{.*}.*', dsetname):
             raise ValueError('dsetname `{}\' has wrong format'.format(dsetname))
 
         filenames = os.listdir(self._current)

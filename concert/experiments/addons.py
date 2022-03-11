@@ -156,11 +156,9 @@ class ImageWriter(Addon):
         """Wrap the walker and write data."""
         async def wrapped_writer(producer):
             """Returned wrapper."""
-            try:
-                self.walker.descend(acquisition.name)
-                await self.walker.write(producer)
-            finally:
-                self.walker.ascend()
+            async with self.walker:
+                writer = self.walker.create_writer(producer, name=acquisition.name)
+            await writer
 
         return wrapped_writer
 
@@ -182,9 +180,14 @@ class OnlineReconstruction(Addon):
     async def _reconstruct(self, producer):
         await self.manager.backproject(producer)
         if self.walker:
-            with self.walker.inside(self.slice_directory):
+            async with self.walker:
                 producer = async_generate(self.manager.volume)
-                await self.walker.write(producer, dsetname='slice_{:>04}.tif')
+                writer = self.walker.create_writer(
+                    producer,
+                    name=self.slice_directory,
+                    dsetname='slice_{:>04}.tif'
+                )
+            await writer
 
     def _attach(self):
         if self._do_normalization:
