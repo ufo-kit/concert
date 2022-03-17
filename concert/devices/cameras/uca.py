@@ -1,9 +1,11 @@
 """
 Cameras supported by the libuca library.
 """
+import asyncio
 import functools
 import logging
 import numpy as np
+import struct
 from concert.coroutines.base import background, run_in_executor
 from concert.quantities import q
 from concert.base import Parameter, Quantity, transition
@@ -220,3 +222,42 @@ class Camera(base.Camera):
             await run_in_executor(self.uca.readout, data, index)
 
         return array
+
+
+class NetCamera(Camera):
+
+    """
+    The "net" plugin implementation for libuca.
+    """
+
+    def __init__(self, params=None):
+        super().__init__('net', params=params)
+        self._ucad_host = self.uca.props.host
+        self._ucad_port = self.uca.props.port
+
+    async def _communicate(self, request):
+        reader, writer = await asyncio.open_connection(self._ucad_host, self._ucad_port)
+        try:
+            writer.write(request)
+            await writer.drain()
+            _construct_ucad_error(await reader.read())
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
+    @background
+    async def grab_push(self, num_images=1):
+        """Grab images in ucad and push them over network to another receiver than us."""
+        # UCA_NET_MESSAGE_PUSH = 10
+        await self._communicate(struct.pack('IN', 10, num_images))
+
+
+def _construct_ucad_error(message):
+    # struct UcaNetDefaultReply of uca-net-protocol.h
+    msg_type, occured, domain, code, message = struct.unpack("I?64si512s", message)
+    if occured:
+        raise UcaNetError(message.decode().strip('\x00'))
+
+
+class UcaNetError(base.CameraError):
+    """uca-net errors which may come from the camera or from ucad."""
