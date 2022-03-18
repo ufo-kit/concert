@@ -191,10 +191,7 @@ class Camera(base.Camera):
 
     @_translate_gerror
     async def _record_real(self):
-        self._record_shape = ((await self.get_roi_height()).magnitude,
-                              (await self.get_roi_width()).magnitude)
-        self._record_dtype = (np.uint16 if (await self.get_sensor_bitdepth()).magnitude > 8 else
-                              np.uint8)
+        await self._determine_shape_for_grab()
         self.uca.start_recording()
 
     @_translate_gerror
@@ -207,6 +204,8 @@ class Camera(base.Camera):
 
     @_translate_gerror
     async def _grab_real(self, index=None):
+        if self._record_shape is None:
+            await self._determine_shape_for_grab()
         array = np.empty(self._record_shape, dtype=self._record_dtype)
         data = array.__array_interface__['data'][0]
 
@@ -216,6 +215,12 @@ class Camera(base.Camera):
             await run_in_executor(self.uca.readout, data, index)
 
         return array
+
+    async def _determine_shape_for_grab(self):
+        self._record_shape = ((await self.get_roi_height()).magnitude,
+                              (await self.get_roi_width()).magnitude)
+        self._record_dtype = (np.uint16 if (await self.get_sensor_bitdepth()).magnitude > 8 else
+                              np.uint8)
 
     async def _get_state(self):
         if self.uca.is_recording():
