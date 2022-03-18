@@ -1081,6 +1081,7 @@ class Parameterizable(object):
 
         getter_name = 'get_' + param.name
         setter_name = 'set_' + param.name
+        target_getter_name = 'get_target_' + param.name
         if getter_name not in self.__class__.__dict__:
             def get_parameter(instance, wait_on=None):
                 return instance[param.name].get(wait_on=wait_on)
@@ -1089,6 +1090,10 @@ class Parameterizable(object):
             def set_parameter(instance, parameter_value, wait_on=None):
                 return instance[param.name].set(parameter_value, wait_on=wait_on)
             setattr(self.__class__, setter_name, set_parameter)
+        if target_getter_name not in self.__class__.__dict__:
+            def get_target_parameter(instance, wait_on=None):
+                return instance[param.name].get_target(wait_on=wait_on)
+            setattr(self.__class__, target_getter_name, get_target_parameter)
 
         if not hasattr(self, '_set_' + param.name):
             setattr(self, '_set_' + param.name, _setter_not_implemented)
