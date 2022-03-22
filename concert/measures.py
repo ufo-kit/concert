@@ -194,7 +194,7 @@ def rotation_axis(tips):
     det = np.linalg.det(a_33)
     LOG.debug('Conic determinant: %g', det)
 
-    if det <= 0:
+    if det <= np.finfo(float).resolution:
         # Not an ellipse
         d_y = float(y_ind.max() - y_ind.min())
         angle = np.arctan(d_y / d_x) * q.rad
