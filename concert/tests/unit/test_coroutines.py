@@ -226,20 +226,47 @@ class TestCoroutines(TestCase):
         self.assertEqual(acc.items, [7, 12, 20, 25])
 
     async def test_accumulate(self):
-        async def run_test(data, shape=None, dtype=None):
-            accumulate = Accumulate(shape=shape, dtype=dtype)
-            await accumulate(async_generate(data))
-            np.testing.assert_equal(accumulate.items, data)
-            target_type = np.ndarray if shape else list
-            self.assertTrue(isinstance(accumulate.items, target_type))
-            if shape:
-                self.assertEqual(accumulate.items.dtype, data.dtype)
-
         shape = (4, 4, 4)
         dtype = np.ushort
         data = np.ones(shape, dtype=dtype)
-        await run_test(data)
-        await run_test(data, shape=shape, dtype=dtype)
+        double = np.concatenate((data, data))
+
+        # List
+        # Append
+        accumulate = Accumulate(reset_on_call=False)
+        await accumulate(async_generate(data))
+        np.testing.assert_equal(accumulate.items, data)
+        self.assertTrue(isinstance(accumulate.items, list))
+        await accumulate(async_generate(data))
+        np.testing.assert_equal(accumulate.items, double)
+        accumulate.reset()
+        self.assertEqual(len(accumulate.items), 0)
+
+        # Reset
+        accumulate = Accumulate(reset_on_call=True)
+        await accumulate(async_generate(data))
+        np.testing.assert_equal(accumulate.items, data)
+        await accumulate(async_generate(data))
+        np.testing.assert_equal(accumulate.items, data)
+
+        # ndarray
+        # Append
+        accumulate = Accumulate(shape=shape, dtype=dtype, reset_on_call=False)
+        self.assertEqual(accumulate.items.dtype, data.dtype)
+        await accumulate(async_generate(data))
+        np.testing.assert_equal(accumulate.items, data)
+        self.assertTrue(isinstance(accumulate.items, np.ndarray))
+        await accumulate(async_generate(data))
+        np.testing.assert_equal(accumulate.items, double)
+        accumulate.reset()
+        self.assertEqual(accumulate.items.shape, (0,) + shape[1:])
+
+        # Reset
+        accumulate = Accumulate(reset_on_call=True)
+        await accumulate(async_generate(data))
+        np.testing.assert_equal(accumulate.items, data)
+        await accumulate(async_generate(data))
+        np.testing.assert_equal(accumulate.items, data)
 
 
 class TestTimer(TestCase):
