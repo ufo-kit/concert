@@ -669,7 +669,7 @@ class GeneralBackprojectManager(Parameterizable):
                     param_result = (np.argmin(sgn * values) + 2 * fwhm) * region[2] + region[0]
                     setattr(self.args, parameter.replace('-', '_'), [param_result])
                     if i == iterations - 1:
-                        result.append(param_result)
+                        result.append(float(param_result))
                     LOG.info('Optimizing %s, region: %s, metric: %s, minimize: %s, result: %g',
                              parameter, region, metric, minim, param_result)
 
