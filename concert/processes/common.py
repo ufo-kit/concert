@@ -216,20 +216,20 @@ async def acquire_frames_360(camera, rotation_motor, num_frames, shutter=None, f
          position_eps=Numeric(1, q.deg), max_iterations=Numeric(1),
          initial_x_coeff=Numeric(1, q.dimensionless), initial_z_coeff=Numeric(1, q.dimensionless),
          shutter=Shutter, flat_motor=LinearMotor, flat_position=Numeric(1, q.m),
-         y_0=Numeric(1), y_1=Numeric(1), get_ellipse_points_kwargs=None, frame_consumer=None)
+         y_0=Numeric(1), y_1=Numeric(1), get_ellipse_points_kwargs=None, frame_consumers=None)
 async def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
                               get_ellipse_points=find_needle_tips, num_frames=10, metric_eps=None,
                               position_eps=0.1 * q.deg, max_iterations=5,
                               initial_x_coeff=1 * q.dimensionless,
                               initial_z_coeff=1 * q.dimensionless,
                               shutter=None, flat_motor=None, flat_position=None, y_0=0, y_1=None,
-                              get_ellipse_points_kwargs=None, frame_consumer=None):
+                              get_ellipse_points_kwargs=None, frame_consumers=None):
     """
     align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
     get_ellipse_points=find_needle_tips, num_frames=10, metric_eps=None,
     position_eps=0.1 * q.deg, max_iterations=5, initial_x_coeff=1 * q.dimensionless,
     initial_z_coeff=1 * q.dimensionless, shutter=None, flat_motor=None, flat_position=None,
-    y_0=0, y_1=None, get_ellipse_points_kwargs=None, frame_consumer=None)
+    y_0=0, y_1=None, get_ellipse_points_kwargs=None, frame_consumers=None)
 
     Align rotation axis. *camera* is used to obtain frames, *rotation_motor* rotates the sample
     around the tomographic axis of rotation, *x_motor* turns the sample around x-axis, *z_motor*
@@ -249,7 +249,7 @@ async def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None
     first iteration. If we move the camera instead of the rotation stage, it is often necessary to
     acquire fresh flat fields. In order to make an up-to-date flat correction, specify *shutter* if
     you want fresh dark fields and specify *flat_motor* and *flat_position* to acquire flat fields.
-    Crop acquired images to *y_0* and *y_1*. *frame_consumer* is a coroutine function which will be
+    Crop acquired images to *y_0* and *y_1*. *frame_consumers* are coroutine functions which will be
     fed with all acquired frames.
 
     The procedure finishes when it finds the minimum angle between an ellipse extracted from the
@@ -316,8 +316,8 @@ async def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None
     frames_result = Result()
     for i in range(max_iterations):
         acq_consumers = [extract_points, frames_result]
-        if frame_consumer:
-            acq_consumers.append(frame_consumer)
+        if frame_consumers is not None:
+            acq_consumers += list(frame_consumers)
         tips_start = time.perf_counter()
         frame_producer = acquire_frames_360(camera, rotation_motor, num_frames, shutter=shutter,
                                             flat_motor=flat_motor, flat_position=flat_position,
