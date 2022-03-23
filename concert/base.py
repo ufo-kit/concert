@@ -523,7 +523,7 @@ class ParameterValue(object):
         return self._parameter.name < other._parameter.name
 
     def __repr__(self):
-        return run_in_loop(self.info_table).get_string()
+        return run_in_loop_or_thread(self.info_table).get_string()
 
     @property
     async def info_table(self):
@@ -1022,7 +1022,7 @@ class Parameterizable(object):
                     self._install_parameter(attr_type)
 
     def __str__(self):
-        return run_in_loop(self.info_table).get_string(sortby="Parameter")
+        return run_in_loop_or_thread(self.info_table).get_string(sortby="Parameter")
 
     def __repr__(self):
         return '\n'.join([super(Parameterizable, self).__repr__(), str(self)])
