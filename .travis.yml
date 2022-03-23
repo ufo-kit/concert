@@ -13,8 +13,12 @@ before_install:
 install:
     - pip install nose-exclude
     - pip install scikit-image
+    - pip install codecov
     - pip install -r requirements.txt
     - pip install .
 
 script:
-    - python runtests.py --attr='!skip-travis' --cover-package=concert concert
+    - coverage run --source=concert -m nose --attr='!skip-travis'
+
+after_success:
+    - codecov

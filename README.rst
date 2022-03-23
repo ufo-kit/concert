@@ -14,8 +14,8 @@ Concert
     :target: http://concert.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
 
-.. image:: https://coveralls.io/repos/ufo-kit/concert/badge.png?branch=master
-    :target: https://coveralls.io/r/ufo-kit/concert?branch=master
+.. image:: https://codecov.io/gh/ufo-kit/concert/branch/master/graph/badge.svg
+  :target: https://codecov.io/gh/ufo-kit/concert
 
 
 *Concert* is a light-weight control system interface to control Tango and native
