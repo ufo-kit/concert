@@ -67,6 +67,25 @@ def run_in_loop_thread_blocking(coroutine):
         _TLOOP = None
 
 
+def run_in_loop_or_thread(coroutine):
+    """If the current event loop is running, run *coroutine* in a new event loop in a separate
+    thread by :func:`.run_in_loop_thread_blocking`, otherwise use :func:`.run_in_loop`. This is
+    useful for waiting for coroutines from non-async code and async-code without the need of being
+    async itself.
+    """
+    loop = asyncio.get_event_loop()
+    if loop.is_running():
+        LOG.log(AIODEBUG,
+            'Loop already running, expediting %s to a thread',
+            coroutine.__qualname__
+        )
+        result = run_in_loop_thread_blocking(coroutine)
+    else:
+        result = run_in_loop(coroutine)
+
+    return result
+
+
 def run_in_executor(func, *args):
     """Run a blocking function *func* with signature func(\*args) in an executor."""
     # Leave this here for now, if there are problems with the normal run_in_executor returning a

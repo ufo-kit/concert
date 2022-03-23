@@ -7,7 +7,7 @@ import functools
 import inspect
 import types
 from concert.helpers import memoize
-from concert.coroutines.base import background, run_in_loop, wait_until
+from concert.coroutines.base import background, run_in_loop, run_in_loop_or_thread, wait_until
 from concert.quantities import q
 
 
@@ -365,10 +365,10 @@ class Parameter(object):
         return str(self.help)
 
     def __get__(self, instance, owner):
-        return run_in_loop(instance[self.name].get())
+        return run_in_loop_or_thread(instance[self.name]._get())
 
     def __set__(self, instance, value):
-        run_in_loop(instance[self.name].set(value))
+        run_in_loop_or_thread(instance[self.name]._set(value))
 
 
 class State(Parameter):
@@ -569,6 +569,9 @@ class ParameterValue(object):
 
         If *wait_on* is not None, it must be an awaitable on which this method waits.
         """
+        return await self._get(wait_on=wait_on)
+
+    async def _get(self, wait_on=None):
         if wait_on:
             await wait_on
 
@@ -603,6 +606,9 @@ class ParameterValue(object):
 
         If *wait_on* is not None, it must be an awaitable on which this method waits.
         """
+        return await self._set(value, wait_on=wait_on)
+
+    async def _set(self, value, wait_on=None):
         if wait_on:
             await wait_on
 
@@ -642,7 +648,7 @@ class ParameterValue(object):
         if self.target_readable:
             self._saved.append(await self.get_target())
         else:
-            self._saved.append(await self.get())
+            self._saved.append(await self._get())
 
     @background
     async def restore(self):
@@ -656,7 +662,7 @@ class ParameterValue(object):
 
         if self._saved:
             val = self._saved.pop()
-            await self.set(val)
+            await self._set(val)
 
     @property
     def locked(self):
@@ -684,7 +690,7 @@ class ParameterValue(object):
         between consecutive checks. *timeout* specifies the maximum waiting time.
         """
         async def condition():
-            return await self.get() == value
+            return await self._get() == value
 
         await wait_until(condition, sleep_time=sleep_time, timeout=timeout)
 
@@ -693,8 +699,7 @@ class StateValue(ParameterValue):
 
     """Special :class:`.ParameterValue` implementing state parameter."""
 
-    @background
-    async def get(self, wait_on=None):
+    async def _get(self, wait_on=None):
         if wait_on:
             await wait_on
 
@@ -869,15 +874,13 @@ class QuantityValue(ParameterValue):
     def unit(self):
         return self._parameter.unit
 
-    @background
-    async def get(self, wait_on=None):
-        value = await super(QuantityValue, self).get(wait_on=wait_on)
+    async def _get(self, wait_on=None):
+        value = await super(QuantityValue, self)._get(wait_on=wait_on)
 
         if value is not None:
             return self._parameter.convert(value)
 
-    @background
-    async def set(self, value, wait_on=None):
+    async def _set(self, value, wait_on=None):
         """
         Set concrete *value* on the object.
 
@@ -906,6 +909,7 @@ class QuantityValue(ParameterValue):
 
         lower = await self.get_lower()
         upper = await self.get_upper()
+
         if lower is not None:
             if not leq(lower, value):
                 msg = "{} is out of range [{}, {}]"
@@ -916,7 +920,7 @@ class QuantityValue(ParameterValue):
                 raise SoftLimitError(msg.format(value, lower, upper))
 
         converted = self._parameter.convert(value)
-        await super(QuantityValue, self).set(converted, wait_on=wait_on)
+        await super(QuantityValue, self)._set(converted, wait_on=wait_on)
 
     @background
     async def wait(self, value, eps=None, sleep_time=1e-1 * q.s, timeout=None):
@@ -926,7 +930,7 @@ class QuantityValue(ParameterValue):
         """
         async def condition():
             """Take care of rountind errors"""
-            diff = await self.get() - value
+            diff = await self._get() - value
             if eps is not None:
                 diff = np.abs(diff.to(eps.units))
                 if diff < eps:
@@ -953,8 +957,7 @@ class SelectionValue(ParameterValue):
     def __init__(self, instance, selection):
         super(SelectionValue, self).__init__(instance, selection)
 
-    @background
-    async def set(self, value, wait_on=None):
+    async def _set(self, value, wait_on=None):
         """
         Set concrete *value* on the object.
 
@@ -963,7 +966,7 @@ class SelectionValue(ParameterValue):
         if value not in self._parameter.iterable:
             raise SelectionError(self._parameter.name, value, self._parameter.iterable)
 
-        await super(SelectionValue, self).set(value, wait_on=wait_on)
+        await super(SelectionValue, self)._set(value, wait_on=wait_on)
 
     @property
     def values(self):
