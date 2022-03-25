@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import numpy as np
 from concert.config import AIODEBUG
 from concert.coroutines.base import background
 
@@ -44,13 +45,16 @@ async def null(producer):
 
 
 class Accumulate(object):
-    """Accumulate items in a list or a numpy array if *shape* is given, *dtype* is the data type.
+    """Accumulate items in a list or a numpy array if *shape* is given, *dtype* is the data type. If
+    *reset_on_call* is True, the saved values will be overwritten every time the accumulator is
+    called, otherwise they will be appended.
     """
 
-    def __init__(self, shape=None, dtype=None):
-        import numpy as np
-
-        self.items = [] if shape is None else np.empty(shape, dtype=dtype)
+    def __init__(self, shape=None, dtype=None, reset_on_call=True):
+        self._shape = shape
+        self._dtype = dtype
+        self.reset_on_call = reset_on_call
+        self.items = [] if shape is None else np.empty((0,) + self._shape[1:], dtype=self._dtype)
 
     @background
     def __call__(self, producer):
@@ -59,23 +63,36 @@ class Accumulate(object):
 
         Coroutine interface for processing in a pipeline.
         """
+        if self.reset_on_call:
+            self.reset()
+
         if isinstance(self.items, list):
             return self._process(producer)
         else:
             return self._process_numpy(producer)
 
+    def reset(self):
+        if isinstance(self.items, list):
+            del self.items[:]
+        else:
+            self.items = np.empty((0,) + self._shape[1:], dtype=self._dtype)
+
     async def _process(self, producer):
         """Stack data into a list."""
-        # Clear results from possible previous execution but keep the list in the same place
-        del self.items[:]
-
         async for item in producer:
             self.items.append(item)
 
     async def _process_numpy(self, producer):
         """Stack data into a numpy array."""
-        i = 0
+        if self.reset_on_call and len(self.items):
+            current = self.items
+        else:
+            current = np.empty(self._shape, dtype=self._dtype)
 
+        i = 0
         async for item in producer:
-            self.items[i] = item
+            current[i] = item
             i += 1
+
+        if not self.reset_on_call:
+            self.items = np.concatenate((self.items, current))

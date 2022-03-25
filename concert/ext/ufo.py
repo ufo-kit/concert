@@ -669,7 +669,7 @@ class GeneralBackprojectManager(Parameterizable):
                     param_result = (np.argmin(sgn * values) + 2 * fwhm) * region[2] + region[0]
                     setattr(self.args, parameter.replace('-', '_'), [param_result])
                     if i == iterations - 1:
-                        result.append(param_result)
+                        result.append(float(param_result))
                     LOG.info('Optimizing %s, region: %s, metric: %s, minimize: %s, result: %g',
                              parameter, region, metric, minim, param_result)
 
@@ -682,27 +682,19 @@ class GeneralBackprojectManager(Parameterizable):
 
         return result
 
-    async def _copy_projections(self, producer):
-        def copy_projection(projection):
+    async def _process_projection(self, projection):
+        def copy_projection():
             self.projections[self._num_received_projections] = projection
 
-        async for projection in producer:
-            if self._num_received_projections == 0:
-                if not self.args.width:
-                    (self.args.height, self.args.width) = projection.shape
-                elif (self.args.height, self.args.width) != projection.shape:
-                    raise GeneralBackprojectManagerError('Projections have different '
-                                                         'shape from normalization images')
-                in_shape = (self.args.number,) + projection.shape
-                if (self.projections is None or in_shape != self.projections.shape
-                        or projection.dtype != self.projections.dtype):
-                    self.projections = np.empty(in_shape, dtype=projection.dtype)
+        if self._num_received_projections < self.args.number:
+            await run_in_executor(copy_projection)
+            self._num_received_projections += 1
+            async with self._producer_condition:
+                self._producer_condition.notify_all()
 
-            if self._num_received_projections < self.args.number:
-                await run_in_executor(copy_projection, projection)
-                self._num_received_projections += 1
-                async with self._producer_condition:
-                    self._producer_condition.notify_all()
+    async def _copy_projections(self, producer):
+        async for projection in producer:
+            await self._process_projection(projection)
 
     async def _distribute(self, reuse_normalization=False, do_normalization=False):
         """Distribute projections to multiple batches which may run on multiple GPUs. If
@@ -848,6 +840,21 @@ class GeneralBackprojectManager(Parameterizable):
         self._num_received_projections = self._num_processed_projections = 0
 
         try:
+            # Process the first projection before _distribute to make sure all args entries are set
+            # up
+            async for projection in producer:
+                if not self.args.width:
+                    (self.args.height, self.args.width) = projection.shape
+                elif (self.args.height, self.args.width) != projection.shape:
+                    raise GeneralBackprojectManagerError('Projections have different '
+                                                         'shape from normalization images')
+                in_shape = (self.args.number,) + projection.shape
+                if (self.projections is None or in_shape != self.projections.shape
+                        or projection.dtype != self.projections.dtype):
+                    self.projections = np.empty(in_shape, dtype=projection.dtype)
+                await self._process_projection(projection)
+                break
+
             if not self._processing_task:
                 self._processing_task = start(self._distribute(reuse_normalization=True,
                                                                do_normalization=self.darks
