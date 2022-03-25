@@ -455,10 +455,7 @@ class SteppedTomography(Tomography):
                         i * await self.get_angular_range() / await self.get_num_projections() +
                         await self.get_start_angle()
                     )
-                    try:
-                        await self._camera.trigger()
-                    except:
-                        pass
+                    await self._camera.trigger()
                     yield await self._camera.grab()
         finally:
             await self._finish_radios()
@@ -729,11 +726,7 @@ class SteppedSpiralTomography(SteppedTomography, SpiralMixin):
                     vertical_position = i * vertical_step + await self.get_start_position_vertical()
                     await asyncio.gather(self._tomography_motor.set_position(rot_position),
                                          self._vertical_motor.set_position(vertical_position))
-
-                    try:
-                        await self._camera.trigger()
-                    except:
-                        pass
+                    await self._camera.trigger()
                     yield await self._camera.grab()
         finally:
             await self._finish_radios()
