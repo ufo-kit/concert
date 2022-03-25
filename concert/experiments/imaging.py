@@ -288,14 +288,14 @@ class Radiography(Experiment):
         This function must implement in a way that the sample is exposed by radiation, like opening
         a shutter or starting an X-ray tube.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     async def stop_sample_exposure(self):
         """
         This function must implement in a way that the sample is not exposed by radiation, like
         closing a shutter or switching off an X-ray tube.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class Tomography(Radiography):
