@@ -7,7 +7,8 @@ import numpy as np
 import concert.storage
 from concert.quantities import q
 from concert.experiments.base import Experiment, Acquisition
-from concert.base import background, Parameter, Quantity, Parameterizable
+from concert.base import background, Parameter, Quantity, Parameterizable, \
+    AccessorNotImplementedError
 
 
 async def frames(num_frames, camera, callback=None):
@@ -126,6 +127,10 @@ class Radiography(Experiment):
         radios_acq = Acquisition("radios", self._take_radios)
         super().__init__([darks_acq, flats_acq, radios_acq], walker,
                          separate_scans=separate_scans)
+
+    async def prepare(self):
+        if await self._camera.get_state() != "standby":
+            await self._camera.stop_recording()
 
     async def _last_acquisition_running(self) -> bool:
         return await self.acquisitions[-1].get_state() == "running"
@@ -283,14 +288,14 @@ class Radiography(Experiment):
         This function must implement in a way that the sample is exposed by radiation, like opening
         a shutter or starting an X-ray tube.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     async def stop_sample_exposure(self):
         """
         This function must implement in a way that the sample is not exposed by radiation, like
         closing a shutter or switching off an X-ray tube.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class Tomography(Radiography):
@@ -450,10 +455,7 @@ class SteppedTomography(Tomography):
                         i * await self.get_angular_range() / await self.get_num_projections() +
                         await self.get_start_angle()
                     )
-                    try:
-                        await self._camera.trigger()
-                    except:
-                        pass
+                    await self._camera.trigger()
                     yield await self._camera.grab()
         finally:
             await self._finish_radios()
@@ -724,11 +726,7 @@ class SteppedSpiralTomography(SteppedTomography, SpiralMixin):
                     vertical_position = i * vertical_step + await self.get_start_position_vertical()
                     await asyncio.gather(self._tomography_motor.set_position(rot_position),
                                          self._vertical_motor.set_position(vertical_position))
-
-                    try:
-                        await self._camera.trigger()
-                    except:
-                        pass
+                    await self._camera.trigger()
                     yield await self._camera.grab()
         finally:
             await self._finish_radios()
@@ -857,3 +855,222 @@ class ContinuousSpiralTomography(ContinuousTomography, SpiralMixin):
                 yield frame
         finally:
             await self._finish_radios()
+
+
+class GratingInterferometryMixin(Parameterizable):
+    """
+    Mixin for grating interferometry specific experiments.
+    """
+
+    grating_period = Quantity(q.um)
+    """Period of the grating to scan."""
+
+    num_periods = Parameter()
+    """Number of gratings period so scan."""
+
+    num_steps_per_period = Parameter()
+    """Number of stepping positions per grating period."""
+
+    stepping_start_position = Quantity(q.um)
+    """Position of the first grating step of *stepping_motor*"""
+
+    propagation_distance = Quantity(q.mm)
+    """
+    Distance between the sample and the analyzer grating.
+
+    This is only used by the processing addon to calculate the phase shift.
+    """
+    def __init__(self, stepping_motor,
+                 grating_period, stepping_start_position, num_periods=1, num_steps_per_period=16,
+                 propagation_distance=None):
+        """
+        :param stepping_motor: Motor for the stepping of one of the gratings
+        :type stepping_motor: LinearMotor
+        :param grating_period: Period of the stepped grating
+        :type grating_period: q.um
+        :param stepping_start_position: First stepping position
+        :type stepping_start_position: q.um
+        :param num_periods: Number of periods that are sampled by the stepping
+        :type num_periods: int
+        :param num_steps_per_period: Number of stepping positions per period
+        :type num_steps_per_period: int
+        :param propagation_distance: Distance between the sample and the analyzer grating. Only used
+            by the processing addon to determine the phase shift in angles.
+        :type propagation_distance: q.mm
+        """
+
+        self._grating_period = None
+        self._num_periods = None
+        self._num_steps_per_period = None
+        self._stepping_start_position = None
+        self._propagation_distance = None
+
+        Parameterizable.__init__(self)
+        self._stepping_motor = stepping_motor
+        self.grating_period = grating_period
+        self.num_periods = num_periods
+        self.num_steps_per_period = num_steps_per_period
+        self.stepping_start_position = stepping_start_position
+        self.propagation_distance = propagation_distance
+
+    async def _get_propagation_distance(self):
+        return self._propagation_distance
+
+    async def _set_propagation_distance(self, distance):
+        self._propagation_distance = distance
+
+    async def _get_grating_period(self):
+        return self._grating_period
+
+    async def _set_grating_period(self, period):
+        self._grating_period = period
+
+    async def _get_num_periods(self):
+        return self._num_periods
+
+    async def _set_num_periods(self, periods):
+        self._num_periods = int(periods)
+
+    async def _get_num_steps_per_period(self):
+        return self._num_steps_per_period
+
+    async def _set_num_steps_per_period(self, periods):
+        self._num_steps_per_period = int(periods)
+
+    async def _get_stepping_start_position(self):
+        return self._stepping_start_position
+
+    async def _set_stepping_start_position(self, position):
+        self._stepping_start_position = position
+
+
+class GratingInterferometryStepping(GratingInterferometryMixin, Radiography):
+    """
+    Grating interferometry experiment.
+
+    Data can be automatically processed with the corresponding addon
+    (concert.experiments.addons.PhaseGratingSteppingFourierProcessing).
+    """
+
+    def __init__(self, walker, camera, flat_motor, stepping_motor, flat_position, radio_position,
+                 grating_period, num_darks, stepping_start_position, num_periods=1,
+                 num_steps_per_period=16, propagation_distance=None, separate_scans=False):
+        """
+        :param walker: Walker for the experiment
+        :type walker: concert.storage.DirectoryWalker
+        :param camera: Camera to acquire the images
+        :type camera: concert.devices.cameras.base.Camera
+        :param flat_motor: Motor for moving the sample in and out of the beam.
+        :type flat_motor: concert.devices.motors.base.LinearMotor
+        :param stepping_motor:
+        :type stepping_motor: concert.devices.motors.base.LinearMotor
+        :param flat_position: Position of flat_motor where the sample is not in the beam.
+        :type flat_position: q.mm
+        :param radio_position: Position of flat_motor where the sample is located in the beam.
+        :type radio_position: q.mm
+        :param grating_period: Periodicity of the stepped grating.
+        :type grating_period: q.um
+        :param num_darks: Number of dark images that are acquired.
+        :type num_darks: int
+        :param stepping_start_position: First stepping position.
+        :type stepping_start_position: q.um
+        :param num_periods: Number of grating periods that are sampled by the stepping.
+        :type num_periods: int
+        :param num_steps_per_period: Number stepping positions per grating period.
+        :type num_steps_per_period: int
+        :param propagation_distance: Distance between the sample and the analyzer grating. Only used
+            by the processing addon to determine the phase shift in angles.
+        :type propagation_distance: q.mm
+        """
+
+        Radiography.__init__(self, walker=walker, camera=camera, flat_motor=flat_motor,
+                             radio_position=radio_position,
+                             flat_position=flat_position,
+                             num_flats=0,
+                             num_darks=num_darks,
+                             num_projections=1, separate_scans=separate_scans)
+        GratingInterferometryMixin.__init__(self,
+                                            stepping_motor=stepping_motor,
+                                            grating_period=grating_period,
+                                            stepping_start_position=stepping_start_position,
+                                            num_periods=num_periods,
+                                            num_steps_per_period=num_steps_per_period,
+                                            propagation_distance=propagation_distance)
+
+        reference_stepping = Acquisition("reference_stepping", self._take_reference_scan)
+        self.remove(self.get_acquisition("flats"))  # No flats required due to ref. stepping
+        self.add(reference_stepping)
+
+        object_stepping = Acquisition("object_stepping", self._take_object_scan)
+        self.remove(self.get_acquisition("radios"))  # No radios required due to obj. stepping
+        self.add(object_stepping)
+
+    async def _get_num_flats(self):
+        return 0
+
+    async def _set_num_flats(self, n):
+        raise AccessorNotImplementedError
+
+    async def _get_num_projections(self):
+        return 1
+
+    async def _set_num_projections(self, n):
+        raise AccessorNotImplementedError
+
+    async def _take_reference_scan(self):
+        """
+        Starts the sample exposure, moves the flat_motor in the *reference_position* and runs
+            self._take_scan().
+        """
+        await self.start_sample_exposure()
+        await self._flat_motor.set_position(await self.get_flat_position())
+        async for image in self._take_scan():
+            yield image
+
+    async def _take_object_scan(self):
+        """
+        Starts the sample exposure, moves the flat_motor in the *radio_position* and runs
+            self._take_scan().
+        """
+        await self.start_sample_exposure()
+        await self._flat_motor.set_position(await self.get_radio_position())
+        async for image in self._take_scan():
+            yield image
+
+    async def _take_scan(self):
+        """
+        Scans the stepping motor and acquires a frame after each position is reached.
+
+        As step *size grating_period* / *num_steps_per_period* is used.
+        A total of *num_steps_per_period* * *num_periods* frames is acquired.
+        """
+        step_size = await self.get_grating_period() / await self.get_num_steps_per_period()
+        if await self._camera.get_state() != "standby":
+            await self._camera.stop_recording()
+        await self._camera.set_trigger_source("SOFTWARE")
+        async with self._camera.recording():
+            for i in range(await self.get_num_periods() * await self.get_num_steps_per_period()):
+                await self._stepping_motor.set_position(i * step_size +
+                                                        await self.get_stepping_start_position())
+                await self._camera.trigger()
+                yield await self._camera.grab()
+
+    async def finish(self):
+        """
+        This function calls stop_sample_exposure() at the end of the experiment run.
+        """
+        await self.stop_sample_exposure()
+
+    async def start_sample_exposure(self):
+        """
+        This function must implement in a way that the sample is exposed by radiation, like opening
+        a shutter or starting an X-ray tube.
+        """
+        raise NotImplementedError
+
+    async def stop_sample_exposure(self):
+        """
+        This function must implement in a way that the sample is not exposed by radiation, like
+        closing a shutter or switching off an X-ray tube.
+        """
+        raise NotImplementedError

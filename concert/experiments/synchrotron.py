@@ -3,10 +3,12 @@ Module for synchrotron based imaging experiments.
 """
 from concert.quantities import q
 from concert.experiments.imaging import Radiography as BaseRadiography,\
-    SteppedTomography as BaseSteppedTomography, \
-    ContinuousTomography as BaseContinuousTomography,\
-    ContinuousSpiralTomography as BaseContinuousSpiralTomography, \
-    SteppedSpiralTomography as BaseSteppedSpiralTomography
+    SteppedTomography as BaseSteppedTomo, \
+    ContinuousTomography as BaseContTomo,\
+    ContinuousSpiralTomography as BaseContSpiralTomo, \
+    SteppedSpiralTomography as BaseSteppedSpiralTomo
+
+from concert.experiments.imaging import GratingInterferometryStepping as BasePhaseStepping
 
 
 class SynchrotronMixin:
@@ -75,7 +77,7 @@ class Radiography(SynchrotronMixin, BaseRadiography):
                                  separate_scans=separate_scans)
 
 
-class SteppedTomography(SynchrotronMixin, BaseSteppedTomography):
+class SteppedTomography(SynchrotronMixin, BaseSteppedTomo):
     """
     Stepped tomography
     """
@@ -110,21 +112,21 @@ class SteppedTomography(SynchrotronMixin, BaseSteppedTomography):
         :type start_angle: q.deg
         """
         SynchrotronMixin.__init__(self, shutter)
-        BaseSteppedTomography.__init__(self, walker=walker,
-                                       flat_motor=flat_motor,
-                                       tomography_motor=tomography_motor,
-                                       radio_position=radio_position,
-                                       flat_position=flat_position,
-                                       camera=camera,
-                                       num_flats=num_flats,
-                                       num_darks=num_darks,
-                                       num_projections=num_projections,
-                                       angular_range=angular_range,
-                                       start_angle=start_angle,
-                                       separate_scans=separate_scans)
+        BaseSteppedTomo.__init__(self, walker=walker,
+                                 flat_motor=flat_motor,
+                                 tomography_motor=tomography_motor,
+                                 radio_position=radio_position,
+                                 flat_position=flat_position,
+                                 camera=camera,
+                                 num_flats=num_flats,
+                                 num_darks=num_darks,
+                                 num_projections=num_projections,
+                                 angular_range=angular_range,
+                                 start_angle=start_angle,
+                                 separate_scans=separate_scans)
 
 
-class ContinuousTomography(SynchrotronMixin, BaseContinuousTomography):
+class ContinuousTomography(SynchrotronMixin, BaseContTomo):
     """
     Continuous tomography
     """
@@ -159,21 +161,21 @@ class ContinuousTomography(SynchrotronMixin, BaseContinuousTomography):
         :type start_angle: q.deg
         """
         SynchrotronMixin.__init__(self, shutter)
-        BaseContinuousTomography.__init__(self, walker=walker,
-                                          flat_motor=flat_motor,
-                                          tomography_motor=tomography_motor,
-                                          radio_position=radio_position,
-                                          flat_position=flat_position,
-                                          camera=camera,
-                                          num_flats=num_flats,
-                                          num_darks=num_darks,
-                                          num_projections=num_projections,
-                                          angular_range=angular_range,
-                                          start_angle=start_angle,
-                                          separate_scans=separate_scans)
+        BaseContTomo.__init__(self, walker=walker,
+                              flat_motor=flat_motor,
+                              tomography_motor=tomography_motor,
+                              radio_position=radio_position,
+                              flat_position=flat_position,
+                              camera=camera,
+                              num_flats=num_flats,
+                              num_darks=num_darks,
+                              num_projections=num_projections,
+                              angular_range=angular_range,
+                              start_angle=start_angle,
+                              separate_scans=separate_scans)
 
 
-class ContinuousSpiralTomography(SynchrotronMixin, BaseContinuousSpiralTomography):
+class ContinuousSpiralTomography(SynchrotronMixin, BaseContSpiralTomo):
     """
     Continuous spiral tomography
     """
@@ -219,26 +221,26 @@ class ContinuousSpiralTomography(SynchrotronMixin, BaseContinuousSpiralTomograph
         :type start_angle: q.deg
         """
         SynchrotronMixin.__init__(self, shutter)
-        BaseContinuousSpiralTomography.__init__(self,
-                                                walker=walker,
-                                                flat_motor=flat_motor,
-                                                tomography_motor=tomography_motor,
-                                                vertical_motor=vertical_motor,
-                                                radio_position=radio_position,
-                                                flat_position=flat_position,
-                                                camera=camera,
-                                                start_position_vertical=start_position_vertical,
-                                                sample_height=sample_height,
-                                                vertical_shift_per_tomogram=vertical_shift_per_tomogram,
-                                                num_flats=num_flats,
-                                                num_darks=num_darks,
-                                                num_projections=num_projections,
-                                                angular_range=angular_range,
-                                                start_angle=start_angle,
-                                                separate_scans=separate_scans)
+        BaseContSpiralTomo.__init__(self,
+                                    walker=walker,
+                                    flat_motor=flat_motor,
+                                    tomography_motor=tomography_motor,
+                                    vertical_motor=vertical_motor,
+                                    radio_position=radio_position,
+                                    flat_position=flat_position,
+                                    camera=camera,
+                                    start_position_vertical=start_position_vertical,
+                                    sample_height=sample_height,
+                                    vertical_shift_per_tomogram=vertical_shift_per_tomogram,
+                                    num_flats=num_flats,
+                                    num_darks=num_darks,
+                                    num_projections=num_projections,
+                                    angular_range=angular_range,
+                                    start_angle=start_angle,
+                                    separate_scans=separate_scans)
 
 
-class SteppedSpiralTomography(SynchrotronMixin, BaseSteppedSpiralTomography):
+class SteppedSpiralTomography(SynchrotronMixin, BaseSteppedSpiralTomo):
     """
     Stepped spiral tomography
     """
@@ -283,19 +285,68 @@ class SteppedSpiralTomography(SynchrotronMixin, BaseSteppedSpiralTomography):
         :type start_angle: q.deg
         """
         SynchrotronMixin.__init__(self, shutter)
-        BaseSteppedSpiralTomography.__init__(self, walker=walker,
-                                             flat_motor=flat_motor,
-                                             tomography_motor=tomography_motor,
-                                             vertical_motor=vertical_motor,
-                                             radio_position=radio_position,
-                                             flat_position=flat_position,
-                                             camera=camera,
-                                             start_position_vertical=start_position_vertical,
-                                             sample_height=sample_height,
-                                             vertical_shift_per_tomogram=vertical_shift_per_tomogram,
-                                             num_flats=num_flats,
-                                             num_darks=num_darks,
-                                             num_projections=num_projections,
-                                             angular_range=angular_range,
-                                             start_angle=start_angle,
-                                             separate_scans=separate_scans)
+        BaseSteppedSpiralTomo.__init__(self, walker=walker,
+                                       flat_motor=flat_motor,
+                                       tomography_motor=tomography_motor,
+                                       vertical_motor=vertical_motor,
+                                       radio_position=radio_position,
+                                       flat_position=flat_position,
+                                       camera=camera,
+                                       start_position_vertical=start_position_vertical,
+                                       sample_height=sample_height,
+                                       vertical_shift_per_tomogram=vertical_shift_per_tomogram,
+                                       num_flats=num_flats,
+                                       num_darks=num_darks,
+                                       num_projections=num_projections,
+                                       angular_range=angular_range,
+                                       start_angle=start_angle,
+                                       separate_scans=separate_scans)
+
+
+class GratingInterferometryStepping(SynchrotronMixin, BasePhaseStepping):
+    def __init__(self, walker, camera, shutter, flat_motor, stepping_motor, flat_position,
+                 radio_position, grating_period, num_darks, stepping_start_position, num_periods,
+                 num_steps_per_period, propagation_distance, separate_scans):
+        """
+        :param walker: Walker for the experiment
+        :type walker: concert.storage.DirectoryWalker
+        :param camera: Camera to acquire the images
+        :type camera: concert.devices.cameras.base.Camera
+        :param shutter: Shutter
+        :type shutter: concert.devices.shutters.base.Shutter
+        :param flat_motor: Motor for moving the sample in and out of the beam.
+        :type flat_motor: concert.devices.motors.base.LinearMotor
+        :param stepping_motor:
+        :type stepping_motor: concert.devices.motors.base.LinearMotor
+        :param flat_position: Position of flat_motor where the sample is not in the beam.
+        :type flat_position: q.mm
+        :param radio_position: Position of flat_motor where the sample is located in the beam.
+        :type radio_position: q.mm
+        :param grating_period: Periodicity of the stepped grating.
+        :type grating_period: q.um
+        :param num_darks: Number of dark images that are acquired.
+        :type num_darks: int
+        :param stepping_start_position: First stepping position.
+        :type stepping_start_position: q.um
+        :param num_periods: Number of grating periods that are sampled by the stepping.
+        :type num_periods: int
+        :param num_steps_per_period: Number stepping positions per grating period.
+        :type num_steps_per_period: int
+        :param propagation_distance: Distance between the sample and the analyzer grating. Only used
+            by the processing addon to determine the phase shift in angles.
+        :type propagation_distance: q.mm
+        """
+        SynchrotronMixin.__init__(self, shutter)
+        BasePhaseStepping.__init__(self, walker=walker,
+                                   camera=camera,
+                                   flat_motor=flat_motor,
+                                   stepping_motor=stepping_motor,
+                                   flat_position=flat_position,
+                                   radio_position=radio_position,
+                                   grating_period=grating_period,
+                                   num_darks=num_darks,
+                                   stepping_start_position=stepping_start_position,
+                                   num_periods=num_periods,
+                                   num_steps_per_period=num_steps_per_period,
+                                   propagation_distance=propagation_distance,
+                                   separate_scans=separate_scans)
