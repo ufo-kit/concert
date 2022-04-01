@@ -355,12 +355,13 @@ class StartCommand(SubCommand):
                 '--loglevel': {'choices': ['perfdebug', 'aiodebug', 'debug', 'info', 'warning',
                                            'error', 'critical'],
                                'default': 'info'},
-                '--non-interactive': {'action': 'store_true'}}
+                '--non-interactive': {'action': 'store_true'},
+                '--with-gui': {'type': bool, 'default': True}}
         super(StartCommand, self).__init__('start', opts)
 
     def run(self, session=None, filename=None,
             non_interactive=False,
-            logto='file', logfile=None, loglevel=None):
+            logto='file', logfile=None, loglevel=None, with_gui=True):
         import IPython
 
         if IPython.version_info >= (8, 0):
@@ -408,7 +409,7 @@ class StartCommand(SubCommand):
         else:
             self.run_shell(path=path, session=session)
 
-    def run_shell(self, path=None, session=None):
+    def run_shell(self, path=None, session=None, with_gui=False):
         import IPython
         import traitlets.config
         from concert.session.utils import abort_awaiting
