@@ -223,7 +223,7 @@ class Camera(base.Camera):
                               np.uint8)
 
     async def _get_state(self):
-        if self.uca.is_recording():
+        if self.uca.props.is_recording:
             return 'recording'
         elif self.uca.props.is_readout:
             return 'readout'
