@@ -3,31 +3,9 @@ from PyQt5.QtWidgets import QWidget, QLabel, QComboBox, QPushButton, QHBoxLayout
 from PyQt5.QtCore import QTimer
 from concert.base import Parameterizable, ParameterValue, QuantityValue, StateValue, SelectionValue
 import concert.base
-from concert.coroutines.base import run_in_loop, background
+from concert.coroutines.base import run_in_loop
+from concert.gui import qt_async_slot
 from concert.quantities import q
-import asyncio
-from functools import wraps
-
-import pyqtgraph as pg
-app = pg.mkQApp()
-
-
-def qt_async_slot(coro):
-    @wraps(coro)
-    def wrapper(self, *args):
-        loop = asyncio.get_event_loop()
-        future = loop.create_task(coro(self, *args[:-1]))
-    return wrapper
-
-
-@background
-async def updater():
-    while True:
-        try:
-            app.processEvents()
-        except:
-            pass
-        await asyncio.sleep(0.01)
 
 
 class ParameterizableWidget(QWidget):
