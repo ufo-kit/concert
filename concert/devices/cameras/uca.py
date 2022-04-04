@@ -6,7 +6,7 @@ import logging
 import numpy as np
 from concert.coroutines.base import background, run_in_executor
 from concert.quantities import q
-from concert.base import Parameter, Quantity, transition
+from concert.base import Parameter, Quantity
 from concert.helpers import Bunch
 from concert.devices.cameras import base
 
@@ -159,12 +159,10 @@ class Camera(base.Camera):
         self._record_dtype = None
 
     @background
-    @transition(target='readout')
     async def start_readout(self):
         self.uca.start_readout()
 
     @background
-    @transition(target='standby')
     async def stop_readout(self):
         self.uca.stop_readout()
 
@@ -191,16 +189,11 @@ class Camera(base.Camera):
         uca_value = getattr(self.uca.enum_values.trigger_source, source)
         await self._uca_set_trigger(self, uca_value)
 
-    @transition(target='recording')
     @_translate_gerror
     async def _record_real(self):
-        self._record_shape = ((await self.get_roi_height()).magnitude,
-                              (await self.get_roi_width()).magnitude)
-        self._record_dtype = (np.uint16 if (await self.get_sensor_bitdepth()).magnitude > 8 else
-                              np.uint8)
+        await self._determine_shape_for_grab()
         self.uca.start_recording()
 
-    @transition(target='standby')
     @_translate_gerror
     async def _stop_real(self):
         self.uca.stop_recording()
@@ -211,6 +204,8 @@ class Camera(base.Camera):
 
     @_translate_gerror
     async def _grab_real(self, index=None):
+        if self._record_shape is None:
+            await self._determine_shape_for_grab()
         array = np.empty(self._record_shape, dtype=self._record_dtype)
         data = array.__array_interface__['data'][0]
 
@@ -220,3 +215,17 @@ class Camera(base.Camera):
             await run_in_executor(self.uca.readout, data, index)
 
         return array
+
+    async def _determine_shape_for_grab(self):
+        self._record_shape = ((await self.get_roi_height()).magnitude,
+                              (await self.get_roi_width()).magnitude)
+        self._record_dtype = (np.uint16 if (await self.get_sensor_bitdepth()).magnitude > 8 else
+                              np.uint8)
+
+    async def _get_state(self):
+        if self.uca.props.is_recording:
+            return 'recording'
+        elif self.uca.props.is_readout:
+            return 'readout'
+        else:
+            return 'standby'
