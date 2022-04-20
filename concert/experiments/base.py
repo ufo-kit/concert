@@ -116,7 +116,7 @@ class Experiment(Parameterizable):
         self.walker = walker
         self._separate_scans = separate_scans
         self._name_fmt = name_fmt
-        self._iteration = 1
+        self._iteration = 0
         self.log = LOG
         self.ready_to_prepare_next_sample = asyncio.Event()
         Parameterizable.__init__(self)

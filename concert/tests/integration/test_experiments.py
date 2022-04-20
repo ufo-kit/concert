@@ -161,7 +161,7 @@ class TestExperiment(TestExperimentBase):
         await self.experiment.run()
         self.assertEqual(self.visited, 2 * len(self.experiment.acquisitions))
 
-        truth = set([op.join(self.root, self.name_fmt.format(i + 1)) for i in range(2)])
+        truth = set([op.join(self.root, self.name_fmt.format(i)) for i in range(2)])
         self.assertEqual(truth, self.walker.paths)
 
         # Consumers must be called
@@ -209,7 +209,7 @@ class TestExperiment(TestExperimentBase):
         ImageWriter(self.acquisitions, self.walker)
         await self.experiment.run()
 
-        scan_name = self.name_fmt.format(1)
+        scan_name = self.name_fmt.format(0)
         # Check if the writing coroutine has been attached
         for i in range(self.num_produce):
             foo = op.join(self.root, scan_name, 'foo', self.walker.dsetname, str(i))
