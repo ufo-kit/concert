@@ -118,7 +118,12 @@ class ParameterWidget(QWidget):
 
         self.read_button.clicked.connect(self.read)
         self.write_button.clicked.connect(self.write)
-        self._data_type = type(run_in_loop(self._param.get()))
+
+        # TODO: in standalone the run_in_loop is not working -> fix
+        try:
+            self._data_type = type(run_in_loop(self._param.get()))
+        except:
+            self._data_type = None
 
         if not self._param.writable:
             self.write_button.setEnabled(False)
@@ -148,6 +153,8 @@ class ParameterWidget(QWidget):
 
     @asyncSlot()
     async def read(self):
+        if self._data_type is None:
+            self._data_type = type(await self._param.get())
         self.getter_started.emit()
         try:
             self.value.setText(str(await self._param.get()))
