@@ -11,7 +11,7 @@ from concert.quantities import q
 from qasync import QApplication, asyncSlot
 
 import qasync
-from PyQt5.QtWidgets import QPushButton
+from PyQt5.QtWidgets import QPushButton, QWidget, QHBoxLayout, QGroupBox
 import asyncio
 import sys
 
@@ -28,14 +28,12 @@ async def main():
 
     lin = LinearMotor()
     lin_widget = ParameterizableWidget(lin)
-    lin_widget.show()
     lin_widget.setWindowTitle("LinMotor")
     lin_widget.update()
 
     sample_changer = SampleChanger()
     sample_changer_widget = ParameterizableWidget(sample_changer)
     sample_changer_widget.setWindowTitle("Sample Changer")
-    sample_changer_widget.show()
     sample_changer_widget.update()
 
     # Experiment
@@ -45,10 +43,10 @@ async def main():
     tomo_motor = RotationMotor()
     tomo_motor_widget = ParameterizableWidget(tomo_motor)
     tomo_motor_widget.setWindowTitle("Tomo motor")
-    tomo_motor_widget.show()
     exp = SteppedTomography(walker=walker, flat_motor=lin, tomography_motor=tomo_motor, radio_position=0 * q.mm,
                             flat_position=10*q.mm, camera=camera, shutter=shutter)
     viewer = PyQtGraphViewer()
+
     live_view = Consumer(exp.acquisitions, viewer)
     exp_widget = ParameterizableWidget(exp)
     exp_widget.setWindowTitle("Experiment")
@@ -60,8 +58,24 @@ async def main():
 
     run_button.clicked.connect(run_exp)
     exp_widget._layout.addWidget(run_button)
-    exp_widget.show()
     exp_widget.update()
+
+    def make_frame(name, widget):
+        group_box = QGroupBox(name)
+        _layout = QHBoxLayout()
+        _layout.addWidget(widget)
+        group_box.setLayout(_layout)
+        return group_box
+
+    main_window = QWidget()
+    layout = QHBoxLayout()
+    layout.addWidget(make_frame("Tomo motor", tomo_motor_widget))
+    layout.addWidget(make_frame("Sample changer", sample_changer_widget))
+    layout.addWidget(make_frame("Lin motor", lin_widget))
+    layout.addWidget(make_frame("CT Experiment", exp_widget))
+
+    main_window.setLayout(layout)
+    main_window.show()
 
     await future
     return True
