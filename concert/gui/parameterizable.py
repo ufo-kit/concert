@@ -19,13 +19,12 @@ class ParameterizableWidget(QWidget):
         super().__init__()
         self._layout = QVBoxLayout()
         self.setLayout(self._layout)
-        self._params = []
+        self.params = {}
         self.build_layout()
         self._layout.addWidget(PollingWidget(self))
 
     def build_layout(self):
         for param in self._parameterizable:
-            print(param)
             if isinstance(param, SelectionValue):
                 self.add_selection_to_layout(param)
             elif isinstance(param, QuantityValue):
@@ -39,30 +38,30 @@ class ParameterizableWidget(QWidget):
 
     def add_state_to_layout(self, param):
         widget = StateWidget(param)
-        self._params.append(widget)
+        self.params[param.name] = widget
         self._layout.addWidget(widget)
 
     def add_quantity_to_layout(self, param):
         widget = QuantityWidget(param)
-        self._params.append(widget)
+        self.params[param.name] = widget
         self._layout.addWidget(widget)
 
     def add_parameter_to_layout(self, param):
         widget = ParameterWidget(param)
-        self._params.append(widget)
+        self.params[param.name] = widget
         self._layout.addWidget(widget)
 
     def add_selection_to_layout(self, param):
         widget = SelectionWidget(param)
-        self._params.append(widget)
+        self.params[param.name] = widget
         self._layout.addWidget(widget)
 
     def update(self):
-        for param in self._params:
+        for param in self.params.values():
             param.read()
 
     def polling(self, state):
-        for param in self._params:
+        for param in self.params.values():
             if state:
                 param.deactivate()
             else:
