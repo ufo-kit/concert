@@ -1,11 +1,12 @@
 from PyQt5.QtWidgets import QWidget, QLabel, QComboBox, QPushButton, QHBoxLayout, QVBoxLayout, QLineEdit, \
     QCheckBox, QDoubleSpinBox
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer, pyqtSignal
 from concert.base import Parameterizable, ParameterValue, QuantityValue, StateValue, SelectionValue
 import concert.base
 from concert.coroutines.base import run_in_loop
-from concert.gui import qt_async_slot
 from concert.quantities import q
+from qasync import asyncSlot
+from concert.gui import with_signals
 
 
 class ParameterizableWidget(QWidget):
@@ -101,6 +102,14 @@ class PollingWidget(QWidget):
 
 
 class ParameterWidget(QWidget):
+    setter_started = pyqtSignal()
+    setter_finished = pyqtSignal()
+    setter_error = pyqtSignal(Exception)
+
+    getter_started = pyqtSignal()
+    getter_finished = pyqtSignal()
+    getter_error = pyqtSignal(Exception)
+
     def __init__(self, param):
         super().__init__()
         self._param = param
@@ -138,17 +147,29 @@ class ParameterWidget(QWidget):
             self.write_button.setEnabled(True)
             self.value.setEnabled(True)
 
-    @qt_async_slot
+    @asyncSlot()
     async def read(self):
-        self.value.setText(str(await self._param.get()))
+        self.getter_started.emit()
+        try:
+            self.value.setText(str(await self._param.get()))
+        except Exception as e:
+            self.getter_error.emit(e)
+        finally:
+            self.getter_finished.emit()
 
-    @qt_async_slot
+    @asyncSlot()
     async def write(self):
         """ Fancy parameter types are challenging. So far at the creation the type of the current value is read and
             in write is tried to cast the string to this type. A general conversion-function from str to parameter
             in the Parameter-Class would be a solution?
         """
-        await self._param.set(self._data_type(self.value.text()))
+        self.setter_started.emit()
+        try:
+            await self._param.set(self._data_type(self.value.text()))
+        except Exception as e:
+            self.setter_error.emit(e)
+        finally:
+            self.setter_finished.emit()
 
 
 class StateWidget(ParameterWidget):
@@ -156,9 +177,15 @@ class StateWidget(ParameterWidget):
 
 
 class QuantityWidget(ParameterWidget):
-    @qt_async_slot
+    @asyncSlot()
     async def write(self):
-        await self._param.set(q(self.value.text()))
+        self.setter_started.emit()
+        try:
+            await self._param.set(q(self.value.text()))
+        except Exception as e:
+            self.setter_error.emit(e)
+        finally:
+            self.setter_finished.emit()
 
 
 class SelectionWidget(ParameterWidget):
@@ -168,15 +195,27 @@ class SelectionWidget(ParameterWidget):
             self.value.addItem(str(value))
         super().__init__(param)
 
-    @qt_async_slot
+    @asyncSlot()
     async def read(self):
-        if await self._param.get() is None:
-            self.value.setCurrentText("")
-        self.value.setCurrentText(str(await self._param.get()))
+        self.getter_started.emit()
+        try:
+            if await self._param.get() is None:
+                self.value.setCurrentText("")
+            self.value.setCurrentText(str(await self._param.get()))
+        except Exception as e:
+            self.getter_error.emit(e)
+        finally:
+            self.getter_finished.emit()
 
-    @qt_async_slot
+
+    @asyncSlot()
     async def write(self):
-        if self.value.currentText() == '':
-            await self._param.set(None)
-        await self._param.set(self._param.values[self.value.currentIndex()])
-
+        self.setter_started.emit()
+        try:
+            if self.value.currentText() == '':
+                await self._param.set(None)
+            await self._param.set(self._param.values[self.value.currentIndex()])
+        except Exception as e:
+            self.setter_error.emit(e)
+        finally:
+            self.setter_finished.emit()

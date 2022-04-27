@@ -8,6 +8,8 @@ from concert.quantities import q
 from concert.config import GUI_EVENT_REFRESH_PERIOD, GUI_MAX_PROCESSING_TIME_FRACTION
 from concert.coroutines.base import background
 
+from qasync import asyncSlot
+
 LOG = logging.getLogger(__name__)
 
 app = pg.mkQApp()
@@ -25,9 +27,16 @@ async def gui_event_loop():
         await asyncio.sleep(concert_time.to(q.s).magnitude)
 
 
-def qt_async_slot(coro):
-    @wraps(coro)
-    def wrapper(self, *args):
-        loop = asyncio.get_event_loop()
-        future = loop.create_task(coro(self, *args[:-1]))
-    return wrapper
+def with_signals(start_signal=None, finish_signal=None, exception_signal=None):
+    def signal_wrapper(coro):
+        if start_signal:
+            start_signal.emit()
+        try:
+            coro()
+        except Exception as e:
+            if exception_signal:
+                exception_signal.emit(e)
+        finally:
+            if finish_signal:
+                finish_signal.emit()
+    return signal_wrapper
