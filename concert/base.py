@@ -971,6 +971,80 @@ class SelectionValue(ParameterValue):
         return tuple(self._parameter.iterable)
 
 
+class AsyncType(type):
+
+    """
+    Metaclass which allows an awaitable constructor `__ainit__(...)' instead of `__init__(...)' and
+    thus enables async object initialization `obj = await Class(...)'. `__ainit__(...)` must return
+    an awaitable and its result must be None. To actually make async objects use the
+    :class:`.AsyncObject` class.
+
+    By having a new method for async initialization we clearly separate the async and non-async
+    worlds. In case of mixed async and non-async multiple inheritance, it is the responsibility of
+    *Class* to call the predecessors of both parts, e.g. by `await super().__ainit__(...)' and
+    `super().__init__(...)'. It is forbidden to have an `__init__(...)' in a class with
+    `__ainit__(...)', so the calls to *super()* will be unambiguous with respect to the two
+    constructor types and MRO will work as expected.
+    """
+
+    def __new__(meta, name, bases, dct):
+        # Create new class *name* and make sure it does not implement __init__.
+        if '__init__' in dct:
+            raise TypeError(f"AsyncObject `{name}' must define __ainit__ instead of __init__")
+        return super(AsyncType, meta).__new__(meta, name, bases, dct)
+
+    async def __call__(cls, *args, **kwargs):
+        # Create an instance of class *cls*. Do almost the same as type.__call__
+        # (Objects/typeobject.c:type_call in CPython) but instead of calling the constructor
+        # __init__, call the async constructor __ainit__, i.e. __init__ is never called becuase
+        # calling both __init__ and __ainit__ with the same *args* and *kwargs* may be undesirable.
+        # Moreover, everything which can be constructed in __init__ can also be constructed in
+        # __ainit__.
+        obj = cls.__new__(cls, *args, **kwargs)
+
+        if isinstance(obj, cls) and hasattr(cls, '__ainit__'):
+            # If cls.__new__ returns and instance of cls and there is an __ainit__ method, call it
+            # and make sure it does not return anything
+            coro = obj.__ainit__(*args, **kwargs)
+            if not inspect.isawaitable(coro):
+                raise TypeError(
+                    f"__ainit__() must return an awaitable, not `{type(coro).__name__}'"
+                )
+            result = await coro
+            if result is not None:
+                raise TypeError(
+                    f"__ainit__() should return None, not `{type(result).__name__}'"
+                )
+
+        return obj
+
+
+class AsyncObject(metaclass=AsyncType):
+    """Root of all classes with async def __ainit__()."""
+
+    def __new__(cls, *args, **kwargs):
+        # Create an instance of class *cls* by calling object.__new__(*cls*) but do the argument
+        # check here because we cannot re-use object's __new__ (Objects/typeobject.c:object_new in
+        # CPython) becuase it checks for normal __init__ constructor and not __ainit__. If *cls*
+        # re-defines __new__, it must call AsyncObject.__new__ without any arguments (*cls* is
+        # responsible for consuming them). If *cls* does not re-define __new__ and defines
+        # __ainit__, potentially wrong arguments will be handled when the type tries to call
+        # __ainit__; if __ainit__ is not re-defined then there cannot be arguments because
+        # AsyncObject.__ainit__ takes no arguments.
+        if args or kwargs:
+            if cls.__new__ != AsyncObject.__new__:
+                raise TypeError(
+                    "AsyncObject.__new__() takes exactly one argument (the type to instantiate)"
+                )
+            if cls.__ainit__ == AsyncObject.__ainit__:
+                raise TypeError(f"{cls.__name__} takes no arguments")
+
+        return object.__new__(cls)
+
+    async def __ainit__(self):
+        pass
+
+
 class Parameterizable(object):
 
     """
