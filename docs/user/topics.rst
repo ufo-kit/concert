@@ -12,3 +12,4 @@ User manual
     topics/control.rst
     topics/processing.rst
     topics/experiments.rst
+    topics/directors.rst

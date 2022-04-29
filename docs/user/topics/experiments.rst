@@ -91,6 +91,32 @@ about the download later. We can use the *acquire* argument to
 before data download. :class:`~.base.Acquisition` calls its *acquire* first and
 only when it is finished connects producer with consumers.
 
+The Experiment class has the attribute :py:attr:`.base.Experiment.ready_to_prepare_next_sample` which is an instance of an :class:`asyncio.Event`. This can be used to tell that most of the experiment is finished and a new iteration of
+this experiment can be prepared (e.g. by the :class:`concert.directors.base.Director`.
+In the :meth:`.base.Experiment.run` the :py:attr:`.base.Experiment.ready_to_prepare_next_sample` will be set that at
+the end of an experiment is is always set. In the beginning of the :meth:`.base.Experiment.run` it will be cleared.
+This is an example implementation making use of this::
+
+	from concert.experiments.base import Experiment, Acquisition
+	class MyExperiment(Experiment):
+		def __init__(self, walker, camera):
+			acq = Acquisition("acquisition", self._produce_frames)
+			self._camera = camera
+			super().__init__([acq], walker)
+
+		async def _produce_frame(self):
+			num_frames = 100
+			async with self._camera.recording():
+				# Do the acquisition of the frames in camera memory
+
+			# Only the readout and nothing else will happen after this point.
+			self.ready_to_prepare_next_sample.set()
+
+			async with self._camera.readout():
+				for i in range(num_frames):
+					yield await self._camera.grab()
+
+
 Imaging
 -------
 

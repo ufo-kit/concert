@@ -95,6 +95,12 @@ class Experiment(Parameterizable):
         on the disk. The entry consists of a name and a number of the current iteration, so the
         parameter is a formattable string.
 
+    .. py:attribute:: ready_to_prepare_next_sample
+
+        asyncio.Event that can be used to tell a processes.experiment.Director that the next
+        iteration can be prepared. Can be set() to allow the preparation while the experiment is
+        still running.
+
     """
 
     iteration = Parameter()
@@ -110,8 +116,9 @@ class Experiment(Parameterizable):
         self.walker = walker
         self._separate_scans = separate_scans
         self._name_fmt = name_fmt
-        self._iteration = 1
+        self._iteration = 0
         self.log = LOG
+        self.ready_to_prepare_next_sample = asyncio.Event()
         Parameterizable.__init__(self)
 
         if separate_scans and walker:
@@ -216,6 +223,7 @@ class Experiment(Parameterizable):
     @check(source=['standby', 'error'], target='standby')
     @transition(immediate='running', target='standby')
     async def run(self):
+        self.ready_to_prepare_next_sample.clear()
         start_time = time.time()
         handler = None
         iteration = await self.get_iteration()
@@ -256,6 +264,7 @@ class Experiment(Parameterizable):
                 LOG.warn(f"Error `{e}' while finalizing experiment")
                 raise StateError('error', msg=str(e))
             finally:
+                self.ready_to_prepare_next_sample.set()
                 if separate_scans and self.walker:
                     self.walker.ascend()
                 LOG.debug('Experiment iteration %d duration: %.2f s',
