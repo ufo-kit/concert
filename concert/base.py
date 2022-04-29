@@ -974,6 +974,68 @@ class SelectionValue(ParameterValue):
         return tuple(self._parameter.iterable)
 
 
+class AsyncMeta(type):
+
+    """
+    Metaclass which introduces an awaitable constructor `__ainit__(...)' instead of `__init__(...)'
+    and thus enables async object initialization `obj = await Class(...)'. `__ainit__(...)` must
+    return an awaitable and its result must be None.
+
+    By having a new method for async initialization we clearly separate the async and non-async
+    worlds. In case of mixed async and non-async multiple inheritance, it is the responsibility of
+    *Class* to call the predecessors of both parts, e.g. by `await super().__ainit__(...)' and
+    `super().__init__(...)'. It is forbidden to have an `__init__(...)' in a class with
+    `__ainit__(...)', so the calls to *super()* will be unambiguous with respect to the two
+    constructor types and MRO will work as expected.
+    """
+
+    def __new__(meta, name, bases, dct):
+        """Create new class *name* and make sure it does not implement __init__."""
+        if '__init__' in dct:
+            raise TypeError(f"AsyncInitialized `{name}' must define __ainit__ instead of __init__")
+        return super(AsyncMeta, meta).__new__(meta, name, bases, dct)
+
+    async def __call__(cls, *args, **kwargs):
+        """Create an instance of class *cls*. Do almost the same as type.__call__
+        (Objects/typeobject.c:type_call in CPython) but instead of calling the constructor __init__,
+        call the async constructor __ainit__, i.e. __init__ is never called becuase calling both
+        __init__ and __ainit__ with the same *args* and *kwargs* may be undesirable. Moreover,
+        everything which can be constructed in __init__ can also be constructed in __ainit__.
+        """
+        # Create an object like in type.__new__
+        if cls.__new__ == object.__new__:
+            # Nobody in the inheritance tree re-defined __new__ so we need to take care of stripping
+            # args and kwargs
+            obj = object.__new__(cls)
+        else:
+            # Somebody in the inheritance tree re-defined __new__ which makes *cls* responsible for
+            # taking care it's compatible with __ainit__
+            obj = cls.__new__(cls, *args, **kwargs)
+
+        if isinstance(obj, cls) and hasattr(cls, '__ainit__'):
+            # If cls.__new__ returns and instance of cls and there is an __ainit__ method, call it
+            # and make sure it does not return anything
+            coro = obj.__ainit__(*args, **kwargs)
+            if not inspect.isawaitable(coro):
+                raise TypeError(
+                    f"__ainit__() must return an awaitable, not `{type(coro).__name__}'"
+                )
+            result = await coro
+            if result is not None:
+                raise TypeError(
+                    f"__ainit__() should return None, not `{type(result).__name__}'"
+                )
+
+        return obj
+
+
+class AsyncInitialized(metaclass=AsyncMeta):
+    """Root of all classes with async def __ainit__()."""
+
+    async def __ainit__(self):
+        pass
+
+
 class Parameterizable(object):
 
     """
