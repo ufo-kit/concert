@@ -279,6 +279,10 @@ class Radiography(Experiment):
         """
         await self._camera.set_trigger_source("AUTO")
         async with self._camera.recording():
+            if isinstance(self, Tomography):
+                self.log.info("First frame started at position %s" %
+                              await self._tomography_motor.get_position())
+
             for i in range(int(number)):
                 if self._stop:
                     break
