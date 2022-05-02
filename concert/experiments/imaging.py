@@ -546,7 +546,8 @@ class ContinuousTomography(Tomography):
         """
         if self._finished:
             return
-        await self._tomography_motor.stop()
+        if await self._tomography_motor.get_state() == "moving":
+            await self._tomography_motor.stop()
         if 'motion_velocity' in self._tomography_motor:
             await self._tomography_motor['motion_velocity'].restore()
         await super()._finish_radios()
@@ -846,9 +847,12 @@ class ContinuousSpiralTomography(ContinuousTomography, SpiralMixin):
         """
         if self._finished:
             return
-        await asyncio.gather(self.stop_sample_exposure(),
-                             self._tomography_motor.stop(),
-                             self._vertical_motor.stop())
+        await self.stop_sample_exposure()
+
+        if await self._tomography_motor.get_state() == "moving":
+            self._tomography_motor.stop()
+        if await self._vertical_motor.get_state() == "moving":
+            self._vertical_motor.stop()
 
         if 'motion_velocity' in self._tomography_motor:
             await self._tomography_motor['motion_velocity'].restore()
