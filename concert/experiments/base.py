@@ -7,6 +7,9 @@ import asyncio
 import logging
 import os
 import time
+import json
+
+import concert.devices.base
 from concert.coroutines.base import background, broadcast
 from concert.coroutines.sinks import null
 from concert.progressbar import wrap_iterable
@@ -118,6 +121,7 @@ class Experiment(Parameterizable):
         self._name_fmt = name_fmt
         self._iteration = 0
         self.log = LOG
+        self._devices_to_log = {}
         self.ready_to_prepare_next_sample = asyncio.Event()
         Parameterizable.__init__(self)
 
@@ -126,6 +130,25 @@ class Experiment(Parameterizable):
             # hasn't been used yet
             while self.walker.exists(self._name_fmt.format(self._iteration)):
                 self._iteration += 1
+
+    def add_device_to_log(self, name: str, device: concert.devices.base.Device):
+        self._devices_to_log[name] = device
+
+    async def log_to_json(self, directory: str):
+        data = {}
+        experiment_parameters = {}
+        for param in self:
+            experiment_parameters[param.name] = str(await param.get())
+
+        data['experiment'] = experiment_parameters
+        for name, device in self._devices_to_log.items():
+            device_data = {}
+            for param in device:
+                device_data[param.name] = str(await param.get())
+            data[name] = device_data
+
+        with open(os.path.join(directory, 'experiment.json'), 'w') as outfile:
+            json.dump(data, outfile, indent=4)
 
     async def _get_iteration(self):
         return self._iteration
@@ -240,7 +263,11 @@ class Experiment(Parameterizable):
                                               '- %(message)s')
                 handler.setFormatter(formatter)
                 self.log.addHandler(handler)
+                await self.log_to_json(self.walker.current)
         self.log.info(await self.info_table)
+        for name, device in self._devices_to_log.items():
+            self.log.info(f"Device {name}:")
+            self.log.info(await device.info_table)
         LOG.debug('Experiment iteration %d start', iteration)
 
         try:
