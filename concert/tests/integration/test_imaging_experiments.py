@@ -1,9 +1,12 @@
 """
 Test imaging experiments (synchrotron and X-Ray tube based).
 """
+import asyncio
 import shutil
 import tempfile
 import numpy as np
+
+from concert.coroutines.base import start
 from concert.quantities import q
 from concert.experiments.addons import ImageWriter, Accumulator
 from concert.devices.cameras.dummy import Camera
@@ -189,6 +192,14 @@ class Radiography:
         source_state = await self.source.get_state() in ["off", "closed"]
         self.assertTrue(source_state, msg="Source state test")
 
+    async def test_stop(self):
+        exp_instance = start(self.run_experiment())
+        await asyncio.sleep(0.1)
+        await self.exp.stop()
+        await self.test_finish_states()
+        self.assertEqual(self.exp._stop, True)
+        await exp_instance
+
 
 @slow
 class SteppedTomography(Radiography):
@@ -215,6 +226,10 @@ class SteppedTomography(Radiography):
             radio = self.acc.items[self.exp.get_acquisition("radios")][i]
             tomo_position = i * (await self.exp.get_angular_range()) / steps_per_tomogram
             self.assertAlmostEqual(radio[0, 0], tomo_position.to(q.deg).magnitude, delta=1e-4)
+
+    async def test_finish_states(self):
+        await super().test_finish_states()
+        self.assertEqual(await self.tomo_motor.get_state(), "standby")
 
 
 @slow
@@ -282,6 +297,11 @@ class SteppedSpiralTomography(Radiography):
             self.assertAlmostEqual(radio[0, 0], tomo_position.to(q.deg).magnitude, delta=1e-4)
             self.assertAlmostEqual(radio[0, 2], vertical_position.to(q.mm).magnitude, delta=1e-4)
 
+    async def test_finish_states(self):
+        await super().test_finish_states()
+        self.assertEqual(await self.tomo_motor.get_state(), "standby")
+        self.assertEqual(await self.vertical_motor.get_state(), "standby")
+
 
 @slow
 class ContinuousSpiralTomography(Radiography):
@@ -318,6 +338,10 @@ class ContinuousSpiralTomography(Radiography):
             self.assertAlmostEqual(radio[1, 2], vertical_velocity.to(q.mm / q.s).magnitude,
                                    delta=1e-4)
 
+    async def test_finish_states(self):
+        await super().test_finish_states()
+        self.assertEqual(await self.tomo_motor.get_state(), "standby")
+        self.assertEqual(await self.vertical_motor.get_state(), "standby")
 
 @slow
 class TestXRayTubeRadiography(Radiography, TestCase):

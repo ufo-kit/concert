@@ -7,6 +7,7 @@ import asyncio
 import logging
 import os
 import time
+from concert.coroutines.base import background, broadcast, wait_until
 import json
 
 import concert.devices.base
@@ -122,6 +123,7 @@ class Experiment(Parameterizable):
 
     async def __ainit__(self, acquisitions, walker=None, separate_scans=True,
                         name_fmt='scan_{:>04}'):
+        self._stop = False
         self._acquisitions = []
         for acquisition in acquisitions:
             self.add(acquisition)
@@ -248,7 +250,7 @@ class Experiment(Parameterizable):
         unlike :meth:`~.Experiment.run`.
         """
         for acq in wrap_iterable(self._acquisitions):
-            if await self.get_state() != 'running':
+            if await self.get_state() != 'running' or self._stop:
                 break
             await acq()
 
@@ -263,6 +265,7 @@ class Experiment(Parameterizable):
 
     @background
     async def _run(self):
+        self._stop = False
         self.ready_to_prepare_next_sample.clear()
         start_time = time.time()
         handler = None
@@ -317,6 +320,20 @@ class Experiment(Parameterizable):
                     handler.close()
                     self.log.removeHandler(handler)
                 await self.set_iteration(iteration + 1)
+
+    @background
+    async def stop(self):
+        """
+        Stops the experiment. This should be used if the experiment should be stopped as fast as
+        possible but still keeping everything in a defined state. To really stop everything as fast
+        as possible ctrl-k should be used.
+        This function blocks until the experiment is completely stopped.
+        """
+        self._stop = True
+        LOG.info("Experiment stopped.")
+
+        if self._run_awaitable:
+            await self._run_awaitable
 
 
 class AcquisitionError(Exception):
