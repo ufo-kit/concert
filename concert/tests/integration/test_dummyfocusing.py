@@ -10,11 +10,11 @@ from concert.optimization import optimize_parameter
 
 class TestDummyFocusingWithSoftLimits(TestCase):
 
-    def setUp(self):
-        super(TestDummyFocusingWithSoftLimits, self).setUp()
-        self.motor = LinearMotor(position=50 * q.mm)
-        self.motor['position'].lower = 25 * q.mm
-        self.motor['position'].upper = 75 * q.mm
+    async def asyncSetUp(self):
+        await super(TestDummyFocusingWithSoftLimits, self).asyncSetUp()
+        self.motor = await LinearMotor(position=50 * q.mm)
+        await self.motor['position'].set_lower(25 * q.mm)
+        await self.motor['position'].set_upper(75 * q.mm)
         self.halver_kwargs = {"initial_step": 10 * q.mm,
                               "max_iterations": 1000}
 
@@ -39,10 +39,10 @@ class TestDummyFocusingWithSoftLimits(TestCase):
 
 class TestDummyFocusing(TestCase):
 
-    def setUp(self):
-        super(TestDummyFocusing, self).setUp()
-        self.motor = LinearMotor(upper_hard_limit=2000 * q.mm, lower_hard_limit=-2000 * q.mm)
-        self.motor.position = 0 * q.mm
+    async def asyncSetUp(self):
+        await super(TestDummyFocusing, self).asyncSetUp()
+        self.motor = await LinearMotor(upper_hard_limit=2000 * q.mm, lower_hard_limit=-2000 * q.mm)
+        await self.motor.set_position(0 * q.mm)
         self.feedback = DummyGradientMeasure(self.motor['position'],
                                              18.75 * q.mm, negative=True)
         self.epsilon = 1 * q.um

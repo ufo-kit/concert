@@ -10,12 +10,13 @@ from concert.devices.cameras.dummy import Camera
 
 class TestExpects(TestCase):
 
-    def setUp(self):
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
         self.seq = list(range(10))
-        self.camera = Camera()
-        self.linear_motor = LinearMotor()
-        self.linear_motor2 = LinearMotor()
-        self.rotation_motor = RotationMotor()
+        self.camera = await Camera()
+        self.linear_motor = await LinearMotor()
+        self.linear_motor2 = await LinearMotor()
+        self.rotation_motor = await RotationMotor()
 
     async def test_focus_func_arguments_type_error(self):
         with self.assertRaises(TypeError):

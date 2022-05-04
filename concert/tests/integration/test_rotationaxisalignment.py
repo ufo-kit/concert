@@ -9,19 +9,19 @@ from concert.tests.util.rotationaxis import SimulationCamera
 
 class TestDummyAlignment(TestCase):
 
-    def setUp(self):
-        super(TestDummyAlignment, self).setUp()
-        self.x_motor = ContinuousRotationMotor()
-        self.y_motor = ContinuousRotationMotor()
-        self.z_motor = ContinuousRotationMotor()
+    async def asyncSetUp(self):
+        await super(TestDummyAlignment, self).asyncSetUp()
+        self.x_motor = await ContinuousRotationMotor()
+        self.y_motor = await ContinuousRotationMotor()
+        self.z_motor = await ContinuousRotationMotor()
 
-        self.x_motor.position = 0 * q.deg
-        self.y_motor.position = 0 * q.deg
-        self.z_motor.position = 0 * q.deg
+        await self.x_motor.set_position(0 * q.deg)
+        await self.y_motor.set_position(0 * q.deg)
+        await self.z_motor.set_position(0 * q.deg)
 
-        self.camera = SimulationCamera(128, self.x_motor["position"],
-                                       self.y_motor["position"],
-                                       self.z_motor["position"])
+        self.camera = await SimulationCamera(128, self.x_motor["position"],
+                                             self.y_motor["position"],
+                                             self.z_motor["position"])
 
         # Allow 1 px misalignment in y-direction.
         self.eps = np.arctan(2 / self.camera.rotation_radius) * q.rad

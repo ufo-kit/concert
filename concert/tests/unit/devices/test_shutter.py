@@ -4,9 +4,9 @@ from concert.tests import TestCase
 
 class TestDummyShutter(TestCase):
 
-    def setUp(self):
-        super(TestDummyShutter, self).setUp()
-        self.shutter = DummyShutter()
+    async def asyncSetUp(self):
+        await super(TestDummyShutter, self).asyncSetUp()
+        self.shutter = await DummyShutter()
 
     async def test_open(self):
         self.assertEqual(await self.shutter.get_state(), 'open')

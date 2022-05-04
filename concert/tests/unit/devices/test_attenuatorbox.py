@@ -4,9 +4,9 @@ from concert.tests import TestCase
 
 class TestAttenuatorBox(TestCase):
 
-    def setUp(self):
-        super(TestAttenuatorBox, self).setUp()
-        self.attenuatorBox = AttenuatorBox()
+    async def asyncSetUp(self):
+        await super(TestAttenuatorBox, self).asyncSetUp()
+        self.attenuatorBox = await AttenuatorBox()
 
     def test_set_attenuator(self):
         material0 = None

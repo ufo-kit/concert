@@ -6,9 +6,9 @@ from concert.tests import TestCase, assert_almost_equal
 
 class TestMotor(TestCase):
 
-    def setUp(self):
-        super(TestMotor, self).setUp()
-        self.motor = LinearMotor()
+    async def asyncSetUp(self):
+        await super(TestMotor, self).asyncSetUp()
+        self.motor = await LinearMotor()
 
     def test_set_position(self):
         position = 1 * q.mm
@@ -25,9 +25,9 @@ class TestMotor(TestCase):
 
 class TestContinuousLinearMotor(TestCase):
 
-    def setUp(self):
-        super(TestContinuousLinearMotor, self).setUp()
-        self.motor = ContinuousLinearMotor()
+    async def asyncSetUp(self):
+        await super(TestContinuousLinearMotor, self).asyncSetUp()
+        self.motor = await ContinuousLinearMotor()
 
     def test_set_position(self):
         position = 1 * q.mm
@@ -45,9 +45,9 @@ class TestContinuousLinearMotor(TestCase):
 
 class TestRotationMotor(TestCase):
 
-    def setUp(self):
-        super(TestRotationMotor, self).setUp()
-        self.motor = RotationMotor()
+    async def asyncSetUp(self):
+        await super(TestRotationMotor, self).asyncSetUp()
+        self.motor = await RotationMotor()
 
     def test_set_position(self):
         position = 1 * q.deg
@@ -66,9 +66,9 @@ class TestRotationMotor(TestCase):
 
 class TestContinuousRotationMotor(TestCase):
 
-    def setUp(self):
-        super(TestContinuousRotationMotor, self).setUp()
-        self.motor = ContinuousRotationMotor()
+    async def asyncSetUp(self):
+        await super(TestContinuousRotationMotor, self).asyncSetUp()
+        self.motor = await ContinuousRotationMotor()
 
     def test_set_position(self):
         position = 1 * q.deg

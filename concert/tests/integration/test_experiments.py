@@ -43,9 +43,9 @@ class DummyAddon(Addon):
 
 
 class ExperimentSimple(Experiment):
-    def __init__(self, walker):
-        acq = Acquisition("test", self._run_test_acq)
-        super(ExperimentSimple, self).__init__([acq], walker)
+    async def __ainit__(self, walker):
+        acq = await Acquisition("test", self._run_test_acq)
+        await super(ExperimentSimple, self).__ainit__([acq], walker)
 
     async def _run_test_acq(self):
         for i in range(10):
@@ -54,9 +54,9 @@ class ExperimentSimple(Experiment):
 
 
 class ExperimentException(Experiment):
-    def __init__(self, walker):
-        acq = Acquisition("test", self._run_test_acq)
-        super(ExperimentException, self).__init__([acq], walker)
+    async def __ainit__(self, walker):
+        acq = await Acquisition("test", self._run_test_acq)
+        await super(ExperimentException, self).__ainit__([acq], walker)
 
     async def _run_test_acq(self):
         for i in range(2):
@@ -89,17 +89,18 @@ class TestImagingFunctions(TestCase):
 
     async def test_frames(self):
         acc = Accumulate()
-        await acc(frames(5, Camera()))
+        await acc(frames(5, await Camera()))
         assert len(acc.items) == 5
 
 
 class TestAcquisition(TestCase):
 
-    def setUp(self):
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
         self.acquired = False
         self.item = None
-        self.acquisition = Acquisition('foo', self.produce, consumers=[self.consume],
-                                       acquire=self.acquire)
+        self.acquisition = await Acquisition('foo', self.produce, consumers=[self.consume],
+                                             acquire=self.acquire)
 
     async def test_run(self):
         await self.acquisition()
@@ -119,16 +120,16 @@ class TestAcquisition(TestCase):
 
 class TestExperimentBase(TestCase):
 
-    def setUp(self):
-        super(TestExperimentBase, self).setUp()
+    async def asyncSetUp(self):
+        await super(TestExperimentBase, self).asyncSetUp()
         self.acquired = 0
         self.root = ''
         self.walker = DummyWalker(root=self.root)
         self.name_fmt = 'scan_{:>04}'
         self.visited = 0
-        self.foo = Acquisition("foo", self.produce, consumers=[self.consume],
-                               acquire=self.acquire)
-        self.bar = Acquisition("bar", self.produce, acquire=self.acquire)
+        self.foo = await Acquisition("foo", self.produce, consumers=[self.consume],
+                                     acquire=self.acquire)
+        self.bar = await Acquisition("bar", self.produce, acquire=self.acquire)
         self.acquisitions = [self.foo, self.bar]
         self.num_produce = 2
         self.item = None
@@ -148,9 +149,9 @@ class TestExperimentBase(TestCase):
 
 class TestExperiment(TestExperimentBase):
 
-    def setUp(self):
-        super(TestExperiment, self).setUp()
-        self.experiment = Experiment(self.acquisitions, self.walker, name_fmt=self.name_fmt)
+    async def asyncSetUp(self):
+        await super(TestExperiment, self).asyncSetUp()
+        self.experiment = await Experiment(self.acquisitions, self.walker, name_fmt=self.name_fmt)
         self.visit_checker = VisitChecker()
 
     async def test_run(self):
@@ -258,7 +259,7 @@ class TestExperimentStates(TestCase):
         self.walker = DirectoryWalker(root=self.data_dir)
 
     async def test_experiment_state_normal(self):
-        exp = ExperimentSimple(self.walker)
+        exp = await ExperimentSimple(self.walker)
         self.assertEqual(await exp.get_state(), "standby")
         exp_handle = start(exp.run())
         await asyncio.sleep(0.2)
@@ -273,7 +274,7 @@ class TestExperimentStates(TestCase):
         self.assertEqual(await exp.get_state(), "standby")
 
     async def test_experiment_exception(self):
-        exp = ExperimentException(self.walker)
+        exp = await ExperimentException(self.walker)
         self.assertEqual(await exp.get_state(), "standby")
         with self.assertRaises(Exception):
             await exp.run()

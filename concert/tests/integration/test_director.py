@@ -20,9 +20,10 @@ class Experiment(BaseExperiment):
     Simple Experiment for tests, that produces one random image (100 x 100) within a acquisition
     *test*.
     """
-    def __init__(self, walker, separate_scans):
-        acquisition = Acquisition("test", self._frame_producer)
-        super().__init__(acquisitions=[acquisition], walker=walker, separate_scans=separate_scans)
+    async def __ainit__(self, walker, separate_scans):
+        acquisition = await Acquisition("test", self._frame_producer)
+        await super().__ainit__(acquisitions=[acquisition], walker=walker,
+                                separate_scans=separate_scans)
 
     async def _frame_producer(self):
         yield np.random.random((100, 100))
@@ -41,8 +42,8 @@ class EarlyReadyExperiment(Experiment):
     An experiment, that sets the ready_to_prepare_next_sample and then waits for two seconds within
     the acquisition.
     """
-    def __init__(self, walker, separate_scans, set_ready):
-        super().__init__(walker, separate_scans)
+    async def __ainit__(self, walker, separate_scans, set_ready):
+        await super().__ainit__(walker, separate_scans)
         self._set_ready = set_ready
         self.ready_time = {}
         self.acq_finished_time = {}
@@ -61,8 +62,8 @@ class TimeLoggingDirector(BaseDirector):
     Director with two (identical) iterations.
     The _prepare_run() stores the time when it is called.
     """
-    def __init__(self, experiment):
-        super().__init__(experiment=experiment)
+    async def __ainit__(self, experiment):
+        await super().__ainit__(experiment=experiment)
         self.preparation_time = {}
 
     async def _get_number_of_iterations(self) -> int:
@@ -84,17 +85,13 @@ class TestCase(BaseTestCase):
     def tearDown(self) -> None:
         shutil.rmtree(self._data_dir)
 
-    async def asyncSetUp(self) -> None:
-        await self.director.run()
-
 
 @slow
 class DirectorTest(TestCase):
-    def setUp(self):
-        super().setUp()
-        self.experiment = Experiment(walker=self.walker,
-                                     separate_scans=False)
-        self.director = Director(experiment=self.experiment, num_iterations=5)
+    async def asyncSetUp(self):
+        self.experiment = await Experiment(walker=self.walker, separate_scans=False)
+        self.director = await Director(experiment=self.experiment, num_iterations=5)
+        await self.director.run()
 
     async def test_final_state(self):
         self.assertEqual(await self.director.get_state(), "standby")
@@ -103,31 +100,27 @@ class DirectorTest(TestCase):
 
 @slow
 class DirectorTestBrokenExperiment(TestCase):
-    def setUp(self):
-        super().setUp()
-        self.experiment = BrokenExperiment(walker=self.walker,
-                                           separate_scans=False)
-        self.director = Director(experiment=self.experiment, num_iterations=5)
+    async def asyncSetUp(self):
+        self.experiment = await BrokenExperiment(walker=self.walker, separate_scans=False)
+        self.director = await Director(experiment=self.experiment, num_iterations=5)
 
-    async def asyncSetUp(self) -> None:
+    async def test_final_state(self):
         try:
             # This whill cause an expected exception
             await self.director.run()
         except Exception as e:
             LOG.info(e)
-
-    async def test_final_state(self):
         self.assertEqual(await self.director.get_state(), "error")
 
 
 @slow
 class EarlyFinishExperiment(TestCase):
-    def setUp(self):
-        super().setUp()
-        self.experiment = EarlyReadyExperiment(walker=self.walker,
-                                               separate_scans=False,
-                                               set_ready=True)
-        self.director = TimeLoggingDirector(experiment=self.experiment)
+    async def asyncSetUp(self):
+        self.experiment = await EarlyReadyExperiment(walker=self.walker,
+                                                     separate_scans=False,
+                                                     set_ready=True)
+        self.director = await TimeLoggingDirector(experiment=self.experiment)
+        await self.director.run()
 
     async def test_early_prepare_time(self):
         """
@@ -141,12 +134,12 @@ class EarlyFinishExperiment(TestCase):
 
 @slow
 class NotEarlyFinishExperiment(TestCase):
-    def setUp(self):
-        super().setUp()
-        self.experiment = EarlyReadyExperiment(walker=self.walker,
-                                               separate_scans=False,
-                                               set_ready=False)
-        self.director = TimeLoggingDirector(experiment=self.experiment)
+    async def asyncSetUp(self):
+        self.experiment = await EarlyReadyExperiment(walker=self.walker,
+                                                     separate_scans=False,
+                                                     set_ready=False)
+        self.director = await TimeLoggingDirector(experiment=self.experiment)
+        await self.director.run()
 
     async def test_prepare_time(self):
         """

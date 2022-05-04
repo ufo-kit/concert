@@ -5,8 +5,8 @@ from concert.tests import TestCase
 
 class TestGripper(TestCase):
 
-    def setUp(self):
-        self.gripper = Gripper()
+    async def asyncSetUp(self):
+        self.gripper = await Gripper()
 
     async def test_grip(self):
         if await self.gripper.get_state() != 'released':

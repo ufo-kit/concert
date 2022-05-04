@@ -4,9 +4,9 @@ from concert.tests import TestCase
 
 class TestSampleChanger(TestCase):
 
-    def setUp(self):
-        super(TestSampleChanger, self).setUp()
-        self.samplechanger = SampleChanger()
+    async def asyncSetUp(self):
+        await super(TestSampleChanger, self).asyncSetUp()
+        self.samplechanger = await SampleChanger()
 
     def test_set_sample(self):
         self.samplechanger.sample = None

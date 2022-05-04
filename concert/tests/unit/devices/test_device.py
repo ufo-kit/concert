@@ -16,8 +16,8 @@ class MockDevice(Device):
     readonly = Parameter()
     writeonly = Parameter()
 
-    def __init__(self):
-        super(MockDevice, self).__init__()
+    async def __ainit__(self):
+        await super(MockDevice, self).__ainit__()
         self.aborted = False
 
     async def _get_readonly(self):
@@ -32,20 +32,20 @@ class MockDevice(Device):
 
 class TestDevice(TestCase):
 
-    def setUp(self):
-        super(TestDevice, self).setUp()
-        self.device = MockDevice()
+    async def asyncSetUp(self):
+        await super(TestDevice, self).asyncSetUp()
+        self.device = await MockDevice()
 
-    def test_dummies(self):
-        Scales()
-        TarableScales()
-        Pump()
-        IO()
-        Monochromator()
-        Shutter()
-        StorageRing()
-        PhotoDiode()
-        LightSource()
+    async def test_dummies(self):
+        await Scales()
+        await TarableScales()
+        await Pump()
+        await IO()
+        await Monochromator()
+        await Shutter()
+        await StorageRing()
+        await PhotoDiode()
+        await LightSource()
 
     async def test_accessor_functions(self):
         self.assertEqual(await self.device.get_readonly(), 1)

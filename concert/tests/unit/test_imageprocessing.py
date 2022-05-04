@@ -67,21 +67,21 @@ def test_rescale():
 @slow
 class TestSphereSegmentation(TestCase):
 
-    def setUp(self):
-        super(TestSphereSegmentation, self).setUp()
-        self.x_motor = ContinuousRotationMotor()
-        self.y_motor = ContinuousRotationMotor()
-        self.z_motor = ContinuousRotationMotor()
+    async def asyncSetUp(self):
+        await super(TestSphereSegmentation, self).asyncSetUp()
+        self.x_motor = await ContinuousRotationMotor()
+        self.y_motor = await ContinuousRotationMotor()
+        self.z_motor = await ContinuousRotationMotor()
 
-        self.x_motor.position = 13 * q.deg
-        self.y_motor.position = 0 * q.deg
-        self.z_motor.position = -7 * q.deg
+        await self.x_motor.set_position(13 * q.deg)
+        await self.y_motor.set_position(0 * q.deg)
+        await self.z_motor.set_position(-7 * q.deg)
 
-        self.camera = SimulationCamera(128, self.x_motor["position"],
-                                       self.y_motor["position"],
-                                       self.z_motor["position"],
-                                       scales=(0.5, 0.5, 0.5),
-                                       y_position=0)
+        self.camera = await SimulationCamera(128, self.x_motor["position"],
+                                             self.y_motor["position"],
+                                             self.z_motor["position"],
+                                             scales=(0.5, 0.5, 0.5),
+                                             y_position=0)
 
     async def acquire_frames(self, num_frames=10):
         da = 360 * q.degree / num_frames

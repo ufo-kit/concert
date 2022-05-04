@@ -9,8 +9,8 @@ FOCUS_POSITION = 35 * q.mm
 
 class BlurringCamera(DummyCameraBase):
 
-    def __init__(self, motor):
-        super(BlurringCamera, self).__init__()
+    async def __ainit__(self, motor):
+        await super(BlurringCamera, self).__ainit__()
         self._original = scipy.misc.ascent()
         self.motor = motor
 

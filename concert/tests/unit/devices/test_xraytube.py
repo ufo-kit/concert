@@ -6,8 +6,8 @@ from concert.tests import TestCase
 
 class TestXrayTube(TestCase):
 
-    def setUp(self):
-        self.tube = XRayTube()
+    async def asyncSetUp(self):
+        self.tube = await XRayTube()
 
     async def test_on(self):
         if await self.tube.get_state() != 'off':

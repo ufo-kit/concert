@@ -3,9 +3,9 @@ from concert.devices.detectors.dummy import Detector
 
 
 class TestDetector(TestCase):
-    def setUp(self):
-        super(TestDetector, self).setUp()
-        self.detector = Detector()
+    async def asyncSetUp(self):
+        await super(TestDetector, self).asyncSetUp()
+        self.detector = await Detector()
 
     def test_pixel_size(self):
         pixel_width = self.detector.camera.sensor_pixel_width
