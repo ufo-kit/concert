@@ -41,8 +41,9 @@ class ImagingExperiment(Experiment):
         Data type of the generated images (default: unsigned short)
     """
 
-    def __init__(self, num_darks, num_flats, num_radios, shape=(1024, 1024), walker=None,
-                 random=False, dtype=np.ushort, separate_scans=True, name_fmt='scan_{:>04}'):
+    async def __ainit__(self, num_darks, num_flats, num_radios, shape=(1024, 1024), walker=None,
+                        random=False, dtype=np.ushort, separate_scans=True,
+                        name_fmt='scan_{:>04}'):
         self.num_darks = num_darks
         self.num_flats = num_flats
         self.num_radios = num_radios
@@ -51,10 +52,10 @@ class ImagingExperiment(Experiment):
             raise ValueError("random must be one of 'off', 'single', 'multi'")
         self.random = random
         self.dtype = dtype
-        darks = Acquisition('darks', self.take_darks)
-        flats = Acquisition('flats', self.take_flats)
-        radios = Acquisition('radios', self.take_radios)
-        super(ImagingExperiment, self).__init__([darks, flats, radios], walker=walker)
+        darks = await Acquisition('darks', self.take_darks)
+        flats = await Acquisition('flats', self.take_flats)
+        radios = await Acquisition('radios', self.take_radios)
+        await super(ImagingExperiment, self).__ainit__([darks, flats, radios], walker=walker)
 
     async def _produce_images(self, num, mean=128, std=10):
         def make_random_image():
@@ -134,10 +135,10 @@ class ImagingFileExperiment(Experiment):
         Number of read rows
     """
 
-    def __init__(self, directory, num_darks, num_flats, num_radios, darks_pattern='darks',
-                 flats_pattern='flats', radios_pattern='projections', roi_x0=None, roi_width=None,
-                 roi_y0=None, roi_height=None, walker=None, separate_scans=True,
-                 name_fmt='scan_{:>04}'):
+    async def __ainit__(self, directory, num_darks, num_flats, num_radios, darks_pattern='darks',
+                        flats_pattern='flats', radios_pattern='projections', roi_x0=None,
+                        roi_width=None, roi_y0=None, roi_height=None, walker=None,
+                        separate_scans=True, name_fmt='scan_{:>04}'):
         self.directory = directory
         self.num_darks = num_darks
         self.num_flats = num_flats
@@ -149,10 +150,10 @@ class ImagingFileExperiment(Experiment):
         self.roi_width = roi_width
         self.roi_y0 = roi_y0
         self.roi_height = roi_height
-        darks = Acquisition('darks', self.take_darks)
-        flats = Acquisition('flats', self.take_flats)
-        radios = Acquisition('radios', self.take_radios)
-        super(ImagingFileExperiment, self).__init__([darks, flats, radios], walker=walker)
+        darks = await Acquisition('darks', self.take_darks)
+        flats = await Acquisition('flats', self.take_flats)
+        radios = await Acquisition('radios', self.take_radios)
+        await super(ImagingFileExperiment, self).__ainit__([darks, flats, radios], walker=walker)
 
     async def _produce_images(self, pattern, num):
         camera = FileCamera(os.path.join(self.directory, pattern))

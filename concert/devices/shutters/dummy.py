@@ -7,8 +7,8 @@ class Shutter(base.Shutter):
 
     """A dummy shutter that can be opened and closed."""
 
-    def __init__(self):
-        super(Shutter, self).__init__()
+    async def __ainit__(self):
+        await super(Shutter, self).__ainit__()
 
     @transition(target='open')
     async def _open(self):

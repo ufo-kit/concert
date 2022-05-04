@@ -40,7 +40,7 @@ class Acquisition(Parameterizable):
     """
     state = State(default='standby')
 
-    def __init__(self, name, producer, consumers=None, acquire=None):
+    async def __ainit__(self, name, producer, consumers=None, acquire=None):
         self.name = name
         self.producer = producer
         self.consumers = [] if consumers is None else consumers
@@ -48,7 +48,7 @@ class Acquisition(Parameterizable):
         if acquire and not asyncio.iscoroutinefunction(acquire):
             raise TypeError('acquire must be a coroutine function')
         self.acquire = acquire
-        Parameterizable.__init__(self)
+        await Parameterizable.__ainit__(self)
 
     @background
     @check(source=['standby', 'error'], target='standby')
@@ -112,7 +112,8 @@ class Experiment(Parameterizable):
     state = State(default='standby')
     log_level = Selection(['critical', 'error', 'warning', 'info', 'debug'])
 
-    def __init__(self, acquisitions, walker=None, separate_scans=True, name_fmt='scan_{:>04}'):
+    async def __ainit__(self, acquisitions, walker=None, separate_scans=True,
+                        name_fmt='scan_{:>04}'):
         self._acquisitions = []
         for acquisition in acquisitions:
             self.add(acquisition)
@@ -123,7 +124,7 @@ class Experiment(Parameterizable):
         self.log = LOG
         self._devices_to_log = {}
         self.ready_to_prepare_next_sample = asyncio.Event()
-        Parameterizable.__init__(self)
+        await Parameterizable.__ainit__(self)
 
         if separate_scans and walker:
             # The data is not supposed to be overwritten, so find an iteration which

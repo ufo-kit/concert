@@ -7,10 +7,10 @@ class Detector(base.Detector):
 
     """A dummy detector."""
 
-    def __init__(self, camera=None, magnification=None):
-        self._camera = Camera() if camera is None else camera
+    async def __ainit__(self, camera=None, magnification=None):
+        self._camera = await Camera() if camera is None else camera
         self._magnification = 3 if magnification is None else magnification
-        super(Detector, self).__init__()
+        await super(Detector, self).__ainit__()
 
     @property
     def camera(self):

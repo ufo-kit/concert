@@ -18,7 +18,8 @@ class XYScan(Director):
     x_num = Parameter()
     y_num = Parameter()
 
-    def __init__(self, experiment, x_motor, y_motor, x_min, x_max, x_step, y_min, y_max, y_step):
+    async def __ainit__(self, experiment, x_motor, y_motor, x_min, x_max, x_step,
+                        y_min, y_max, y_step):
         """
         :param experiment: Experiment that is run. If the experiment features a
             'ready_to_prepare_next_sample' event (asyncio.Event) this will be waited within the
@@ -51,7 +52,7 @@ class XYScan(Director):
         self._y_min = None
         self._y_max = None
         self._y_step = None
-        super().__init__(experiment)
+        await super().__ainit__(experiment)
         self._x_motor = x_motor
         self._y_motor = y_motor
         self.x_min = x_min

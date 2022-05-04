@@ -9,8 +9,8 @@ class SampleChanger(Device):
 
     """ A device that moves samples in and out from the sample holder."""
 
-    def __init__(self):
-        super(SampleChanger, self).__init__()
+    async def __ainit__(self):
+        await super(SampleChanger, self).__ainit__()
 
     async def _set_sample(self):
         raise AccessorNotImplementedError

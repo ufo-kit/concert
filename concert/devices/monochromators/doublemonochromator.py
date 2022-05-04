@@ -15,7 +15,7 @@ class Monochromator(BaseMonochromator):
     """
     Base implementation of a monochromator with the ability to scan a second crystal/multilayer.
     """
-    def __init__(self, motor_2):
+    async def __ainit__(self, motor_2):
         """
         :param motor_2: Motor controlling the tilt of the second crystal or multilayer
         :type motor_2: concert.devices.motors.base.RotationMotor
@@ -23,7 +23,7 @@ class Monochromator(BaseMonochromator):
         self._last_scan_angles = None
         self._last_scan_counts = None
         self._motor_2 = motor_2
-        super().__init__()
+        await super().__ainit__()
 
     @background
     @check(source='standby', target='standby')

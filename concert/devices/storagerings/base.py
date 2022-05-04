@@ -24,8 +24,8 @@ class StorageRing(Device):
     energy = Quantity(q.MeV, help="Energy")
     lifetime = Quantity(q.hour, help="Expected lifetime")
 
-    def __init__(self):
-        super(StorageRing, self).__init__()
+    async def __ainit__(self):
+        await super(StorageRing, self).__ainit__()
 
     async def _get_current(self):
         raise AccessorNotImplementedError

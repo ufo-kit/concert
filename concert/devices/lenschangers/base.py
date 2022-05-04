@@ -12,8 +12,8 @@ class LensChanger(Device):
     '''Lens changer base class.'''
     state = State(default='standby')
 
-    def __init__(self):
-        super(LensChanger, self).__init__()
+    async def __ainit__(self):
+        await super(LensChanger, self).__ainit__()
 
     async def _set_objective(self, objective):
         raise AccessorNotImplementedError

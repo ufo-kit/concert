@@ -1142,7 +1142,7 @@ class AsyncObject(metaclass=AsyncType):
         pass
 
 
-class Parameterizable(object):
+class Parameterizable(AsyncObject):
 
     """
     Collection of parameters.
@@ -1179,7 +1179,7 @@ class Parameterizable(object):
         print param.position
     """
 
-    def __init__(self):
+    async def __ainit__(self):
         if not hasattr(self, '_params'):
             self._params = {}
 

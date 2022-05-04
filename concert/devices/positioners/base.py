@@ -48,7 +48,7 @@ import asyncio
 import numpy as np
 from concert.coroutines.base import background
 from concert.quantities import q
-from concert.base import Quantity
+from concert.base import AsyncObject, Quantity
 from concert.devices.base import Device
 from concert.devices.motors.base import LinearMotor
 
@@ -56,7 +56,7 @@ from concert.devices.motors.base import LinearMotor
 INF_VECTOR = np.array((np.inf, np.inf, np.inf))
 
 
-class Axis(object):
+class Axis(AsyncObject):
     """
     An axis represents a Euclidean axis along which one can translate or
     around which one can rotate. The axis *coordinate* is a string representing
@@ -66,7 +66,7 @@ class Axis(object):
     position with respect to a :class:`concert.devices.positioners.base.Positioner`
     in which it is placed.
     """
-    def __init__(self, coordinate, motor, direction=1, position=None):
+    async def __ainit__(self, coordinate, motor, direction=1, position=None):
         self.coordinate = coordinate
         self.motor = motor
         self.direction = direction
@@ -103,8 +103,8 @@ class Positioner(Device):
     orientation = Quantity(q.rad, help="Orientation of the coordinate system",
                            lower=-INF_VECTOR * q.rad, upper=INF_VECTOR * q.rad)
 
-    def __init__(self, axes, position=None):
-        super(Positioner, self).__init__()
+    async def __ainit__(self, axes, position=None):
+        await super(Positioner, self).__ainit__()
         self.translators = {}
         self.rotators = {}
         self.global_position = None

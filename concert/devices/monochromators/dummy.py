@@ -9,8 +9,8 @@ class Monochromator(base.Monochromator):
 
     """Monochromator class implementation."""
 
-    def __init__(self):
-        super(Monochromator, self).__init__()
+    async def __ainit__(self):
+        await super(Monochromator, self).__ainit__()
         self._energy = 100 * q.keV
 
     async def _get_energy_real(self):
@@ -25,10 +25,10 @@ class DoubleMonochromator(doublemonochromator.Monochromator):
     Double monochromator implementation
     """
 
-    def __init__(self):
-        dummy_motor = RotationMotor()
-        dummy_motor.position = 0 * q.deg
-        super().__init__(dummy_motor)
+    async def __ainit__(self):
+        dummy_motor = await RotationMotor()
+        await dummy_motor.set_position(0 * q.deg)
+        await super().__ainit__(dummy_motor)
         self._energy = 100 * q.keV
 
     async def _get_energy_real(self):

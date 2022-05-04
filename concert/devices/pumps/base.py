@@ -13,8 +13,8 @@ class Pump(Device):
     state = State(default='standby')
     flow_rate = Quantity(q.l / q.s, help="Flow rate")
 
-    def __init__(self):
-        super(Pump, self).__init__()
+    async def __ainit__(self):
+        await super(Pump, self).__ainit__()
 
     @background
     @check(source='standby', target='pumping')

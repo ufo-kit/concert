@@ -7,8 +7,8 @@ class IO(base.IO):
 
     """Dummy I/O device implementation."""
 
-    def __init__(self, port_value=0):
-        super(IO, self).__init__()
+    async def __ainit__(self, port_value=0):
+        await super(IO, self).__ainit__()
         self._ports = {0: port_value}
 
     async def _read_port(self, port):

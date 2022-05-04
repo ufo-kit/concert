@@ -14,8 +14,8 @@ class ElementSelector(Device):
 
     state = State(default='standby')
 
-    def __init__(self):
-        super().__init__()
+    async def __ainit__(self):
+        await super().__ainit__()
 
     async def _set_element(self, element):
         raise AccessorNotImplementedError

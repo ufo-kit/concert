@@ -19,8 +19,8 @@ class Base(base.Camera):
     roi_width = Quantity(q.pixel)
     roi_height = Quantity(q.pixel)
 
-    def __init__(self):
-        super(Base, self).__init__()
+    async def __ainit__(self):
+        await super(Base, self).__ainit__()
         self._frame_rate = 1000 / q.s
         self._trigger_source = self.trigger_sources.AUTO
         self._exposure_time = 1 * q.ms
@@ -93,14 +93,14 @@ class Camera(Base):
 
     """A simple dummy camera."""
 
-    def __init__(self, background=None, simulate=True):
+    async def __ainit__(self, background=None, simulate=True):
         """
         *background* can be an array-like that will be used to generate the frame when calling
         :meth:`.grab`. If *simulate* is True the final image intensity will be scaled based on
         exposure time and poisson noise will be added. If *simulate* is False, the background will
         be returned with no modifications to it.
         """
-        super(Camera, self).__init__()
+        await super(Camera, self).__ainit__()
         self.simulate = simulate
 
         if background is not None:
@@ -141,9 +141,9 @@ class FileCamera(Base):
     multi-page).
     """
 
-    def __init__(self, pattern, reset_on_start=True, start_index=0):
+    async def __ainit__(self, pattern, reset_on_start=True, start_index=0):
         # Let users change the directory
-        super(FileCamera, self).__init__()
+        await super(FileCamera, self).__ainit__()
         self._reader = TiffSequenceReader(pattern)
         self.index = start_index
         self.reset_on_start = reset_on_start

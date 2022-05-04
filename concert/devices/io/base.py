@@ -60,8 +60,8 @@ class IO(Device):
     both.
     """
 
-    def __init__(self):
-        super(IO, self).__init__()
+    async def __ainit__(self):
+        await super(IO, self).__ainit__()
         self._ports = []
 
     @property
