@@ -12,6 +12,9 @@ from concert.quantities import q
 
 
 LOG = logging.getLogger(__name__)
+_RUN_IN_LOOP_ERR_TMPL = "Someone is trying to use `{}' " \
+                        "inside `async def' code which is not allowed, please " \
+                        "use `await {}' instead"
 
 
 def identity(x):
@@ -365,10 +368,22 @@ class Parameter(object):
         return str(self.help)
 
     def __get__(self, instance, owner):
-        return run_in_loop(instance[self.name].get())
+        return run_in_loop(
+            instance[self.name].get(),
+            error_msg_if_running=_RUN_IN_LOOP_ERR_TMPL.format(
+                'obj.param',
+                'obj.get_param()'
+            )
+        )
 
     def __set__(self, instance, value):
-        run_in_loop(instance[self.name].set(value))
+        run_in_loop(
+            instance[self.name].set(value),
+            error_msg_if_running=_RUN_IN_LOOP_ERR_TMPL.format(
+                'obj.param = value',
+                'obj.set_param(value)'
+            )
+        )
 
 
 class State(Parameter):
@@ -523,7 +538,10 @@ class ParameterValue(object):
         return self._parameter.name < other._parameter.name
 
     def __repr__(self):
-        return run_in_loop(self.info_table).get_string()
+        if asyncio.get_event_loop().is_running():
+            return repr(self._parameter)
+        else:
+            return run_in_loop(self.info_table).get_string()
 
     @property
     async def info_table(self):
@@ -560,7 +578,13 @@ class ParameterValue(object):
 
     @property
     def target(self):
-        return run_in_loop(self.get_target())
+        return run_in_loop(
+            self.get_target(),
+            error_msg_if_running=_RUN_IN_LOOP_ERR_TMPL.format(
+                'parameter.target',
+                'parameter.get_target()'
+            )
+        )
 
     @background
     async def get(self, wait_on=None):
@@ -668,7 +692,7 @@ class ParameterValue(object):
         cannot be unlocked anymore.
         """
         def unlock_not_allowed():
-            raise LockError("Parameter `{}' cannot be unlocked".format(self))
+            raise LockError("Parameter `{}' cannot be unlocked".format(self._parameter.name))
 
         self._locked = True
         if permanent:
@@ -741,11 +765,23 @@ class QuantityValue(ParameterValue):
 
     @property
     def lower(self):
-        return run_in_loop(self.get_lower())
+        return run_in_loop(
+            self.get_lower(),
+            error_msg_if_running=_RUN_IN_LOOP_ERR_TMPL.format(
+                'quantity.lower',
+                'quantity.get_lower()'
+            )
+        )
 
     @lower.setter
     def lower(self, value):
-        run_in_loop(self.set_lower(value))
+        run_in_loop(
+            self.set_lower(value),
+            error_msg_if_running=_RUN_IN_LOOP_ERR_TMPL.format(
+                'quantity.lower = value',
+                'quantity.set_lower(value)'
+            )
+        )
 
     @background
     async def get_lower(self):
@@ -775,11 +811,23 @@ class QuantityValue(ParameterValue):
 
     @property
     def upper(self):
-        return run_in_loop(self.get_upper())
+        return run_in_loop(
+            self.get_upper(),
+            error_msg_if_running=_RUN_IN_LOOP_ERR_TMPL.format(
+                'quantity.upper',
+                'quantity.get_upper()'
+            )
+        )
 
     @upper.setter
     def upper(self, value):
-        run_in_loop(self.set_upper(value))
+        run_in_loop(
+            self.set_upper(value),
+            error_msg_if_running=_RUN_IN_LOOP_ERR_TMPL.format(
+                'quantity.upper = value',
+                'quantity.set_upper(value)'
+            )
+        )
 
     @background
     async def get_upper(self):
@@ -809,7 +857,13 @@ class QuantityValue(ParameterValue):
 
     @property
     def upper_user(self):
-        return run_in_loop(self.get_upper_user())
+        return run_in_loop(
+            self.get_upper_user(),
+            error_msg_if_running=_RUN_IN_LOOP_ERR_TMPL.format(
+                'quantity.upper_user',
+                'quantity.get_upper_user()'
+            )
+        )
 
     @background
     async def get_upper_user(self):
@@ -820,7 +874,13 @@ class QuantityValue(ParameterValue):
 
     @property
     def lower_user(self):
-        return run_in_loop(self.get_lower_user())
+        return run_in_loop(
+            self.get_lower_user(),
+            error_msg_if_running=_RUN_IN_LOOP_ERR_TMPL.format(
+                'quantity.lower_user',
+                'quantity.get_lower_user()'
+            )
+        )
 
     @background
     async def get_lower_user(self):
@@ -831,7 +891,13 @@ class QuantityValue(ParameterValue):
 
     @property
     def lower_external(self):
-        return run_in_loop(self.get_lower_external())
+        return run_in_loop(
+            self.get_lower_external(),
+            error_msg_if_running=_RUN_IN_LOOP_ERR_TMPL.format(
+                'quantity.lower_external',
+                'quantity.get_lower_external()'
+            )
+        )
 
     @background
     async def get_lower_external(self):
@@ -842,7 +908,13 @@ class QuantityValue(ParameterValue):
 
     @property
     def upper_external(self):
-        return run_in_loop(self.get_upper_external())
+        return run_in_loop(
+            self.get_upper_external(),
+            error_msg_if_running=_RUN_IN_LOOP_ERR_TMPL.format(
+                'quantity.upper_external',
+                'quantity.get_upper_external()'
+            )
+        )
 
     @background
     async def get_upper_external(self):
@@ -1093,10 +1165,16 @@ class Parameterizable(object):
                     self._install_parameter(attr_type)
 
     def __str__(self):
-        return run_in_loop(self.info_table).get_string(sortby="Parameter")
+        if asyncio.get_event_loop().is_running():
+            return super().__str__()
+        else:
+            return run_in_loop(self.info_table).get_string(sortby="Parameter")
 
     def __repr__(self):
-        return '\n'.join([super(Parameterizable, self).__repr__(), str(self)])
+        if asyncio.get_event_loop().is_running():
+            return super().__repr__()
+        else:
+            return '\n'.join([super(Parameterizable, self).__repr__(), str(self)])
 
     def __iter__(self):
         for param in sorted(self._params.values()):

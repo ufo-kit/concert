@@ -21,11 +21,15 @@ async def async_generate(iterable):
         yield item
 
 
-def run_in_loop(coroutine):
+def run_in_loop(coroutine, error_msg_if_running=None):
     """Wrap *coroutine* into a `asyncio.Task`, run it in the current loop, block until it finishes
-    and return the result.  On KeyboardInterrupt, the task is cancelled.
+    and return the result. On KeyboardInterrupt, the task is cancelled. Raise RuntimeError with
+    message *error_msg_if_running* in case the loop is already running, otherwise Python will take
+    care of the error reporting.
     """
     loop = asyncio.get_event_loop()
+    if error_msg_if_running and loop.is_running():
+        raise RuntimeError(error_msg_if_running)
     task = asyncio.ensure_future(coroutine, loop=loop)
 
     try:
