@@ -49,6 +49,9 @@ def _find_object_by_name(instance):
     """Find variable name by *instance*. This is supposed to be used only in the
     :meth:`.Parameter.__set__`.
     """
+    def _is_name_ok(instance_name):
+        return instance_name and instance_name not in ['instance', 'self']
+
     def _find_in_dict(dictionary):
         for (obj_name, obj) in list(dictionary.items()):
             if obj is instance:
@@ -56,9 +59,18 @@ def _find_object_by_name(instance):
 
     instance_name = None
 
+    try:
+        ipython = get_ipython()
+        instance_name = _find_in_dict(ipython.user_ns)
+        if instance_name:
+            return instance_name
+    except NameError:
+        # Not in IPython
+        pass
+
     frames = inspect.stack()
     try:
-        # Skip us and Parameter.__set__
+        # Skip us and ParameterValue.set
         for i in range(2, len(frames)):
             # First look in the globals
             instance_name = _find_in_dict(frames[i][0].f_globals)
@@ -69,11 +81,24 @@ def _find_object_by_name(instance):
             # parameter in a constructor we need to bump index by one. Thus, use blacklist names
             # which won't be picked up because they are most probably used by concert or it's
             # extensions internally.
-            if instance_name and instance_name not in ['instance', 'self']:
+            if _is_name_ok(instance_name):
                 break
     finally:
         # Cleanup as python docs suggest
         del frames
+
+    if not instance_name:
+        # Try coroutines
+        tasks = asyncio.all_tasks(loop=asyncio.get_running_loop())
+        for task in tasks:
+            # Python 3.7 compatibility, later task.get_coro()
+            coro = task._coro
+            while coro:
+                instance_name = _find_in_dict(inspect.getcoroutinelocals(coro))
+                if _is_name_ok(instance_name):
+                    return instance_name
+                # task._coro can be awaiting another coroutine, so let's recurse
+                coro = coro.cr_await if inspect.iscoroutine(coro.cr_await) else None
 
     return instance_name
 
