@@ -244,6 +244,11 @@ The quantities package is already loaded and named ``q``.
 
         Start a session from a file without initializing.
 
+.. note::
+
+    You may use the ``await`` keyword in session files and the sesion will be
+    loaded correctly.
+
 
 docs
 ----

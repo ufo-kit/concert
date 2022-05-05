@@ -44,7 +44,7 @@ An example of an acquisition could look like this::
             # Clean up here
             pass
 
-    acquisition = Acquisition('foo', produce, consumers=[consume])
+    acquisition = await Acquisition('foo', produce, consumers=[consume])
     # Now we can run the acquisition
     await acquisition()
 
@@ -69,8 +69,8 @@ running the acquisition above and storing log with
     LOG = logging.getLogger(__name__)
 
     walker = DirectoryWalker(log=LOG)
-    acquisitions = [Acquisition('foo', produce)]
-    experiment = Experiment(acquisitions, walker)
+    acquisitions = [await Acquisition('foo', produce)]
+    experiment = await Experiment(acquisitions, walker)
 
     await experiment.run()
 
@@ -99,10 +99,10 @@ This is an example implementation making use of this::
 
 	from concert.experiments.base import Experiment, Acquisition
 	class MyExperiment(Experiment):
-		def __init__(self, walker, camera):
+		async def __ainit__(self, walker, camera):
 			acq = Acquisition("acquisition", self._produce_frames)
 			self._camera = camera
-			super().__init__([acq], walker)
+			await super().__ainit__([acq], walker)
 
 		async def _produce_frame(self):
 			num_frames = 100
@@ -247,21 +247,21 @@ To demonstrate how a typical experiment can be run in an empty session with dumm
     from concert.experiments.synchrotron import ContinuousTomography
 
     # Devices
-    camera = Camera()
-    shutter = Shutter()
-    flat_motor = LinearMotor()
-    tomo_motor = ContinuousRotationMotor()
+    camera = await Camera()
+    shutter = await Shutter()
+    flat_motor = await LinearMotor()
+    tomo_motor = await ContinuousRotationMotor()
 
 
-    viewer = PyplotImageViewer()
+    viewer = await PyplotImageViewer()
     walker = DirectoryWalker(root="folder to write data")
-    exp = ContinuousTomography(walker=walker,
-                                flat_motor=flat_motor,
-                                tomography_motor=tomo_motor,
-                                radio_position=0*q.mm,
-                                flat_position=10*q.mm,
-                                camera=camera,
-                                shutter=shutter)
+    exp = await ContinuousTomography(walker=walker,
+                                     flat_motor=flat_motor,
+                                     tomography_motor=tomo_motor,
+                                     radio_position=0*q.mm,
+                                     flat_position=10*q.mm,
+                                     camera=camera,
+                                     shutter=shutter)
 
     # Attach live_view to the experiment
     live_view = Consumer(exp.acquisitions, viewer)
