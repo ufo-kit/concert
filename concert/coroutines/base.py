@@ -1,19 +1,15 @@
 import asyncio
 import concert.config
-import concurrent.futures
 import functools
 import queue
 import logging
 import time
-from threading import Thread
 from concert.config import AIODEBUG
 from concert.helpers import PrioItem
 from concert.quantities import q
 
 
 LOG = logging.getLogger(__name__)
-# Loop which runs in a separate thread
-_TLOOP = None
 
 
 async def async_generate(iterable):
@@ -39,36 +35,6 @@ def run_in_loop(coroutine, error_msg_if_running=None):
         # _coro instead of get_coro() for Python 3.7 compatibilityget_coro()
         LOG.log(AIODEBUG, "KeyboardInterrupt in `%s', cancelling", task._coro.__qualname__)
         task.cancel()
-
-
-def run_in_loop_thread_blocking(coroutine):
-    """Run *coroutine* in a new loop in a separate thread. Useful for third party functions, which
-    are unaware of asyncio and we want to feed them with our asyncio code (like in the optimization
-    module).
-    """
-    global _TLOOP
-
-    if _TLOOP:
-        raise RuntimeError('Another coroutine is already running in a separate thread. '
-                           'Currently only one coroutine can run in a separate thread at a time.')
-
-    def run():
-        _TLOOP.run_forever()
-
-    _TLOOP = asyncio.new_event_loop()
-    thread = Thread(target=run, daemon=False)
-    thread.start()
-
-    try:
-        future = asyncio.run_coroutine_threadsafe(coroutine, _TLOOP)
-        return future.result()
-    except concurrent.futures.CancelledError as e:
-        LOG.log(AIODEBUG, 'run_in_loop_thread_blocking: %s cancelled', coroutine.__qualname__)
-    finally:
-        _TLOOP.call_soon_threadsafe(_TLOOP.stop)
-        thread.join()
-        _TLOOP.close()
-        _TLOOP = None
 
 
 def run_in_executor(func, *args):

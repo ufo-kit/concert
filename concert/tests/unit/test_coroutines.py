@@ -1,8 +1,7 @@
 import asyncio
 import numpy as np
 from concert.coroutines.base import (async_generate, broadcast, feed_queue, run_in_executor,
-                                     run_in_loop, run_in_loop_thread_blocking, start, wait_until,
-                                     WaitError)
+                                     run_in_loop, start, wait_until, WaitError)
 from concert.coroutines.filters import (absorptivity, flat_correct, average_images,
                                         downsize, stall, Timer)
 from concert.coroutines.sinks import null, Result, Accumulate
@@ -140,18 +139,6 @@ class TestCoroutines(TestCase):
             return 1
 
         self.assertEqual(run_in_loop(consume()), 1)
-
-    async def test_run_in_loop_thread_blocking(self):
-        async def process():
-            return 1
-
-        def blocking():
-            return run_in_loop_thread_blocking(process())
-
-        async def run_async_code_in_blocking():
-            return blocking()
-
-        self.assertEqual(await run_async_code_in_blocking(), 1)
 
     async def test_run_in_executor(self):
         def blocking(arg):
