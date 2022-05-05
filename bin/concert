@@ -458,6 +458,7 @@ class StartCommand(SubCommand):
             session_code = 'from concert.quantities import q'
 
         ip_config = traitlets.config.Config()
+        ip_config.InteractiveShellApp.gui = 'asyncio'
         ip_config.InteractiveShellApp.exec_lines = [session_code]
         # This is the most robust way when taking virtualenv into account I have found so far
         ip_config.InteractiveShellApp.exec_files = [os.path.join(concert.__path__[0],
