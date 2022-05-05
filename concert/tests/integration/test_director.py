@@ -34,6 +34,7 @@ class BrokenExperiment(Experiment):
     Experiment, that causes an exception within the acquisition call.
     """
     async def _frame_producer(self):
+        yield None
         raise Exception("Experiment broken")
 
 
