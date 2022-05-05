@@ -25,17 +25,21 @@ used as a library::
     from concert.quantities import q
     from concert.devices.motors.dummy import LinearMotor
 
-    motor = LinearMotor()
-    motor.position = 10 * q.mm
-    motor.move(-5 * q.mm)
+    motor = await LinearMotor()
+    await motor.set_position(10 * q.mm)
+    await motor.move(-5 * q.mm)
 
 or from a session and within an integrated `IPython`_ shell::
 
-    $ concert init session
-    $ concert start session
+    $ concert start
 
-    session > motor.position = 10 * q.mm
-    10.0 millimeter
+    concert > from concert.devices.motors.dummy import LinearMotor
+    concert > motor = await LinearMotor()
+    concert > await motor.set_position(10 * q.mm)   # The asyncio blocking way
+    concert > task = motor.set_position(10 * q.mm)  # The asyncio non-blocking way
+    concert > motor.position = 10 * q.mm            # User convenience for blocking calls
+    concert > motor.position
+    10 <Unit('millimeter')>
 
 .. _Ipython: http://ipython.org
 
