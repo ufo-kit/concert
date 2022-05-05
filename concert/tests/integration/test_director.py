@@ -6,13 +6,16 @@ import numpy as np
 import logging
 from time import time
 
+import concert
 from concert.storage import DirectoryWalker
 from concert.experiments.base import Experiment as BaseExperiment, Acquisition
 from concert.tests import TestCase as BaseTestCase, slow
 from concert.directors.dummy import Director
 from concert.directors.base import Director as BaseDirector
 
+
 LOG = logging.getLogger(__name__)
+concert.config.PROGRESS_BAR = False
 
 
 class Experiment(BaseExperiment):
