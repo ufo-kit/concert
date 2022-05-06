@@ -4,6 +4,8 @@ import ast
 import asyncio
 import argparse
 import contextlib
+import importlib
+import inspect
 import logging
 import os
 import re
@@ -20,6 +22,52 @@ from concert.ext.cmd import plugins
 
 
 LOG = logging.getLogger(__name__)
+
+
+# Start of enabling importing python files with "await" outside of "async def" functions
+
+
+class AsyncLoader(importlib.machinery.SourceFileLoader):
+    """
+    Normal SourceFileLoader with the capability of dealing with `await' outside of `async def'
+    functions. The trick is the flag ast.PyCF_ALLOW_TOP_LEVEL_AWAIT and eval() instead of exec()
+    used by Python's :class:`_LoaderBasics` class.
+
+    If the module has `await' outside of a function, eval() will return a coroutine which we execute
+    in the session's loop, that is why sys.meta_path must be updated *after* the loop has been
+    created (to make sure it's the one IPython also uses).
+    """
+    def exec_module(self, module):
+        cobj = compile(
+            self.get_data(self.path),
+            self.path,
+            'exec',
+            dont_inherit=True,
+            flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT
+        )
+        result = eval(cobj, module.__dict__)
+        if inspect.iscoroutine(result):
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(result)
+
+
+class AsyncMetaPathFinder(importlib.abc.MetaPathFinder):
+    """
+    MetaPathFinder implementation which used :class;`.FileFinder` for dealing with paths and
+    instantiated with our AsyncLoader for the handling of `await' outside of `async def' functions.
+    """
+    def find_spec(self, fullname, path, target=None):
+        if path is None:
+            path = sys.path
+
+        for entry in path:
+            finder = importlib.machinery.FileFinder(entry, (AsyncLoader, ('.py',)))
+            spec = finder.find_spec(fullname, target=target)
+            if spec:
+                return spec
+
+
+# End of enabling importing python files with "await" outside of "async def" functions
 
 
 def docstring_summary(doc):
@@ -372,6 +420,12 @@ class StartCommand(SubCommand):
             from IPython.core.async_helpers import get_asyncio_loop
             asyncio.set_event_loop(get_asyncio_loop())
 
+        # From now on, we can import code with `await' outside of `async def' functions
+        # It is crucial to call this here, after setting the asyncio's loop to the one from IPython,
+        # otherwise we might be importing with another event loop than the one used in the concert
+        # session and thus have devices and Locks and other things bound to a wrong loop.
+        sys.meta_path.insert(0, AsyncMetaPathFinder())
+
         if session:
             cs.exit_if_not_exists(session)
 
@@ -396,7 +450,6 @@ class StartCommand(SubCommand):
         sys.path.append(cs.path())
 
         if non_interactive:
-            import inspect
 
             if session:
                 code_obj = compile(
