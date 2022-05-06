@@ -8,3 +8,4 @@ pyqtgraph
 pyxdg
 scipy
 tifffile
+timeout-decorator

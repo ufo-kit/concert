@@ -6,6 +6,7 @@ care of proper logging structure.
 import asyncio
 import logging
 import os
+import re
 import time
 import json
 
@@ -113,6 +114,8 @@ class Experiment(Parameterizable):
     log_level = Selection(['critical', 'error', 'warning', 'info', 'debug'])
 
     def __init__(self, acquisitions, walker=None, separate_scans=True, name_fmt='scan_{:>04}'):
+        if not re.match('.*{.*}.*', name_fmt):
+            raise ValueError('name_fmt must be a formattable string')
         self._acquisitions = []
         for acquisition in acquisitions:
             self.add(acquisition)
