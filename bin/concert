@@ -48,7 +48,15 @@ class AsyncLoader(importlib.machinery.SourceFileLoader):
         result = eval(cobj, module.__dict__)
         if inspect.iscoroutine(result):
             loop = asyncio.get_event_loop()
-            loop.run_until_complete(result)
+            try:
+                loop.run_until_complete(result)
+            except RuntimeError as err:
+                raise StartError(
+                    f"Module `{module.__name__}' uses `await' outside of `async def' "
+                    "functions but at the same time tries to execute coroutines in a loop "
+                    "which is not allowed, please remove the loop-running code from the module "
+                    "and try again"
+                ) from err
 
 
 class AsyncMetaPathFinder(importlib.abc.MetaPathFinder):
@@ -65,6 +73,10 @@ class AsyncMetaPathFinder(importlib.abc.MetaPathFinder):
             spec = finder.find_spec(fullname, target=target)
             if spec:
                 return spec
+
+
+class StartError(Exception):
+    """Startup errors."""
 
 
 # End of enabling importing python files with "await" outside of "async def" functions
