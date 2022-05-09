@@ -27,6 +27,11 @@ pygments_style = 'sphinx'
 
 autoclass_content = 'both'
 
+autodoc_default_options = {
+    'members': True,
+    'special-members': '__ainit__'
+}
+
 # html_static_path = ['_static']
 htmlhelp_basename = 'concertdoc'
 
