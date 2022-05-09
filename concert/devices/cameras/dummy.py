@@ -95,10 +95,10 @@ class Camera(Base):
 
     async def __ainit__(self, background=None, simulate=True):
         """
-        *background* can be an array-like that will be used to generate the frame when calling
-        :meth:`.grab`. If *simulate* is True the final image intensity will be scaled based on
-        exposure time and poisson noise will be added. If *simulate* is False, the background will
-        be returned with no modifications to it.
+        *background* can be an array-like that will be used to generate the frame when calling grab.
+        If *simulate* is True the final image intensity will be scaled based on exposure time and
+        poisson noise will be added. If *simulate* is False, the background will be returned with no
+        modifications to it.
         """
         await super(Camera, self).__ainit__()
         self.simulate = simulate

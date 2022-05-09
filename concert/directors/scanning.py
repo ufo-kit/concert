@@ -27,7 +27,7 @@ class XYScan(Director):
             experiment is still running. This could be used to prepare a future iteration while
             still data is stored or processed.
             The separate_scans property of the experiment should be set to False, since the director
-             handles the naming of the sub-folders.
+            handles the naming of the sub-folders.
         :type experiment: concert.experiments.base.Experiment
         :param x_motor: Linear motor for scanning in x direction
         :type x_motor: concert.devices.motors.base.LinearMotor

@@ -193,7 +193,7 @@ Improvements
   the coming data.
 - We check soft limits for correct unit.
 - Added EDF reading support via fabio.
-- Added experiment `Addon`s which operate on the data produced by an experiment
+- Added experiment `Addon` which operate on the data produced by an experiment
   (e.g. image viewing, online reconstruction, etc.).
 - Added n-dimensional scans.
 - Added ssh+tmux support via `concert-server` and `concert-connect`.
@@ -205,7 +205,7 @@ API breaks
 ~~~~~~~~~~
 
 - Renamed `fetch` command to `import`.
-- Use positive config names (ENABLE_ instead of DISABLE_).
+- Use positive config names (`ENABLE_` instead of `DISABLE_`).
 
 Fixes
 ~~~~~
