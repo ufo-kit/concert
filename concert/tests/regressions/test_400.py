@@ -4,7 +4,7 @@ from nose.plugins.attrib import attr
 
 class TestIssue400(TestCase):
 
-    @attr("skip-travis")
+    @attr("skip-ci")
     def test_multiple_cameras(self):
         from concert.devices.cameras.uca import Camera
 
