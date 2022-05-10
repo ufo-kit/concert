@@ -4,7 +4,7 @@ from concert.quantities import q
 
 
 class TestIssue367(TestCase):
-    @attr("skip-travis")
+    @attr("skip-ci")
     def test_degree_conversion(self):
         from concert.devices.cameras.uca import Camera
         camera = Camera("mock")
