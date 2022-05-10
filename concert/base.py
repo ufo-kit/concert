@@ -1088,7 +1088,13 @@ class AsyncType(type):
         # Create new class *name* and make sure it does not implement __init__.
         if '__init__' in dct:
             raise TypeError(f"AsyncObject `{name}' must define __ainit__ instead of __init__")
-        return super(AsyncType, meta).__new__(meta, name, bases, dct)
+        cls = super(AsyncType, meta).__new__(meta, name, bases, dct)
+        if hasattr(cls, '__ainit__'):
+            # Copy the signature of __ainit__ to *cls* so that helper functions which pick up on
+            # constructor attributes work
+            cls.__signature__ = inspect.Signature.from_callable(cls.__ainit__)
+
+        return cls
 
     async def __call__(cls, *args, **kwargs):
         # Create an instance of class *cls*. Do almost the same as type.__call__
