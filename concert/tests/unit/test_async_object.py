@@ -117,6 +117,14 @@ class TestAsyncType(TestCase):
             # It doesn't matter that __init__ is not a function
             AsyncType.__new__(AsyncType, 'Cls', (), {'__init__': ''})
 
+    async def test_class_signature(self):
+        sig = inspect.signature(AsyncRoot)
+        self.assertTrue('arg' in sig.parameters)
+        self.assertTrue('kwarg' in sig.parameters)
+
+        # No __ainit__ must not prevent class construction
+        AsyncType.__new__(AsyncType, 'Cls', (), {})
+
 
 class TestAsyncObject(TestCase):
     async def test_new_undefined_ainit_undefined(self):
