@@ -4,6 +4,73 @@ Changelog
 Here you can see the full list of changes between each Concert release.
 
 
+Version 0.31
+------------
+
+Released on May 11th 2022.
+
+
+Features
+~~~~~~~~
+
+- it is possible to use ``await`` statements in concert sessions outside of
+  ``async def`` functions
+- ``AsyncObject`` allows us to have async constructors ``async def __ainit__``,
+  which is very useful when we need to use async code in constructors, e.g.
+  setting a parameter on a device
+- Experiments were greatly extended by classes which can be customized and run
+  at beam lines without many more changes
+- Monochromators were enhanced
+- Experiment director was introduced to take care of high-throughput
+  measurements
+- Experiments can write metadata to json
+- Parameter limits getters and setters are coroutine functions
+- Add ElementSelector device for having discrete choices
+- ``ascan`` allows one to include the ``stop`` value in the scan
+- walkers have ``create_writer`` method for convenience
+- walkers can be used in ``async with`` statements for safe access from multiple
+  concurrent coroutines
+- ``concert.coroutines.sinks.Accumulate`` allows non-re-setting behavior
+  between runs
+- ``concert.processes.common.align_rotation_axis`` allows multiple frame
+  consumers
+- ``concert.devices.cameras.uca.Camera`` gets state from the libuca object
+
+
+API breaks
+~~~~~~~~~~
+
+- ``Parameterizable`` inherits from ``AsyncObject`` which needs an ``__ainit__``
+constructor, so every sub-class must change its ``__init__`` to ``async def
+__ainit__``.
+- ``run_in_loop_thread_blocking`` is gone in favour of using one event loop and
+  ``__ainit__`` constructors
+
+
+Notes
+~~~~~
+
+- we replaced Travis by CircleCI
+
+
+Pull Requests
+~~~~~~~~~~~~~
+
+#485 from ufo-kit/circleci-project-setup
+#483 from ufo-kit/new-metadata
+#464 from ufo-kit/monochromator-enhancement
+#459 from ufo-kit/experiment-director
+#409 from ufo-kit/fix-uca-state
+#467 from ufo-kit/grating-inteferometry-experiment
+#478 from ufo-kit/hercules
+#473 from ufo-kit/walkers
+#471 from ufo-kit/ascan-include-last
+#470 from ufo-kit/elementselector
+#466 from ufo-kit/fix-tango-loop
+#458 from ufo-kit/new-experiments
+#461 from ufo-kit/async-limits
+
+
 Version 0.30
 ------------
 
