@@ -60,24 +60,25 @@ class LoggingCamera(Camera):
                     self._last_tomo_axis_velocity = await self.tomo_axis.get_motion_velocity()
                 else:
                     self._last_tomo_axis_velocity = 0 * q.deg / q.s
-            except:
+            except Exception:
                 self._last_tomo_axis_velocity = 0 * q.deg / q.s
 
         if self.flat_axis is not None:
             self._last_flat_axis_position = await self.flat_axis.get_position()
             try:
                 self._last_flat_axis_velocity = await self.flat_axis.get_velocity()
-            except:
+            except Exception:
                 self._last_flat_axis_velocity = 0 * q.mm / q.s
 
         if self.vertical_axis is not None:
             self._last_vertical_axis_position = await self.vertical_axis.get_position()
             try:
                 if await self.vertical_axis.get_state() == "moving":
-                    self._last_vertical_axis_velocity = await self.vertical_axis.get_motion_velocity()
+                    self._last_vertical_axis_velocity = \
+                        await self.vertical_axis.get_motion_velocity()
                 else:
                     self._last_vertical_axis_velocity = 0 * q.mm / q.s
-            except:
+            except Exception:
                 self._last_vertical_axis_velocity = 0 * q.mm / q.s
 
         if self.source is not None:
@@ -104,15 +105,15 @@ class LoggingCamera(Camera):
         frame = np.zeros([2, 4], dtype=np.float32)
         if self.tomo_axis is not None:
             frame[0, 0] = self._last_tomo_axis_position.to(q.deg).magnitude
-            frame[1, 0] = self._last_tomo_axis_velocity.to(q.deg/q.s).magnitude
+            frame[1, 0] = self._last_tomo_axis_velocity.to(q.deg / q.s).magnitude
 
         if self.flat_axis is not None:
             frame[0, 1] = self._last_flat_axis_position.to(q.mm).magnitude
-            frame[1, 1] = self._last_flat_axis_velocity.to(q.mm/q.s).magnitude
+            frame[1, 1] = self._last_flat_axis_velocity.to(q.mm / q.s).magnitude
 
         if self.vertical_axis is not None:
             frame[0, 2] = self._last_vertical_axis_position.to(q.mm).magnitude
-            frame[1, 2] = self._last_vertical_axis_velocity.to(q.mm/q.s).magnitude
+            frame[1, 2] = self._last_vertical_axis_velocity.to(q.mm / q.s).magnitude
 
         if self.source is not None:
             frame[0, 3] = self._last_source_state
@@ -326,8 +327,8 @@ class TestXRayTubeRadiography(Radiography, TestCase):
         self.source = await XRayTube()
         self.exp = await XRayTubeRadiography(walker=self.walker,
                                              flat_motor=self.flatfield_axis,
-                                             radio_position=0*q.mm,
-                                             flat_position=10*q.mm,
+                                             radio_position=0 * q.mm,
+                                             flat_position=10 * q.mm,
                                              camera=self.camera,
                                              xray_tube=self.source,
                                              num_flats=5,
@@ -489,7 +490,7 @@ class TestSynchrotronSteppedSpiralTomographyTomography(SteppedSpiralTomography, 
             camera=self.camera,
             shutter=self.source,
             start_position_vertical=0 * q.mm,
-            vertical_shift_per_tomogram=5*q.mm,
+            vertical_shift_per_tomogram=5 * q.mm,
             sample_height=10 * q.mm,
             num_flats=5,
             num_darks=5,

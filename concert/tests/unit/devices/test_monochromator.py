@@ -90,7 +90,7 @@ class TestDummyDoubleMonochromator(TestCase):
         """
         mu = 0.2
         sigma = 0.1
-        return np.exp(-(x-mu)**2/sigma**2)
+        return np.exp(-(x - mu) ** 2 / sigma ** 2)
 
     def double_gaussian(self, x):
         """
@@ -108,9 +108,9 @@ class TestDummyDoubleMonochromator(TestCase):
         select_maximum() function.
         """
         self.diode.function = self.gaussian
-        await self.mono.scan_bragg_angle(diode=self.diode, tune_range=1*q.deg, n_points=100)
+        await self.mono.scan_bragg_angle(diode=self.diode, tune_range=1 * q.deg, n_points=100)
         await self.mono.select_maximum()
-        self.assertAlmostEqual(await self.mono._motor_2.get_position(), 0.2*q.deg, 2)
+        self.assertAlmostEqual(await self.mono._motor_2.get_position(), 0.2 * q.deg, 2)
 
     async def test_center_of_mass(self):
         """
@@ -119,6 +119,6 @@ class TestDummyDoubleMonochromator(TestCase):
         select_center_of_mass() function.
         """
         self.diode.function = self.double_gaussian
-        await self.mono.scan_bragg_angle(diode=self.diode, tune_range=1*q.deg, n_points=100)
+        await self.mono.scan_bragg_angle(diode=self.diode, tune_range=1 * q.deg, n_points=100)
         await self.mono.select_center_of_mass()
-        self.assertAlmostEqual(await self.mono._motor_2.get_position(), 0.0*q.deg, 2)
+        self.assertAlmostEqual(await self.mono._motor_2.get_position(), 0.0 * q.deg, 2)

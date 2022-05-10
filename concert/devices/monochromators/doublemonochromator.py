@@ -27,8 +27,8 @@ class Monochromator(BaseMonochromator):
 
     @background
     @check(source='standby', target='standby')
-    async def scan_bragg_angle(self, diode, plot_callback=None, n_points=50, tune_range=0.025*q.deg,
-                               center_point=None):
+    async def scan_bragg_angle(self, diode, plot_callback=None, n_points=50,
+                               tune_range=0.025 * q.deg, center_point=None):
         """
         Scans the second crystal or multilayer. After the scan, the motor is moved back to its
         initial position.
@@ -61,8 +61,8 @@ class Monochromator(BaseMonochromator):
 
         scan_producer = ascan(
             self._motor_2['position'],
-            center_point - tune_range/2,
-            center_point + tune_range/2,
+            center_point - tune_range / 2,
+            center_point + tune_range / 2,
             tune_range / n_points,
             _get_intensity
         )

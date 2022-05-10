@@ -4,7 +4,6 @@ For all classes the abstract functions *start_sample_exposure* and *stop_sample_
  implemented."""
 import asyncio
 import numpy as np
-import concert.storage
 from concert.quantities import q
 from concert.experiments.base import Experiment, Acquisition
 from concert.base import background, Parameter, Quantity, Parameterizable, \
@@ -456,8 +455,8 @@ class SteppedTomography(Tomography):
             async with self._camera.recording():
                 for i in range(await self.get_num_projections()):
                     await self._tomography_motor.set_position(
-                        i * await self.get_angular_range() / await self.get_num_projections() +
-                        await self.get_start_angle()
+                        i * await self.get_angular_range() / await self.get_num_projections()
+                        + await self.get_start_angle()
                     )
                     await self._camera.trigger()
                     yield await self._camera.grab()
@@ -726,8 +725,8 @@ class SteppedSpiralTomography(SteppedTomography, SpiralMixin):
         """
         try:
             num_projections = int(await self.get_num_projections() * await self.get_num_tomograms())
-            vertical_step = (await self.get_vertical_shift_per_tomogram() /
-                             await self.get_num_projections())
+            vertical_step = (await self.get_vertical_shift_per_tomogram()
+                             / await self.get_num_projections())
             angular_step = await self.get_angular_range() / await self.get_num_projections()
             await self._prepare_radios()
             await self._camera.set_trigger_source("SOFTWARE")
@@ -1069,8 +1068,8 @@ class GratingInterferometryStepping(GratingInterferometryMixin, Radiography):
         await self._camera.set_trigger_source("SOFTWARE")
         async with self._camera.recording():
             for i in range(await self.get_num_periods() * await self.get_num_steps_per_period()):
-                await self._stepping_motor.set_position(i * step_size +
-                                                        await self.get_stepping_start_position())
+                await self._stepping_motor.set_position(i * step_size
+                                                        + await self.get_stepping_start_position())
                 await self._camera.trigger()
                 yield await self._camera.grab()
 

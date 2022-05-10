@@ -324,9 +324,9 @@ class PhaseGratingSteppingFourierProcessing(Addon):
             await self._write_single_image("visibility_contrast.tif", self.visibility_contrast)
             await self._write_single_image("differential_phase.tif", self.diff_phase)
             if self._experiment.get_propagation_distance() is not None:
-                self.diff_phase_in_rad = (self.diff_phase *
-                                          (await self._experiment.get_grating_period() /
-                                           await self._experiment.get_propagation_distance()))
+                self.diff_phase_in_rad = (self.diff_phase
+                                          * (await self._experiment.get_grating_period()
+                                             / await self._experiment.get_propagation_distance()))
                 await self._write_single_image("differential_phase_in_rad.tif",
                                                self.diff_phase_in_rad)
 
@@ -343,8 +343,8 @@ class PhaseGratingSteppingFourierProcessing(Addon):
         fft_object = np.fft.fft(stepping_curve)
 
         fft_object = fft_object[:, :, (0, await self._experiment.get_num_periods())] / (
-                await self._experiment.get_num_periods() *
-                await self._experiment.get_num_steps_per_period())
+            await self._experiment.get_num_periods()
+            * await self._experiment.get_num_steps_per_period())
         phase = np.angle(fft_object[:, :, 1])
         visibility = (2. * np.absolute(fft_object[:, :, 1])) / np.real(fft_object[:, :, 0])
         intensity = np.abs(np.real(fft_object[:, :, 0]))

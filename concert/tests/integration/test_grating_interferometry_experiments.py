@@ -140,8 +140,8 @@ class GratingInterferometryStepping:
             raise Exception("Stepping type not known.")
 
         self.assertEqual(len(self.acc.items[self.exp.get_acquisition(stepping_type + "_stepping")]),
-                         (await self.exp.get_num_periods() *
-                          await self.exp.get_num_steps_per_period()))
+                         (await self.exp.get_num_periods()
+                          * await self.exp.get_num_steps_per_period()))
 
         stepping_start = await self.exp.get_stepping_start_position()
         step_size = await self.exp.get_grating_period() / await self.exp.get_num_steps_per_period()
