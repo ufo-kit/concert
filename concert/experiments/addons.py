@@ -4,6 +4,7 @@ the acquired data, e.g. write images to disk, do tomographic reconstruction etc.
 import os
 import logging
 import numpy as np
+from concert.base import AsyncObject
 from concert.coroutines.base import async_generate
 from concert.coroutines.sinks import Accumulate
 from concert.experiments.imaging import GratingInterferometryStepping
@@ -165,14 +166,16 @@ class ImageWriter(Addon):
         return wrapped_writer
 
 
-class OnlineReconstruction(Addon):
-    def __init__(self, experiment, reco_args, do_normalization=True,
-                 average_normalization=True, walker=None, slice_directory='online-slices'):
+class OnlineReconstruction(AsyncObject, Addon):
+    async def __ainit__(self, experiment, reco_args, do_normalization=True,
+                        average_normalization=True, walker=None, slice_directory='online-slices'):
         from concert.ext.ufo import GeneralBackprojectManager
 
         self.experiment = experiment
-        self.manager = GeneralBackprojectManager(reco_args,
-                                                 average_normalization=average_normalization)
+        self.manager = await GeneralBackprojectManager(
+            reco_args,
+            average_normalization=average_normalization
+        )
         self.walker = walker
         self.slice_directory = slice_directory
         self._consumers = {}
