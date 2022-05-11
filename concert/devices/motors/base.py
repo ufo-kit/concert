@@ -29,8 +29,8 @@ class _PositionMixin(Device):
 
     """Provide positional, discrete behaviour interface."""
 
-    def __init__(self):
-        super(_PositionMixin, self).__init__()
+    async def __ainit__(self):
+        await super(_PositionMixin, self).__ainit__()
 
     @background
     async def move(self, delta):
@@ -99,8 +99,8 @@ class LinearMotor(_PositionMixin):
         Position of the motor in length units.
     """
 
-    def __init__(self):
-        super(LinearMotor, self).__init__()
+    async def __ainit__(self):
+        await super(LinearMotor, self).__ainit__()
 
     async def _get_state(self):
         raise NotImplementedError
@@ -140,8 +140,8 @@ class ContinuousLinearMotor(LinearMotor, _VelocityMixin):
         Current velocity in length per time unit.
     """
 
-    def __init__(self):
-        super(ContinuousLinearMotor, self).__init__()
+    async def __ainit__(self):
+        await super(ContinuousLinearMotor, self).__ainit__()
 
     async def _get_state(self):
         raise NotImplementedError
@@ -172,8 +172,8 @@ class RotationMotor(_PositionMixin):
                         check=check(source=['hard-limit', 'standby'],
                                     target=['hard-limit', 'standby']))
 
-    def __init__(self):
-        super(RotationMotor, self).__init__()
+    async def __ainit__(self):
+        await super(RotationMotor, self).__ainit__()
 
 
 class ContinuousRotationMotor(RotationMotor, _VelocityMixin):
@@ -186,8 +186,8 @@ class ContinuousRotationMotor(RotationMotor, _VelocityMixin):
         Current velocity in angle per time unit.
     """
 
-    def __init__(self):
-        super(ContinuousRotationMotor, self).__init__()
+    async def __ainit__(self):
+        await super(ContinuousRotationMotor, self).__ainit__()
 
     async def _get_state(self):
         raise NotImplementedError

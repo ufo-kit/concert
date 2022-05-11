@@ -1,9 +1,11 @@
 #! python
 
+import ast
 import asyncio
 import argparse
 import contextlib
-import functools
+import importlib
+import inspect
 import logging
 import os
 import re
@@ -12,7 +14,6 @@ import shutil
 import signal
 import subprocess
 import tempfile
-import traceback
 import zipfile
 import concert
 import concert.config
@@ -21,6 +22,64 @@ from concert.ext.cmd import plugins
 
 
 LOG = logging.getLogger(__name__)
+
+
+# Start of enabling importing python files with "await" outside of "async def" functions
+
+
+class AsyncLoader(importlib.machinery.SourceFileLoader):
+    """
+    Normal SourceFileLoader with the capability of dealing with `await' outside of `async def'
+    functions. The trick is the flag ast.PyCF_ALLOW_TOP_LEVEL_AWAIT and eval() instead of exec()
+    used by Python's :class:`_LoaderBasics` class.
+
+    If the module has `await' outside of a function, eval() will return a coroutine which we execute
+    in the session's loop, that is why sys.meta_path must be updated *after* the loop has been
+    created (to make sure it's the one IPython also uses).
+    """
+    def exec_module(self, module):
+        cobj = compile(
+            self.get_data(self.path),
+            self.path,
+            'exec',
+            dont_inherit=True,
+            flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT
+        )
+        result = eval(cobj, module.__dict__)
+        if inspect.iscoroutine(result):
+            loop = asyncio.get_event_loop()
+            try:
+                loop.run_until_complete(result)
+            except RuntimeError as err:
+                raise StartError(
+                    f"Module `{module.__name__}' uses `await' outside of `async def' "
+                    "functions but at the same time tries to execute coroutines in a loop "
+                    "which is not allowed, please remove the loop-running code from the module "
+                    "and try again"
+                ) from err
+
+
+class AsyncMetaPathFinder(importlib.abc.MetaPathFinder):
+    """
+    MetaPathFinder implementation which used :class;`.FileFinder` for dealing with paths and
+    instantiated with our AsyncLoader for the handling of `await' outside of `async def' functions.
+    """
+    def find_spec(self, fullname, path, target=None):
+        if path is None:
+            path = sys.path
+
+        for entry in path:
+            finder = importlib.machinery.FileFinder(entry, (AsyncLoader, ('.py',)))
+            spec = finder.find_spec(fullname, target=target)
+            if spec:
+                return spec
+
+
+class StartError(Exception):
+    """Startup errors."""
+
+
+# End of enabling importing python files with "await" outside of "async def" functions
 
 
 def docstring_summary(doc):
@@ -39,9 +98,11 @@ def cmp_versions(v1, v2):
     return (n1 > n2) - (n1 < n2)
 
 
-def get_prompt_config(session_name):
-    """Customize the prompt for the *session_name*."""
+def get_prompt_config(path):
+    """Customize the prompt for session in *path*."""
     from IPython.terminal.prompts import Prompts, Token
+
+    session_name = os.path.splitext(os.path.basename(path))[0]
 
     class MyPrompt(Prompts):
         def in_prompt_tokens(self, cli=None):
@@ -371,6 +432,12 @@ class StartCommand(SubCommand):
             from IPython.core.async_helpers import get_asyncio_loop
             asyncio.set_event_loop(get_asyncio_loop())
 
+        # From now on, we can import code with `await' outside of `async def' functions
+        # It is crucial to call this here, after setting the asyncio's loop to the one from IPython,
+        # otherwise we might be importing with another event loop than the one used in the concert
+        # session and thus have devices and Locks and other things bound to a wrong loop.
+        sys.meta_path.insert(0, AsyncMetaPathFinder())
+
         if session:
             cs.exit_if_not_exists(session)
 
@@ -395,24 +462,35 @@ class StartCommand(SubCommand):
         sys.path.append(cs.path())
 
         if non_interactive:
+
             if session:
-                exec(compile(open(cs.path(session), "rb").read(), cs.path(session), 'exec'), globals())
+                code_obj = compile(
+                    open(cs.path(session), "rb").read(),
+                    cs.path(session),
+                    'exec',
+                    flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT
+                )
+                eval_result = eval(code_obj, globals())
+                if inspect.iscoroutine(eval_result):
+                    loop = asyncio.get_event_loop()
+                    # More-or less a copy of asyncio.run() but with our loop
+                    try:
+                        loop.run_until_complete(eval_result)
+                    finally:
+                        to_cancel = asyncio.all_tasks(loop=loop)
+                        for task in to_cancel:
+                            task.cancel()
+                        loop.run_until_complete(asyncio.gather(*to_cancel, return_exceptions=True))
+                        loop.run_until_complete(loop.shutdown_asyncgens())
+                        if hasattr(loop, 'shutdown_default_executor'):
+                            # Only in Python 3.9+
+                            loop.run_until_complete(loop.shutdown_default_executor())
         else:
-            try:
-                if filename:
-                    module = cs.load(filename, from_file=True)
-                else:
-                    module = cs.load(session) if session else None
-            except:
-                traceback.print_exc()
-                sys.exit(1)
+            self.run_shell(path=filename or cs.path(session) if session else None)
 
-            self.run_shell(module)
-
-    def run_shell(self, module=None):
-        from IPython.terminal.embed import InteractiveShellEmbed
-        from concert.base import (UnitError, LimitError, ParameterError,
-                                  ReadAccessError, WriteAccessError, LockError)
+    def run_shell(self, path=None):
+        import IPython
+        import traitlets.config
         from concert.session.utils import abort_awaiting
 
         # ctrl-c handling (abort whatever what is running in the foreground (blocks))
@@ -432,69 +510,33 @@ class StartCommand(SubCommand):
 
         signal.signal(signal.SIGINT, concert_sigint_handler)
 
-        def _handler(_shell, _etype, evalue, _traceback_, tb_offset=None):
-            if _etype == asyncio.CancelledError:
-                # Silently log the error message without polluting the terminal
-                messages = traceback.extract_tb(_traceback_).format()
-                if len(messages) > 1:
-                    messages = messages[1:]
-                LOG.info('asyncio.CancelledError\n' + ''.join(messages))
-            elif _etype == KeyboardInterrupt:
-                # Silently log the error message without polluting the terminal
-                messages = traceback.extract_tb(_traceback_).format()
-                if len(messages) > 2:
-                    # Skip IPython part and our sigint handler
-                    messages = messages[1:-1]
-                LOG.info('KeyboardInterrupt in normal mode\n' + ''.join(messages))
-            else:
-                print("Sorry, {0}".format(str(evalue)))
-            return None
-
-        def _abort_all_awaiting(event):
-            abort_awaiting(background=True)
-
         print("Welcome to Concert {0}".format(concert.__version__))
 
-        if module and module.__doc__:
-            print(module.__doc__)
+        if path:
+            with open(path) as session_file:
+                session_code = session_file.read()
+            tree = ast.parse(session_code)
+            docstring = ast.get_docstring(tree)
+            if docstring:
+                print(docstring)
+        else:
+            session_code = 'from concert.quantities import q'
 
-        try:
-            exceptions = (UnitError, LimitError, ParameterError, ReadAccessError, WriteAccessError,
-                          LockError, KeyboardInterrupt, asyncio.CancelledError)
+        ip_config = traitlets.config.Config()
+        ip_config.InteractiveShellApp.gui = 'asyncio'
+        ip_config.InteractiveShellApp.exec_lines = [session_code]
+        # This is the most robust way when taking virtualenv into account I have found so far
+        ip_config.InteractiveShellApp.exec_files = [os.path.join(concert.__path__[0],
+                                                                 '_ipython_setup.py')]
+        ip_config.TerminalInteractiveShell.prompts_class = get_prompt_config(path or 'concert')
+        ip_config.TerminalInteractiveShell.loop_runner = 'asyncio'
+        ip_config.TerminalInteractiveShell.autoawait = True
+        ip_config.InteractiveShell.confirm_exit = False
+        ip_config.TerminalIPythonApp.display_banner = False
+        ip_config.Completer.use_jedi = False
 
-            config = get_prompt_config(module.__name__) if module else get_prompt_config('concert')
-
-            if not module:
-                from concert.quantities import q
-
-            # commit 34b06dc92a6978296296a6489d61afc2619a49ef enables us to use "q" again but
-            # disables e.g. this:
-            # concert > import time
-            # concert > def foo():
-            #               time.sleep(1)
-            #               return True
-            # -> NameError: name 'time' is not defined
-            # TODO: fix this so that both things work
-            shell = InteractiveShellEmbed(banner1='', user_module=module)
-            # Tasks created with asyncio.ensure_future(...) are started immediately
-            shell.enable_gui(gui='asyncio')
-            shell.prompts = config(shell)
-            # jedi may invoke the code which creates a new event loop in prompt_toolkit which breaks
-            # things like sockets, which live throughout the session and thus rely on a single event
-            # loop. If this becomes unmaintainable, consider using trio or curio.
-            # To the code invocation: it happens mostly in descriptor access, e.g.
-            # motor.pos<Tab> invokes the motor.position in a new loop and that is not permissible
-            # within the simple SocketConnection class which internal state is bound to the loop
-            # within which it was created.
-            shell.Completer.use_jedi = False
-
-            shell.set_custom_exc(exceptions, _handler)
-            # ctrl-k (abort everything, also background awaitables)
-            shell.pt_app.key_bindings.add('c-k')(_abort_all_awaiting)
-            shell()
-        except ImportError as exception:
-            msg = "You must install IPython to run the Concert shell: {0}"
-            print(msg.format(exception))
+        # Now we start ipython with our configuration
+        IPython.start_ipython(argv=[], config=ip_config)
 
 
 class DocsCommand(SubCommand):

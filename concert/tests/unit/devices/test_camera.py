@@ -8,10 +8,10 @@ from concert.devices.cameras.pco import Timestamp, TimestampError
 
 class TestDummyCamera(TestCase):
 
-    def setUp(self):
-        super(TestDummyCamera, self).setUp()
+    async def asyncSetUp(self):
+        await super(TestDummyCamera, self).asyncSetUp()
         self.background = np.ones((256, 256), dtype=np.uint16)
-        self.camera = Camera(background=self.background)
+        self.camera = await Camera(background=self.background)
 
     async def test_grab(self):
         frame = await self.camera.grab()
@@ -33,14 +33,14 @@ class TestDummyCamera(TestCase):
         self.assertTrue(hasattr(self.camera, "sensor_pixel_height"))
 
     async def test_buffered_camera(self):
-        camera = BufferedCamera()
+        camera = await BufferedCamera()
         i = 0
         async for item in camera.readout_buffer():
             i += 1
         self.assertEqual(i, 3)
 
     async def test_context_manager(self):
-        camera = Camera()
+        camera = await Camera()
 
         async with camera.recording():
             self.assertEqual(await camera.get_state(), 'recording')
@@ -70,7 +70,7 @@ class TestDummyCamera(TestCase):
 
     async def test_simulate(self):
         self.assertTrue(np.any(self.background - await self.camera.grab()))
-        camera = Camera(background=self.background, simulate=False)
+        camera = await Camera(background=self.background, simulate=False)
         np.testing.assert_equal(self.background, await camera.grab())
 
 

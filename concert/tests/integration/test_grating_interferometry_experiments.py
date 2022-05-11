@@ -19,15 +19,15 @@ from concert.experiments.imaging import Tomography, ContinuousTomography
 
 
 class LoggingCamera(Camera):
-    def __init__(self):
+    async def __ainit__(self):
         self.experiment = None
         self._last_flat_axis_position = None
         self._last_stepping_position = None
         self._last_tomo_position = None
         self._last_tomo_velocity = None
         self._last_source_state = None
-        super().__init__()
-        self.exposure_time = 0.001 * q.s
+        await super().__ainit__()
+        await self.set_exposure_time(0.001 * q.s)
 
     async def _trigger_real(self):
         if isinstance(self.experiment, SynchrotronMixin):
@@ -89,26 +89,26 @@ class LoggingCamera(Camera):
 class GratingInterferometryStepping:
     """ Abstract class for testing phase stepping."""
 
-    def setUp(self):
+    async def asyncSetUp(self):
         self.source = None
         self.exp = None
-        self.flatfield_axis = LinearMotor()
-        self.flatfield_axis.motion_velocity = 10000 * q.mm / q.s
+        self.flatfield_axis = await LinearMotor()
+        await self.flatfield_axis.set_motion_velocity(10000 * q.mm / q.s)
 
-        self.stepping_axis = LinearMotor()
-        self.camera = LoggingCamera()
+        self.stepping_axis = await LinearMotor()
+        self.camera = await LoggingCamera()
         self._data_dir = tempfile.mkdtemp()
         self.walker = DirectoryWalker(root=self._data_dir)
 
-    def tearDown(self):
-        shutil.rmtree(self._data_dir)
-
-    async def asyncSetUp(self) -> None:
+    async def run_experiment(self):
         self.camera.experiment = self.exp
         self.acc = Accumulator(self.exp.acquisitions)
         self.writer = ImageWriter(walker=self.walker, acquisitions=self.exp.acquisitions)
         self.phase_stepping_addon = PhaseGratingSteppingFourierProcessing(experiment=self.exp)
         await self.exp.run()
+
+    def tearDown(self):
+        shutil.rmtree(self._data_dir)
 
     async def test_darks(self):
         """
@@ -140,8 +140,8 @@ class GratingInterferometryStepping:
             raise Exception("Stepping type not known.")
 
         self.assertEqual(len(self.acc.items[self.exp.get_acquisition(stepping_type + "_stepping")]),
-                         (await self.exp.get_num_periods() *
-                          await self.exp.get_num_steps_per_period()))
+                         (await self.exp.get_num_periods()
+                          * await self.exp.get_num_steps_per_period()))
 
         stepping_start = await self.exp.get_stepping_start_position()
         step_size = await self.exp.get_grating_period() / await self.exp.get_num_steps_per_period()
@@ -180,41 +180,43 @@ class GratingInterferometryStepping:
 
 @slow
 class TestSynchrotronGratingInterferometryStepping(GratingInterferometryStepping, TestCase):
-    def setUp(self):
-        GratingInterferometryStepping.setUp(self)
-        self.source = Shutter()
-        self.exp = SynchrotronPhaseStepping(walker=self.walker,
-                                            camera=self.camera,
-                                            shutter=self.source,
-                                            flat_motor=self.flatfield_axis,
-                                            stepping_motor=self.stepping_axis,
-                                            flat_position=-10 * q.cm,
-                                            radio_position=0 * q.mm,
-                                            grating_period=2.4 * q.um,
-                                            num_darks=10,
-                                            stepping_start_position=0 * q.um,
-                                            num_periods=4,
-                                            num_steps_per_period=8,
-                                            propagation_distance=20 * q.cm,
-                                            separate_scans=True)
+    async def asyncSetUp(self):
+        await GratingInterferometryStepping.asyncSetUp(self)
+        self.source = await Shutter()
+        self.exp = await SynchrotronPhaseStepping(walker=self.walker,
+                                                  camera=self.camera,
+                                                  shutter=self.source,
+                                                  flat_motor=self.flatfield_axis,
+                                                  stepping_motor=self.stepping_axis,
+                                                  flat_position=-10 * q.cm,
+                                                  radio_position=0 * q.mm,
+                                                  grating_period=2.4 * q.um,
+                                                  num_darks=10,
+                                                  stepping_start_position=0 * q.um,
+                                                  num_periods=4,
+                                                  num_steps_per_period=8,
+                                                  propagation_distance=20 * q.cm,
+                                                  separate_scans=True)
+        await self.run_experiment()
 
 
 @slow
 class TestXRayTubeGratingInterferometryStepping(GratingInterferometryStepping, TestCase):
-    def setUp(self):
-        GratingInterferometryStepping.setUp(self)
-        self.source = XRayTube()
-        self.exp = XRayTubePhaseStepping(walker=self.walker,
-                                         camera=self.camera,
-                                         xray_tube=self.source,
-                                         flat_motor=self.flatfield_axis,
-                                         stepping_motor=self.stepping_axis,
-                                         flat_position=-10 * q.cm,
-                                         radio_position=0 * q.mm,
-                                         grating_period=2.4 * q.um,
-                                         num_darks=10,
-                                         stepping_start_position=0 * q.um,
-                                         num_periods=4,
-                                         num_steps_per_period=8,
-                                         propagation_distance=20 * q.cm,
-                                         separate_scans=True)
+    async def asyncSetUp(self):
+        await GratingInterferometryStepping.asyncSetUp(self)
+        self.source = await XRayTube()
+        self.exp = await XRayTubePhaseStepping(walker=self.walker,
+                                               camera=self.camera,
+                                               xray_tube=self.source,
+                                               flat_motor=self.flatfield_axis,
+                                               stepping_motor=self.stepping_axis,
+                                               flat_position=-10 * q.cm,
+                                               radio_position=0 * q.mm,
+                                               grating_period=2.4 * q.um,
+                                               num_darks=10,
+                                               stepping_start_position=0 * q.um,
+                                               num_periods=4,
+                                               num_steps_per_period=8,
+                                               propagation_distance=20 * q.cm,
+                                               separate_scans=True)
+        await self.run_experiment()

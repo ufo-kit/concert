@@ -12,8 +12,8 @@ class AttenuatorBox(Device):
     '''Attenuator box base class'''
     state = State(default='standby')
 
-    def __init__(self):
-        super(AttenuatorBox, self).__init__()
+    async def __ainit__(self):
+        await super(AttenuatorBox, self).__ainit__()
 
     async def _set_attenuator(self, att):
         raise AccessorNotImplementedError

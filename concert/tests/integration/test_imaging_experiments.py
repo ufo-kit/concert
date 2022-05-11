@@ -32,7 +32,7 @@ class LoggingCamera(Camera):
     Camera that stores information about the source and the relevant motors in its frames for
     testing.
     """
-    def __init__(self, tomo_axis=None, flat_axis=None, vertical_axis=None, source=None):
+    async def __ainit__(self, tomo_axis=None, flat_axis=None, vertical_axis=None, source=None):
         self.tomo_axis = tomo_axis
         self.flat_axis = flat_axis
         self.vertical_axis = vertical_axis
@@ -49,8 +49,8 @@ class LoggingCamera(Camera):
 
         self._last_source_state = None
 
-        Camera.__init__(self)
-        self.exposure_time = 0.001 * q.s
+        await super().__ainit__()
+        await self.set_exposure_time(0.001 * q.s)
 
     async def _trigger_real(self):
         if self.tomo_axis is not None:
@@ -60,24 +60,25 @@ class LoggingCamera(Camera):
                     self._last_tomo_axis_velocity = await self.tomo_axis.get_motion_velocity()
                 else:
                     self._last_tomo_axis_velocity = 0 * q.deg / q.s
-            except:
+            except Exception:
                 self._last_tomo_axis_velocity = 0 * q.deg / q.s
 
         if self.flat_axis is not None:
             self._last_flat_axis_position = await self.flat_axis.get_position()
             try:
                 self._last_flat_axis_velocity = await self.flat_axis.get_velocity()
-            except:
+            except Exception:
                 self._last_flat_axis_velocity = 0 * q.mm / q.s
 
         if self.vertical_axis is not None:
             self._last_vertical_axis_position = await self.vertical_axis.get_position()
             try:
                 if await self.vertical_axis.get_state() == "moving":
-                    self._last_vertical_axis_velocity = await self.vertical_axis.get_motion_velocity()
+                    self._last_vertical_axis_velocity = \
+                        await self.vertical_axis.get_motion_velocity()
                 else:
                     self._last_vertical_axis_velocity = 0 * q.mm / q.s
-            except:
+            except Exception:
                 self._last_vertical_axis_velocity = 0 * q.mm / q.s
 
         if self.source is not None:
@@ -104,15 +105,15 @@ class LoggingCamera(Camera):
         frame = np.zeros([2, 4], dtype=np.float32)
         if self.tomo_axis is not None:
             frame[0, 0] = self._last_tomo_axis_position.to(q.deg).magnitude
-            frame[1, 0] = self._last_tomo_axis_velocity.to(q.deg/q.s).magnitude
+            frame[1, 0] = self._last_tomo_axis_velocity.to(q.deg / q.s).magnitude
 
         if self.flat_axis is not None:
             frame[0, 1] = self._last_flat_axis_position.to(q.mm).magnitude
-            frame[1, 1] = self._last_flat_axis_velocity.to(q.mm/q.s).magnitude
+            frame[1, 1] = self._last_flat_axis_velocity.to(q.mm / q.s).magnitude
 
         if self.vertical_axis is not None:
             frame[0, 2] = self._last_vertical_axis_position.to(q.mm).magnitude
-            frame[1, 2] = self._last_vertical_axis_velocity.to(q.mm/q.s).magnitude
+            frame[1, 2] = self._last_vertical_axis_velocity.to(q.mm / q.s).magnitude
 
         if self.source is not None:
             frame[0, 3] = self._last_source_state
@@ -122,19 +123,19 @@ class LoggingCamera(Camera):
 @slow
 class Radiography:
     """ Abstract test class for testing radiography"""
-    def setUp(self):
+    async def asyncSetUp(self):
         self.source = None
         self.exp = None
-        self.flatfield_axis = LinearMotor()
-        self.flatfield_axis.motion_velocity = 10000 * q.mm / q.s
-        self.camera = LoggingCamera(flat_axis=self.flatfield_axis)
+        self.flatfield_axis = await LinearMotor()
+        await self.flatfield_axis.set_motion_velocity(10000 * q.mm / q.s)
+        self.camera = await LoggingCamera(flat_axis=self.flatfield_axis)
         self._data_dir = tempfile.mkdtemp()
         self.walker = DirectoryWalker(root=self._data_dir)
 
     def tearDown(self):
         shutil.rmtree(self._data_dir)
 
-    async def asyncSetUp(self) -> None:
+    async def run_experiment(self) -> None:
         self.camera.source = self.source
         self.acc = Accumulator(self.exp.acquisitions)
         self.writer = ImageWriter(walker=self.walker, acquisitions=self.exp.acquisitions)
@@ -192,10 +193,10 @@ class Radiography:
 @slow
 class SteppedTomography(Radiography):
     """ Abstract test class for testing stepped tomography"""
-    def setUp(self):
-        Radiography.setUp(self)
-        self.tomo_motor = RotationMotor()
-        self.tomo_motor.motion_velocity = 20000 * q.deg / q.s
+    async def asyncSetUp(self):
+        await Radiography.asyncSetUp(self)
+        self.tomo_motor = await RotationMotor()
+        await self.tomo_motor.set_motion_velocity(20000 * q.deg / q.s)
         self.camera.tomo_axis = self.tomo_motor
 
     async def test_radios(self):
@@ -219,10 +220,10 @@ class SteppedTomography(Radiography):
 @slow
 class ContinuousTomography(Radiography):
     """ Abstract test class for testing continuous tomography"""
-    def setUp(self):
-        Radiography.setUp(self)
-        self.tomo_motor = ContinuousRotationMotor()
-        self.tomo_motor.motion_velocity = 20000 * q.deg / q.s
+    async def asyncSetUp(self):
+        await Radiography.asyncSetUp(self)
+        self.tomo_motor = await ContinuousRotationMotor()
+        await self.tomo_motor.set_motion_velocity(20000 * q.deg / q.s)
         self.camera.tomo_axis = self.tomo_motor
 
     async def test_radios(self):
@@ -246,12 +247,12 @@ class ContinuousTomography(Radiography):
 @slow
 class SteppedSpiralTomography(Radiography):
     """ Abstract test class for testing stepped spiral tomography"""
-    def setUp(self):
-        Radiography.setUp(self)
-        self.tomo_motor = RotationMotor()
-        self.tomo_motor.motion_velocity = 20000 * q.deg / q.s
-        self.vertical_motor = LinearMotor()
-        self.vertical_motor.motion_velocity = 10000 * q.mm / q.s
+    async def asyncSetUp(self):
+        await Radiography.asyncSetUp(self)
+        self.tomo_motor = await RotationMotor()
+        await self.tomo_motor.set_motion_velocity(20000 * q.deg / q.s)
+        self.vertical_motor = await LinearMotor()
+        await self.vertical_motor.set_motion_velocity(10000 * q.mm / q.s)
 
         self.camera.tomo_axis = self.tomo_motor
         self.camera.vertical_axis = self.vertical_motor
@@ -285,12 +286,12 @@ class SteppedSpiralTomography(Radiography):
 @slow
 class ContinuousSpiralTomography(Radiography):
     """ Abstract test class for testing continuous spiral tomography"""
-    def setUp(self):
-        Radiography.setUp(self)
-        self.tomo_motor = ContinuousRotationMotor()
-        self.tomo_motor.motion_velocity = 20000 * q.deg / q.s
-        self.vertical_motor = ContinuousLinearMotor()
-        self.vertical_motor.motion_velocity = 10000 * q.mm / q.s
+    async def asyncSetUp(self):
+        await Radiography.asyncSetUp(self)
+        self.tomo_motor = await ContinuousRotationMotor()
+        await self.tomo_motor.set_motion_velocity(20000 * q.deg / q.s)
+        self.vertical_motor = await ContinuousLinearMotor()
+        await self.vertical_motor.set_motion_velocity(10000 * q.mm / q.s)
 
         self.camera.tomo_axis = self.tomo_motor
         self.camera.vertical_axis = self.vertical_motor
@@ -321,208 +322,234 @@ class ContinuousSpiralTomography(Radiography):
 @slow
 class TestXRayTubeRadiography(Radiography, TestCase):
     """ Test implementation for XRayTubeRadiography """
-    def setUp(self):
-        Radiography.setUp(self)
-        self.source = XRayTube()
-        self.exp = XRayTubeRadiography(walker=self.walker,
-                                       flat_motor=self.flatfield_axis,
-                                       radio_position=0*q.mm,
-                                       flat_position=10*q.mm,
-                                       camera=self.camera,
-                                       xray_tube=self.source,
-                                       num_flats=5,
-                                       num_darks=5,
-                                       num_projections=10)
-
-
-@slow
-class TestSynchrotronRadiography(Radiography, TestCase):
-    """ Test implementation for SynchrotronRadiography """
-    def setUp(self):
-        Radiography.setUp(self)
-        self.source = Shutter()
-        self.exp = SynchrotronRadiography(walker=self.walker,
-                                          flat_motor=self.flatfield_axis,
-                                          radio_position=0 * q.mm,
-                                          flat_position=10 * q.mm,
-                                          camera=self.camera,
-                                          shutter=self.source,
-                                          num_flats=5,
-                                          num_darks=5,
-                                          num_projections=10)
-
-
-@slow
-class TestXRayTubeSteppedTomography(SteppedTomography, TestCase):
-    """ Test implementation for XRayTubeSteppedTomography """
-    def setUp(self):
-        SteppedTomography.setUp(self)
-        self.source = XRayTube()
-        self.exp = XRayTubeSteppedTomography(walker=self.walker,
+    async def asyncSetUp(self):
+        await Radiography.asyncSetUp(self)
+        self.source = await XRayTube()
+        self.exp = await XRayTubeRadiography(walker=self.walker,
                                              flat_motor=self.flatfield_axis,
-                                             tomography_motor=self.tomo_motor,
                                              radio_position=0 * q.mm,
                                              flat_position=10 * q.mm,
                                              camera=self.camera,
                                              xray_tube=self.source,
                                              num_flats=5,
                                              num_darks=5,
-                                             num_projections=10,
-                                             angular_range=360 * q.deg,
-                                             start_angle=0 * q.deg)
+                                             num_projections=10)
+        await self.run_experiment()
 
 
 @slow
-class TestSynchrotronSteppedTomography(SteppedTomography, TestCase):
-    """ Test implementation for SynchrotronSteppedTomography """
-    def setUp(self):
-        SteppedTomography.setUp(self)
-        self.source = Shutter()
-        self.exp = SynchrotronSteppedTomography(walker=self.walker,
+class TestSynchrotronRadiography(Radiography, TestCase):
+    """ Test implementation for SynchrotronRadiography """
+    async def asyncSetUp(self):
+        await Radiography.asyncSetUp(self)
+        self.source = await Shutter()
+        self.exp = await SynchrotronRadiography(walker=self.walker,
                                                 flat_motor=self.flatfield_axis,
-                                                tomography_motor=self.tomo_motor,
                                                 radio_position=0 * q.mm,
                                                 flat_position=10 * q.mm,
                                                 camera=self.camera,
                                                 shutter=self.source,
                                                 num_flats=5,
                                                 num_darks=5,
-                                                num_projections=10,
-                                                angular_range=180 * q.deg,
-                                                start_angle=0 * q.deg)
+                                                num_projections=10)
+        await self.run_experiment()
+
+
+@slow
+class TestXRayTubeSteppedTomography(SteppedTomography, TestCase):
+    """ Test implementation for XRayTubeSteppedTomography """
+    async def asyncSetUp(self):
+        await SteppedTomography.asyncSetUp(self)
+        self.source = await XRayTube()
+        self.exp = await XRayTubeSteppedTomography(
+            walker=self.walker,
+            flat_motor=self.flatfield_axis,
+            tomography_motor=self.tomo_motor,
+            radio_position=0 * q.mm,
+            flat_position=10 * q.mm,
+            camera=self.camera,
+            xray_tube=self.source,
+            num_flats=5,
+            num_darks=5,
+            num_projections=10,
+            angular_range=360 * q.deg,
+            start_angle=0 * q.deg
+        )
+        await self.run_experiment()
+
+
+@slow
+class TestSynchrotronSteppedTomography(SteppedTomography, TestCase):
+    """ Test implementation for SynchrotronSteppedTomography """
+    async def asyncSetUp(self):
+        await SteppedTomography.asyncSetUp(self)
+        self.source = await Shutter()
+        self.exp = await SynchrotronSteppedTomography(
+            walker=self.walker,
+            flat_motor=self.flatfield_axis,
+            tomography_motor=self.tomo_motor,
+            radio_position=0 * q.mm,
+            flat_position=10 * q.mm,
+            camera=self.camera,
+            shutter=self.source,
+            num_flats=5,
+            num_darks=5,
+            num_projections=10,
+            angular_range=180 * q.deg,
+            start_angle=0 * q.deg
+        )
+        await self.run_experiment()
 
 
 @slow
 class TestXRayTubeContinuousTomography(ContinuousTomography, TestCase):
     """ Test implementation for XRayTubeContinuousTomography """
-    def setUp(self):
-        ContinuousTomography.setUp(self)
-        self.source = XRayTube()
-        self.exp = XRayTubeContinuousTomography(walker=self.walker,
-                                                flat_motor=self.flatfield_axis,
-                                                tomography_motor=self.tomo_motor,
-                                                radio_position=0 * q.mm,
-                                                flat_position=10 * q.mm,
-                                                camera=self.camera,
-                                                xray_tube=self.source,
-                                                num_flats=5,
-                                                num_darks=5,
-                                                num_projections=10,
-                                                angular_range=360 * q.deg,
-                                                start_angle=0 * q.deg)
+    async def asyncSetUp(self):
+        await ContinuousTomography.asyncSetUp(self)
+        self.source = await XRayTube()
+        self.exp = await XRayTubeContinuousTomography(
+            walker=self.walker,
+            flat_motor=self.flatfield_axis,
+            tomography_motor=self.tomo_motor,
+            radio_position=0 * q.mm,
+            flat_position=10 * q.mm,
+            camera=self.camera,
+            xray_tube=self.source,
+            num_flats=5,
+            num_darks=5,
+            num_projections=10,
+            angular_range=360 * q.deg,
+            start_angle=0 * q.deg
+        )
+        await self.run_experiment()
 
 
 @slow
 class TestSynchrotronContinuousTomography(ContinuousTomography, TestCase):
     """ Test implementation for SynchrotronContinuousTomography """
-    def setUp(self):
-        ContinuousTomography.setUp(self)
-        self.source = Shutter()
-        self.exp = SynchrotronContinuousTomography(walker=self.walker,
-                                                   flat_motor=self.flatfield_axis,
-                                                   tomography_motor=self.tomo_motor,
-                                                   radio_position=0 * q.mm,
-                                                   flat_position=10 * q.mm,
-                                                   camera=self.camera,
-                                                   shutter=self.source,
-                                                   num_flats=5,
-                                                   num_darks=5,
-                                                   num_projections=10,
-                                                   angular_range=180 * q.deg,
-                                                   start_angle=0 * q.deg)
+    async def asyncSetUp(self):
+        await ContinuousTomography.asyncSetUp(self)
+        self.source = await Shutter()
+        self.exp = await SynchrotronContinuousTomography(
+            walker=self.walker,
+            flat_motor=self.flatfield_axis,
+            tomography_motor=self.tomo_motor,
+            radio_position=0 * q.mm,
+            flat_position=10 * q.mm,
+            camera=self.camera,
+            shutter=self.source,
+            num_flats=5,
+            num_darks=5,
+            num_projections=10,
+            angular_range=180 * q.deg,
+            start_angle=0 * q.deg
+        )
+        await self.run_experiment()
 
 
 @slow
 class TestXRayTubeSteppedSpiralTomographyTomography(SteppedSpiralTomography, TestCase):
     """ Test implementation for XRayTubeSteppedSpiralTomography """
-    def setUp(self):
-        SteppedSpiralTomography.setUp(self)
-        self.source = XRayTube()
-        self.exp = XRayTubeSteppedSpiralTomography(walker=self.walker,
-                                                   flat_motor=self.flatfield_axis,
-                                                   tomography_motor=self.tomo_motor,
-                                                   vertical_motor=self.vertical_motor,
-                                                   radio_position=0 * q.mm,
-                                                   flat_position=10 * q.mm,
-                                                   camera=self.camera,
-                                                   xray_tube=self.source,
-                                                   start_position_vertical=0 * q.mm,
-                                                   vertical_shift_per_tomogram=5 * q.mm,
-                                                   sample_height=10 * q.mm,
-                                                   num_flats=5,
-                                                   num_darks=5,
-                                                   num_projections=10,
-                                                   angular_range=360 * q.deg,
-                                                   start_angle=0 * q.deg)
+    async def asyncSetUp(self):
+        await SteppedSpiralTomography.asyncSetUp(self)
+        self.source = await XRayTube()
+        self.exp = await XRayTubeSteppedSpiralTomography(
+            walker=self.walker,
+            flat_motor=self.flatfield_axis,
+            tomography_motor=self.tomo_motor,
+            vertical_motor=self.vertical_motor,
+            radio_position=0 * q.mm,
+            flat_position=10 * q.mm,
+            camera=self.camera,
+            xray_tube=self.source,
+            start_position_vertical=0 * q.mm,
+            vertical_shift_per_tomogram=5 * q.mm,
+            sample_height=10 * q.mm,
+            num_flats=5,
+            num_darks=5,
+            num_projections=10,
+            angular_range=360 * q.deg,
+            start_angle=0 * q.deg
+        )
+        await self.run_experiment()
 
 
 @slow
 class TestSynchrotronSteppedSpiralTomographyTomography(SteppedSpiralTomography, TestCase):
     """ Test implementation for SynchrotronSteppedSpiralTomography """
-    def setUp(self):
-        SteppedSpiralTomography.setUp(self)
-        self.source = Shutter()
-        self.exp = SynchrotronSteppedSpiralTomography(walker=self.walker,
-                                                      flat_motor=self.flatfield_axis,
-                                                      tomography_motor=self.tomo_motor,
-                                                      vertical_motor=self.vertical_motor,
-                                                      radio_position=0 * q.mm,
-                                                      flat_position=10 * q.mm,
-                                                      camera=self.camera,
-                                                      shutter=self.source,
-                                                      start_position_vertical=0 * q.mm,
-                                                      vertical_shift_per_tomogram=5*q.mm,
-                                                      sample_height=10 * q.mm,
-                                                      num_flats=5,
-                                                      num_darks=5,
-                                                      num_projections=10,
-                                                      angular_range=180 * q.deg,
-                                                      start_angle=0 * q.deg)
+    async def asyncSetUp(self):
+        await SteppedSpiralTomography.asyncSetUp(self)
+        self.source = await Shutter()
+        self.exp = await SynchrotronSteppedSpiralTomography(
+            walker=self.walker,
+            flat_motor=self.flatfield_axis,
+            tomography_motor=self.tomo_motor,
+            vertical_motor=self.vertical_motor,
+            radio_position=0 * q.mm,
+            flat_position=10 * q.mm,
+            camera=self.camera,
+            shutter=self.source,
+            start_position_vertical=0 * q.mm,
+            vertical_shift_per_tomogram=5 * q.mm,
+            sample_height=10 * q.mm,
+            num_flats=5,
+            num_darks=5,
+            num_projections=10,
+            angular_range=180 * q.deg,
+            start_angle=0 * q.deg
+        )
+        await self.run_experiment()
 
 
 @slow
 class TestXRayTubeContinuousSpiralTomographyTomography(ContinuousSpiralTomography, TestCase):
     """ Test implementation for XRayTubeContinuousSpiralTomography """
-    def setUp(self):
-        ContinuousSpiralTomography.setUp(self)
-        self.source = XRayTube()
-        self.exp = XRayTubeContinuousSpiralTomography(walker=self.walker,
-                                                      flat_motor=self.flatfield_axis,
-                                                      tomography_motor=self.tomo_motor,
-                                                      vertical_motor=self.vertical_motor,
-                                                      radio_position=0 * q.mm,
-                                                      flat_position=10 * q.mm,
-                                                      camera=self.camera,
-                                                      xray_tube=self.source,
-                                                      start_position_vertical=0 * q.mm,
-                                                      vertical_shift_per_tomogram=5 * q.mm,
-                                                      sample_height=10 * q.mm,
-                                                      num_flats=5,
-                                                      num_darks=5,
-                                                      num_projections=10,
-                                                      angular_range=360 * q.deg,
-                                                      start_angle=0 * q.deg)
+    async def asyncSetUp(self):
+        await ContinuousSpiralTomography.asyncSetUp(self)
+        self.source = await XRayTube()
+        self.exp = await XRayTubeContinuousSpiralTomography(
+            walker=self.walker,
+            flat_motor=self.flatfield_axis,
+            tomography_motor=self.tomo_motor,
+            vertical_motor=self.vertical_motor,
+            radio_position=0 * q.mm,
+            flat_position=10 * q.mm,
+            camera=self.camera,
+            xray_tube=self.source,
+            start_position_vertical=0 * q.mm,
+            vertical_shift_per_tomogram=5 * q.mm,
+            sample_height=10 * q.mm,
+            num_flats=5,
+            num_darks=5,
+            num_projections=10,
+            angular_range=360 * q.deg,
+            start_angle=0 * q.deg
+        )
+        await self.run_experiment()
 
 
 @slow
 class TestSynchrotronContinuousSpiralTomographyTomography(ContinuousSpiralTomography, TestCase):
     """ Test implementation for SynchrotronContinuousSpiralTomography """
-    def setUp(self):
-        ContinuousSpiralTomography.setUp(self)
-        self.source = Shutter()
-        self.exp = SynchrotronContinuousSpiralTomography(walker=self.walker,
-                                                         flat_motor=self.flatfield_axis,
-                                                         tomography_motor=self.tomo_motor,
-                                                         vertical_motor=self.vertical_motor,
-                                                         radio_position=0 * q.mm,
-                                                         flat_position=10 * q.mm,
-                                                         camera=self.camera,
-                                                         shutter=self.source,
-                                                         start_position_vertical=0 * q.mm,
-                                                         vertical_shift_per_tomogram=5 * q.mm,
-                                                         sample_height=10 * q.mm,
-                                                         num_flats=5,
-                                                         num_darks=5,
-                                                         num_projections=10,
-                                                         angular_range=180 * q.deg,
-                                                         start_angle=0 * q.deg)
+    async def asyncSetUp(self):
+        await ContinuousSpiralTomography.asyncSetUp(self)
+        self.source = await Shutter()
+        self.exp = await SynchrotronContinuousSpiralTomography(
+            walker=self.walker,
+            flat_motor=self.flatfield_axis,
+            tomography_motor=self.tomo_motor,
+            vertical_motor=self.vertical_motor,
+            radio_position=0 * q.mm,
+            flat_position=10 * q.mm,
+            camera=self.camera,
+            shutter=self.source,
+            start_position_vertical=0 * q.mm,
+            vertical_shift_per_tomogram=5 * q.mm,
+            sample_height=10 * q.mm,
+            num_flats=5,
+            num_darks=5,
+            num_projections=10,
+            angular_range=180 * q.deg,
+            start_angle=0 * q.deg
+        )
+        await self.run_experiment()

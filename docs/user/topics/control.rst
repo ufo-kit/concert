@@ -9,7 +9,15 @@ Parameters
 
 In Concert, a *device* is a software abstraction for a piece of hardware that
 can be controlled. Each device consists of a set of named :class:`Parameter`
-instances and device-specific methods. If you know the parameter name, you can
+instances and device-specific methods. Devices rely heavily on concurrent
+execution, so that multiple devices can do multiple actions at the same time. In
+order for the devices to be able to use concurrency already in their
+constructors, they must be instantiated with the `await` keyword like this::
+
+    from concert.devices.motors.dummy import LinearMotor
+    motor = await LinearMotor()
+
+The devices contain several parameters and if you know the parameter name, you can
 get a reference to the parameter object by using the index operator::
 
     pos_parameter = motor['position']

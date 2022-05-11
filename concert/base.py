@@ -12,6 +12,9 @@ from concert.quantities import q
 
 
 LOG = logging.getLogger(__name__)
+_RUN_IN_LOOP_ERR_TMPL = "Someone is trying to use `{}' " \
+                        "inside `async def' code which is not allowed, please " \
+                        "use `await {}' instead"
 
 
 def identity(x):
@@ -46,6 +49,9 @@ def _find_object_by_name(instance):
     """Find variable name by *instance*. This is supposed to be used only in the
     :meth:`.Parameter.__set__`.
     """
+    def _is_name_ok(instance_name):
+        return instance_name and instance_name not in ['instance', 'self']
+
     def _find_in_dict(dictionary):
         for (obj_name, obj) in list(dictionary.items()):
             if obj is instance:
@@ -53,9 +59,18 @@ def _find_object_by_name(instance):
 
     instance_name = None
 
+    try:
+        ipython = get_ipython()
+        instance_name = _find_in_dict(ipython.user_ns)
+        if instance_name:
+            return instance_name
+    except NameError:
+        # Not in IPython
+        pass
+
     frames = inspect.stack()
     try:
-        # Skip us and Parameter.__set__
+        # Skip us and ParameterValue.set
         for i in range(2, len(frames)):
             # First look in the globals
             instance_name = _find_in_dict(frames[i][0].f_globals)
@@ -66,11 +81,24 @@ def _find_object_by_name(instance):
             # parameter in a constructor we need to bump index by one. Thus, use blacklist names
             # which won't be picked up because they are most probably used by concert or it's
             # extensions internally.
-            if instance_name and instance_name not in ['instance', 'self']:
+            if _is_name_ok(instance_name):
                 break
     finally:
         # Cleanup as python docs suggest
         del frames
+
+    if not instance_name:
+        # Try coroutines
+        tasks = asyncio.all_tasks(loop=asyncio.get_running_loop())
+        for task in tasks:
+            # Python 3.7 compatibility, later task.get_coro()
+            coro = task._coro
+            while coro:
+                instance_name = _find_in_dict(inspect.getcoroutinelocals(coro))
+                if _is_name_ok(instance_name):
+                    return instance_name
+                # task._coro can be awaiting another coroutine, so let's recurse
+                coro = coro.cr_await if inspect.iscoroutine(coro.cr_await) else None
 
     return instance_name
 
@@ -365,10 +393,22 @@ class Parameter(object):
         return str(self.help)
 
     def __get__(self, instance, owner):
-        return run_in_loop(instance[self.name].get())
+        return run_in_loop(
+            instance[self.name].get(),
+            error_msg_if_running=_RUN_IN_LOOP_ERR_TMPL.format(
+                'obj.param',
+                'obj.get_param()'
+            )
+        )
 
     def __set__(self, instance, value):
-        run_in_loop(instance[self.name].set(value))
+        run_in_loop(
+            instance[self.name].set(value),
+            error_msg_if_running=_RUN_IN_LOOP_ERR_TMPL.format(
+                'obj.param = value',
+                'obj.set_param(value)'
+            )
+        )
 
 
 class State(Parameter):
@@ -523,7 +563,10 @@ class ParameterValue(object):
         return self._parameter.name < other._parameter.name
 
     def __repr__(self):
-        return run_in_loop(self.info_table).get_string()
+        if asyncio.get_event_loop().is_running():
+            return repr(self._parameter)
+        else:
+            return run_in_loop(self.info_table).get_string()
 
     @property
     async def info_table(self):
@@ -560,7 +603,13 @@ class ParameterValue(object):
 
     @property
     def target(self):
-        return run_in_loop(self.get_target())
+        return run_in_loop(
+            self.get_target(),
+            error_msg_if_running=_RUN_IN_LOOP_ERR_TMPL.format(
+                'parameter.target',
+                'parameter.get_target()'
+            )
+        )
 
     @background
     async def get(self, wait_on=None):
@@ -668,7 +717,7 @@ class ParameterValue(object):
         cannot be unlocked anymore.
         """
         def unlock_not_allowed():
-            raise LockError("Parameter `{}' cannot be unlocked".format(self))
+            raise LockError("Parameter `{}' cannot be unlocked".format(self._parameter.name))
 
         self._locked = True
         if permanent:
@@ -741,11 +790,23 @@ class QuantityValue(ParameterValue):
 
     @property
     def lower(self):
-        return run_in_loop(self.get_lower())
+        return run_in_loop(
+            self.get_lower(),
+            error_msg_if_running=_RUN_IN_LOOP_ERR_TMPL.format(
+                'quantity.lower',
+                'quantity.get_lower()'
+            )
+        )
 
     @lower.setter
     def lower(self, value):
-        run_in_loop(self.set_lower(value))
+        run_in_loop(
+            self.set_lower(value),
+            error_msg_if_running=_RUN_IN_LOOP_ERR_TMPL.format(
+                'quantity.lower = value',
+                'quantity.set_lower(value)'
+            )
+        )
 
     @background
     async def get_lower(self):
@@ -775,11 +836,23 @@ class QuantityValue(ParameterValue):
 
     @property
     def upper(self):
-        return run_in_loop(self.get_upper())
+        return run_in_loop(
+            self.get_upper(),
+            error_msg_if_running=_RUN_IN_LOOP_ERR_TMPL.format(
+                'quantity.upper',
+                'quantity.get_upper()'
+            )
+        )
 
     @upper.setter
     def upper(self, value):
-        run_in_loop(self.set_upper(value))
+        run_in_loop(
+            self.set_upper(value),
+            error_msg_if_running=_RUN_IN_LOOP_ERR_TMPL.format(
+                'quantity.upper = value',
+                'quantity.set_upper(value)'
+            )
+        )
 
     @background
     async def get_upper(self):
@@ -809,7 +882,13 @@ class QuantityValue(ParameterValue):
 
     @property
     def upper_user(self):
-        return run_in_loop(self.get_upper_user())
+        return run_in_loop(
+            self.get_upper_user(),
+            error_msg_if_running=_RUN_IN_LOOP_ERR_TMPL.format(
+                'quantity.upper_user',
+                'quantity.get_upper_user()'
+            )
+        )
 
     @background
     async def get_upper_user(self):
@@ -820,7 +899,13 @@ class QuantityValue(ParameterValue):
 
     @property
     def lower_user(self):
-        return run_in_loop(self.get_lower_user())
+        return run_in_loop(
+            self.get_lower_user(),
+            error_msg_if_running=_RUN_IN_LOOP_ERR_TMPL.format(
+                'quantity.lower_user',
+                'quantity.get_lower_user()'
+            )
+        )
 
     @background
     async def get_lower_user(self):
@@ -831,7 +916,13 @@ class QuantityValue(ParameterValue):
 
     @property
     def lower_external(self):
-        return run_in_loop(self.get_lower_external())
+        return run_in_loop(
+            self.get_lower_external(),
+            error_msg_if_running=_RUN_IN_LOOP_ERR_TMPL.format(
+                'quantity.lower_external',
+                'quantity.get_lower_external()'
+            )
+        )
 
     @background
     async def get_lower_external(self):
@@ -842,7 +933,13 @@ class QuantityValue(ParameterValue):
 
     @property
     def upper_external(self):
-        return run_in_loop(self.get_upper_external())
+        return run_in_loop(
+            self.get_upper_external(),
+            error_msg_if_running=_RUN_IN_LOOP_ERR_TMPL.format(
+                'quantity.upper_external',
+                'quantity.get_upper_external()'
+            )
+        )
 
     @background
     async def get_upper_external(self):
@@ -971,7 +1068,87 @@ class SelectionValue(ParameterValue):
         return tuple(self._parameter.iterable)
 
 
-class Parameterizable(object):
+class AsyncType(type):
+
+    """
+    Metaclass which allows an awaitable constructor `__ainit__(...)' instead of `__init__(...)' and
+    thus enables async object initialization `obj = await Class(...)'. `__ainit__(...)` must return
+    an awaitable and its result must be None. To actually make async objects use the
+    :class:`.AsyncObject` class.
+
+    By having a new method for async initialization we clearly separate the async and non-async
+    worlds. In case of mixed async and non-async multiple inheritance, it is the responsibility of
+    *Class* to call the predecessors of both parts, e.g. by `await super().__ainit__(...)' and
+    `super().__init__(...)'. It is forbidden to have an `__init__(...)' in a class with
+    `__ainit__(...)', so the calls to *super()* will be unambiguous with respect to the two
+    constructor types and MRO will work as expected.
+    """
+
+    def __new__(meta, name, bases, dct):
+        # Create new class *name* and make sure it does not implement __init__.
+        if '__init__' in dct:
+            raise TypeError(f"AsyncObject `{name}' must define __ainit__ instead of __init__")
+        cls = super(AsyncType, meta).__new__(meta, name, bases, dct)
+        if hasattr(cls, '__ainit__'):
+            # Copy the signature of __ainit__ to *cls* so that helper functions which pick up on
+            # constructor attributes work
+            cls.__signature__ = inspect.Signature.from_callable(cls.__ainit__)
+
+        return cls
+
+    async def __call__(cls, *args, **kwargs):
+        # Create an instance of class *cls*. Do almost the same as type.__call__
+        # (Objects/typeobject.c:type_call in CPython) but instead of calling the constructor
+        # __init__, call the async constructor __ainit__, i.e. __init__ is never called becuase
+        # calling both __init__ and __ainit__ with the same *args* and *kwargs* may be undesirable.
+        # Moreover, everything which can be constructed in __init__ can also be constructed in
+        # __ainit__.
+        obj = cls.__new__(cls, *args, **kwargs)
+
+        if isinstance(obj, cls) and hasattr(cls, '__ainit__'):
+            # If cls.__new__ returns and instance of cls and there is an __ainit__ method, call it
+            # and make sure it does not return anything
+            coro = obj.__ainit__(*args, **kwargs)
+            if not inspect.isawaitable(coro):
+                raise TypeError(
+                    f"__ainit__() must return an awaitable, not `{type(coro).__name__}'"
+                )
+            result = await coro
+            if result is not None:
+                raise TypeError(
+                    f"__ainit__() should return None, not `{type(result).__name__}'"
+                )
+
+        return obj
+
+
+class AsyncObject(metaclass=AsyncType):
+    """Root of all classes with async def __ainit__()."""
+
+    def __new__(cls, *args, **kwargs):
+        # Create an instance of class *cls* by calling object.__new__(*cls*) but do the argument
+        # check here because we cannot re-use object's __new__ (Objects/typeobject.c:object_new in
+        # CPython) becuase it checks for normal __init__ constructor and not __ainit__. If *cls*
+        # re-defines __new__, it must call AsyncObject.__new__ without any arguments (*cls* is
+        # responsible for consuming them). If *cls* does not re-define __new__ and defines
+        # __ainit__, potentially wrong arguments will be handled when the type tries to call
+        # __ainit__; if __ainit__ is not re-defined then there cannot be arguments because
+        # AsyncObject.__ainit__ takes no arguments.
+        if args or kwargs:
+            if cls.__new__ != AsyncObject.__new__:
+                raise TypeError(
+                    "AsyncObject.__new__() takes exactly one argument (the type to instantiate)"
+                )
+            if cls.__ainit__ == AsyncObject.__ainit__:
+                raise TypeError(f"{cls.__name__} takes no arguments")
+
+        return object.__new__(cls)
+
+    async def __ainit__(self):
+        pass
+
+
+class Parameterizable(AsyncObject):
 
     """
     Collection of parameters.
@@ -1008,7 +1185,7 @@ class Parameterizable(object):
         print param.position
     """
 
-    def __init__(self):
+    async def __ainit__(self):
         if not hasattr(self, '_params'):
             self._params = {}
 
@@ -1019,10 +1196,16 @@ class Parameterizable(object):
                     self._install_parameter(attr_type)
 
     def __str__(self):
-        return run_in_loop(self.info_table).get_string(sortby="Parameter")
+        if asyncio.get_event_loop().is_running():
+            return super().__str__()
+        else:
+            return run_in_loop(self.info_table).get_string(sortby="Parameter")
 
     def __repr__(self):
-        return '\n'.join([super(Parameterizable, self).__repr__(), str(self)])
+        if asyncio.get_event_loop().is_running():
+            return super().__repr__()
+        else:
+            return '\n'.join([super(Parameterizable, self).__repr__(), str(self)])
 
     def __iter__(self):
         for param in sorted(self._params.values()):

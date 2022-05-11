@@ -46,8 +46,8 @@ class Radiography(XrayTubeMixin, BaseRadiography):
     """
     Radiography experiment
     """
-    def __init__(self, walker, flat_motor, radio_position, flat_position, camera, xray_tube,
-                 num_flats=200, num_darks=200, num_projections=3000, separate_scans=True):
+    async def __ainit__(self, walker, flat_motor, radio_position, flat_position, camera, xray_tube,
+                        num_flats=200, num_darks=200, num_projections=3000, separate_scans=True):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -70,23 +70,25 @@ class Radiography(XrayTubeMixin, BaseRadiography):
         :type num_projections: int
         """
         XrayTubeMixin.__init__(self, xray_tube)
-        BaseRadiography.__init__(self, walker=walker,
-                                 flat_motor=flat_motor,
-                                 radio_position=radio_position,
-                                 flat_position=flat_position,
-                                 camera=camera, num_flats=num_flats,
-                                 num_darks=num_darks,
-                                 num_projections=num_projections,
-                                 separate_scans=separate_scans)
+        await BaseRadiography.__ainit__(
+            self, walker=walker,
+            flat_motor=flat_motor,
+            radio_position=radio_position,
+            flat_position=flat_position,
+            camera=camera, num_flats=num_flats,
+            num_darks=num_darks,
+            num_projections=num_projections,
+            separate_scans=separate_scans
+        )
 
 
 class SteppedTomography(XrayTubeMixin, BaseSteppedTomo):
     """
     Stepped tomography experiment.
     """
-    def __init__(self, walker, flat_motor, tomography_motor, radio_position, flat_position, camera,
-                 xray_tube, num_flats=200, num_darks=200, num_projections=3000,
-                 angular_range=360 * q.deg, start_angle=0 * q.deg, separate_scans=True):
+    async def __ainit__(self, walker, flat_motor, tomography_motor, radio_position, flat_position,
+                        camera, xray_tube, num_flats=200, num_darks=200, num_projections=3000,
+                        angular_range=360 * q.deg, start_angle=0 * q.deg, separate_scans=True):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -115,27 +117,29 @@ class SteppedTomography(XrayTubeMixin, BaseSteppedTomo):
         :type start_angle: q.deg
         """
         XrayTubeMixin.__init__(self, xray_tube)
-        BaseSteppedTomo.__init__(self, walker=walker,
-                                 flat_motor=flat_motor,
-                                 tomography_motor=tomography_motor,
-                                 radio_position=radio_position,
-                                 flat_position=flat_position,
-                                 camera=camera,
-                                 num_flats=num_flats,
-                                 num_darks=num_darks,
-                                 num_projections=num_projections,
-                                 angular_range=angular_range,
-                                 start_angle=start_angle,
-                                 separate_scans=separate_scans)
+        await BaseSteppedTomo.__ainit__(
+            self, walker=walker,
+            flat_motor=flat_motor,
+            tomography_motor=tomography_motor,
+            radio_position=radio_position,
+            flat_position=flat_position,
+            camera=camera,
+            num_flats=num_flats,
+            num_darks=num_darks,
+            num_projections=num_projections,
+            angular_range=angular_range,
+            start_angle=start_angle,
+            separate_scans=separate_scans
+        )
 
 
 class ContinuousTomography(XrayTubeMixin, BaseContTomo):
     """
     Continuous tomography experiment
     """
-    def __init__(self, walker, flat_motor, tomography_motor, radio_position, flat_position, camera,
-                 xray_tube, num_flats=200, num_darks=200, num_projections=3000,
-                 angular_range=180 * q.deg, start_angle=0 * q.deg, separate_scans=True):
+    async def __ainit__(self, walker, flat_motor, tomography_motor, radio_position, flat_position,
+                        camera, xray_tube, num_flats=200, num_darks=200, num_projections=3000,
+                        angular_range=180 * q.deg, start_angle=0 * q.deg, separate_scans=True):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -164,28 +168,31 @@ class ContinuousTomography(XrayTubeMixin, BaseContTomo):
         :type start_angle: q.deg
         """
         XrayTubeMixin.__init__(self, xray_tube)
-        BaseContTomo.__init__(self, walker=walker,
-                              flat_motor=flat_motor,
-                              tomography_motor=tomography_motor,
-                              radio_position=radio_position,
-                              flat_position=flat_position,
-                              camera=camera,
-                              num_flats=num_flats,
-                              num_darks=num_darks,
-                              num_projections=num_projections,
-                              angular_range=angular_range,
-                              start_angle=start_angle,
-                              separate_scans=separate_scans)
+        await BaseContTomo.__ainit__(
+            self, walker=walker,
+            flat_motor=flat_motor,
+            tomography_motor=tomography_motor,
+            radio_position=radio_position,
+            flat_position=flat_position,
+            camera=camera,
+            num_flats=num_flats,
+            num_darks=num_darks,
+            num_projections=num_projections,
+            angular_range=angular_range,
+            start_angle=start_angle,
+            separate_scans=separate_scans
+        )
 
 
 class ContinuousSpiralTomography(XrayTubeMixin, BaseContSpiralTomo):
     """
     Continuous spiral tomography experiment
     """
-    def __init__(self, walker, flat_motor, tomography_motor, vertical_motor, radio_position,
-                 flat_position, camera, xray_tube, start_position_vertical, sample_height,
-                 vertical_shift_per_tomogram, num_flats=200, num_darks=200, num_projections=3000,
-                 angular_range=180 * q.deg, start_angle=0 * q.deg, separate_scans=True):
+    async def __ainit__(self, walker, flat_motor, tomography_motor, vertical_motor, radio_position,
+                        flat_position, camera, xray_tube, start_position_vertical, sample_height,
+                        vertical_shift_per_tomogram, num_flats=200, num_darks=200,
+                        num_projections=3000, angular_range=180 * q.deg, start_angle=0 * q.deg,
+                        separate_scans=True):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -224,32 +231,35 @@ class ContinuousSpiralTomography(XrayTubeMixin, BaseContSpiralTomo):
         :type start_angle: q.deg
         """
         XrayTubeMixin.__init__(self, xray_tube)
-        BaseContSpiralTomo.__init__(self, walker=walker,
-                                    flat_motor=flat_motor,
-                                    tomography_motor=tomography_motor,
-                                    vertical_motor=vertical_motor,
-                                    radio_position=radio_position,
-                                    flat_position=flat_position,
-                                    camera=camera,
-                                    start_position_vertical=start_position_vertical,
-                                    sample_height=sample_height,
-                                    vertical_shift_per_tomogram=vertical_shift_per_tomogram,
-                                    num_flats=num_flats,
-                                    num_darks=num_darks,
-                                    num_projections=num_projections,
-                                    angular_range=angular_range,
-                                    start_angle=start_angle,
-                                    separate_scans=separate_scans)
+        await BaseContSpiralTomo.__ainit__(
+            self, walker=walker,
+            flat_motor=flat_motor,
+            tomography_motor=tomography_motor,
+            vertical_motor=vertical_motor,
+            radio_position=radio_position,
+            flat_position=flat_position,
+            camera=camera,
+            start_position_vertical=start_position_vertical,
+            sample_height=sample_height,
+            vertical_shift_per_tomogram=vertical_shift_per_tomogram,
+            num_flats=num_flats,
+            num_darks=num_darks,
+            num_projections=num_projections,
+            angular_range=angular_range,
+            start_angle=start_angle,
+            separate_scans=separate_scans
+        )
 
 
 class SteppedSpiralTomography(XrayTubeMixin, BaseSteppedSpiralTomo):
     """
     Stepped spiral tomography experiment
     """
-    def __init__(self, walker, flat_motor, tomography_motor, vertical_motor, radio_position,
-                 flat_position, camera, xray_tube, start_position_vertical, sample_height,
-                 vertical_shift_per_tomogram, num_flats=200, num_darks=200, num_projections=3000,
-                 angular_range=180 * q.deg, start_angle=0 * q.deg, separate_scans=True):
+    async def __ainit__(self, walker, flat_motor, tomography_motor, vertical_motor,
+                        radio_position, flat_position, camera, xray_tube,
+                        start_position_vertical, sample_height, vertical_shift_per_tomogram,
+                        num_flats=200, num_darks=200, num_projections=3000,
+                        angular_range=180 * q.deg, start_angle=0 * q.deg, separate_scans=True):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -287,28 +297,31 @@ class SteppedSpiralTomography(XrayTubeMixin, BaseSteppedSpiralTomo):
         :type start_angle: q.deg
         """
         XrayTubeMixin.__init__(self, xray_tube)
-        BaseSteppedSpiralTomo.__init__(self, walker=walker,
-                                       flat_motor=flat_motor,
-                                       tomography_motor=tomography_motor,
-                                       vertical_motor=vertical_motor,
-                                       radio_position=radio_position,
-                                       flat_position=flat_position,
-                                       camera=camera,
-                                       start_position_vertical=start_position_vertical,
-                                       sample_height=sample_height,
-                                       vertical_shift_per_tomogram=vertical_shift_per_tomogram,
-                                       num_flats=num_flats,
-                                       num_darks=num_darks,
-                                       num_projections=num_projections,
-                                       angular_range=angular_range,
-                                       start_angle=start_angle,
-                                       separate_scans=separate_scans)
+        await BaseSteppedSpiralTomo.__ainit__(
+            self, walker=walker,
+            flat_motor=flat_motor,
+            tomography_motor=tomography_motor,
+            vertical_motor=vertical_motor,
+            radio_position=radio_position,
+            flat_position=flat_position,
+            camera=camera,
+            start_position_vertical=start_position_vertical,
+            sample_height=sample_height,
+            vertical_shift_per_tomogram=vertical_shift_per_tomogram,
+            num_flats=num_flats,
+            num_darks=num_darks,
+            num_projections=num_projections,
+            angular_range=angular_range,
+            start_angle=start_angle,
+            separate_scans=separate_scans
+        )
 
 
 class GratingInterferometryStepping(XrayTubeMixin, BasePhaseStepping):
-    def __init__(self, walker, camera, xray_tube, flat_motor, stepping_motor, flat_position,
-                 radio_position, grating_period, num_darks, stepping_start_position, num_periods,
-                 num_steps_per_period, propagation_distance, separate_scans):
+    async def __ainit__(self, walker, camera, xray_tube, flat_motor, stepping_motor,
+                        flat_position, radio_position, grating_period, num_darks,
+                        stepping_start_position, num_periods, num_steps_per_period,
+                        propagation_distance, separate_scans):
         """
         :param walker: Walker for the experiment
         :type walker: concert.storage.DirectoryWalker
@@ -339,16 +352,18 @@ class GratingInterferometryStepping(XrayTubeMixin, BasePhaseStepping):
         :type propagation_distance: q.mm
         """
         XrayTubeMixin.__init__(self, xray_tube)
-        BasePhaseStepping.__init__(self, walker=walker,
-                                   camera=camera,
-                                   flat_motor=flat_motor,
-                                   stepping_motor=stepping_motor,
-                                   flat_position=flat_position,
-                                   radio_position=radio_position,
-                                   grating_period=grating_period,
-                                   num_darks=num_darks,
-                                   stepping_start_position=stepping_start_position,
-                                   num_periods=num_periods,
-                                   num_steps_per_period=num_steps_per_period,
-                                   propagation_distance=propagation_distance,
-                                   separate_scans=separate_scans)
+        await BasePhaseStepping.__ainit__(
+            self, walker=walker,
+            camera=camera,
+            flat_motor=flat_motor,
+            stepping_motor=stepping_motor,
+            flat_position=flat_position,
+            radio_position=radio_position,
+            grating_period=grating_period,
+            num_darks=num_darks,
+            stepping_start_position=stepping_start_position,
+            num_periods=num_periods,
+            num_steps_per_period=num_steps_per_period,
+            propagation_distance=propagation_distance,
+            separate_scans=separate_scans
+        )

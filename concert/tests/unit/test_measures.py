@@ -11,17 +11,17 @@ from concert.measures import rotation_axis
 
 class TestRotationAxisMeasure(TestCase):
 
-    def setUp(self):
-        super(TestRotationAxisMeasure, self).setUp()
-        self.x_motor = ContinuousRotationMotor()
-        self.y_motor = ContinuousRotationMotor()
-        self.z_motor = ContinuousRotationMotor()
+    async def asyncSetUp(self):
+        await super(TestRotationAxisMeasure, self).asyncSetUp()
+        self.x_motor = await ContinuousRotationMotor()
+        self.y_motor = await ContinuousRotationMotor()
+        self.z_motor = await ContinuousRotationMotor()
 
         # The bigger the image size, the more images we need to determine
         # the center correctly.
-        self.image_source = SimulationCamera(128, self.x_motor["position"],
-                                             self.y_motor["position"],
-                                             self.z_motor["position"])
+        self.image_source = await SimulationCamera(128, self.x_motor["position"],
+                                                   self.y_motor["position"],
+                                                   self.z_motor["position"])
 
         # Allow 1 px misalignment in y-direction.
         self.eps = np.arctan(2 / self.image_source.rotation_radius) * q.rad

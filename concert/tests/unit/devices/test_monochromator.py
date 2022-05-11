@@ -17,8 +17,8 @@ class WavelengthMonochromator(Monochromator):
     conversion needs to be handled in the base class.
     """
 
-    def __init__(self):
-        super(WavelengthMonochromator, self).__init__()
+    async def __ainit__(self):
+        await super(WavelengthMonochromator, self).__ainit__()
         self._wavelength = random.random() * 1e-10 * q.m
 
     async def _get_wavelength_real(self):
@@ -33,10 +33,10 @@ class PhotoDiode(DummyPhotoDiode):
     Photo diode that returns an intensity distribution depending on the bragg_motor2 position.
 
     """
-    def __init__(self, bragg_motor2):
+    async def __ainit__(self, bragg_motor2):
         self.bragg_motor = bragg_motor2
         self.function = None
-        super().__init__()
+        await super().__ainit__()
 
     async def _get_intensity(self):
         x = (await self.bragg_motor.get_position()).to(q.deg).magnitude
@@ -45,10 +45,10 @@ class PhotoDiode(DummyPhotoDiode):
 
 class TestDummyMonochromator(TestCase):
 
-    def setUp(self):
-        super(TestDummyMonochromator, self).setUp()
-        self.mono = DummyMonochromator()
-        self.wave_mono = WavelengthMonochromator()
+    async def asyncSetUp(self):
+        await super(TestDummyMonochromator, self).asyncSetUp()
+        self.mono = await DummyMonochromator()
+        self.wave_mono = await WavelengthMonochromator()
         self.energy = 25 * q.keV
         self.wavelength = 0.1 * q.nm
 
@@ -80,10 +80,9 @@ class TestDummyMonochromator(TestCase):
 
 @slow
 class TestDummyDoubleMonochromator(TestCase):
-    def setUp(self):
-        super(TestDummyDoubleMonochromator, self).setUp()
-        self.mono = DoubleMonochromator()
-        self.diode = PhotoDiode(self.mono._motor_2)
+    async def asyncSetUp(self):
+        self.mono = await DoubleMonochromator()
+        self.diode = await PhotoDiode(self.mono._motor_2)
 
     def gaussian(self, x):
         """
@@ -91,7 +90,7 @@ class TestDummyDoubleMonochromator(TestCase):
         """
         mu = 0.2
         sigma = 0.1
-        return np.exp(-(x-mu)**2/sigma**2)
+        return np.exp(-(x - mu) ** 2 / sigma ** 2)
 
     def double_gaussian(self, x):
         """
@@ -109,9 +108,9 @@ class TestDummyDoubleMonochromator(TestCase):
         select_maximum() function.
         """
         self.diode.function = self.gaussian
-        await self.mono.scan_bragg_angle(diode=self.diode, tune_range=1*q.deg, n_points=100)
+        await self.mono.scan_bragg_angle(diode=self.diode, tune_range=1 * q.deg, n_points=100)
         await self.mono.select_maximum()
-        self.assertAlmostEqual(await self.mono._motor_2.get_position(), 0.2*q.deg, 2)
+        self.assertAlmostEqual(await self.mono._motor_2.get_position(), 0.2 * q.deg, 2)
 
     async def test_center_of_mass(self):
         """
@@ -120,6 +119,6 @@ class TestDummyDoubleMonochromator(TestCase):
         select_center_of_mass() function.
         """
         self.diode.function = self.double_gaussian
-        await self.mono.scan_bragg_angle(diode=self.diode, tune_range=1*q.deg, n_points=100)
+        await self.mono.scan_bragg_angle(diode=self.diode, tune_range=1 * q.deg, n_points=100)
         await self.mono.select_center_of_mass()
-        self.assertAlmostEqual(await self.mono._motor_2.get_position(), 0.0*q.deg, 2)
+        self.assertAlmostEqual(await self.mono._motor_2.get_position(), 0.0 * q.deg, 2)

@@ -11,8 +11,8 @@ class LightSource(Device):
 
     intensity = Quantity(q.V)
 
-    def __init__(self):
-        super(LightSource, self).__init__()
+    async def __ainit__(self):
+        await super(LightSource, self).__ainit__()
 
     async def _set_intensity(self, value):
         raise AccessorNotImplementedError

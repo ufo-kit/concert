@@ -43,8 +43,8 @@ class Radiography(SynchrotronMixin, BaseRadiography):
     """
     Radiography experiment
     """
-    def __init__(self, walker, flat_motor, radio_position, flat_position, camera, shutter,
-                 num_flats=200, num_darks=200, num_projections=3000, separate_scans=True):
+    async def __ainit__(self, walker, flat_motor, radio_position, flat_position, camera, shutter,
+                        num_flats=200, num_darks=200, num_projections=3000, separate_scans=True):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -67,23 +67,25 @@ class Radiography(SynchrotronMixin, BaseRadiography):
         :type num_projections: int
         """
         SynchrotronMixin.__init__(self, shutter)
-        BaseRadiography.__init__(self, walker=walker,
-                                 flat_motor=flat_motor,
-                                 radio_position=radio_position,
-                                 flat_position=flat_position,
-                                 camera=camera, num_flats=num_flats,
-                                 num_darks=num_darks,
-                                 num_projections=num_projections,
-                                 separate_scans=separate_scans)
+        await BaseRadiography.__ainit__(
+            self, walker=walker,
+            flat_motor=flat_motor,
+            radio_position=radio_position,
+            flat_position=flat_position,
+            camera=camera, num_flats=num_flats,
+            num_darks=num_darks,
+            num_projections=num_projections,
+            separate_scans=separate_scans
+        )
 
 
 class SteppedTomography(SynchrotronMixin, BaseSteppedTomo):
     """
     Stepped tomography
     """
-    def __init__(self, walker, flat_motor, tomography_motor, radio_position, flat_position, camera,
-                 shutter, num_flats=200, num_darks=200, num_projections=3000,
-                 angular_range=180 * q.deg, start_angle=0 * q.deg, separate_scans=True):
+    async def __ainit__(self, walker, flat_motor, tomography_motor, radio_position, flat_position,
+                        camera, shutter, num_flats=200, num_darks=200, num_projections=3000,
+                        angular_range=180 * q.deg, start_angle=0 * q.deg, separate_scans=True):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -112,27 +114,29 @@ class SteppedTomography(SynchrotronMixin, BaseSteppedTomo):
         :type start_angle: q.deg
         """
         SynchrotronMixin.__init__(self, shutter)
-        BaseSteppedTomo.__init__(self, walker=walker,
-                                 flat_motor=flat_motor,
-                                 tomography_motor=tomography_motor,
-                                 radio_position=radio_position,
-                                 flat_position=flat_position,
-                                 camera=camera,
-                                 num_flats=num_flats,
-                                 num_darks=num_darks,
-                                 num_projections=num_projections,
-                                 angular_range=angular_range,
-                                 start_angle=start_angle,
-                                 separate_scans=separate_scans)
+        await BaseSteppedTomo.__ainit__(
+            self, walker=walker,
+            flat_motor=flat_motor,
+            tomography_motor=tomography_motor,
+            radio_position=radio_position,
+            flat_position=flat_position,
+            camera=camera,
+            num_flats=num_flats,
+            num_darks=num_darks,
+            num_projections=num_projections,
+            angular_range=angular_range,
+            start_angle=start_angle,
+            separate_scans=separate_scans
+        )
 
 
 class ContinuousTomography(SynchrotronMixin, BaseContTomo):
     """
     Continuous tomography
     """
-    def __init__(self, walker, flat_motor, tomography_motor, radio_position, flat_position, camera,
-                 shutter, num_flats=200, num_darks=200, num_projections=3000,
-                 angular_range=180 * q.deg, start_angle=0 * q.deg, separate_scans=True):
+    async def __ainit__(self, walker, flat_motor, tomography_motor, radio_position, flat_position,
+                        camera, shutter, num_flats=200, num_darks=200, num_projections=3000,
+                        angular_range=180 * q.deg, start_angle=0 * q.deg, separate_scans=True):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -161,28 +165,31 @@ class ContinuousTomography(SynchrotronMixin, BaseContTomo):
         :type start_angle: q.deg
         """
         SynchrotronMixin.__init__(self, shutter)
-        BaseContTomo.__init__(self, walker=walker,
-                              flat_motor=flat_motor,
-                              tomography_motor=tomography_motor,
-                              radio_position=radio_position,
-                              flat_position=flat_position,
-                              camera=camera,
-                              num_flats=num_flats,
-                              num_darks=num_darks,
-                              num_projections=num_projections,
-                              angular_range=angular_range,
-                              start_angle=start_angle,
-                              separate_scans=separate_scans)
+        await BaseContTomo.__ainit__(
+            self, walker=walker,
+            flat_motor=flat_motor,
+            tomography_motor=tomography_motor,
+            radio_position=radio_position,
+            flat_position=flat_position,
+            camera=camera,
+            num_flats=num_flats,
+            num_darks=num_darks,
+            num_projections=num_projections,
+            angular_range=angular_range,
+            start_angle=start_angle,
+            separate_scans=separate_scans
+        )
 
 
 class ContinuousSpiralTomography(SynchrotronMixin, BaseContSpiralTomo):
     """
     Continuous spiral tomography
     """
-    def __init__(self, walker, flat_motor, tomography_motor, vertical_motor, radio_position,
-                 flat_position, camera, shutter, start_position_vertical, sample_height,
-                 vertical_shift_per_tomogram, num_flats=200, num_darks=200, num_projections=3000,
-                 angular_range=180 * q.deg, start_angle=0 * q.deg, separate_scans=True):
+    async def __ainit__(self, walker, flat_motor, tomography_motor, vertical_motor, radio_position,
+                        flat_position, camera, shutter, start_position_vertical, sample_height,
+                        vertical_shift_per_tomogram, num_flats=200, num_darks=200,
+                        num_projections=3000, angular_range=180 * q.deg, start_angle=0 * q.deg,
+                        separate_scans=True):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -221,33 +228,35 @@ class ContinuousSpiralTomography(SynchrotronMixin, BaseContSpiralTomo):
         :type start_angle: q.deg
         """
         SynchrotronMixin.__init__(self, shutter)
-        BaseContSpiralTomo.__init__(self,
-                                    walker=walker,
-                                    flat_motor=flat_motor,
-                                    tomography_motor=tomography_motor,
-                                    vertical_motor=vertical_motor,
-                                    radio_position=radio_position,
-                                    flat_position=flat_position,
-                                    camera=camera,
-                                    start_position_vertical=start_position_vertical,
-                                    sample_height=sample_height,
-                                    vertical_shift_per_tomogram=vertical_shift_per_tomogram,
-                                    num_flats=num_flats,
-                                    num_darks=num_darks,
-                                    num_projections=num_projections,
-                                    angular_range=angular_range,
-                                    start_angle=start_angle,
-                                    separate_scans=separate_scans)
+        await BaseContSpiralTomo.__ainit__(
+            self, walker=walker,
+            flat_motor=flat_motor,
+            tomography_motor=tomography_motor,
+            vertical_motor=vertical_motor,
+            radio_position=radio_position,
+            flat_position=flat_position,
+            camera=camera,
+            start_position_vertical=start_position_vertical,
+            sample_height=sample_height,
+            vertical_shift_per_tomogram=vertical_shift_per_tomogram,
+            num_flats=num_flats,
+            num_darks=num_darks,
+            num_projections=num_projections,
+            angular_range=angular_range,
+            start_angle=start_angle,
+            separate_scans=separate_scans
+        )
 
 
 class SteppedSpiralTomography(SynchrotronMixin, BaseSteppedSpiralTomo):
     """
     Stepped spiral tomography
     """
-    def __init__(self, walker, flat_motor, tomography_motor, vertical_motor, radio_position,
-                 flat_position, camera, shutter, start_position_vertical, sample_height,
-                 vertical_shift_per_tomogram,  num_flats=200, num_darks=200, num_projections=3000,
-                 angular_range=180 * q.deg, start_angle=0 * q.deg, separate_scans=True):
+    async def __ainit__(self, walker, flat_motor, tomography_motor, vertical_motor, radio_position,
+                        flat_position, camera, shutter, start_position_vertical, sample_height,
+                        vertical_shift_per_tomogram, num_flats=200, num_darks=200,
+                        num_projections=3000, angular_range=180 * q.deg, start_angle=0 * q.deg,
+                        separate_scans=True):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -285,28 +294,30 @@ class SteppedSpiralTomography(SynchrotronMixin, BaseSteppedSpiralTomo):
         :type start_angle: q.deg
         """
         SynchrotronMixin.__init__(self, shutter)
-        BaseSteppedSpiralTomo.__init__(self, walker=walker,
-                                       flat_motor=flat_motor,
-                                       tomography_motor=tomography_motor,
-                                       vertical_motor=vertical_motor,
-                                       radio_position=radio_position,
-                                       flat_position=flat_position,
-                                       camera=camera,
-                                       start_position_vertical=start_position_vertical,
-                                       sample_height=sample_height,
-                                       vertical_shift_per_tomogram=vertical_shift_per_tomogram,
-                                       num_flats=num_flats,
-                                       num_darks=num_darks,
-                                       num_projections=num_projections,
-                                       angular_range=angular_range,
-                                       start_angle=start_angle,
-                                       separate_scans=separate_scans)
+        await BaseSteppedSpiralTomo.__ainit__(
+            self, walker=walker,
+            flat_motor=flat_motor,
+            tomography_motor=tomography_motor,
+            vertical_motor=vertical_motor,
+            radio_position=radio_position,
+            flat_position=flat_position,
+            camera=camera,
+            start_position_vertical=start_position_vertical,
+            sample_height=sample_height,
+            vertical_shift_per_tomogram=vertical_shift_per_tomogram,
+            num_flats=num_flats,
+            num_darks=num_darks,
+            num_projections=num_projections,
+            angular_range=angular_range,
+            start_angle=start_angle,
+            separate_scans=separate_scans
+        )
 
 
 class GratingInterferometryStepping(SynchrotronMixin, BasePhaseStepping):
-    def __init__(self, walker, camera, shutter, flat_motor, stepping_motor, flat_position,
-                 radio_position, grating_period, num_darks, stepping_start_position, num_periods,
-                 num_steps_per_period, propagation_distance, separate_scans):
+    async def __ainit__(self, walker, camera, shutter, flat_motor, stepping_motor, flat_position,
+                        radio_position, grating_period, num_darks, stepping_start_position,
+                        num_periods, num_steps_per_period, propagation_distance, separate_scans):
         """
         :param walker: Walker for the experiment
         :type walker: concert.storage.DirectoryWalker
@@ -337,16 +348,18 @@ class GratingInterferometryStepping(SynchrotronMixin, BasePhaseStepping):
         :type propagation_distance: q.mm
         """
         SynchrotronMixin.__init__(self, shutter)
-        BasePhaseStepping.__init__(self, walker=walker,
-                                   camera=camera,
-                                   flat_motor=flat_motor,
-                                   stepping_motor=stepping_motor,
-                                   flat_position=flat_position,
-                                   radio_position=radio_position,
-                                   grating_period=grating_period,
-                                   num_darks=num_darks,
-                                   stepping_start_position=stepping_start_position,
-                                   num_periods=num_periods,
-                                   num_steps_per_period=num_steps_per_period,
-                                   propagation_distance=propagation_distance,
-                                   separate_scans=separate_scans)
+        await BasePhaseStepping.__ainit__(
+            self, walker=walker,
+            camera=camera,
+            flat_motor=flat_motor,
+            stepping_motor=stepping_motor,
+            flat_position=flat_position,
+            radio_position=radio_position,
+            grating_period=grating_period,
+            num_darks=num_darks,
+            stepping_start_position=stepping_start_position,
+            num_periods=num_periods,
+            num_steps_per_period=num_steps_per_period,
+            propagation_distance=propagation_distance,
+            separate_scans=separate_scans
+        )

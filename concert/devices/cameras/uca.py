@@ -63,7 +63,7 @@ class Camera(base.Camera):
     All properties that are exported by the underlying camera are also visible.
     """
 
-    def __init__(self, name, params=None):
+    async def __ainit__(self, name, params=None):
         """
         Create a new libuca camera.
 
@@ -72,7 +72,7 @@ class Camera(base.Camera):
         :raises CameraError: In case camera *name* does not exist.
         """
 
-        super(Camera, self).__init__()
+        await super(Camera, self).__ainit__()
 
         import gi
         gi.require_version('Uca', '2.0')

@@ -7,15 +7,11 @@ from concert.devices.motors.dummy import LinearMotor
 
 class TestOptimizers(TestCase):
 
-    def setUp(self):
-        super(TestOptimizers, self).setUp()
-        self.algorithms = [optimization.halver, optimization.down_hill,
-                           optimization.powell,
-                           optimization.nonlinear_conjugate,
-                           optimization.bfgs,
-                           optimization.least_squares]
+    async def asyncSetUp(self):
+        await super(TestOptimizers, self).asyncSetUp()
+        self.algorithms = [optimization.halver, optimization.scipy_minimize]
         self.center = 1.0 * q.mm
-        self.motor = LinearMotor(position=0 * q.mm)
+        self.motor = await LinearMotor(position=0 * q.mm)
         self.motor.lower = -float('Inf') * q.mm
         self.motor.upper = float('Inf') * q.mm
 

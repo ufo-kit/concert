@@ -5,8 +5,8 @@ from concert.devices.motors.dummy import RotationMotor
 
 
 class ImproperlyImplemented(BaseRotationMotor):
-    def __init__(self):
-        super(ImproperlyImplemented, self).__init__()
+    async def __ainit__(self):
+        await super(ImproperlyImplemented, self).__ainit__()
         self._value = 0
 
     async def _get_position(self):
@@ -17,8 +17,8 @@ class ImproperlyImplemented(BaseRotationMotor):
 
 
 class BreakingMotor(ImproperlyImplemented):
-    def __init__(self):
-        super(BreakingMotor, self).__init__()
+    async def __ainit__(self):
+        await super(BreakingMotor, self).__ainit__()
 
     async def _get_state(self):
         return 'standby'
@@ -26,23 +26,23 @@ class BreakingMotor(ImproperlyImplemented):
 
 class TestIssue209(TestCase):
 
-    def test_method_not_implemented(self):
+    async def test_method_not_implemented(self):
         """
         Although required by base.RotationMotor, the BreakingMotor does not
         implement _get_state but rather than telling us that, it says that the
         parameter cannot be written.
         """
-        fancy = ImproperlyImplemented()
+        fancy = await ImproperlyImplemented()
 
         with self.assertRaises(NotImplementedError):
-            fancy.position = 20 * q.deg
+            await fancy.set_position(20 * q.deg)
 
-    def test_shared_parameters(self):
-        dummy = RotationMotor()
-        fancy = BreakingMotor()
+    async def test_shared_parameters(self):
+        dummy = await RotationMotor()
+        fancy = await BreakingMotor()
 
-        dummy.position = 10 * q.deg
-        self.assertEqual(dummy.position, 10 * q.deg)
+        await dummy.set_position(10 * q.deg)
+        self.assertEqual(await dummy.get_position(), 10 * q.deg)
 
-        fancy.position = 20 * q.deg
-        self.assertEqual(fancy.position, 20 * q.deg)
+        await fancy.set_position(20 * q.deg)
+        self.assertEqual(await fancy.get_position(), 20 * q.deg)

@@ -12,8 +12,8 @@ from concert.devices.dummy import SelectionDevice
 
 class BaseDevice(Parameterizable):
 
-    def __init__(self):
-        super(BaseDevice, self).__init__()
+    async def __ainit__(self):
+        await super().__ainit__()
 
 
 async def _test_setter(device, value):
@@ -37,8 +37,8 @@ class FooDevice(BaseDevice):
     bar = Quantity(q.m)
     test = Quantity(q.m, fset=_test_setter, fget=_test_getter)
 
-    def __init__(self, default):
-        super(FooDevice, self).__init__()
+    async def __ainit__(self, default):
+        await super().__ainit__()
         self._value = default
         self._param_value = 0 * q.mm
         self._test_value = 0 * q.mm
@@ -67,8 +67,8 @@ class FooDevice(BaseDevice):
 class FooDeviceTargetValue(BaseDevice):
     foo = Quantity(q.mm)
 
-    def __init__(self, value):
-        super(BaseDevice, self).__init__()
+    async def __ainit__(self, value):
+        await super().__ainit__()
         self._value = value
         self._test_value = value
 
@@ -98,8 +98,8 @@ class FooDeviceTagetValue(BaseDevice):
     foo = Quantity(q.mm)
     test = Quantity(q.mm, fset=_test_setter, fget=_test_getter, fget_target=_test_target)
 
-    def __init__(self, value):
-        super(BaseDevice, self).__init__()
+    async def __ainit__(self, value):
+        await super().__ainit__()
         self._value = value
 
     def _get_foo(self):
@@ -114,10 +114,10 @@ class FooDeviceTagetValue(BaseDevice):
 
 
 class RestrictedFooDevice(FooDevice):
-    def __init__(self, lower, upper):
-        super(RestrictedFooDevice, self).__init__(0 * q.mm)
-        self['foo'].lower = lower
-        self['foo'].upper = upper
+    async def __ainit__(self, lower, upper):
+        await super().__ainit__(0 * q.mm)
+        await self['foo'].set_lower(lower)
+        await self['foo'].set_upper(upper)
 
 
 async def get_external_lower():
@@ -130,8 +130,8 @@ async def get_external_upper():
 
 class ExternalLimitDevice(BaseDevice):
 
-    def __init__(self, value):
-        super(ExternalLimitDevice, self).__init__()
+    async def __ainit__(self, value):
+        await super().__ainit__()
         self._value = value
 
     foo = Quantity(q.mm,
@@ -145,8 +145,8 @@ class UserLimitDevice(BaseDevice):
 
     foo = Quantity(q.mm)
 
-    def __init__(self):
-        super().__init__()
+    async def __ainit__(self):
+        await super().__ainit__()
         self['foo']._user_lower_getter = self.get_user_lower
         self['foo']._user_lower_setter = self.set_user_lower
         self['foo']._user_upper_getter = self.get_user_upper
@@ -171,8 +171,8 @@ class AccessorCheckDevice(Parameterizable):
 
     foo = Quantity(q.m)
 
-    def __init__(self, future, check):
-        super(AccessorCheckDevice, self).__init__()
+    async def __ainit__(self, future, check):
+        await super().__ainit__()
         self.check = check
         self.future = future
         self._value = 0 * q.mm
@@ -190,15 +190,15 @@ class AccessorCheckDevice(Parameterizable):
 
 class TestDescriptor(TestCase):
 
-    def setUp(self):
-        super(TestDescriptor, self).setUp()
-        self.foo1 = FooDevice(42 * q.m)
-        self.foo2 = FooDevice(23 * q.m)
+    async def asyncSetUp(self):
+        await super(TestDescriptor, self).asyncSetUp()
+        self.foo1 = await FooDevice(42 * q.m)
+        self.foo2 = await FooDevice(23 * q.m)
 
-    def test_property_identity(self):
-        self.foo1.foo = 15 * q.m
-        self.assertEqual(self.foo1.foo, 15 * q.m)
-        self.assertEqual(self.foo2.foo, 23 * q.m)
+    async def test_property_identity(self):
+        await self.foo1.set_foo(15 * q.m)
+        self.assertEqual(await self.foo1.get_foo(), 15 * q.m)
+        self.assertEqual(await self.foo2.get_foo(), 23 * q.m)
 
     async def test_func_identity(self):
         await self.foo1.set_foo(15 * q.m)
@@ -216,9 +216,9 @@ class TestDescriptor(TestCase):
 
 class TestParameterizable(TestCase):
 
-    def setUp(self):
-        super(TestParameterizable, self).setUp()
-        self.device = FooDevice(0 * q.mm)
+    async def asyncSetUp(self):
+        await super(TestParameterizable, self).asyncSetUp()
+        self.device = await FooDevice(0 * q.mm)
 
     async def test_param(self):
         await self.device.set_param(15)
@@ -275,12 +275,12 @@ class TestParameterizable(TestCase):
         await self.device.set_param(1 * q.m)
         await self.device.set_foo(1 * q.m)
 
-    def test_permanent_lock(self):
+    async def test_permanent_lock(self):
         self.device['foo'].lock(permanent=True)
         self.assertTrue(self.device['foo'].locked)
 
         with self.assertRaises(LockError):
-            self.device.foo = 1 * q.m
+            await self.device.set_foo(1 * q.m)
 
         with self.assertRaises(LockError):
             self.device['foo'].unlock()
@@ -296,11 +296,11 @@ class TestParameterizable(TestCase):
             if future:
                 self.assertTrue(future.done())
 
-        d1 = AccessorCheckDevice(None, check)
+        d1 = await AccessorCheckDevice(None, check)
         f1 = start(d1.set_foo(2 * q.mm))
-        d2 = AccessorCheckDevice(f1, check)
+        d2 = await AccessorCheckDevice(f1, check)
         f2 = start(d2.set_foo(5 * q.mm, wait_on=f1))
-        d3 = AccessorCheckDevice(f2, check)
+        d3 = await AccessorCheckDevice(f2, check)
         f3 = start(d3.get_foo(wait_on=f2))
         await asyncio.gather(f1, f2, f3)
 
@@ -308,7 +308,7 @@ class TestParameterizable(TestCase):
 class TestParameter(TestCase):
 
     async def test_saving(self):
-        device = FooDevice(0 * q.mm)
+        device = await FooDevice(0 * q.mm)
         await device['foo'].stash()
         await device.set_foo(1 * q.mm)
         await device['foo'].restore()
@@ -321,7 +321,7 @@ class TestParameter(TestCase):
             await device['no_write'].restore()
 
     async def test_saving_with_target_value(self):
-        device = FooDeviceTargetValue(0 * q.mm)
+        device = await FooDeviceTargetValue(0 * q.mm)
         await device['foo'].set_upper(None)
         await device['foo'].set_lower(None)
         await device['foo'].stash()
@@ -331,103 +331,103 @@ class TestParameter(TestCase):
         await device['foo'].restore()
         self.assertEqual(device._value, 0 * q.mm)
 
-    def test_readonly_value(self):
-        device = FooDevice(0 * q.mm)
-        self.assertEqual(device.bar, 5 * q.m)
+    async def test_readonly_value(self):
+        device = await FooDevice(0 * q.mm)
+        self.assertEqual(await device.get_bar(), 5 * q.m)
         self.assertEqual(device['bar'].writable, False)
         with self.assertRaises(WriteAccessError):
-            device.bar = 1 * q.m
+            await device.set_bar(1 * q.m)
 
-    def test_setter_getter_from_constructor(self):
-        device = FooDevice(0 * q.mm)
-        device.test = 1 * q.mm
+    async def test_setter_getter_from_constructor(self):
+        device = await FooDevice(0 * q.mm)
+        await device.set_test(1 * q.mm)
         self.assertEqual(device['test'].writable, True)
-        self.assertEqual(device.test, 1 * q.mm)
+        self.assertEqual(await device.get_test(), 1 * q.mm)
 
-    def test_setter_getter_from_constructor_target(self):
-        device = FooDeviceTargetValue(0 * q.mm)
-        device.test = 1 * q.mm
-        self.assertEqual(device.test, 1 * q.mm)
+    async def test_setter_getter_from_constructor_target(self):
+        device = await FooDeviceTargetValue(0 * q.mm)
+        await device.set_test(1 * q.mm)
+        self.assertEqual(await device.get_test(), 1 * q.mm)
         self.assertEqual(device['test'].target_readable, True)
-        self.assertEqual(device['test'].target, 10 * q.mm)
+        self.assertEqual(await device['test'].get_target(), 10 * q.mm)
 
     async def test_target_value_installed(self):
-        device = FooDeviceTargetValue(0 * q.mm)
+        device = await FooDeviceTargetValue(0 * q.mm)
         await device.set_test(1 * q.mm)
         self.assertEqual(await device.get_target_test(), 10 * q.mm)
 
-    def test_name_for_log(self):
-        device = FooDevice(0 * q.mm)
-        device.foo = 1 * q.mm
+    async def test_name_for_log(self):
+        device = await FooDevice(0 * q.mm)
+        await device.set_foo(1 * q.mm)
         self.assertEqual(device.name_for_log, 'device')
 
 
 class TestQuantity(TestCase):
 
-    def test_soft_limit_change(self):
-        limited = FooDevice(0 * q.mm)
-        limited['foo'].lower = -2 * q.mm
-        limited['foo'].upper = 2 * q.mm
+    async def test_soft_limit_change(self):
+        limited = await FooDevice(0 * q.mm)
+        await limited['foo'].set_lower(-2 * q.mm)
+        await limited['foo'].set_upper(2 * q.mm)
 
-        limited.foo = -1.5 * q.mm
-        limited.foo = +1.5 * q.mm
+        await limited.set_foo(-1.5 * q.mm)
+        await limited.set_foo(+1.5 * q.mm)
 
         with self.assertRaises(SoftLimitError):
-            limited.foo = 2.5 * q.mm
+            await limited.set_foo(2.5 * q.mm)
 
-    def test_soft_limit_restriction(self):
-        limited = RestrictedFooDevice(-2 * q.mm, 2 * q.mm)
-        self.assertEqual(limited['foo'].lower, -2 * q.mm)
-        self.assertEqual(limited['foo'].upper, +2 * q.mm)
+    async def test_soft_limit_restriction(self):
+        limited = await RestrictedFooDevice(-2 * q.mm, 2 * q.mm)
+        self.assertEqual(await limited['foo'].get_lower(), -2 * q.mm)
+        self.assertEqual(await limited['foo'].get_upper(), +2 * q.mm)
 
-    def test_setting_soft_limits_to_none(self):
-        limited = RestrictedFooDevice(-2 * q.mm, 2 * q.mm)
-        limited['foo'].upper = None
-        limited.foo = 3 * q.mm
-        limited['foo'].lower = None
-        limited.foo = -3 * q.mm
+    async def test_setting_soft_limits_to_none(self):
+        limited = await RestrictedFooDevice(-2 * q.mm, 2 * q.mm)
+        await limited['foo'].set_upper(None)
+        await limited.set_foo(3 * q.mm)
+        await limited['foo'].set_lower(None)
+        await limited.set_foo(-3 * q.mm)
 
-    def test_parameter_property(self):
-        device = FooDevice(42 * q.m)
+    async def test_parameter_property(self):
+        device = await FooDevice(42 * q.m)
         self.assertEqual(device['foo'].unit, q.m)
 
         with self.assertRaises(UnitError):
-            device.foo = 2 * q.s
+            await device.set_foo(2 * q.s)
 
-    def test_limits_lock(self):
-        device = FooDevice(10 * q.mm)
+    async def test_limits_lock(self):
+        device = await FooDevice(10 * q.mm)
         device['foo'].lock_limits()
         with self.assertRaises(LockError):
-            device['foo'].lower = -10 * q.mm
+            await device['foo'].set_lower(-10 * q.mm)
 
         device['foo'].lock_limits(True)
         with self.assertRaises(LockError):
             device['foo'].unlock_limits()
 
-    def test_limits_setting(self):
-        dev = FooDevice(0 * q.mm)
-        dev['foo'].lower = -1 * q.m
-        dev['foo'].upper = 1 * q.um
+    async def test_limits_setting(self):
+        dev = await FooDevice(0 * q.mm)
+        await dev['foo'].set_lower(-1 * q.m)
+        await dev['foo'].set_upper(1 * q.um)
 
         with self.assertRaises(UnitError):
-            dev['foo'].lower = -1 * q.deg
+            await dev['foo'].set_lower(-1 * q.deg)
 
         with self.assertRaises(UnitError):
-            dev['foo'].upper = 1 * q.deg
+            await dev['foo'].set_upper(1 * q.deg)
 
-    def test_limit_bounds(self):
-        dev = FooDevice(0 * q.m)
-        dev['foo'].lower = -1 * q.m
-        dev['foo'].upper = 1 * q.m
-
-        with self.assertRaises(ValueError):
-            dev['foo'].lower = 2 * q.m
+    async def test_limit_bounds(self):
+        dev = await FooDevice(0 * q.m)
+        await dev['foo'].set_lower(-1 * q.m)
+        await dev['foo'].set_upper(1 * q.m)
 
         with self.assertRaises(ValueError):
-            dev['foo'].upper = -2 * q.m
+            await dev['foo'].set_lower(2 * q.m)
+
+        with self.assertRaises(ValueError):
+            await dev['foo'].set_upper(-2 * q.m)
 
     async def test_external_limits(self):
-        dev = ExternalLimitDevice(0 * q.mm)
+        dev = await ExternalLimitDevice(0 * q.mm)
         self.assertEqual(await dev['foo'].get_lower(), -5 * q.mm)
         self.assertEqual(await dev['foo'].get_upper(), 5 * q.mm)
 
@@ -444,7 +444,7 @@ class TestQuantity(TestCase):
         self.assertEqual(await dev['foo'].get_lower(), -5 * q.mm)
 
     async def test_user_limits_getters_and_setters(self):
-        dev = UserLimitDevice()
+        dev = await UserLimitDevice()
         await dev['foo'].set_lower(-1 * q.mm)
         self.assertEqual(await dev['foo'].get_lower(), -1 * q.mm)
         self.assertEqual(dev.lower_via_func, -1 * q.mm)
@@ -453,15 +453,15 @@ class TestQuantity(TestCase):
         self.assertEqual(await dev['foo'].get_upper(), 1 * q.mm)
         self.assertEqual(dev.upper_via_func, 1 * q.mm)
 
-    def test_external_limits_info_table(self):
-        dev = ExternalLimitDevice(0 * q.mm)
-        str(dev['foo'])
+    async def test_external_limits_info_table(self):
+        dev = await ExternalLimitDevice(0 * q.mm)
+        await dev['foo'].info_table
 
 
 class TestSelection(TestCase):
 
-    def setUp(self):
-        self.device = SelectionDevice()
+    async def asyncSetUp(self):
+        self.device = await SelectionDevice()
 
     def test_correct_access(self):
         for i in range(3):

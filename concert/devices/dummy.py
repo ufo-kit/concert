@@ -34,8 +34,8 @@ class DummyDevice(Device):
     slow = Parameter()
     state = State(default='standby')
 
-    def __init__(self, slow=None):
-        super(DummyDevice, self).__init__()
+    async def __ainit__(self, slow=None):
+        await super(DummyDevice, self).__ainit__()
         self._position = 1 * q.mm
         self._value = 0
         self._slow = slow
@@ -125,8 +125,8 @@ class SelectionDevice(Device):
 
     selection = Selection(list(range(3)))
 
-    def __init__(self):
-        super(SelectionDevice, self).__init__()
+    async def __ainit__(self):
+        await super(SelectionDevice, self).__ainit__()
         self._selection = 0
 
     async def _get_selection(self):

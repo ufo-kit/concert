@@ -1,7 +1,7 @@
 """Test sessions."""
 import asyncio
-from threading import Thread, Event
-from concert.coroutines.base import start, run_in_loop_thread_blocking
+from threading import Event
+from concert.coroutines.base import start
 from concert.quantities import q
 from concert.session.utils import abort_awaiting, check_emergency_stop
 from concert.tests import slow, suppress_logging, TestCase
@@ -33,21 +33,6 @@ class TestAborting(TestCase):
         except asyncio.CancelledError:
             pass
         assert task.cancelled()
-
-    def test_abort_awaiting_thread(self):
-        result = None
-
-        def run():
-            nonlocal result
-
-            result = run_in_loop_thread_blocking(corofunc(self))
-
-        thread = Thread(target=run)
-        thread.start()
-        self.started.wait()
-        abort_awaiting(background=True)
-        thread.join()
-        self.assertEqual(result, None)
 
     async def test_check_emergency_stop(self):
         class Callable:

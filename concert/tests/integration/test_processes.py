@@ -12,14 +12,14 @@ from concert.tests.util.focus import BlurringCamera, FOCUS_POSITION
 
 class TestProcesses(TestCase):
 
-    def setUp(self):
-        self.motor = LinearMotor()
-        self.camera = Camera()
-        self.shutter = Shutter()
+    async def asyncSetUp(self):
+        self.motor = await LinearMotor()
+        self.camera = await Camera()
+        self.shutter = await Shutter()
 
     async def test_focusing(self):
         await self.motor.set_position(40. * q.mm)
-        camera = BlurringCamera(self.motor)
+        camera = await BlurringCamera(self.motor)
         await focus(camera, self.motor)
         assert_almost_equal(await self.motor.get_position(), FOCUS_POSITION, 1e-2)
 
@@ -32,7 +32,7 @@ class TestProcesses(TestCase):
         self.assertEqual(await self.motor.get_position(), 1 * q.mm)
 
     async def test_determine_rotation_axis(self):
-        rot_motor = RotationMotor()
+        rot_motor = await RotationMotor()
         axis = await determine_rotation_axis(self.camera, self.shutter, self.motor, rot_motor,
                                              1 * q.mm, 3 * q.mm)
         self.assertTrue(isinstance(axis, q.Quantity))

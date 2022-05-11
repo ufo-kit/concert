@@ -10,8 +10,8 @@ class Shutter(Device):
 
     state = State(default="open")
 
-    def __init__(self):
-        super(Shutter, self).__init__()
+    async def __ainit__(self):
+        await super(Shutter, self).__ainit__()
 
     @background
     @check(source='closed', target='open')

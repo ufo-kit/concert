@@ -25,8 +25,8 @@ class RealDevice(Device):
 
     state = State()
 
-    def __init__(self):
-        super(RealDevice, self).__init__()
+    async def __ainit__(self):
+        await super().__ainit__()
         self._state = 'standby'
 
     def change_state(self):
@@ -39,20 +39,20 @@ class RealDevice(Device):
 class TestState(TestCase):
 
     async def test_bad(self):
-        device = BadDevice()
+        device = await BadDevice()
         with self.assertRaises(FSMError):
             await device['state'].get()
 
-    def test_real_device(self):
-        device = RealDevice()
-        self.assertEqual(device.state, 'standby')
+    async def test_real_device(self):
+        device = await RealDevice()
+        self.assertEqual(await device.get_state(), 'standby')
         device.change_state()
-        self.assertEqual(device.state, 'moved')
+        self.assertEqual(await device.get_state(), 'moved')
 
-    def test_implicit(self):
-        device = ImplicitSoftwareDevice()
-        self.assertEqual(device.state, 'standby')
+    async def test_implicit(self):
+        device = await ImplicitSoftwareDevice()
+        self.assertEqual(await device.get_state(), 'standby')
 
-    def test_customized(self):
-        device = CustomizedDevice()
-        self.assertEqual(device.state, 'custom')
+    async def test_customized(self):
+        device = await CustomizedDevice()
+        self.assertEqual(await device.get_state(), 'custom')

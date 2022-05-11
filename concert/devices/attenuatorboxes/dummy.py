@@ -9,8 +9,8 @@ class AttenuatorBox(base.AttenuatorBox):
     '''Attenuator class implementation'''
     attenuator = Selection([None, 'Al_1mm'], check=check(source='standby', target='standby'))
 
-    def __init__(self):
-        super(AttenuatorBox, self).__init__()
+    async def __ainit__(self):
+        await super(AttenuatorBox, self).__ainit__()
         self._filter = None
 
     async def _set_attenuator(self, attenuator):

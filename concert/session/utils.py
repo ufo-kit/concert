@@ -147,10 +147,6 @@ def abort_awaiting(background=False, skip=None):
     awaited, otherwise False. This function does not touch tasks running in the background unless
     *background* is True, in which case it cancels all awaitables.
     """
-    import concert.coroutines.base as cbase
-    import functools
-    import threading
-
     # Figure out if we are in a callback (ctrl-c or ctrl-k) or check_emergency_stop
     try:
         asyncio.get_running_loop()
@@ -167,26 +163,6 @@ def abort_awaiting(background=False, skip=None):
     def get_task_directory(task):
         # _coro instead of get_coro() for Python 3.7 compatibility
         return os.path.dirname(task._coro.cr_code.co_filename)
-
-    if cbase._TLOOP:
-        def thread_callback(event, task):
-            event.set()
-
-        tasks = asyncio.all_tasks(loop=cbase._TLOOP)
-        LOG.log(AIODEBUG, 'Running %d tasks in separate thread:%s', len(tasks),
-                '\n'.join([get_task_name(task) for task in tasks]))
-        events = []
-        for task in tasks:
-            events.append(threading.Event())
-            task.add_done_callback(functools.partial(thread_callback, events[-1]))
-            name = get_task_name(task)
-            LOG.log(AIODEBUG, f"Cancelling task `{name}' with result {task.cancel()}")
-
-        # _TLOOP is running here, so we cannot schedule a gathering coroutine, so we create an Event
-        # for every coroutine and set it in the add_done_callback and wait for it, which blocks the
-        # main thread until everything has been cancelled and completed.
-        for event in events:
-            event.wait()
 
     loop = asyncio.get_event_loop()
     try:

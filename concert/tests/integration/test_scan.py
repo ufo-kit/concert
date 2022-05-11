@@ -15,9 +15,9 @@ def compare_sequences(first_sequence, second_sequence, assertion):
 
 class TestScan(TestCase):
 
-    def setUp(self):
-        super(TestScan, self).setUp()
-        self.motor = LinearMotor()
+    async def asyncSetUp(self):
+        await super(TestScan, self).asyncSetUp()
+        self.motor = await LinearMotor()
 
     async def feedback(self):
         return 1 * q.dimensionless
@@ -98,7 +98,7 @@ class TestScan(TestCase):
         values_1 = np.arange(20, 30, 5) * q.mm
 
         async def run():
-            other = LinearMotor()
+            other = await LinearMotor()
             scanned = []
             async for pair in scan((self.motor['position'], other['position']),
                                    (values_0, values_1),

@@ -18,7 +18,8 @@ class XYScan(Director):
     x_num = Parameter()
     y_num = Parameter()
 
-    def __init__(self, experiment, x_motor, y_motor, x_min, x_max, x_step, y_min, y_max, y_step):
+    async def __ainit__(self, experiment, x_motor, y_motor, x_min, x_max, x_step,
+                        y_min, y_max, y_step):
         """
         :param experiment: Experiment that is run. If the experiment features a
             'ready_to_prepare_next_sample' event (asyncio.Event) this will be waited within the
@@ -26,7 +27,7 @@ class XYScan(Director):
             experiment is still running. This could be used to prepare a future iteration while
             still data is stored or processed.
             The separate_scans property of the experiment should be set to False, since the director
-             handles the naming of the sub-folders.
+            handles the naming of the sub-folders.
         :type experiment: concert.experiments.base.Experiment
         :param x_motor: Linear motor for scanning in x direction
         :type x_motor: concert.devices.motors.base.LinearMotor
@@ -51,7 +52,7 @@ class XYScan(Director):
         self._y_min = None
         self._y_max = None
         self._y_step = None
-        super().__init__(experiment)
+        await super().__ainit__(experiment)
         self._x_motor = x_motor
         self._y_motor = y_motor
         self.x_min = x_min

@@ -19,8 +19,8 @@ class XRayTube(Device):
 
     state = State(default='off')
 
-    def __init__(self):
-        super(XRayTube, self).__init__()
+    async def __ainit__(self):
+        await super(XRayTube, self).__ainit__()
 
     async def _get_state(self):
         raise AccessorNotImplementedError

@@ -18,8 +18,8 @@ class Scales(Device):
     """Base scales class."""
     weight = Quantity(q.g, help="Weighted mass")
 
-    def __init__(self):
-        super(Scales, self).__init__()
+    async def __ainit__(self):
+        await super(Scales, self).__ainit__()
 
     async def _get_weight(self):
         raise AccessorNotImplementedError
@@ -29,8 +29,8 @@ class TarableScales(Scales):
 
     """Scales which can be tared."""
 
-    def __init__(self):
-        super(TarableScales, self).__init__()
+    async def __ainit__(self):
+        await super(TarableScales, self).__ainit__()
 
     @background
     async def tare(self):

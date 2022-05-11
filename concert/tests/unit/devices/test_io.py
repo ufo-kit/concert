@@ -6,8 +6,8 @@ from concert.devices.io.dummy import IO, Signal
 
 class TestIO(TestCase):
 
-    def setUp(self):
-        self.io = IO(port_value=0)
+    async def asyncSetUp(self):
+        self.io = await IO(port_value=0)
         self.port = 0
 
     async def test_read(self):
@@ -29,8 +29,8 @@ class TestIO(TestCase):
 
 class TestSignal(TestCase):
 
-    def setUp(self):
-        self.signal = Signal()
+    async def asyncSetUp(self):
+        self.signal = await Signal()
 
     async def test_on(self):
         await self.signal.on()

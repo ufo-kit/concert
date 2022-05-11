@@ -14,8 +14,8 @@ class Pco(Camera):
 
     """Pco camera implemented by libuca."""
 
-    def __init__(self):
-        super().__init__('pco')
+    async def __ainit__(self):
+        await super().__ainit__('pco')
 
     async def stream(self):
         """
@@ -43,10 +43,10 @@ class PCO4000(Pco):
                                  'uca', 'stop_recording', 'convert', 'state', '_get_state',
                                  '_state_value']
 
-    def __init__(self):
+    async def __ainit__(self):
         self._lock_access = False
         self._last_grab_time = None
-        super().__init__()
+        await super().__ainit__()
 
     @background
     async def start_recording(self):
@@ -109,7 +109,7 @@ class Dimax(Pco, base.BufferedMixin):
             self.uca.stop_readout()
 
 
-class Timestamp(object):
+class Timestamp:
 
     """Read PCO's binary timestamp. *sequence* is an array of 14 unsigned short pixels."""
 

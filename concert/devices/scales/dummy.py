@@ -7,8 +7,8 @@ class Scales(base.Scales):
 
     """A dummy scale."""
 
-    def __init__(self):
-        super(Scales, self).__init__()
+    async def __ainit__(self):
+        await super(Scales, self).__ainit__()
         self._weight = 147 * q.kg
 
     async def _get_weight(self):

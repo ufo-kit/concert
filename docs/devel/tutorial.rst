@@ -71,6 +71,31 @@ The modules related to device creation are found here ::
             `-- ...
 
 
+Asynchronous constructors
+=========================
+
+Devices and many other classes in concert subclass
+:class:`concert.base.AsyncObject` which does not use the classical ``def
+__init__(...)`` constructor but an ``async def __ainit__(...)``. That is because
+parameter getters and setters are coroutine funcions (``async def``) and when a
+Parameterizable instance is created, there is a good chance that some parameters
+should be read or written and that must be done with the ``await param.get()``
+syntax and that is only possible in coroutine functions, which a normal
+``__init__`` constructor is not. Hence, we introduced a new kind of constructor
+``__ainit__`` which allows such syntax. Inheritance works as usual but if your
+class inherits from another :class:`.AsyncObject` (the base of Parameterizable)
+*and* a normal class with just an ``__init__`` contructor, you need to call
+*both* in your constructor, like this::
+
+    class Foo(Parameterizable, StandardClass):
+        async def __ainit__(self, async_param, sync_param):
+            await super().__ainit__(async_param)
+            super().__init__(sync_param)
+
+Classes subclassing :class:`.AsyncObject` cannot define ``__init__``
+constructors, which would lead to ambiguities.
+
+
 Adding a new device
 ===================
 
@@ -174,8 +199,8 @@ values for the parameters (by tying them to getter and setter callables)::
                              lower=0 * q.m**3 / q.s, upper=1 * q.m**3 / q.s,
                              help="Flow rate of the pump")
 
-        def __init__(self):
-            super(Pump, self).__init__()
+        async def __ainit__(self):
+            await super(Pump, self).__ainit__()
 
 The `flow_rate` parameter can only receive values from zero to one cubic meter
 per second.
@@ -187,8 +212,8 @@ explicit setters and getters in order to hook into the get and set process::
 
     class Pump(Device):
 
-        def __init__(self):
-            super(Pump, self).__init__()
+        async def __ainit__(self):
+            await super(Pump, self).__ainit__()
 
         async def _intercept_get_flow_rate(self):
             return await self._get_flow_rate() * 10
@@ -350,11 +375,11 @@ An example experiment with one :class:`.Acquisitions` can look like this::
     class MyExperiment(Experiment):
         num_images = Parameter(help="number of images to acquire")
 
-        def __init__(self, camera, walker):
+        async def __ainit__(self, camera, walker):
             self._num_images = 5
             self._camera = camera
             image_acquisition = Acquisition("images", self._acquire_images)
-            super().__init__(acquisitions=[image_acquisition], walker=walker)
+            await super().__init__(acquisitions=[image_acquisition], walker=walker)
 
         async def _get_num_images(self):
             return self._num_images

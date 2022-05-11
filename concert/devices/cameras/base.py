@@ -94,8 +94,8 @@ class Camera(Device):
     frame_rate = Quantity(1 / q.second, help="Frame frequency")
     trigger_source = Parameter(help="Trigger source")
 
-    def __init__(self):
-        super(Camera, self).__init__()
+    async def __ainit__(self):
+        await super(Camera, self).__ainit__()
         self.convert = identity
 
     @background

@@ -151,8 +151,8 @@ accessible from the command line shell::
 
     from concert.devices.motors.dummy import LinearMotor
 
-    ring = StorageRing()
-    motor = LinearMotor()
+    ring = await StorageRing()
+    motor = await LinearMotor()
 
 
 Importing other sessions
@@ -222,13 +222,13 @@ features. You can download the scan_ example or just copy this::
         return accumulator.items
 
 
-    viewer = PyQtGraphViewer()
+    viewer = await PyQtGraphViewer()
     # The last image will be quite bright
     viewer.limits = 0, 10000
     # Plot image mean
-    line = PyplotViewer(style='-o')
+    line = await PyplotViewer(style='-o')
     # Dummy camera
-    camera = Camera()
+    camera = await Camera()
     # For scan results collection
     acc = Accumulate()
     # Let's create a scan so that it can be directly plugged into *run*

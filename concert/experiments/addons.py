@@ -4,6 +4,7 @@ the acquired data, e.g. write images to disk, do tomographic reconstruction etc.
 import os
 import logging
 import numpy as np
+from concert.base import AsyncObject
 from concert.coroutines.base import async_generate
 from concert.coroutines.sinks import Accumulate
 from concert.experiments.imaging import GratingInterferometryStepping
@@ -165,14 +166,16 @@ class ImageWriter(Addon):
         return wrapped_writer
 
 
-class OnlineReconstruction(Addon):
-    def __init__(self, experiment, reco_args, do_normalization=True,
-                 average_normalization=True, walker=None, slice_directory='online-slices'):
+class OnlineReconstruction(AsyncObject, Addon):
+    async def __ainit__(self, experiment, reco_args, do_normalization=True,
+                        average_normalization=True, walker=None, slice_directory='online-slices'):
         from concert.ext.ufo import GeneralBackprojectManager
 
         self.experiment = experiment
-        self.manager = GeneralBackprojectManager(reco_args,
-                                                 average_normalization=average_normalization)
+        self.manager = await GeneralBackprojectManager(
+            reco_args,
+            average_normalization=average_normalization
+        )
         self.walker = walker
         self.slice_directory = slice_directory
         self._consumers = {}
@@ -324,9 +327,9 @@ class PhaseGratingSteppingFourierProcessing(Addon):
             await self._write_single_image("visibility_contrast.tif", self.visibility_contrast)
             await self._write_single_image("differential_phase.tif", self.diff_phase)
             if self._experiment.get_propagation_distance() is not None:
-                self.diff_phase_in_rad = (self.diff_phase *
-                                          (await self._experiment.get_grating_period() /
-                                           await self._experiment.get_propagation_distance()))
+                self.diff_phase_in_rad = (self.diff_phase
+                                          * (await self._experiment.get_grating_period()
+                                             / await self._experiment.get_propagation_distance()))
                 await self._write_single_image("differential_phase_in_rad.tif",
                                                self.diff_phase_in_rad)
 
@@ -343,8 +346,8 @@ class PhaseGratingSteppingFourierProcessing(Addon):
         fft_object = np.fft.fft(stepping_curve)
 
         fft_object = fft_object[:, :, (0, await self._experiment.get_num_periods())] / (
-                await self._experiment.get_num_periods() *
-                await self._experiment.get_num_steps_per_period())
+            await self._experiment.get_num_periods()
+            * await self._experiment.get_num_steps_per_period())
         phase = np.angle(fft_object[:, :, 1])
         visibility = (2. * np.absolute(fft_object[:, :, 1])) / np.real(fft_object[:, :, 0])
         intensity = np.abs(np.real(fft_object[:, :, 0]))

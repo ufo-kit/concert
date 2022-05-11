@@ -485,8 +485,8 @@ class GeneralBackprojectManager(Parameterizable):
 
     state = State(default='standby')
 
-    def __init__(self, args, average_normalization=True, regions=None, copy_inputs=False):
-        super().__init__()
+    async def __ainit__(self, args, average_normalization=True, regions=None, copy_inputs=False):
+        await super().__ainit__()
         self.args = args
         self.regions = regions
         self.copy_inputs = copy_inputs

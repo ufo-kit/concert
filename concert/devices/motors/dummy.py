@@ -12,7 +12,7 @@ MOVEMENT_TIME_STEPS = 0.01 * q.s
 
 
 class _PositionMixin(object):
-    def __init__(self):
+    async def __ainit__(self):
         self._position = 0 * q.mm
         self._moving = False
         self._stop_evt = asyncio.Event()
@@ -79,9 +79,9 @@ class LinearMotor(_PositionMixin, base.LinearMotor):
 
     motion_velocity = Quantity(q.mm / q.s)
 
-    def __init__(self, position=None, upper_hard_limit=None, lower_hard_limit=None):
-        base.LinearMotor.__init__(self)
-        _PositionMixin.__init__(self)
+    async def __ainit__(self, position=None, upper_hard_limit=None, lower_hard_limit=None):
+        await base.LinearMotor.__ainit__(self)
+        await _PositionMixin.__ainit__(self)
         self._motion_velocity = 200000 * q.mm / q.s
 
         if position:
@@ -96,9 +96,9 @@ class ContinuousLinearMotor(LinearMotor, base.ContinuousLinearMotor):
 
     """A continuous linear motor dummy."""
 
-    def __init__(self, position=None, upper_hard_limit=None, lower_hard_limit=None):
-        base.ContinuousLinearMotor.__init__(self)
-        LinearMotor.__init__(self)
+    async def __ainit__(self, position=None, upper_hard_limit=None, lower_hard_limit=None):
+        await base.ContinuousLinearMotor.__ainit__(self)
+        await LinearMotor.__ainit__(self)
         if position:
             self._position = position
         if upper_hard_limit:
@@ -129,9 +129,9 @@ class RotationMotor(_PositionMixin, base.RotationMotor):
 
     motion_velocity = Quantity(q.deg / q.s)
 
-    def __init__(self, upper_hard_limit=None, lower_hard_limit=None):
-        base.RotationMotor.__init__(self)
-        _PositionMixin.__init__(self)
+    async def __ainit__(self, upper_hard_limit=None, lower_hard_limit=None):
+        await base.RotationMotor.__ainit__(self)
+        await _PositionMixin.__ainit__(self)
         self._position = 0 * q.deg
         self._lower_hard_limit = -np.inf * q.deg
         self._upper_hard_limit = np.inf * q.deg
@@ -147,9 +147,9 @@ class ContinuousRotationMotor(RotationMotor,
 
     """A continuous rotational step motor dummy."""
 
-    def __init__(self, position=None, upper_hard_limit=None, lower_hard_limit=None):
-        base.ContinuousRotationMotor.__init__(self)
-        RotationMotor.__init__(self)
+    async def __ainit__(self, position=None, upper_hard_limit=None, lower_hard_limit=None):
+        await base.ContinuousRotationMotor.__ainit__(self)
+        await RotationMotor.__ainit__(self)
         if position:
             self._position = position
         if upper_hard_limit:

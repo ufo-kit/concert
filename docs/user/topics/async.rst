@@ -54,7 +54,7 @@ A more reallistic example::
 
     from concert.devices.motors.dummy import LinearMotor
 
-    motor = LinearMotor()
+    motor = await LinearMotor()
     task = motor.home() # this doesn't block
     await task # this blocks
     await motor.home() # this blocks too
@@ -67,6 +67,7 @@ background tasks which were started by the :py:func:`.start` function or
 standstill. Please note that if there is non-async function running, *ctrl-k*
 will only get triggered after it has finished. You can first cancel the running
 operation byt *ctrl-c* followed by *ctrl-k* to execute it as soon as possible.
+
 
 Concurrency
 -----------

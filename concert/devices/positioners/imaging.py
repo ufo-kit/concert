@@ -15,8 +15,8 @@ class Positioner(base.Positioner):
     This way the user can specify the movement in pixels.
     """
 
-    def __init__(self, axes, detector, position=None):
-        super(Positioner, self).__init__(axes, position=position)
+    async def __ainit__(self, axes, detector, position=None):
+        await super(Positioner, self).__ainit__(axes, position=position)
         self.detector = detector
 
     @background

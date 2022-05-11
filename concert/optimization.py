@@ -8,8 +8,7 @@ to
 This module provides execution routines and algorithms for optimization.
 """
 import logging
-from functools import wraps
-from concert.coroutines.base import background, run_in_executor, run_in_loop_thread_blocking
+from concert.coroutines.base import background
 from concert.quantities import q
 
 
@@ -142,99 +141,55 @@ async def halver(function, x_0, initial_step=None, epsilon=None,
     return best[0]
 
 
-def _quantized(strip_func):
+@background
+async def scipy_minimize(func, x_0, **kwargs):
+    """Use :py:func:`scipy.optimize.minimize`, *func* is a coroutine function, the translation to
+    scipy is taken care of here. *x_0* is the initial guess and *kwargs* are passed to *minimize*.
     """
-    Decorator to quantize a *function* which does not take units into
-    account. Strips intermediate results based on *strip_func* in order
-    to fit *function*'s first parameter signature.
-    """
-    @wraps(strip_func)
-    def stripped(function):
-        @wraps(function)
-        async def wrapper(eval_func, x_0, *args, **kwargs):
-            def q_func(x):
-                """We need to run the objective function in a separate thread and loop because we
-                have been called from a running event loop and have things to do in an event loop
-                and can't use the running one.
-                """
-                coro = eval_func(q.Quantity(strip_func(x), x_0.units))
-                return run_in_loop_thread_blocking(coro)
+    import asyncio
+    from threading import Thread
+    from scipy.optimize import minimize
 
-            def to_run_in_exec():
-                """Run the optimization *function* in a pool so that we comply with the async nature
-                of concert.
-                """
-                return function(q_func, x_0.magnitude, *args, **kwargs)
+    def optimize_in_thread(loop, future):
+        # This function runs in a separate thread, never use the loop in any other way than
+        # abc_threadsafe.
+        def fun_for_scipy(x, *args):
+            # Scipy uses an array becuase "minimize" can optimize a function with more variables,
+            # take just the first value and add the unit
+            x_orig = q.Quantity(x[0], x_0.units)
+            # Call the coroutine function to be optimized in main thread
+            return asyncio.run_coroutine_threadsafe(func(x_orig, *args), loop).result()
 
-            dim_less = await run_in_executor(to_run_in_exec)
-            return q.Quantity(dim_less, x_0.units)
-        return wrapper
+        try:
+            result = minimize(fun_for_scipy, x_0.magnitude, **kwargs)
+        except Exception as exc:
+            loop.call_soon_threadsafe(future.set_exception, exc)
+        else:
+            loop.call_soon_threadsafe(future.set_result, result)
 
-    return stripped
+    # Only scalar optimization supported for now
+    try:
+        x_0[0]
+    except Exception:
+        pass
+    else:
+        raise ValueError('Only scalar optimization is supported')
 
+    loop = asyncio.get_running_loop()
+    future = loop.create_future()
+    t = Thread(target=optimize_in_thread, args=(loop, future))
+    t.start()
+    try:
+        result = await future
+        LOG.debug("Optimization result of `%s':\n%s", func.__name__, result)
+    finally:
+        t.join()
 
-@_quantized(lambda x: x[0])
-def down_hill(function, x_0, **kwargs):
-    """
-    down_hill(function, x_0, **kwargs)
+    if not result.success:
+        raise OptimizationError(result.message)
 
-    Downhill simplex algorithm from :py:func:`scipy.optimize.fmin`.
-    Please refer to the scipy function for additional arguments information.
-    """
-    from scipy import optimize as scipy_optimize
-
-    return scipy_optimize.fmin(function, x_0, disp=0, **kwargs)[0]
-
-
-@_quantized(lambda x: x[0])
-def powell(function, x_0, **kwargs):
-    """
-    powell(function, x_0, **kwargs)
-
-    Powell's algorithm from :py:func:`scipy.optimize.fmin_powell`.
-    Please refer to the scipy function for additional arguments information.
-    """
-    from scipy import optimize as scipy_optimize
-
-    return scipy_optimize.fmin_powell(function, x_0, disp=0, **kwargs)
+    return result
 
 
-@_quantized(lambda x: x[0])
-def nonlinear_conjugate(function, x_0, **kwargs):
-    """
-    nonlinear_conjugate(function, x_0, **kwargs)
-
-    Nonlinear conjugate gradient algorithm from
-    :py:func:`scipy.optimize.fmin_cg`.
-    Please refer to the scipy function for additional arguments information.
-    """
-    from scipy import optimize as scipy_optimize
-
-    return scipy_optimize.fmin_cg(function, x_0, disp=0, **kwargs)[0]
-
-
-@_quantized(lambda x: x[0])
-def bfgs(function, x_0, **kwargs):
-    """
-    bfgs(function, x_0, **kwargs)
-
-    Broyde-Fletcher-Goldfarb-Shanno (BFGS) algorithm from
-    :py:func:`scipy.optimize.fmin_bfgs`.
-    Please refer to the scipy function for additional arguments information.
-    """
-    from scipy import optimize as scipy_optimize
-
-    return scipy_optimize.fmin_bfgs(function, x_0, disp=0, **kwargs)[0]
-
-
-@_quantized(lambda x: x[0])
-def least_squares(function, x_0, **kwargs):
-    """
-    least_squares(function, x_0, **kwargs)
-
-    Least squares algorithm from :py:func:`scipy.optimize.leastsq`.
-    Please refer to the scipy function for additional arguments information.
-    """
-    from scipy import optimize as scipy_optimize
-
-    return scipy_optimize.leastsq(function, x_0, **kwargs)[0][0]
+class OptimizationError(Exception):
+    """Optimization-related errors."""

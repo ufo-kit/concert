@@ -4,9 +4,9 @@ from concert.tests import TestCase
 
 class TestLensChanger(TestCase):
 
-    def setUp(self):
-        super(TestLensChanger, self).setUp()
-        self.lens_changer = LensChanger()
+    async def asyncSetUp(self):
+        await super(TestLensChanger, self).asyncSetUp()
+        self.lens_changer = await LensChanger()
 
     def test_set_objective(self):
         lens0 = "objective_10x"

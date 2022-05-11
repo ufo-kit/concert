@@ -17,7 +17,7 @@ class Director(Parameterizable):
     current_iteration = Parameter()
     log_level = Selection(['critical', 'error', 'warning', 'info', 'debug'])
 
-    def __init__(self, experiment):
+    async def __ainit__(self, experiment):
         """
         :param experiment: Experiment that is run. If the experiment features a
             'ready_to_prepare_next_sample' event (asyncio.Event) this will be waited within the
@@ -25,7 +25,7 @@ class Director(Parameterizable):
             experiment is still running. This could be used to prepare a future iteration while
             still data is stored or processed.
             The separate_scans property of the experiment should be set to False, since the director
-             handles the naming of the sub-folders.
+            handles the naming of the sub-folders.
         :type experiment: concert.experiments.base.Experiment
         """
         self._experiment = experiment
@@ -35,7 +35,7 @@ class Director(Parameterizable):
         self._iteration = 0
         self.log = LOG
         self.log.setLevel("INFO")
-        super().__init__()
+        await super().__ainit__()
 
     async def _get_log_level(self):
         return logging.getLevelName(self.log.getEffectiveLevel()).lower()

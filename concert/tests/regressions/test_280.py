@@ -6,10 +6,10 @@ from concert.devices.motors.dummy import LinearMotor
 
 class TestIssue280(TestCase):
 
-    def test_hard_limit_throws_off_fsm(self):
-        m = LinearMotor(upper_hard_limit=3 * q.mm)
+    async def test_hard_limit_throws_off_fsm(self):
+        m = await LinearMotor(upper_hard_limit=3 * q.mm)
 
         with self.assertRaises(HardLimitError):
-            m.position = 5 * q.m
+            await m.set_position(5 * q.m)
 
-        m.position = 2 * q.mm
+        await m.set_position(2 * q.mm)
