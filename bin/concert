@@ -407,7 +407,8 @@ class StartCommand(SubCommand):
             with open(path, "rb") as f:
                 eval_source(f.read(), {}, filename=path)
         else:
-            self.run_shell(path=path, session=session)
+            self.run_shell(path=path, session=session, with_gui=with_gui)
+
 
     def run_shell(self, path=None, session=None, with_gui=False):
         import IPython
@@ -461,7 +462,7 @@ class StartCommand(SubCommand):
         ip_config.Completer.use_jedi = False
 
         # Now we start ipython with our configuration
-        IPython.start_ipython(argv=[], config=ip_config)
+        IPython.start_ipython(argv=[], config=ip_config, user_ns={'with_gui': with_gui})
 
 
 class DocsCommand(SubCommand):
