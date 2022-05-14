@@ -80,6 +80,8 @@ class Director(Parameterizable):
     @check(source=['standby', 'error'], target="standby")
     @transition(immediate="running", target="standby")
     async def run(self):
+        await self._experiment['separate_scans'].stash()
+        await self._experiment.set_separate_scans(False)
         handler = None
         try:
             if self._experiment.walker:
@@ -113,7 +115,15 @@ class Director(Parameterizable):
                 # at the same time, if the user does not implement ready_to_prepare_next_sample.
                 await self._experiment.ready_to_prepare_next_sample.wait()
                 await self._prepare_next_run()
-                await exp_run
+                try:
+                    await exp_run
+                except Exception as e:
+                    self.log.error(
+                        f"Director iteration {await self.get_iteration_name(await self.get_iteration())} failed.")
+                    self.log.error(e)
+                    raise e
+                finally:
+                    self._experiment.walker.ascend()
 
         except asyncio.CancelledError:
             # This is normal, no special state needed -> standby
@@ -131,7 +141,7 @@ class Director(Parameterizable):
             if handler:
                 handler.close()
                 self.log.removeHandler(handler)
-            self._experiment.walker.ascend()
+            await self._experiment['separate_scans'].restore()
             await self.finish()
 
     async def _get_current_iteration(self) -> int:
