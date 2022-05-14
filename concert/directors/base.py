@@ -15,6 +15,7 @@ class Director(Parameterizable):
     state = State(default="standby")
     number_of_iterations = Parameter()
     current_iteration = Parameter()
+    current_iteration_name = Parameter()
     log_level = Selection(['critical', 'error', 'warning', 'info', 'debug'])
 
     async def __ainit__(self, experiment):
