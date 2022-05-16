@@ -210,9 +210,9 @@ class Camera(base.Camera):
         data = array.__array_interface__['data'][0]
 
         if index is None:
-            await run_in_executor(self.uca.grab, data)
+            self.uca.grab(data)
         else:
-            await run_in_executor(self.uca.readout, data, index)
+            self.uca.readout(data, index)
 
         return array
 
