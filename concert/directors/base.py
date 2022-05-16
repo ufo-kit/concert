@@ -4,6 +4,7 @@ import logging
 
 from concert.base import Parameterizable, background, Parameter, State, transition, StateError, \
     check, Selection
+from concert.helpers import get_state_from_awaitable
 
 LOG = logging.getLogger(__name__)
 
@@ -36,7 +37,15 @@ class Director(Parameterizable):
         self._iteration = 0
         self.log = LOG
         self.log.setLevel("INFO")
+        self._run_awaitable = None
         await super().__ainit__()
+
+    async def _get_state(self):
+        state = await get_state_from_awaitable(self._run_awaitable)
+        if state == 'running' and not self._run_event.is_set():
+            return 'paused'
+        else:
+            return state
 
     async def _get_log_level(self):
         return logging.getLevelName(self.log.getEffectiveLevel()).lower()
@@ -76,10 +85,15 @@ class Director(Parameterizable):
         if await self.get_current_iteration() < await self.get_number_of_iterations() - 1:
             await self._prepare_run(await self.get_current_iteration() + 1)
 
+
     @background
     @check(source=['standby', 'error'], target="standby")
-    @transition(immediate="running", target="standby")
     async def run(self):
+        self._run_awaitable = self._run()
+        await self._run_awaitable
+
+    @background
+    async def _run(self):
         await self._experiment['separate_scans'].stash()
         await self._experiment.set_separate_scans(False)
         handler = None
@@ -100,10 +114,7 @@ class Director(Parameterizable):
 
             for iteration in range(await self.get_number_of_iterations()):
                 self._iteration = iteration
-                if not self._run_event.is_set():
-                    self._state_value = "paused"
                 await self._run_event.wait()
-                self._state_value = "running"
 
                 self._experiment.walker.descend(await self._get_iteration_name(iteration))
                 exp_run = self._experiment.run()
@@ -128,14 +139,12 @@ class Director(Parameterizable):
         except asyncio.CancelledError:
             # This is normal, no special state needed -> standby
             LOG.warning('Experiment director cancelled')
-            self._state_value = 'standby'
         except Exception as e:
             # Something bad happened, and we can't know what, so set the state to error
             LOG.warning(f"Error `{e}' while running experiment director")
             raise StateError('error', msg=str(e))
         except KeyboardInterrupt:
             LOG.warning('Experiment director cancelled by keyboard interrupt')
-            self._state_value = 'standby'
             raise
         finally:
             if handler:
