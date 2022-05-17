@@ -3,6 +3,9 @@ import logging
 import unittest
 import numpy as np
 
+import collections
+collections.Callable = collections.abc.Callable
+
 
 def slow(func):
     """Mark a test method as slow running.
