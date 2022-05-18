@@ -1,24 +1,8 @@
 [run]
 source = concert
 omit =
-    concert/networking/aerotech.py
-    concert/networking/wago.py
     concert/devices/cameras/uca.py
     concert/devices/cameras/pco.py
-    concert/devices/controllers/motion/aerotech.py
-    concert/devices/lightsources/fiberlite.py
-    concert/devices/monochromators/newport.py
-    concert/devices/motors/aerotech.py
-    concert/devices/motors/ankatango.py
-    concert/devices/motors/crio.py
-    concert/devices/io/aerotech.py
-    concert/devices/io/topotomo.py
-    concert/devices/io/wago.py
-    concert/devices/lightsources/led.py
-    concert/devices/photodiodes/edmundoptics.py
-    concert/devices/scales/adventurer.py
-    concert/devices/shutters/topotomo.py
-    concert/devices/storagerings/ankatango.py
     concert/ext/*.py
     concert/processes/ufo.py
     */python?.?/*
