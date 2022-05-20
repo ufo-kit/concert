@@ -762,7 +762,7 @@ class ContinuousSpiralTomography(ContinuousTomography, SpiralMixin):
         :param flat_motor: LinearMotor for moving sample in and out of the beam.
         :type flat_motor: concert.devices.motors.base.LinearMotor
         :param tomography_motor: ContinuousRotationMotor for tomography scan.
-        :type tomography_motor: concert.devices.motors.base.ContinuousLinearMotor
+        :type tomography_motor: concert.devices.motors.base.ContinuousRotationMotor
         :param vertical_motor: ContinuousLinearMotor to translate the sample along the tomographic
             axis.
         :type vertical_motor: concert.devices.motors.base.ContinuousLinearMotor
