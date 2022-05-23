@@ -12,6 +12,9 @@ from concert.experiments.base import Experiment as BaseExperiment, Acquisition
 from concert.tests import TestCase as BaseTestCase, slow
 from concert.directors.dummy import Director
 from concert.directors.base import Director as BaseDirector
+from concert.directors.scanning import XYScan
+from concert.devices.motors.dummy import LinearMotor
+from concert.quantities import q
 
 
 LOG = logging.getLogger(__name__)
@@ -153,3 +156,24 @@ class NotEarlyFinishExperiment(TestCase):
         self.assertAlmostEqual(self.experiment.acq_finished_time[0],
                                self.director.preparation_time[1],
                                delta=0.2)
+
+
+@slow
+class XYScanDirectorTest(TestCase):
+    async def asyncSetUp(self):
+        self.experiment = await Experiment(walker=self.walker, separate_scans=False)
+        self.x_motor = await LinearMotor()
+        self.y_motor = await LinearMotor()
+        self.director = await XYScan(experiment=self.experiment,
+                                     x_motor=self.x_motor,
+                                     y_motor=self.y_motor,
+                                     x_min=0*q.mm,
+                                     x_max=10*q.mm,
+                                     x_step=2.5*q.mm,
+                                     y_min=0*q.mm,
+                                     y_max=10*q.mm,
+                                     y_step=2.5*q.mm)
+        await self.director.run()
+
+    async def test_final_state(self):
+        self.assertEqual(await self.director.get_state(), "standby")
