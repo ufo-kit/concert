@@ -7,7 +7,7 @@ import functools
 import inspect
 import types
 from concert.helpers import memoize
-from concert.coroutines.base import background, run_in_loop, wait_until
+from concert.coroutines.base import background, get_event_loop, run_in_loop, wait_until
 from concert.quantities import q
 
 
@@ -563,7 +563,7 @@ class ParameterValue(object):
         return self._parameter.name < other._parameter.name
 
     def __repr__(self):
-        if asyncio.get_event_loop().is_running():
+        if get_event_loop().is_running():
             return repr(self._parameter)
         else:
             return run_in_loop(self.info_table).get_string()
@@ -1196,13 +1196,13 @@ class Parameterizable(AsyncObject):
                     self._install_parameter(attr_type)
 
     def __str__(self):
-        if asyncio.get_event_loop().is_running():
+        if get_event_loop().is_running():
             return super().__str__()
         else:
             return run_in_loop(self.info_table).get_string(sortby="Parameter")
 
     def __repr__(self):
-        if asyncio.get_event_loop().is_running():
+        if get_event_loop().is_running():
             return super().__repr__()
         else:
             return '\n'.join([super(Parameterizable, self).__repr__(), str(self)])

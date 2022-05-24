@@ -11,6 +11,7 @@ import sys
 import threading
 import concert.session.management as cs
 from concert.config import AIODEBUG
+from concert.coroutines.base import get_event_loop
 
 
 LOG = logging.getLogger(__name__)
@@ -88,7 +89,7 @@ def eval_nodes(nodes, module_dict, filename=''):
 
         if inspect.iscoroutine(result):
             try:
-                loop = asyncio.get_event_loop_policy().get_event_loop()
+                loop = get_event_loop()
             except RuntimeError as err:
                 if threading.current_thread() is not threading.main_thread():
                     # If we are in a different thread we create the loop if not existing

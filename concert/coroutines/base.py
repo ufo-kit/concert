@@ -17,13 +17,18 @@ async def async_generate(iterable):
         yield item
 
 
+def get_event_loop():
+    """Get asyncio's event loop."""
+    return asyncio.get_event_loop_policy().get_event_loop()
+
+
 def run_in_loop(coroutine, error_msg_if_running=None):
     """Wrap *coroutine* into a `asyncio.Task`, run it in the current loop, block until it finishes
     and return the result. On KeyboardInterrupt, the task is cancelled. Raise RuntimeError with
     message *error_msg_if_running* in case the loop is already running, otherwise Python will take
     care of the error reporting.
     """
-    loop = asyncio.get_event_loop()
+    loop = get_event_loop()
     if error_msg_if_running and loop.is_running():
         raise RuntimeError(error_msg_if_running)
     task = asyncio.ensure_future(coroutine, loop=loop)
@@ -55,7 +60,7 @@ def run_in_executor(func, *args):
     #         LOG.log(AIODEBUG, f'{func.__name__} waiting for concurrent.Future')
     #         return await future
     # return make_coro()
-    loop = asyncio.get_event_loop()
+    loop = get_event_loop()
 
     return loop.run_in_executor(None, func, *args)
 
@@ -92,7 +97,7 @@ def broadcast(producer, *consumers):
 
     Feed *producer* to all *consumers*.
     """
-    loop = asyncio.get_event_loop()
+    loop = get_event_loop()
     next_val = loop.create_future()
     consumed = loop.create_future()
     stop = object()
