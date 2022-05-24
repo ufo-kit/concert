@@ -320,9 +320,10 @@ class PhaseGratingSteppingFourierProcessing(Addon):
                                                "reference")
 
         if self._reference_stepping and self._object_stepping:
-            self.intensity = self.object_intensity / self.reference_intensity
-            self.diff_phase = self.object_phase - self.reference_phase
-            self.visibility_contrast = self.object_visibility / self.reference_visibility
+            with np.errstate(divide='ignore', invalid='ignore'):
+                self.intensity = self.object_intensity / self.reference_intensity
+                self.diff_phase = self.object_phase - self.reference_phase
+                self.visibility_contrast = self.object_visibility / self.reference_visibility
             await self._write_single_image("intensity_contrast.tif", self.intensity)
             await self._write_single_image("visibility_contrast.tif", self.visibility_contrast)
             await self._write_single_image("differential_phase.tif", self.diff_phase)
@@ -344,13 +345,13 @@ class PhaseGratingSteppingFourierProcessing(Addon):
             else:
                 stepping_curve[:, :, i] = step
         fft_object = np.fft.fft(stepping_curve)
-
-        fft_object = fft_object[:, :, (0, await self._experiment.get_num_periods())] / (
-            await self._experiment.get_num_periods()
-            * await self._experiment.get_num_steps_per_period())
-        phase = np.angle(fft_object[:, :, 1])
-        visibility = (2. * np.absolute(fft_object[:, :, 1])) / np.real(fft_object[:, :, 0])
-        intensity = np.abs(np.real(fft_object[:, :, 0]))
+        with np.errstate(divide='ignore', invalid='ignore'):
+            fft_object = fft_object[:, :, (0, await self._experiment.get_num_periods())] / (
+                await self._experiment.get_num_periods()
+                * await self._experiment.get_num_steps_per_period())
+            phase = np.angle(fft_object[:, :, 1])
+            visibility = (2. * np.absolute(fft_object[:, :, 1])) / np.real(fft_object[:, :, 0])
+            intensity = np.abs(np.real(fft_object[:, :, 0]))
         return intensity, phase, visibility
 
     async def _write_single_image(self, name, image):

@@ -198,8 +198,8 @@ class expects(object):
         self.e_keywords = kwargs
 
     def __call__(self, f):
-        f_args = inspect.getargspec(f).args
-        f_defaults = inspect.getargspec(f).defaults
+        f_args = inspect.getfullargspec(f).args
+        f_defaults = inspect.getfullargspec(f).defaults
         self.func = _Structure(
             f,
             self.e_args,

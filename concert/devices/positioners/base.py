@@ -241,7 +241,7 @@ def _vectorize(scalar, coordinate):
     Return a vector with the *scalar* in the correct place given by the
     *coordinate* as x, y or z.
     """
-    vector = np.zeros(3, dtype=np.float)
+    vector = np.zeros(3, dtype=float)
     translate = dict(x=0, y=1, z=2)
     vector[translate[coordinate]] = scalar.magnitude
 

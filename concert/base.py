@@ -168,7 +168,7 @@ class ReadAccessError(Exception):
     """Raised when user tries to read a parameter that cannot be read."""
 
     def __init__(self, parameter):
-        LOG.warn("Invalid read access on {0}".format(parameter))
+        LOG.warning("Invalid read access on {0}".format(parameter))
         msg = "parameter `{0}' cannot be read".format(parameter)
         super(ReadAccessError, self).__init__(msg)
 
@@ -178,7 +178,7 @@ class TargetAccessError(Exception):
     """Raised when user tries to read parameter's target value that cannot be read."""
 
     def __init__(self, parameter):
-        LOG.warn("Invalid read access on {0}".format(parameter))
+        LOG.warning("Invalid read access on {0}".format(parameter))
         msg = "parameter's `{0}' target value cannot be read".format(parameter)
         super(TargetAccessError, self).__init__(msg)
 
@@ -188,7 +188,7 @@ class WriteAccessError(Exception):
     """Raised when user tries to read a parameter that cannot be read."""
 
     def __init__(self, parameter):
-        LOG.warn("Invalid write access on {0}".format(parameter))
+        LOG.warning("Invalid write access on {0}".format(parameter))
         msg = "parameter `{0}' cannot be written".format(parameter)
         super(WriteAccessError, self).__init__(msg)
 
@@ -198,7 +198,7 @@ class SelectionError(Exception):
     """Raised when user tries to set selection parameter to unknown value."""
 
     def __init__(self, parameter, value, values):
-        LOG.warn("Invalid write access on {0}".format(parameter))
+        LOG.warning("Invalid write access on {0}".format(parameter))
         msg = "Value `{}' not in `{}'".format(value, values)
         super(SelectionError, self).__init__(msg)
 

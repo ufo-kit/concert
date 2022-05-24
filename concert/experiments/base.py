@@ -276,20 +276,20 @@ class Experiment(Parameterizable):
             await self.acquire()
         except asyncio.CancelledError:
             # This is normal, no special state needed -> standby
-            LOG.warn('Experiment cancelled')
+            LOG.warning('Experiment cancelled')
         except Exception as e:
             # Something bad happened and we can't know what, so set the state to error
-            LOG.warn(f"Error `{e}' while running experiment")
+            LOG.warning(f"Error `{e}' while running experiment")
             raise StateError('error', msg=str(e))
         except KeyboardInterrupt:
-            LOG.warn('Experiment cancelled by keyboard interrupt')
+            LOG.warning('Experiment cancelled by keyboard interrupt')
             self._state_value = 'standby'
             raise
         finally:
             try:
                 await self.finish()
             except Exception as e:
-                LOG.warn(f"Error `{e}' while finalizing experiment")
+                LOG.warning(f"Error `{e}' while finalizing experiment")
                 raise StateError('error', msg=str(e))
             finally:
                 self.ready_to_prepare_next_sample.set()

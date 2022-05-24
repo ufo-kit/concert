@@ -31,7 +31,7 @@ class DummyGradientMeasure(object):
 
 class Area(object):
 
-    """
+    r"""
     Area measures how much of the whole image is covered by an object.
     The return value is the fraction between object pixels and the whole
     area, :math:`n = object\_pixels / (width \cdot height)`.
@@ -69,7 +69,7 @@ class Area(object):
 
 class SimpleArea(Area):
 
-    """
+    r"""
     An area measure with object segmentation by a threshold. If two
     flat fields *flat_1* and *flat_2* are given, then the minimum
     of their subtraction :math:`min(flat\_1, flat\_2)` approximates
@@ -118,7 +118,7 @@ class SimpleArea(Area):
 
 
 def rotation_axis(tips):
-    """
+    r"""
     Determine a 3D circle normal inclination angles towards the
     :math:`y`-axis (0,1,0) and the center of the circle.
 
@@ -177,7 +177,7 @@ def rotation_axis(tips):
     if max(x_ind) - min(x_ind) < 10:
         raise ValueError("Sample off-centering too small, enlarge rotation radius.")
 
-    a_matrix = np.empty((len(x_ind), 6), dtype=np.float)
+    a_matrix = np.empty((len(x_ind), 6), dtype=float)
     for i in range(len(x_ind)):
         a_matrix[i] = np.array([x_ind[i] ** 2, x_ind[i] * y_ind[i],
                                 y_ind[i] ** 2, x_ind[i], y_ind[i], 1])
