@@ -247,7 +247,7 @@ The quantities package is already loaded and named ``q``.
 .. note::
 
     You may use the ``await`` keyword in session files and the sesion will be
-    loaded correctly.
+    loaded correctly, for details see Importing_.
 
 
 docs
@@ -269,6 +269,55 @@ session's docstring. The docstring should be formatted in Markdown markup.
 
 .. _Pandoc: http://pandoc.org/
 .. _PDFLaTeX: http://ctan.org/pkg/pdftex
+
+
+Importing
+=========
+
+When you import a module or a session, before anything else, concert first looks
+into the sessions directory. If the module is not found, it looks into the
+current working directory and if it is not found even there it searches in
+``sys.path``, where all the standard paths are stored.
+
+Concert can run sessions with top-level ``await`` (outside ``async def``
+functions). Sessions can also import such modules into them and even nest such
+imports. There are two limitations to this:
+
+- if you have a top-level ``await`` in a module, you cannot use the asyncio's
+  loop, e.g. by concert's ``run_in_loop`` function
+- you cannot import modules with top-level ``await`` inside functions, you need
+  to put the imports to the top level
+
+
+For example, this is possible (session ``motors``)::
+
+    from concert.devices.motors.dummy import LinearMotor
+
+    motor = await LinearMotor()
+
+
+and this is possible::
+
+    from motors import motor
+    from concert.quantities import q
+
+    await motor.set_position(1 * q.mm)
+
+
+On the other hand, this is *not* possible::
+
+    async def foo():
+        import motors  # The example session above
+
+    await foo()
+
+
+and this is *not* possible::
+
+    from concert.coroutines.base import run_in_loop
+    await asyncio.sleep(1)
+    run_in_loop(asyncio.sleep(1))
+
 
 
 Remote access
