@@ -1,6 +1,6 @@
 PYTHON = python
 SETUP = $(PYTHON) setup.py
-RUNTEST = $(PYTHON) runtests.py
+RUNTEST = pytest concert/tests
 
 .PHONY: build clean check check-fast check-without-async dist init install html
 
@@ -19,7 +19,7 @@ check:
 	$(RUNTEST)
 
 check-fast:
-	$(RUNTEST) -a '!slow'
+	$(RUNTEST) -m 'not slow'
 
 check-without-async:
 	$(RUNTEST) --disable-async

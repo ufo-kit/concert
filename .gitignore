@@ -6,6 +6,5 @@ docs/_build
 *.egg-info
 *.pyc
 MANIFEST
-.noseids
 .*.swp
 install_manifest.txt

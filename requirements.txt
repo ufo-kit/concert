@@ -1,6 +1,5 @@
 ipython
 matplotlib
-nose
 numpy
 pint>=0.12
 prettytable
