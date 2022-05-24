@@ -2,7 +2,7 @@ import inspect
 import time
 from concert.tests import TestCase, suppressed_logging
 from concert.quantities import q
-from concert.helpers import is_iterable, measure, memoize
+from concert.helpers import is_iterable, measure, memoize, arange, linspace
 from concert.processes.common import focus, align_rotation_axis, ProcessError
 from concert.devices.motors.dummy import LinearMotor, RotationMotor
 from concert.devices.cameras.dummy import Camera
@@ -120,3 +120,26 @@ class TestMemoize(TestCase):
         ran = False
         self.assertEqual(await afunc(1), 2)
         self.assertFalse(ran)
+
+
+class TestArangeLinspace(TestCase):
+    def test_linspace_with_endpoint(self):
+        num_steps = 10
+        start = 0 * q.deg
+        stop = (num_steps - 1) * q.deg
+
+        x = linspace(start, stop, num_steps, endpoint=True)
+        self.assertEqual(len(x), num_steps)
+        for i in range(num_steps):
+            self.assertEqual(x[i], float(i) * q.deg)
+
+    def test_arange(self):
+        num_steps = 10
+        start = 0 * q.deg
+        stop = num_steps * q.deg
+        step_size = (stop - start) / num_steps
+
+        x = arange(start, stop, step_size)
+        self.assertEqual(len(x), num_steps)
+        for i in range(num_steps):
+            self.assertEqual(x[i], float(i) * q.deg)

@@ -250,7 +250,7 @@ def arange(start, stop, step):
     :return:
     """
     try:
-        unit = start.unit
+        unit = start.units
         start = start.to(unit).magnitude
         stop = stop.to(unit).magnitude
         step = step.to(unit).magnitude
@@ -280,7 +280,7 @@ def linspace(start, stop, num, endpoint=True):
         *stop*.
     """
     try:
-        unit = start.unit
+        unit = start.units
         start = start.to(unit).magnitude
         stop = stop.to(unit).magnitude
     except AttributeError:

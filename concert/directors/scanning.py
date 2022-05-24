@@ -1,7 +1,7 @@
 import asyncio
 from concert.quantities import q
 from concert.helpers import arange
-from concert.base import Quantity, Parameter
+from concert.base import Quantity, Parameter, check
 from concert.directors.base import Director
 
 
@@ -9,12 +9,12 @@ class XYScan(Director):
     """
     Director to scan a specimen within a plane.
     """
-    x_min = Quantity(q.mm, check=['standby', 'error'])
-    x_max = Quantity(q.mm, check=['standby', 'error'])
-    x_step = Quantity(q.mm, check=['standby', 'error'])
-    y_min = Quantity(q.mm, check=['standby', 'error'])
-    y_max = Quantity(q.mm, check=['standby', 'error'])
-    y_step = Quantity(q.mm, check=['standby', 'error'])
+    x_min = Quantity(q.mm, check=check(source=['standby', 'error']))
+    x_max = Quantity(q.mm, check=check(source=['standby', 'error']))
+    x_step = Quantity(q.mm, check=check(source=['standby', 'error']))
+    y_min = Quantity(q.mm, check=check(source=['standby', 'error']))
+    y_max = Quantity(q.mm, check=check(source=['standby', 'error']))
+    y_step = Quantity(q.mm, check=check(source=['standby', 'error']))
     x_num = Parameter()
     y_num = Parameter()
 
@@ -55,12 +55,12 @@ class XYScan(Director):
         await super().__ainit__(experiment)
         self._x_motor = x_motor
         self._y_motor = y_motor
-        self.x_min = x_min
-        self.x_max = x_max
-        self.x_step = x_step
-        self.y_min = y_min
-        self.y_max = y_max
-        self.y_step = y_step
+        await self.set_x_min(x_min)
+        await self.set_x_max(x_max)
+        await self.set_x_step(x_step)
+        await self.set_y_min(y_min)
+        await self.set_y_max(y_max)
+        await self.set_y_step(y_step)
 
     async def _get_x_min(self):
         return self._x_min
