@@ -225,7 +225,7 @@ def segment_convex_object(image):
     # the background standard deviation. Find the background by dilating the mask (in case some
     # object pixels are in the mask) by a small disk and then taking the inverse. sgn controls
     # whether the object is dark or bright (sgn = 1 for bright).
-    indices = np.where(1 - dilation(mask, selem=disk(20)))
+    indices = np.where(1 - dilation(mask, footprint=disk(20)))
     if not len(indices[0]):
         return None
     mean_bg = image[indices].mean()

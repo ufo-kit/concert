@@ -196,7 +196,7 @@ async def acquire_frames_360(camera, rotation_motor, num_frames, shutter=None, f
             for i in range(num_frames):
                 await rotation_motor.move(2 * np.pi / num_frames * q.rad)
                 await camera.trigger()
-                frame = (await camera.grab())[y_0:y_1].astype(np.float)
+                frame = (await camera.grab())[y_0:y_1].astype(float)
                 if flat is not None:
                     frame = flat_correct(frame, flat, dark=dark)
                     frame = np.nan_to_num(-np.log(frame))

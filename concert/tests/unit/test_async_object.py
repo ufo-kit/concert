@@ -65,7 +65,7 @@ class AsyncClassB(AsyncRoot):
 
 
 class AsyncClassC(AsyncClassA, AsyncClassB):
-    """
+    r"""
     Class with diamond inheritance for testing cooperative inheritance.
 
     Topology:

@@ -16,8 +16,8 @@ def test_rotation_axis():
     is offcentered by different values.
     """
     def triangle(n, width, position, left=True):
-        tr = np.zeros((width, width), dtype=np.float)
-        extended = np.zeros((n, n), dtype=np.float)
+        tr = np.zeros((width, width), dtype=float)
+        extended = np.zeros((n, n), dtype=float)
 
         indices = np.tril_indices(width)
         tr[indices] = 1

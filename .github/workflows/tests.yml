@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.8, 3.9]
+        python-version: ['3.8', '3.9', '3.10']
       fail-fast: false
 
     steps:
@@ -34,7 +34,7 @@ jobs:
         pip install scikit-image
     - name: Test with pytest
       run: |
-        coverage run --source=concert -m nose --attr='!skip-ci'
+        coverage run --source=concert -m pytest -m "not skip_ci"
     - name: Upload coverage to Codecov
       if: matrix.python-version == 3.8
       uses: codecov/codecov-action@v2

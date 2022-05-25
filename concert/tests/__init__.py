@@ -2,6 +2,7 @@ import concert.config as cfg
 import logging
 import unittest
 import numpy as np
+import pytest
 
 import collections
 collections.Callable = collections.abc.Callable
@@ -13,8 +14,7 @@ def slow(func):
     You can skip these test cases with nose by running ``nosetest -a '!slow'``
     or calling ``make check-fast``.
     """
-    func.slow = 1
-    return func
+    return pytest.mark.slow(func)
 
 
 def suppressed_logging(func):

@@ -13,7 +13,7 @@ def rot_x(angle, matrix):
     m_0 = np.array([[1, 0, 0],
                     [0, np.cos(angle), -np.sin(angle)],
                     [0, np.sin(angle), np.cos(angle)]])
-    new_mat = np.identity(4, np.float)
+    new_mat = np.identity(4, float)
     new_mat[:3, :3] = m_0
 
     return np.dot(new_mat, matrix)
@@ -25,7 +25,7 @@ def rot_y(angle, matrix):
     m_0 = np.array([[np.cos(angle), 0, np.sin(angle)],
                     [0, 1, 0],
                     [-np.sin(angle), 0, np.cos(angle)]])
-    new_mat = np.identity(4, np.float)
+    new_mat = np.identity(4, float)
     new_mat[:3, :3] = m_0
 
     return np.dot(new_mat, matrix)
@@ -37,7 +37,7 @@ def rot_z(angle, matrix):
     m_0 = np.array([[np.cos(angle), -np.sin(angle), 0],
                     [np.sin(angle), np.cos(angle), 0],
                     [0, 0, 1]])
-    new_mat = np.identity(4, np.float)
+    new_mat = np.identity(4, float)
     new_mat[:3, :3] = m_0
 
     return np.dot(new_mat, matrix)
@@ -144,7 +144,7 @@ class SimulationCamera(DummyBaseCamera):
 
     async def create_needle(self):
         """Create sample rotated about axis of rotation."""
-        matrix = np.identity(4, np.float)
+        matrix = np.identity(4, float)
 
         matrix = translate((0, self.y_position, 0), matrix)
 

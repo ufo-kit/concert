@@ -30,7 +30,6 @@ setup(
     install_requires=[
         'ipython',
         'matplotlib',
-        'nose',
         'numpy',
         'pint>=0.12',
         'prettytable',
@@ -39,7 +38,5 @@ setup(
         'scipy',
         'tifffile'
     ],
-    tests_require=['nose',
-                   'testfixtures'],
     test_suite='concert.tests',
 )

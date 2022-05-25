@@ -29,7 +29,7 @@ Run the tests
 -------------
 
 The core of Concert is tested using Python's standard library :mod:`unittest`
-module and `nose`_. To run all tests, you can call nose directly in the root
+module and `pytest`_. To run all tests, you can call pytest directly in the root
 directory or run make with the ``check`` argument ::
 
     $ make check
@@ -42,7 +42,7 @@ decorator. To skip them during regular development cycles, you can run ::
 You are highly encouraged to add new tests when you are adding a new feature to
 the core or fixing a known bug.
 
-.. _nose: https://nose.readthedocs.org/en/latest/
+.. _pytest: https://docs.pytest.org/
 
 
 

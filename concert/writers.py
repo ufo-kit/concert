@@ -20,7 +20,7 @@ class TiffWriter(ImageWriter):
                                            bigtiff=bytes_per_file >= 2 ** 32 - 2 ** 25)
 
     def write(self, image):
-        self._writer.save(image)
+        self._writer.write(image)
 
 
 class LibTiffWriter(ImageWriter):
