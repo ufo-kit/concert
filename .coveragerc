@@ -5,6 +5,7 @@ omit =
     concert/devices/cameras/pco.py
     concert/ext/*.py
     concert/processes/ufo.py
+    concert/tests/util/_*.py
     */python?.?/*
     */lib-python/?.?/*.py
     */site-packages/*

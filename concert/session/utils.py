@@ -6,7 +6,7 @@ import inspect
 import subprocess
 import prettytable
 from concert.config import AIODEBUG
-from concert.coroutines.base import background, run_in_loop
+from concert.coroutines.base import background, get_event_loop, run_in_loop
 from concert.devices.base import Device
 from concert.quantities import q
 
@@ -164,7 +164,7 @@ def abort_awaiting(background=False, skip=None):
         # _coro instead of get_coro() for Python 3.7 compatibility
         return os.path.dirname(task._coro.cr_code.co_filename)
 
-    loop = asyncio.get_event_loop()
+    loop = get_event_loop()
     try:
         LOG.debug('Global abort called, loop: %d, IPython loop: %d', id(loop),
                   id(get_ipython().pt_loop))
