@@ -1,12 +1,14 @@
 """Internal module for the support of imports with top-level `await' (outside of `async def'
 functions).
 """
+import __future__
 import ast
 import asyncio
 import importlib
 import inspect
 import logging
 import os
+import re
 import sys
 import threading
 import concert.session.management as cs
@@ -33,9 +35,7 @@ class AsyncLoader(importlib.machinery.SourceFileLoader):
         Execute *module* step-wise and allow *await* on the module level and module nesting with
         top-level `await'.
         """
-        # *nodes* are all ast nodes of the module
-        nodes = ast.parse(self.get_data(self.path)).body
-        eval_nodes(nodes, module.__dict__, filename=self.path)
+        eval_source(self.get_data(self.path), module.__dict__, filename=self.path)
 
 
 class AsyncMetaPathFinder(importlib.abc.MetaPathFinder):
@@ -59,16 +59,17 @@ class AsyncMetaPathFinder(importlib.abc.MetaPathFinder):
                 return spec
 
 
-def eval_nodes(nodes, module_dict, filename=''):
+def eval_source(source: bytes, module_dict: dict, filename: str = ''):
     """
-    Source code in ast *nodes* is split into import and non-import statements. All import statements
-    are executed one-by-one and all other statements are aggregated and executed together. This way
-    we allow nesting of module imports which have top-level `await' keywords. This is possible
-    thanks to the fact that when we call :func:`eval` on an import statement, it will not return a
-    coroutine but it will invoke the import mechanism (thus us) on the module to be imported.  Then
-    that nested module is processed with the loop run if necessary and stopped. Then the recursion
-    ends and the importing module processes the rest of the statements with possible loop runs which
-    is fine becuase the nested module is processed already, so no nested loop runs are attempted.
+    Source code *source* (a byte array) is split into import and non-import statements. All import
+    statements are executed one-by-one and all other statements are aggregated and executed
+    together. This way we allow nesting of module imports which have top-level `await' keywords.
+    This is possible thanks to the fact that when we call :func:`eval` on an import statement, it
+    will not return a coroutine but it will invoke the import mechanism (thus us) on the module to
+    be imported.  Then that nested module is processed with the loop run if necessary and stopped.
+    Then the recursion ends and the importing module processes the rest of the statements with
+    possible loop runs which is fine becuase the nested module is processed already, so no nested
+    loop runs are attempted.
     """
     def _is_import(node):
         return isinstance(node, ast.Import) or isinstance(node, ast.ImportFrom)
@@ -82,7 +83,7 @@ def eval_nodes(nodes, module_dict, filename=''):
             f'{filename or "<string>"}',
             'exec',
             dont_inherit=True,
-            flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT
+            flags=compiler_flags
         )
 
         result = eval(cobj, module_dict)
@@ -126,6 +127,44 @@ def eval_nodes(nodes, module_dict, filename=''):
                     path=filename,
                     name=name
                 ) from err
+
+    compiler_flags = ast.PyCF_ALLOW_TOP_LEVEL_AWAIT
+    # *nodes* are all ast nodes of the module
+    nodes = ast.parse(source).body
+
+    if not nodes:
+        # Nothing to compile
+        return
+
+    # Add compiler flags based on __future__ imports
+    comment_pattern = b'#.*\n'
+    # Strip comments at the beginning
+    stripped_source = re.sub(comment_pattern, b'', source)
+    # Look for docstring
+    docstring_pattern = b'(r|u)?"""'
+    docstring_pattern_obj = re.compile(docstring_pattern)
+    # 1 if the first expression is dosctring, 0 otherwise
+    first_future_search = int(docstring_pattern_obj.match(stripped_source) is not None)
+    future_statements_done = False
+
+    for node in nodes[first_future_search:]:
+        if isinstance(node, ast.ImportFrom):
+            if node.module == '__future__':
+                if future_statements_done:
+                    try:
+                        source_dec = source.decode('ascii')
+                        line_source = ': `' + ast.get_source_segment(source_dec, node) + "'\n"
+                    except NameError:
+                        # Only in Python 3.8+
+                        line_source = ''
+                    raise SyntaxError(
+                        "`from __future__' imports must occur at the beginning of the file, but "
+                        f"file \"{filename}\", contains one on line {node.lineno}{line_source}"
+                    )
+                for name in node.names:
+                    compiler_flags |= getattr(__future__, name.name).compiler_flag
+        else:
+            future_statements_done = True
 
     # Do not execute statement-by-statement but aggregate non-import statements for performance
     start = stop = -1

@@ -16,7 +16,7 @@ import zipfile
 import concert
 import concert.config
 import concert.session.management as cs
-from concert._aimport import AsyncMetaPathFinder, eval_nodes
+from concert._aimport import AsyncMetaPathFinder, eval_source
 from concert.ext.cmd import plugins
 
 
@@ -405,9 +405,7 @@ class StartCommand(SubCommand):
 
         if non_interactive:
             with open(path, "rb") as f:
-                source = f.read()
-            nodes = ast.parse(source).body
-            eval_nodes(nodes, {}, filename=path)
+                eval_source(f.read(), {}, filename=path)
         else:
             self.run_shell(path=path, session=session)
 
