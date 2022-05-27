@@ -17,6 +17,11 @@ class TestAImport(TestCase):
         sys.path.remove(self.import_path)
         sys.meta_path.remove(self.async_path_finder)
 
+    def test_empty_module(self):
+        import _aimport_empty_module
+        # Prevent flake8 F401: imported but unused
+        _aimport_empty_module
+
     def test_nested_aimport(self):
         self._check_values()
 
@@ -48,6 +53,17 @@ class TestAImport(TestCase):
                 import _aimport_in_async_func_session
                 # Prevent flake8 F401: imported but unused
                 _aimport_in_async_func_session
+
+    def test_future_import(self):
+        import _aimport_future_imports
+        # Prevent flake8 F401: imported but unused
+        _aimport_future_imports
+
+    def test_bad_future_import(self):
+        with self.assertRaises(SyntaxError):
+            import _aimport_bad_future_imports
+            # Prevent flake8 F401: imported but unused
+            _aimport_bad_future_imports
 
     def _check_values(self):
         from _session import value, nested_value
