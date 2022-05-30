@@ -14,7 +14,7 @@ from concert.coroutines.base import background, broadcast
 from concert.coroutines.sinks import null
 from concert.progressbar import wrap_iterable
 from concert.base import check, Parameterizable, Parameter, Selection, State, StateError, transition
-
+from concert.helpers import get_state_from_awaitable
 
 LOG = logging.getLogger(__name__)
 
@@ -48,12 +48,14 @@ class Acquisition(Parameterizable):
         if acquire and not asyncio.iscoroutinefunction(acquire):
             raise TypeError('acquire must be a coroutine function')
         self.acquire = acquire
+        self._run_awaitable = None
         await Parameterizable.__ainit__(self)
 
+    async def _get_state(self):
+        return await get_state_from_awaitable(self._run_awaitable)
+
     @background
-    @check(source=['standby', 'error'], target='standby')
-    @transition(immediate='running', target='standby')
-    async def __call__(self):
+    async def _run(self):
         """Run the acquisition, i.e. acquire the data and connect the producer and consumers."""
         LOG.debug(f"Running acquisition '{self.name}'")
         consumers = self.consumers
@@ -66,6 +68,12 @@ class Acquisition(Parameterizable):
 
         coros = broadcast(self.producer(), *consumers)
         await asyncio.gather(*coros, return_exceptions=False)
+
+    @background
+    @check(source=['standby', 'error'], target='standby')
+    async def __call__(self):
+        self._run_awaitable = self._run()
+        await self._run_awaitable
 
     def __repr__(self):
         return "Acquisition({})".format(self.name)
@@ -124,6 +132,7 @@ class Experiment(Parameterizable):
         self.log = LOG
         self._devices_to_log = {}
         self.ready_to_prepare_next_sample = asyncio.Event()
+        self._run_awaitable = None
         await Parameterizable.__ainit__(self)
 
         if separate_scans and walker:
@@ -245,8 +254,15 @@ class Experiment(Parameterizable):
 
     @background
     @check(source=['standby', 'error'], target='standby')
-    @transition(immediate='running', target='standby')
     async def run(self):
+        self._run_awaitable = self._run()
+        await self._run_awaitable
+
+    async def _get_state(self):
+        return await get_state_from_awaitable(self._run_awaitable)
+
+    @background
+    async def _run(self):
         self.ready_to_prepare_next_sample.clear()
         start_time = time.time()
         handler = None

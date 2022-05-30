@@ -1,3 +1,4 @@
+import asyncio
 import time
 import inspect
 import functools
@@ -290,3 +291,15 @@ def linspace(start, stop, num, endpoint=True):
     except Exception as e:
         raise e
     return np.linspace(start, stop, num, endpoint=endpoint) * unit
+
+
+async def get_state_from_awaitable(awaitable) -> str:
+    if awaitable is None:
+        return 'standby'
+    task = asyncio.ensure_future(awaitable)
+    if not task.done():
+        return 'running'
+    elif task.exception() is None:
+        return 'standby'
+    else:
+        return 'error'
