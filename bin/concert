@@ -1,6 +1,5 @@
 #! python
 
-import ast
 import asyncio
 import argparse
 import contextlib
@@ -173,8 +172,8 @@ class ShowCommand(SubCommand):
     def run(self, session=None):
         if session:
             try:
-                module = cs.load(session)
-                print(module.__doc__)
+                docstring = cs.get_docstring(session)
+                print(docstring)
             except IOError:
                 print("Cannot find {0}".format(session))
             except ImportError as exception:
@@ -435,10 +434,7 @@ class StartCommand(SubCommand):
 
         ip_config = traitlets.config.Config()
         if path and path.endswith('.py'):
-            with open(path) as session_file:
-                session_code = session_file.read()
-            tree = ast.parse(session_code)
-            docstring = ast.get_docstring(tree)
+            docstring = cs.get_docstring(path)
             if docstring:
                 print(docstring)
 
@@ -486,14 +482,14 @@ class DocsCommand(SubCommand):
             sys.exit(1)
 
         cs.exit_if_not_exists(session)
-        module = cs.load(session)
+        docstring = cs.get_docstring(session)
 
-        if not module.__doc__:
+        if not docstring:
             print("No docstring in `{}' found".format(session))
 
         cmd_line = shlex.split('pandoc -f markdown -t latex -o {}.pdf'.format(session))
         pandoc = subprocess.Popen(cmd_line, stdin=subprocess.PIPE)
-        pandoc.communicate(module.__doc__)
+        pandoc.communicate(docstring.encode('utf-8'))
 
 
 def main():

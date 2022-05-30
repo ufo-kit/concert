@@ -2,9 +2,9 @@
 
 A session is an ordinary Python module that is stored in a per-user
 directory."""
+import ast
 import os
 import sys
-import imp
 import shutil
 
 _CACHED_PATH = None
@@ -101,12 +101,16 @@ def copy(source, target):
     shutil.copy(path(source), path(target))
 
 
-def load(session, from_file=False):
-    """Load *session* and return the module."""
-    if not from_file:
-        return imp.load_source(session, path(session))
+def get_docstring(filename):
+    """Get docstring of a source code file stored in *filename*."""
+    if not os.path.exists(filename):
+        # Just the session name, find the actual path
+        filename = path(filename)
 
-    return imp.load_source('somename', os.path.abspath(session))
+    with open(filename) as session_file:
+        session_code = session_file.read()
+    tree = ast.parse(session_code)
+    return ast.get_docstring(tree)
 
 
 def get_existing():
