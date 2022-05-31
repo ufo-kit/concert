@@ -131,6 +131,11 @@ class Radiography(Experiment):
         if await self._camera.get_state() != "standby":
             await self._camera.stop_recording()
 
+    async def finish(self):
+        if await self._camera.get_state() != "standby":
+            await self._camera.stop_recording()
+        await self.stop_sample_exposure()
+
     async def _last_acquisition_running(self) -> bool:
         return await self.acquisitions[-1].get_state() == "running"
 
@@ -519,6 +524,11 @@ class ContinuousTomography(Tomography):
             start_angle=start_angle, separate_scans=separate_scans
         )
 
+    async def finish(self):
+        await super().finish()
+        if await self._tomography_motor.get_state() == 'moving':
+            await self._tomography_motor.stop()
+
     async def _get_velocity(self):
         angular_range = await self.get_angular_range()
         num_projections = await self.get_num_projections()
@@ -818,6 +828,11 @@ class ContinuousSpiralTomography(ContinuousTomography, SpiralMixin):
             sample_height=sample_height,
             start_position_vertical=start_position_vertical
         )
+
+    async def finish(self):
+        await super().finish()
+        if await self._vertical_motor.get_state() == 'moving':
+            await self._vertical_motor.stop()
 
     async def _get_vertical_velocity(self):
         shift = await self.get_vertical_shift_per_tomogram()
