@@ -57,6 +57,10 @@ class TestAImport(TestCase):
             # Prevent flake8 F401: imported but unused
             _aimport_bad_future_imports
 
+    def test_from_package_import(self):
+        from _package._module import value
+        self.assertEqual(value, 0)
+
     def _check_values(self):
         from _session import value, nested_value
         self.assertEqual(value, 0)
