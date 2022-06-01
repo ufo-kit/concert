@@ -61,6 +61,11 @@ class TestAImport(TestCase):
         from _package._module import value
         self.assertEqual(value, 0)
 
+    def test_from_package_default_import(self):
+        from concert import devices
+        # Prevent flake8 F401: imported but unused
+        devices
+
     def _check_values(self):
         from _session import value, nested_value
         self.assertEqual(value, 0)
