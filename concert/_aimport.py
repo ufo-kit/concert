@@ -183,6 +183,20 @@ class _AsyncMetaPathFinder(importlib.abc.MetaPathFinder):
         if path is None:
             # If this is a top-level import, *path* is None and we look in the registered paths
             path = _ASYNC_IMPORT_PATH
+        else:
+            # Otherwise we check whether the *path* of the parent module is inside
+            # _ASYNC_IMPORT_PATH and if it is we can load it. Otherwise we leave it to the default
+            # loader.
+            inside_async_path = False
+            for async_entry in _ASYNC_IMPORT_PATH:
+                for entry in path:
+                    if entry.startswith(async_entry):
+                        inside_async_path = True
+                        break
+                if inside_async_path:
+                    break
+            if not inside_async_path:
+                return None
 
         for entry in path:
             finder = importlib.machinery.FileFinder(entry, (_AsyncLoader, ('.py',)))
