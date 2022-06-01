@@ -11,52 +11,19 @@ import os
 import re
 import sys
 import threading
-import concert.session.management as cs
-from concert.config import AIODEBUG
-from concert.coroutines.base import get_event_loop
 
 
 LOG = logging.getLogger(__name__)
-SESSION_PATH = cs.path()
+_ASYNC_IMPORT_PATH = []
 
 
-class AsyncLoader(importlib.machinery.SourceFileLoader):
-    """
-    Normal SourceFileLoader with the capability of dealing with `await' outside of `async def'
-    functions. The trick is the flag ast.PyCF_ALLOW_TOP_LEVEL_AWAIT and eval() instead of exec()
-    used by Python's :class:`_LoaderBasics` class.
+def register(paths):
+    """Register entries in the list of *paths* for importing with enabled top-level await."""
+    global _ASYNC_IMPORT_PATH
 
-    If the module has `await' outside of a function, eval() will return a coroutine which we execute
-    in the session's loop, that is why sys.meta_path must be updated *after* the loop has been
-    created (to make sure it's the one IPython also uses).
-    """
-    def exec_module(self, module):
-        """
-        Execute *module* step-wise and allow *await* on the module level and module nesting with
-        top-level `await'.
-        """
-        eval_source(self.get_data(self.path), module.__dict__, filename=self.path)
-
-
-class AsyncMetaPathFinder(importlib.abc.MetaPathFinder):
-    """
-    MetaPathFinder implementation which used :class;`.FileFinder` for dealing with paths and
-    instantiated with our AsyncLoader for the handling of `await' outside of `async def' functions.
-    """
-    def find_spec(self, fullname, path, target=None):
-
-        if path is None:
-            # If this is a top-level import *path* is None, otherwise do not mess with it and use
-            # the one provided by the package hierarchy.
-            # If it is None, make sure user modules are found before system modules, e.g. when
-            # someone decides to name a session `test', which exists in pythonX.Y/test/__init__.py
-            path = [SESSION_PATH] + sys.path
-
-        for entry in path:
-            finder = importlib.machinery.FileFinder(entry, (AsyncLoader, ('.py',)))
-            spec = finder.find_spec(fullname, target=target)
-            if spec:
-                return spec
+    if not _ASYNC_IMPORT_PATH:
+        _ASYNC_IMPORT_PATH = paths
+        sys.meta_path.insert(0, _AsyncMetaPathFinder())
 
 
 def eval_source(source: bytes, module_dict: dict, filename: str = ''):
@@ -90,7 +57,7 @@ def eval_source(source: bytes, module_dict: dict, filename: str = ''):
 
         if inspect.iscoroutine(result):
             try:
-                loop = get_event_loop()
+                loop = asyncio.get_event_loop_policy().get_event_loop()
             except RuntimeError as err:
                 if threading.current_thread() is not threading.main_thread():
                     # If we are in a different thread we create the loop if not existing
@@ -100,8 +67,7 @@ def eval_source(source: bytes, module_dict: dict, filename: str = ''):
                     raise err
 
             try:
-                LOG.log(
-                    AIODEBUG,
+                LOG.debug(
                     'import running in loop for %s, nodes %d-%d',
                     filename or '<string>',
                     start,
@@ -186,3 +152,40 @@ def eval_source(source: bytes, module_dict: dict, filename: str = ''):
     if stop > start:
         # Leftover code after last import statement
         _eval_submodule(start, stop)
+
+
+class _AsyncLoader(importlib.machinery.SourceFileLoader):
+    """
+    Normal SourceFileLoader with the capability of dealing with `await' outside of `async def'
+    functions. The trick is the flag ast.PyCF_ALLOW_TOP_LEVEL_AWAIT and eval() instead of exec()
+    used by Python's :class:`_LoaderBasics` class.
+
+    If the module has `await' outside of a function, eval() will return a coroutine which we execute
+    in the session's loop, that is why sys.meta_path must be updated *after* the loop has been
+    created (to make sure it's the one IPython also uses).
+    """
+    def exec_module(self, module):
+        """
+        Execute *module* step-wise and allow *await* on the module level and module nesting with
+        top-level `await'.
+        """
+        eval_source(self.get_data(self.path), module.__dict__, filename=self.path)
+
+
+class _AsyncMetaPathFinder(importlib.abc.MetaPathFinder):
+    """
+    MetaPathFinder implementation which used :class;`.FileFinder` for dealing with paths and
+    instantiated with our _AsyncLoader for the handling of `await' outside of `async def' functions.
+    """
+    def find_spec(self, fullname, path, target=None):
+        global _ASYNC_IMPORT_PATH
+
+        if path is None:
+            # If this is a top-level import, *path* is None and we look in the registered paths
+            path = _ASYNC_IMPORT_PATH
+
+        for entry in path:
+            finder = importlib.machinery.FileFinder(entry, (_AsyncLoader, ('.py',)))
+            spec = finder.find_spec(fullname, target=target)
+            if spec:
+                return spec

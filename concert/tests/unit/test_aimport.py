@@ -1,21 +1,13 @@
 import os
-import sys
 import warnings
-from concert._aimport import AsyncMetaPathFinder
+from concert._aimport import register
 from concert.tests import TestCase
 
 
 class TestAImport(TestCase):
     def setUp(self):
         self.import_path = os.path.join(os.getcwd(), 'concert', 'tests', 'util')
-        self.async_path_finder = AsyncMetaPathFinder()
-        sys.meta_path.insert(0, self.async_path_finder)
-        sys.path.insert(0, self.import_path)
-
-    def tearDown(self):
-        # Do not rely on the index in setUp
-        sys.path.remove(self.import_path)
-        sys.meta_path.remove(self.async_path_finder)
+        register(paths=[self.import_path])
 
     def test_empty_module(self):
         import _aimport_empty_module
