@@ -50,7 +50,7 @@ class AsyncMetaPathFinder(importlib.abc.MetaPathFinder):
             # the one provided by the package hierarchy.
             # If it is None, make sure user modules are found before system modules, e.g. when
             # someone decides to name a session `test', which exists in pythonX.Y/test/__init__.py
-            path = [SESSION_PATH, os.getcwd()] + sys.path
+            path = [SESSION_PATH] + sys.path
 
         for entry in path:
             finder = importlib.machinery.FileFinder(entry, (AsyncLoader, ('.py',)))
