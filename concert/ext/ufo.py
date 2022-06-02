@@ -24,10 +24,11 @@ except ImportError:
     print("You must install tofu to use Ufo features, see 'https://github.com/ufo-kit/tofu.git'",
           file=sys.stderr)
 
-from concert.base import Parameterizable, State, check, transition
+from concert.base import Parameterizable, Parameter, Quantity, State, check, transition
 from concert.config import PERFDEBUG
 from concert.coroutines.base import background, async_generate, run_in_executor, run_in_loop, start
 from concert.imageprocessing import filter_low_frequencies
+from concert.quantities import q
 
 
 LOG = logging.getLogger(__name__)
@@ -232,26 +233,39 @@ class FlatCorrect(InjectProcess):
 
 
 class GeneralBackprojectArgs(object):
-    def __init__(self, center_position_x, center_position_z, number,
-                 overall_angle=np.pi):
+
+    """Data class holding arguments for tofu."""
+
+    parameters = {}
+
+    for section in GEN_RECO_PARAMS:
+        for arg in SECTIONS[section]:
+            settings = SECTIONS[section][arg]
+            parameters[arg.replace('-', '_')] = settings
+    parameters['y'] = SECTIONS['reading']['y']
+    parameters['height'] = SECTIONS['reading']['height']
+    parameters['width'] = SECTIONS['general']['width']
+    parameters['number'] = SECTIONS['reading']['number']
+
+    def __init__(self, **kwargs):
         self._slice_metric = None
         self._slice_metrics = ['min', 'max', 'sum', 'mean', 'var', 'std', 'skew',
                                'kurtosis', 'sag']
         self._z_parameters = SECTIONS['general-reconstruction']['z-parameter']['choices']
-        for section in GEN_RECO_PARAMS:
-            for arg in SECTIONS[section]:
-                settings = SECTIONS[section][arg]
-                default = settings['default']
-                if default is not None and 'type' in settings:
-                    default = settings['type'](default)
-                setattr(self, arg.replace('-', '_'), default)
-        self.y = 0
-        self.height = None
-        self.width = None
-        self.center_position_x = center_position_x
-        self.center_position_z = center_position_z
-        self.number = number
-        self.overall_angle = overall_angle
+        for arg, settings in self.parameters.items():
+            default = settings['default']
+            if default is not None and 'type' in settings:
+                default = settings['type'](default)
+            setattr(self, arg.replace('-', '_'), default)
+
+        if kwargs:
+            self._set_args(**kwargs)
+
+    def _set_args(self, **kwargs):
+        for arg in kwargs:
+            if not hasattr(self, arg):
+                raise AttributeError(f"GeneralBackprojectArgs do not have attribute `{arg}'")
+            setattr(self, arg, kwargs[arg])
 
     @property
     def z_parameters(self):
@@ -280,6 +294,150 @@ class GeneralBackprojectArgs(object):
         if name not in self.z_parameters:
             raise GeneralBackprojectArgsError("Unknown z parameter '{}'".format(name))
         self._z_parameter = name
+
+
+class QuantifiedProxyArgs(Parameterizable):
+
+    """Data class holding arguments for tofu with units."""
+
+    UNITS = {
+        'source_position_y': q.px,
+        'detector_position_y': q.px,
+        'center_position_x': q.px,
+        'center_position_z': q.px,
+        'axis_angle_x': q.rad,
+        'energy': q.keV,
+        'propagation_distance': q.m,
+        'pixel_size': q.m,
+        'retrieval_padded_width': q.px,
+        'retrieval_padded_height': q.px,
+        'projection_margin': q.px,
+        'x_region': q.px,
+        'y_region': q.px,
+        'z': q.px,
+        'source_position_x': q.px,
+        'source_position_z': q.px,
+        'detector_position_x': q.px,
+        'detector_position_z': q.px,
+        'detector_angle_x': q.rad,
+        'detector_angle_y': q.rad,
+        'detector_angle_z': q.rad,
+        'axis_angle_y': q.rad,
+        'axis_angle_z': q.rad,
+        'volume_angle_x': q.rad,
+        'volume_angle_y': q.rad,
+        'volume_angle_z': q.rad,
+        'overall_angle': q.rad,
+        'y': q.px,
+        'height': q.px,
+        'width': q.px,
+    }
+
+    async def __ainit__(self, proxy, **kwargs):
+        # We keep a unitless version of the args to store the actual values
+        self._proxy = proxy
+        await super().__ainit__()
+
+        params = {}
+
+        for arg, settings in GeneralBackprojectArgs.parameters.items():
+
+            if arg in self.UNITS:
+                unit = self.UNITS[arg]
+                params[arg] = Quantity(
+                    unit,
+                    fget=self._make_getter(arg, unit=unit),
+                    fset=self._make_setter(arg, unit=unit),
+                    help=settings['help']
+                )
+            else:
+                params[arg] = Parameter(
+                    fget=self._make_getter(arg),
+                    fset=self._make_setter(arg),
+                    help=settings['help']
+                )
+
+        self.install_parameters(params)
+        await self._set_args(**kwargs)
+
+    def _make_getter(self, arg, unit=None):
+        async def getter(instance):
+            value = await self._proxy.get_reco_arg(arg)
+            if value is not None and unit is not None:
+                value *= unit
+
+            return value
+
+        return getter
+
+    def _make_setter(self, arg, unit=None):
+        async def setter(instance, value):
+            if unit is not None:
+                value = value.to(unit).magnitude
+                if isinstance(value, np.ndarray):
+                    value = value.tolist()
+
+            await self._proxy.set_reco_arg(arg, value)
+
+        return setter
+
+    async def _set_args(self, **kwargs):
+        for arg in kwargs:
+            if arg not in self._params:
+                raise AttributeError(
+                    f"QuantifiedGeneralBackprojectArgs do not have attribute `{arg}'"
+                )
+            await self._params[arg].set(kwargs[arg])
+
+    @property
+    def z_parameters(self):
+        return self._proxy.z_parameters
+
+    @property
+    def slice_metrics(self):
+        return self._proxy.slice_metrics
+
+    @property
+    def slice_metric(self):
+        return self._proxy.slice_metric
+
+    @slice_metric.setter
+    def slice_metric(self, metric):
+        self._proxy.slice_metric = metric
+
+    @property
+    def z_parameter(self):
+        return self._proxy.z_parameter
+
+    @z_parameter.setter
+    def z_parameter(self, name):
+        self._proxy.z_parameter = name
+
+
+class LocalGeneralBackprojectArgs(GeneralBackprojectArgs):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    async def set_reco_arg(self, arg, value):
+        if not hasattr(self, arg):
+            raise AttributeError(f"LocalGeneralBackprojectArgs do not have attribute `{arg}'")
+        setattr(self, arg, value)
+
+    async def get_reco_arg(self, arg):
+        return getattr(self, arg)
+
+
+class QuantifiedArgs(QuantifiedProxyArgs):
+    async def __ainit__(self, **kwargs):
+        # We can't pass kwargs on because they have units, we need to set them via the proxy class
+        # in _set_args below
+        await super().__ainit__(LocalGeneralBackprojectArgs())
+        await self._set_args(**kwargs)
+
+    @property
+    def tofu_args(self):
+        # Convenience for GeneralBackprojectManager
+        return self._proxy
 
 
 class GeneralBackproject(InjectProcess):
