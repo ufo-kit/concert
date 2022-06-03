@@ -7,6 +7,8 @@ import asyncio
 import logging
 import os
 import time
+from asyncio import ensure_future
+
 from concert.coroutines.base import background, broadcast, wait_until
 import json
 
@@ -326,11 +328,13 @@ class Experiment(Parameterizable):
         possible but still keeping everything in a defined state. To really stop everything as fast
         as possible ctrl-k should be used.
         This function blocks until the experiment is completely stopped.
+
+        To handle the CancelError must be handled and checked for CancelError.args[0] == 'stop'.
         """
         LOG.info("Experiment stopped.")
 
         if self._run_awaitable:
-            self._run_awaitable.set_exception(StopExperiment())
+            self._run_awaitable.cancel('stop')
             await self._run_awaitable
 
 
@@ -341,11 +345,4 @@ class AcquisitionError(Exception):
 
 class ExperimentError(Exception):
     """Experiment-related exceptions."""
-    pass
-
-
-class StopExperiment(Exception):
-    """
-    Exception which is raised when the experiment should be stopped.
-    """
     pass
