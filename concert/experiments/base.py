@@ -123,7 +123,6 @@ class Experiment(Parameterizable):
 
     async def __ainit__(self, acquisitions, walker=None, separate_scans=True,
                         name_fmt='scan_{:>04}'):
-        self._stop = False
         self._acquisitions = []
         for acquisition in acquisitions:
             self.add(acquisition)
@@ -250,7 +249,7 @@ class Experiment(Parameterizable):
         unlike :meth:`~.Experiment.run`.
         """
         for acq in wrap_iterable(self._acquisitions):
-            if await self.get_state() != 'running' or self._stop:
+            if await self.get_state() != 'running':
                 break
             await acq()
 
@@ -265,7 +264,6 @@ class Experiment(Parameterizable):
 
     @background
     async def _run(self):
-        self._stop = False
         self.ready_to_prepare_next_sample.clear()
         start_time = time.time()
         handler = None
@@ -329,10 +327,10 @@ class Experiment(Parameterizable):
         as possible ctrl-k should be used.
         This function blocks until the experiment is completely stopped.
         """
-        self._stop = True
         LOG.info("Experiment stopped.")
 
         if self._run_awaitable:
+            self._run_awaitable.set_exception(StopExperiment())
             await self._run_awaitable
 
 
@@ -343,4 +341,11 @@ class AcquisitionError(Exception):
 
 class ExperimentError(Exception):
     """Experiment-related exceptions."""
+    pass
+
+
+class StopExperiment(Exception):
+    """
+    Exception which is raised when the experiment should be stopped.
+    """
     pass

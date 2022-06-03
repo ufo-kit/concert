@@ -289,8 +289,6 @@ class Radiography(Experiment):
                               await self._tomography_motor.get_position())
 
             for i in range(int(number)):
-                if self._stop:
-                    break
                 yield await self._camera.grab()
 
     async def start_sample_exposure(self):
@@ -465,8 +463,6 @@ class SteppedTomography(Tomography):
             await self._camera.set_trigger_source("SOFTWARE")
             async with self._camera.recording():
                 for i in range(await self.get_num_projections()):
-                    if self._stop:
-                        break
                     await self._tomography_motor.set_position(
                         i * await self.get_angular_range() / await self.get_num_projections()
                         + await self.get_start_angle()
@@ -751,8 +747,6 @@ class SteppedSpiralTomography(SteppedTomography, SpiralMixin):
             await self._camera.set_trigger_source("SOFTWARE")
             async with self._camera.recording():
                 for i in range(num_projections):
-                    if self._stop:
-                        break
                     rot_position = i * angular_step + await self.get_start_angle()
                     vertical_position = i * vertical_step + await self.get_start_position_vertical()
                     await asyncio.gather(self._tomography_motor.set_position(rot_position),
@@ -1088,7 +1082,7 @@ class GratingInterferometryStepping(GratingInterferometryMixin, Radiography):
         """
         Scans the stepping motor and acquires a frame after each position is reached.
 
-        As step *size grating_period* / *num_steps_per_period* is used.
+        As step *size grating_period* /_sz *num_steps_per_period* is used.
         A total of *num_steps_per_period* * *num_periods* frames is acquired.
         """
         step_size = await self.get_grating_period() / await self.get_num_steps_per_period()
@@ -1097,8 +1091,6 @@ class GratingInterferometryStepping(GratingInterferometryMixin, Radiography):
         await self._camera.set_trigger_source("SOFTWARE")
         async with self._camera.recording():
             for i in range(await self.get_num_periods() * await self.get_num_steps_per_period()):
-                if self._stop:
-                    break
                 await self._stepping_motor.set_position(i * step_size
                                                         + await self.get_stepping_start_position())
                 await self._camera.trigger()
