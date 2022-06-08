@@ -1,6 +1,8 @@
 [MASTER]
 ignore=tests, concert/ext/tifffile.py
 
+load-plugins=concert.pylint.parameterizable
+
 [BASIC]
 
 # Do not cry when private methods and functions don't have docstring
