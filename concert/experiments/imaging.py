@@ -86,24 +86,17 @@ class Radiography(Experiment):
     num_projections = Parameter()
     """Number of projection images."""
 
-    radio_position = Quantity(q.mm)
-    """Position of the flat_motor to acquire projection images of the sample."""
-
-    flat_position = Quantity(q.mm)
-    """Position of the flat_motor to acquire images without the sample."""
-
     async def __ainit__(self, walker, flat_motor, radio_position, flat_position, camera, num_flats,
                         num_darks, num_projections, separate_scans=True):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
-        :param flat_motor: LinearMotor for moving sample in and out of the beam.
-        :type flat_motor: concert.devices.motors.base.LinearMotor
+        :param flat_motor: Motor for moving sample in and out of the beam. Must feature a
+            'position' property.
         :param radio_position: Position of *flat_motor* that the sample is positioned in the beam.
-        :type radio_position: q.mm
+            Unit must be the same as flat_motor['position'].
         :param flat_position: Position of *flat_motor* that the sample is positioned out of the
-            beam.
-        :type flat_position: q.mm
+            beam. Unit must be the same as flat_motor['position'].
         :param camera: Camera to acquire the images.
         :type camera: concert.devices.cameras.base.Camera
         :param num_flats: Number of images for flatfield correction.
@@ -121,11 +114,15 @@ class Radiography(Experiment):
         self._finished = None
         self._flat_motor = flat_motor
         self._camera = camera
+        flat_motor_unit = self._flat_motor['position'].unit
+
         darks_acq = await Acquisition("darks", self._take_darks)
         flats_acq = await Acquisition("flats", self._take_flats)
         radios_acq = await Acquisition("radios", self._take_radios)
         await super().__ainit__([darks_acq, flats_acq, radios_acq], walker,
                                 separate_scans=separate_scans)
+        self.install_parameters({"flat_position": Quantity(flat_motor_unit),
+                                 "radio_position": Quantity(flat_motor_unit)})
 
     async def prepare(self):
         if await self._camera.get_state() != "standby":
@@ -316,15 +313,14 @@ class Tomography(Radiography):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
-        :param flat_motor: LinearMotor for moving sample in and out of the beam.
-        :type flat_motor: concert.devices.motors.base.LinearMotor
+        :param flat_motor: Motor for moving sample in and out of the beam. Must feature a
+            'position' property.
         :param tomography_motor: RotationMotor for tomography.
         :type tomography_motor: concert.devices.motors.base.RotationMotor
         :param radio_position: Position of *flat_motor* that the sample is positioned in the beam.
-        :type radio_position: q.mm
+            Unit must be the same as flat_motor['position'].
         :param flat_position: Position of *flat_motor* that the sample is positioned out of the
-            beam.
-        :type flat_position: q.mm
+            beam. Unit must be the same as flat_motor['position'].
         :param camera: Camera to acquire the images.
         :type camera: concert.devices.cameras.base.Camera
         :param num_flats: Number of images for flatfield correction.
@@ -401,30 +397,15 @@ class SteppedTomography(Tomography):
                         flat_position, camera, num_flats=200, num_darks=200,
                         num_projections=3000, angular_range=180 * q.deg,
                         start_angle=0 * q.deg, separate_scans=True):
-        await super().__ainit__(
-            walker=walker, flat_motor=flat_motor,
-            tomography_motor=tomography_motor,
-            radio_position=radio_position,
-            flat_position=flat_position,
-            camera=camera, num_flats=num_flats,
-            num_darks=num_darks,
-            num_projections=num_projections,
-            angular_range=angular_range,
-            start_angle=start_angle,
-            separate_scans=separate_scans
-        )
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
-        :param flat_motor: LinearMotor for moving sample in and out of the beam.
-        :type flat_motor: concert.devices.motors.base.LinearMotor
-        :param tomography_motor: RotationMotor for tomography scan.
-        :type tomography_motor: concert.devices.motors.base.ContinuousRotationMotor
+        :param flat_motor: Motor for moving sample in and out of the beam. Must feature a
+            'position' property.
         :param radio_position: Position of *flat_motor* that the sample is positioned in the beam.
-        :type radio_position: q.mm
+            Unit must be the same as flat_motor['position'].
         :param flat_position: Position of *flat_motor* that the sample is positioned out of the
-            beam.
-        :type radio_position: q.mm
+            beam. Unit must be the same as flat_motor['position'].
         :param camera: Camera to acquire the images.
         :type camera: concert.devices.camera.base.Camera
         :param num_flats: Number of images for flatfield correction.
@@ -438,6 +419,18 @@ class SteppedTomography(Tomography):
         :param start_angle: Start position of *tomography_motor* for the first projection.
         :type start_angle: q.deg
         """
+        await super().__ainit__(
+            walker=walker, flat_motor=flat_motor,
+            tomography_motor=tomography_motor,
+            radio_position=radio_position,
+            flat_position=flat_position,
+            camera=camera, num_flats=num_flats,
+            num_darks=num_darks,
+            num_projections=num_projections,
+            angular_range=angular_range,
+            start_angle=start_angle,
+            separate_scans=separate_scans
+        )
 
     async def _take_radios(self):
         """
@@ -480,15 +473,12 @@ class ContinuousTomography(Tomography):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
-        :param flat_motor: LinearMotor for moving sample in and out of the beam.
-        :type flat_motor: concert.devices.motors.base.LinearMotor
-        :param tomography_motor: ContinuousRotationMotor for tomography scan.
-        :type tomography_motor: concert.devices.motors.base.ContinuousRotationMotor
+        :param flat_motor: Motor for moving sample in and out of the beam. Must feature a
+            'position' property.
         :param radio_position: Position of *flat_motor* that the sample is positioned in the beam.
-        :type radio_position: q.mm
+            Unit must be the same as flat_motor['position'].
         :param flat_position: Position of *flat_motor* that the sample is positioned out of the
-            beam.
-        :type flat_position: q.mm
+            beam. Unit must be the same as flat_motor['position'].
         :param camera: Camera to acquire the images.
         :type camera: concert.devices.camera.base.Camera
         :param num_flats: Number of images for flatfield correction.
@@ -637,17 +627,16 @@ class SteppedSpiralTomography(SteppedTomography, SpiralMixin):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
-        :param flat_motor: LinearMotor for moving sample in and out of the beam.
-        :type flat_motor: concert.devices.motors.base.LinearMotor
+        :param flat_motor: Motor for moving sample in and out of the beam. Must feature a
+            'position' property.
         :param tomography_motor: RotationMotor for tomography scan.
         :type tomography_motor: concert.devices.motors.base.RotationMotor
         :param vertical_motor: LinearMotor to translate the sample along the tomographic axis.
         :type vertical_motor: concert.devices.motors.base.LinearMotor
         :param radio_position: Position of *flat_motor* that the sample is positioned in the beam.
-        :type radio_position: q.mm
+            Unit must be the same as flat_motor['position'].
         :param flat_position: Position of *flat_motor* that the sample is positioned out of the
-            beam.
-        :type flat_position: q.mm
+            beam. Unit must be the same as flat_motor['position'].
         :param camera: Camera to acquire the images.
         :type camera: concert.devices.cameras.base.Camera
         :param start_position_vertical: Start position of *vertical_motor*.
@@ -759,18 +748,17 @@ class ContinuousSpiralTomography(ContinuousTomography, SpiralMixin):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
-        :param flat_motor: LinearMotor for moving sample in and out of the beam.
-        :type flat_motor: concert.devices.motors.base.LinearMotor
+        :param flat_motor: Motor for moving sample in and out of the beam. Must feature a
+            'position' property.
         :param tomography_motor: ContinuousRotationMotor for tomography scan.
         :type tomography_motor: concert.devices.motors.base.ContinuousRotationMotor
         :param vertical_motor: ContinuousLinearMotor to translate the sample along the tomographic
             axis.
         :type vertical_motor: concert.devices.motors.base.ContinuousLinearMotor
         :param radio_position: Position of *flat_motor* that the sample is positioned in the beam.
-        :type radio_position: q.mm
+            Unit must be the same as flat_motor['position'].
         :param flat_position: Position of *flat_motor* that the sample is positioned out of the
-            beam.
-        :type flat_position: q.mm
+            beam. Unit must be the same as flat_motor['position'].
         :param camera: Camera to acquire the images.
         :type camera: concert.devices.cameras.base.Camera
         :param start_position_vertical: Start position of *vertical_motor*.
@@ -975,14 +963,14 @@ class GratingInterferometryStepping(GratingInterferometryMixin, Radiography):
         :type walker: concert.storage.DirectoryWalker
         :param camera: Camera to acquire the images
         :type camera: concert.devices.cameras.base.Camera
-        :param flat_motor: Motor for moving the sample in and out of the beam.
-        :type flat_motor: concert.devices.motors.base.LinearMotor
+        :param flat_motor: Motor for moving sample in and out of the beam. Must feature a
+            'position' property.
         :param stepping_motor:
         :type stepping_motor: concert.devices.motors.base.LinearMotor
-        :param flat_position: Position of flat_motor where the sample is not in the beam.
-        :type flat_position: q.mm
-        :param radio_position: Position of flat_motor where the sample is located in the beam.
-        :type radio_position: q.mm
+        :param radio_position: Position of *flat_motor* that the sample is positioned in the beam.
+            Unit must be the same as flat_motor['position'].
+        :param flat_position: Position of *flat_motor* that the sample is positioned out of the
+            beam. Unit must be the same as flat_motor['position'].
         :param grating_period: Periodicity of the stepped grating.
         :type grating_period: q.um
         :param num_darks: Number of dark images that are acquired.
