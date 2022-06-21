@@ -124,15 +124,19 @@ Creating a session
 
 First of all, :ref:`initialize <init-command>` a new session::
 
-    $ concert init new-session
+    $ concert init new_session
 
 and :ref:`start <edit-command>` the default editor with ::
 
-    $ concert edit new-session
+    $ concert edit new_session
 
 At the top of the file, you can see a string enclosed in three ``"``. This
 should be changed to something descriptive as it will be shown each time you start
 the session.
+
+Sessions are just normal Python modules with one additional feature that you may
+use top-level ``await`` in them, i.e. outside of an ``async def`` function, for
+more info see :ref:`shell-importing`.
 
 
 Adding devices

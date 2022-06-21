@@ -271,6 +271,8 @@ session's docstring. The docstring should be formatted in Markdown markup.
 .. _PDFLaTeX: http://ctan.org/pkg/pdftex
 
 
+.. _shell-importing:
+
 Importing
 =========
 

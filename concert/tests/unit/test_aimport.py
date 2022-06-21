@@ -1,21 +1,18 @@
 import os
-import sys
 import warnings
-from concert._aimport import AsyncMetaPathFinder
+from concert._aimport import register
 from concert.tests import TestCase
 
 
 class TestAImport(TestCase):
     def setUp(self):
         self.import_path = os.path.join(os.getcwd(), 'concert', 'tests', 'util')
-        self.async_path_finder = AsyncMetaPathFinder()
-        sys.meta_path.insert(0, self.async_path_finder)
-        sys.path.insert(0, self.import_path)
+        register(paths=[self.import_path])
 
-    def tearDown(self):
-        # Do not rely on the index in setUp
-        sys.path.remove(self.import_path)
-        sys.meta_path.remove(self.async_path_finder)
+    def test_empty_module(self):
+        import _aimport_empty_module
+        # Prevent flake8 F401: imported but unused
+        _aimport_empty_module
 
     def test_nested_aimport(self):
         self._check_values()
@@ -48,6 +45,26 @@ class TestAImport(TestCase):
                 import _aimport_in_async_func_session
                 # Prevent flake8 F401: imported but unused
                 _aimport_in_async_func_session
+
+    def test_future_import(self):
+        import _aimport_future_imports
+        # Prevent flake8 F401: imported but unused
+        _aimport_future_imports
+
+    def test_bad_future_import(self):
+        with self.assertRaises(SyntaxError):
+            import _aimport_bad_future_imports
+            # Prevent flake8 F401: imported but unused
+            _aimport_bad_future_imports
+
+    def test_from_package_import(self):
+        from _package._module import value
+        self.assertEqual(value, 0)
+
+    def test_from_package_default_import(self):
+        from concert import devices
+        # Prevent flake8 F401: imported but unused
+        devices
 
     def _check_values(self):
         from _session import value, nested_value

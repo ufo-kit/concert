@@ -1,6 +1,5 @@
 #! python
 
-import ast
 import asyncio
 import argparse
 import contextlib
@@ -16,7 +15,7 @@ import zipfile
 import concert
 import concert.config
 import concert.session.management as cs
-from concert._aimport import AsyncMetaPathFinder, eval_nodes
+from concert._aimport import eval_source, register
 from concert.ext.cmd import plugins
 
 
@@ -173,8 +172,8 @@ class ShowCommand(SubCommand):
     def run(self, session=None):
         if session:
             try:
-                module = cs.load(session)
-                print(module.__doc__)
+                docstring = cs.get_docstring(session)
+                print(docstring)
             except IOError:
                 print("Cannot find {0}".format(session))
             except ImportError as exception:
@@ -377,7 +376,7 @@ class StartCommand(SubCommand):
         # It is crucial to call this here, after setting the asyncio's loop to the one from IPython,
         # otherwise we might be importing with another event loop than the one used in the concert
         # session and thus have devices and Locks and other things bound to a wrong loop.
-        sys.meta_path.insert(0, AsyncMetaPathFinder())
+        register(paths=[cs.path()])
 
         if session:
             cs.exit_if_not_exists(session)
@@ -405,9 +404,7 @@ class StartCommand(SubCommand):
 
         if non_interactive:
             with open(path, "rb") as f:
-                source = f.read()
-            nodes = ast.parse(source).body
-            eval_nodes(nodes, {}, filename=path)
+                eval_source(f.read(), {}, filename=path)
         else:
             self.run_shell(path=path, session=session)
 
@@ -437,10 +434,7 @@ class StartCommand(SubCommand):
 
         ip_config = traitlets.config.Config()
         if path and path.endswith('.py'):
-            with open(path) as session_file:
-                session_code = session_file.read()
-            tree = ast.parse(session_code)
-            docstring = ast.get_docstring(tree)
+            docstring = cs.get_docstring(path)
             if docstring:
                 print(docstring)
 
@@ -488,14 +482,14 @@ class DocsCommand(SubCommand):
             sys.exit(1)
 
         cs.exit_if_not_exists(session)
-        module = cs.load(session)
+        docstring = cs.get_docstring(session)
 
-        if not module.__doc__:
+        if not docstring:
             print("No docstring in `{}' found".format(session))
 
         cmd_line = shlex.split('pandoc -f markdown -t latex -o {}.pdf'.format(session))
         pandoc = subprocess.Popen(cmd_line, stdin=subprocess.PIPE)
-        pandoc.communicate(module.__doc__)
+        pandoc.communicate(docstring.encode('utf-8'))
 
 
 def main():
