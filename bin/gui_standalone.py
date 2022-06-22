@@ -26,26 +26,26 @@ async def main():
 
     app = QApplication.instance()
 
-    lin = LinearMotor()
+    lin = await LinearMotor()
     lin_widget = ParameterizableWidget(lin)
     lin_widget.setWindowTitle("LinMotor")
     lin_widget.update()
 
-    sample_changer = SampleChanger()
+    sample_changer = await SampleChanger()
     sample_changer_widget = ParameterizableWidget(sample_changer)
     sample_changer_widget.setWindowTitle("Sample Changer")
     sample_changer_widget.update()
 
     # Experiment
     walker = DirectoryWalker()
-    camera = Camera()
-    shutter = Shutter()
-    tomo_motor = RotationMotor()
+    camera = await Camera()
+    shutter = await Shutter()
+    tomo_motor = await RotationMotor()
     tomo_motor_widget = ParameterizableWidget(tomo_motor)
     tomo_motor_widget.setWindowTitle("Tomo motor")
-    exp = SteppedTomography(walker=walker, flat_motor=lin, tomography_motor=tomo_motor, radio_position=0 * q.mm,
-                            flat_position=10*q.mm, camera=camera, shutter=shutter)
-    viewer = PyQtGraphViewer()
+    exp = await SteppedTomography(walker=walker, flat_motor=lin, tomography_motor=tomo_motor, radio_position=0 * q.mm,
+                                  flat_position=10 * q.mm, camera=camera, shutter=shutter)
+    viewer = await PyQtGraphViewer()
 
     live_view = Consumer(exp.acquisitions, viewer)
     exp_widget = ParameterizableWidget(exp)
