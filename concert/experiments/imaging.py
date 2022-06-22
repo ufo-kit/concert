@@ -78,13 +78,13 @@ class Radiography(Experiment):
     well as the projections with the sample in the beam.
     """
 
-    num_flats = Parameter()
+    num_flats = Parameter(check=check(source=['standby', 'error']))
     """Number of images acquired for flatfield correction."""
 
-    num_darks = Parameter()
+    num_darks = Parameter(check=check(source=['standby', 'error']))
     """Number of images acquired for dark correction."""
 
-    num_projections = Parameter()
+    num_projections = Parameter(check=check(source=['standby', 'error']))
     """Number of projection images."""
 
     async def __ainit__(self, walker, flat_motor, radio_position, flat_position, camera, num_flats,
@@ -122,8 +122,9 @@ class Radiography(Experiment):
         radios_acq = await Acquisition("radios", self._take_radios)
         await super().__ainit__([darks_acq, flats_acq, radios_acq], walker,
                                 separate_scans=separate_scans)
-        self.install_parameters({"flat_position": Quantity(flat_motor_unit),
-                                 "radio_position": Quantity(flat_motor_unit)})
+        self.install_parameters(
+            {"flat_position": Quantity(flat_motor_unit, check=check(source=['standby', 'error'])),
+             "radio_position": Quantity(flat_motor_unit, check=check(source=['standby', 'error']))})
         await self.set_radio_position(radio_position)
         await self.set_flat_position(flat_position)
         await self.set_num_flats(num_flats)
@@ -307,10 +308,10 @@ class Tomography(Radiography):
        Abstract implementation of a tomography experiment.
        """
 
-    angular_range = Quantity(q.deg)
+    angular_range = Quantity(q.deg, check=check(source=['standby', 'error']))
     """Range for scanning the *tomography_motor*."""
 
-    start_angle = Quantity(q.deg)
+    start_angle = Quantity(q.deg, check=check(source=['standby', 'error']))
     """Initial position of the *tomography_motor*."""
 
     async def __ainit__(self, walker, flat_motor, tomography_motor, radio_position,
@@ -565,13 +566,13 @@ class SpiralMixin(Parameterizable):
     """
     Mixin for spiral tomography.
     """
-    start_position_vertical = Quantity(q.mm)
+    start_position_vertical = Quantity(q.mm, check=check(source=['standby', 'error']))
     """Initial position of the vertical motor."""
 
-    vertical_shift_per_tomogram = Quantity(q.mm)
+    vertical_shift_per_tomogram = Quantity(q.mm, check=check(source=['standby', 'error']))
     """Vertical shift per tomogram."""
 
-    sample_height = Quantity(q.mm)
+    sample_height = Quantity(q.mm, check=check(source=['standby', 'error']))
     """Height of the sample. *vertical_motor* will be scanned from *start_position_vertical* to
     *sample_height* + *vertical_shift_per_tomogram* to sample the whole specimen.
     """
@@ -876,19 +877,19 @@ class GratingInterferometryMixin(Parameterizable):
     Mixin for grating interferometry specific experiments.
     """
 
-    grating_period = Quantity(q.um)
+    grating_period = Quantity(q.um, check=check(source=['standby', 'error']))
     """Period of the grating to scan."""
 
-    num_periods = Parameter()
+    num_periods = Parameter(check=check(source=['standby', 'error']))
     """Number of gratings period so scan."""
 
-    num_steps_per_period = Parameter()
+    num_steps_per_period = Parameter(check=check(source=['standby', 'error']))
     """Number of stepping positions per grating period."""
 
-    stepping_start_position = Quantity(q.um)
+    stepping_start_position = Quantity(q.um, check=check(source=['standby', 'error']))
     """Position of the first grating step of *stepping_motor*"""
 
-    propagation_distance = Quantity(q.mm)
+    propagation_distance = Quantity(q.mm, check=check(source=['standby', 'error']))
     """
     Distance between the sample and the analyzer grating.
 
