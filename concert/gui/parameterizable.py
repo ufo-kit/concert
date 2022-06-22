@@ -6,11 +6,12 @@ import concert.base
 from concert.coroutines.base import run_in_loop
 from concert.quantities import q
 from qasync import asyncSlot
-from concert.gui import with_signals
 
 
 class ParameterizableWidget(QWidget):
-    def __init__(self, parameterizable):
+    def __init__(self, parameterizable, exclude_properties=None):
+        if exclude_properties is None:
+            exclude_properties = []
         if not isinstance(parameterizable, concert.base.Parameterizable):
             raise Exception("Only Parameterizables can be wrapped.")
 
@@ -19,12 +20,15 @@ class ParameterizableWidget(QWidget):
         super().__init__()
         self._layout = QVBoxLayout()
         self.setLayout(self._layout)
+        self._exclude_properties = exclude_properties
         self.params = {}
         self.build_layout()
         self._layout.addWidget(PollingWidget(self))
 
     def build_layout(self):
         for param in self._parameterizable:
+            if param.name in self._exclude_properties:
+                continue
             if isinstance(param, SelectionValue):
                 self.add_selection_to_layout(param)
             elif isinstance(param, QuantityValue):
