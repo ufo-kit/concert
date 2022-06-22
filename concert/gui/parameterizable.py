@@ -90,7 +90,7 @@ class PollingWidget(QWidget):
     def changed_polling(self, state):
         # 2 == checked??? 0 == unchecked
         if state == 2:
-            self._timer.setInterval(self._interval.value() * 1000.)
+            self._timer.setInterval(int(self._interval.value() * 1000.))
             self._timer.start()
             self._interval.setEnabled(False)
             self.parent().polling(True)
