@@ -51,13 +51,12 @@ class Radiography(XrayTubeMixin, BaseRadiography):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
-        :param flat_motor: LinearMotor for moving sample in and out of the beam.
-        :type flat_motor: concert.devices.motors.base.LinearMotor
+        :param flat_motor: Motor for moving sample in and out of the beam. Must feature a
+            'position' property.
         :param radio_position: Position of *flat_motor* that the sample is positioned in the beam.
-        :type radio_position: q.mm
+            Unit must be the same as flat_motor['position'].
         :param flat_position: Position of *flat_motor* that the sample is positioned out of the
-            beam.
-        :type flat_position: q.mm
+            beam. Unit must be the same as flat_motor['position'].
         :param camera: Camera to acquire the images.
         :type camera: concert.devices.cameras.base.Camera
         :param xray_tube: X-ray tube
@@ -92,15 +91,14 @@ class SteppedTomography(XrayTubeMixin, BaseSteppedTomo):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
-        :param flat_motor: LinearMotor for moving sample in and out of the beam.
-        :type flat_motor: concert.devices.motors.base.LinearMotor
+        :param flat_motor: Motor for moving sample in and out of the beam. Must feature a
+            'position' property.
         :param tomography_motor: RotationMotor for tomography scan.
         :type tomography_motor: concert.devices.motors.base.RotationMotor
         :param radio_position: Position of *flat_motor* that the sample is positioned in the beam.
-        :type radio_position: q.mm
+            Unit must be the same as flat_motor['position'].
         :param flat_position: Position of *flat_motor* that the sample is positioned out of the
-            beam.
-        :type radio_position: q.mm
+            beam. Unit must be the same as flat_motor['position'].
         :param camera: Camera to acquire the images.
         :type camera: concert.devices.camera.base.Camera
         :param xray_tube: X-ray tube
@@ -143,15 +141,14 @@ class ContinuousTomography(XrayTubeMixin, BaseContTomo):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
-        :param flat_motor: LinearMotor for moving sample in and out of the beam.
-        :type flat_motor: concert.devices.motors.base.LinearMotor
+        :param flat_motor: Motor for moving sample in and out of the beam. Must feature a
+            'position' property.
         :param tomography_motor: ContinuousRotationMotor for tomography scan.
         :type tomography_motor: concert.devices.motors.base.ContinuousRotationMotor
         :param radio_position: Position of *flat_motor* that the sample is positioned in the beam.
-        :type radio_position: q.mm
+            Unit must be the same as flat_motor['position'].
         :param flat_position: Position of *flat_motor* that the sample is positioned out of the
-            beam.
-        :type flat_position: q.mm
+            beam. Unit must be the same as flat_motor['position'].
         :param camera: Camera to acquire the images.
         :type camera: concert.devices.camera.base.Camera
         :param xray_tube: X-ray tube
@@ -196,18 +193,17 @@ class ContinuousSpiralTomography(XrayTubeMixin, BaseContSpiralTomo):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
-        :param flat_motor: LinearMotor for moving sample in and out of the beam.
-        :type flat_motor: concert.devices.motors.base.LinearMotor
+        :param flat_motor: Motor for moving sample in and out of the beam. Must feature a
+            'position' property.
         :param tomography_motor: ContinuousRotationMotor for tomography scan.
         :type tomography_motor: concert.devices.motors.base.ContinuousRotationMotor
         :param vertical_motor: ContinuousLinearMotor to translate the sample along the tomographic
            axis.
         :type vertical_motor: concert.devices.motors.base.ContinuousLinearMotor
         :param radio_position: Position of *flat_motor* that the sample is positioned in the beam.
-        :type radio_position: q.mm
+            Unit must be the same as flat_motor['position'].
         :param flat_position: Position of *flat_motor* that the sample is positioned out of the
-           beam.
-        :type flat_position: q.mm
+            beam. Unit must be the same as flat_motor['position'].
         :param camera: Camera to acquire the images.
         :type camera: concert.devices.cameras.base.Camera
         :param xray_tube: X-ray tube
@@ -263,17 +259,16 @@ class SteppedSpiralTomography(XrayTubeMixin, BaseSteppedSpiralTomo):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
-        :param flat_motor: LinearMotor for moving sample in and out of the beam.
-        :type flat_motor: concert.devices.motors.base.LinearMotor
+        :param flat_motor: Motor for moving sample in and out of the beam. Must feature a
+            'position' property.
         :param tomography_motor: RotationMotor for tomography scan.
         :type tomography_motor: concert.devices.motors.base.RotationMotor
         :param vertical_motor: LinearMotor to translate the sample along the tomographic axis.
         :type vertical_motor: concert.devices.motors.base.LinearMotor
         :param radio_position: Position of *flat_motor* that the sample is positioned in the beam.
-        :type radio_position: q.mm
+            Unit must be the same as flat_motor['position'].
         :param flat_position: Position of *flat_motor* that the sample is positioned out of the
-            beam.
-        :type flat_position: q.mm
+            beam. Unit must be the same as flat_motor['position'].
         :param camera: Camera to acquire the images.
         :type camera: concert.devices.cameras.base.Camera
         :param xray_tube: X-ray tube
@@ -329,14 +324,14 @@ class GratingInterferometryStepping(XrayTubeMixin, BasePhaseStepping):
         :type camera: concert.devices.cameras.base.Camera
         :param xray_tube: Xray tube
         :type xray_tube: concert.devices.xraytubes.base.XRayTube
-        :param flat_motor: Motor for moving the sample in and out of the beam.
-        :type flat_motor: concert.devices.motors.base.LinearMotor
+        :param flat_motor: Motor for moving sample in and out of the beam. Must feature a
+            'position' property.
         :param stepping_motor:
         :type stepping_motor: concert.devices.motors.base.LinearMotor
-        :param flat_position: Position of flat_motor where the sample is not in the beam.
-        :type flat_position: q.mm
-        :param radio_position: Position of flat_motor where the sample is located in the beam.
-        :type radio_position: q.mm
+        :param radio_position: Position of *flat_motor* that the sample is positioned in the beam.
+            Unit must be the same as flat_motor['position'].
+        :param flat_position: Position of *flat_motor* that the sample is positioned out of the
+            beam. Unit must be the same as flat_motor['position'].
         :param grating_period: Periodicity of the stepped grating.
         :type grating_period: q.um
         :param num_darks: Number of dark images that are acquired.

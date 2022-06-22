@@ -32,7 +32,8 @@ class LoggingCamera(Camera):
     Camera that stores information about the source and the relevant motors in its frames for
     testing.
     """
-    async def __ainit__(self, tomo_axis=None, flat_axis=None, vertical_axis=None, source=None):
+    async def __ainit__(self, tomo_axis=None, flat_axis=None, vertical_axis=None, source=None,
+                        tomo=True):
         self.tomo_axis = tomo_axis
         self.flat_axis = flat_axis
         self.vertical_axis = vertical_axis
@@ -48,6 +49,7 @@ class LoggingCamera(Camera):
         self._last_vertical_axis_velocity = None
 
         self._last_source_state = None
+        self._tomo = tomo
 
         await super().__ainit__()
         await self.set_exposure_time(0.001 * q.s)
@@ -68,7 +70,10 @@ class LoggingCamera(Camera):
             try:
                 self._last_flat_axis_velocity = await self.flat_axis.get_velocity()
             except Exception:
-                self._last_flat_axis_velocity = 0 * q.mm / q.s
+                if self._tomo:
+                    self._last_flat_axis_velocity = 0 * q.mm / q.s
+                else:
+                    self._last_flat_axis_velocity = 0 * q.deg / q.s
 
         if self.vertical_axis is not None:
             self._last_vertical_axis_position = await self.vertical_axis.get_position()
@@ -108,8 +113,12 @@ class LoggingCamera(Camera):
             frame[1, 0] = self._last_tomo_axis_velocity.to(q.deg / q.s).magnitude
 
         if self.flat_axis is not None:
-            frame[0, 1] = self._last_flat_axis_position.to(q.mm).magnitude
-            frame[1, 1] = self._last_flat_axis_velocity.to(q.mm / q.s).magnitude
+            if self._tomo:
+                frame[0, 1] = self._last_flat_axis_position.to(q.mm).magnitude
+                frame[1, 1] = self._last_flat_axis_velocity.to(q.mm / q.s).magnitude
+            else:
+                frame[0, 1] = self._last_flat_axis_position.to(q.deg).magnitude
+                frame[1, 1] = self._last_flat_axis_velocity.to(q.deg / q.s).magnitude
 
         if self.vertical_axis is not None:
             frame[0, 2] = self._last_vertical_axis_position.to(q.mm).magnitude
@@ -131,6 +140,7 @@ class Radiography:
         self.camera = await LoggingCamera(flat_axis=self.flatfield_axis)
         self._data_dir = tempfile.mkdtemp()
         self.walker = DirectoryWalker(root=self._data_dir)
+        self._flat_axis_unit = q.mm
 
     def tearDown(self):
         shutil.rmtree(self._data_dir)
@@ -153,7 +163,8 @@ class Radiography:
         self.assertEqual(len(self.acc.items[self.exp.get_acquisition("flats")]),
                          await self.exp.get_num_flats())
         for flat in self.acc.items[self.exp.get_acquisition("flats")]:
-            self.assertEqual(flat[0, 1], (await self.exp.get_flat_position()).to(q.mm).magnitude)
+            self.assertEqual(flat[0, 1], (await self.exp.get_flat_position()).to(
+                self._flat_axis_unit).magnitude)
             self.assertEqual(flat[0, 3], 1.0)
 
     async def test_darks(self):
@@ -181,7 +192,8 @@ class Radiography:
         self.assertEqual(len(self.acc.items[self.exp.get_acquisition("radios")]),
                          await self.exp.get_num_projections())
         for flat in self.acc.items[self.exp.get_acquisition("radios")]:
-            self.assertEqual(flat[0, 1], (await self.exp.get_radio_position()).to(q.mm).magnitude)
+            self.assertEqual(flat[0, 1], (await self.exp.get_radio_position()).to(
+                self._flat_axis_unit).magnitude)
             self.assertEqual(flat[0, 3], 1.0)
 
     async def test_finish_states(self):
@@ -553,3 +565,232 @@ class TestSynchrotronContinuousSpiralTomographyTomography(ContinuousSpiralTomogr
             start_angle=0 * q.deg
         )
         await self.run_experiment()
+
+
+class TestFlatfieldMotorTypes(TestCase):
+    async def asyncSetUp(self) -> None:
+        self._data_dir = tempfile.mkdtemp()
+        self.walker = DirectoryWalker(root=self._data_dir)
+        self.linear_motor = await LinearMotor()
+        self.rotation_motor = await RotationMotor()
+        self.tomo_motor = await ContinuousRotationMotor()
+        self.vertical_motor = await ContinuousLinearMotor()
+        self.xray_tube = await XRayTube()
+        self.shutter = await Shutter()
+        self.camera = await Camera()
+
+    def tearDown(self):
+        shutil.rmtree(self._data_dir)
+
+    async def test_radiography(self):
+        xray_linear = await XRayTubeRadiography(
+            walker=self.walker,
+            flat_motor=self.linear_motor,
+            radio_position=0 * q.mm,
+            flat_position=-10 * q.mm,
+            camera=self.camera,
+            xray_tube=self.xray_tube)
+
+        xray_rotation = await XRayTubeRadiography(
+            walker=self.walker,
+            flat_motor=self.rotation_motor,
+            radio_position=0 * q.deg,
+            flat_position=-10 * q.deg,
+            camera=self.camera,
+            xray_tube=self.xray_tube)
+
+        synchrotron_linear = await SynchrotronRadiography(
+            walker=self.walker,
+            flat_motor=self.linear_motor,
+            radio_position=0 * q.mm,
+            flat_position=-10 * q.mm,
+            camera=self.camera,
+            shutter=self.shutter)
+
+        synchrotron_rotation = await SynchrotronRadiography(
+            walker=self.walker,
+            flat_motor=self.rotation_motor,
+            radio_position=0 * q.deg,
+            flat_position=-10 * q.deg,
+            camera=self.camera,
+            shutter=self.shutter)
+
+    async def test_stepped_tomography(self):
+        xray_linear = await XRayTubeSteppedTomography(
+            walker=self.walker,
+            flat_motor=self.linear_motor,
+            radio_position=0 * q.mm,
+            flat_position=-10 * q.mm,
+            camera=self.camera,
+            xray_tube=self.xray_tube,
+            tomography_motor=self.tomo_motor)
+
+        xray_rotation = await XRayTubeSteppedTomography(
+            walker=self.walker,
+            flat_motor=self.rotation_motor,
+            radio_position=0 * q.deg,
+            flat_position=-10 * q.deg,
+            camera=self.camera,
+            xray_tube=self.xray_tube,
+            tomography_motor=self.tomo_motor)
+
+        synchrotron_linear = await SynchrotronSteppedTomography(
+            walker=self.walker,
+            flat_motor=self.linear_motor,
+            radio_position=0 * q.mm,
+            flat_position=-10 * q.mm,
+            camera=self.camera,
+            shutter=self.shutter,
+            tomography_motor=self.tomo_motor)
+
+        synchrotron_rotation = await SynchrotronSteppedTomography(
+            walker=self.walker,
+            flat_motor=self.rotation_motor,
+            radio_position=0 * q.deg,
+            flat_position=-10 * q.deg,
+            camera=self.camera,
+            shutter=self.shutter,
+            tomography_motor=self.tomo_motor)
+
+    async def test_continuous_tomography(self):
+        xray_linear = await XRayTubeContinuousTomography(
+            walker=self.walker,
+            flat_motor=self.linear_motor,
+            radio_position=0 * q.mm,
+            flat_position=-10 * q.mm,
+            camera=self.camera,
+            xray_tube=self.xray_tube,
+            tomography_motor=self.tomo_motor)
+
+        xray_rotation = await XRayTubeContinuousTomography(
+            walker=self.walker,
+            flat_motor=self.rotation_motor,
+            radio_position=0 * q.deg,
+            flat_position=-10 * q.deg,
+            camera=self.camera,
+            xray_tube=self.xray_tube,
+            tomography_motor=self.tomo_motor)
+
+        synchrotron_linear = await SynchrotronContinuousTomography(
+            walker=self.walker,
+            flat_motor=self.linear_motor,
+            radio_position=0 * q.mm,
+            flat_position=-10 * q.mm,
+            camera=self.camera,
+            shutter=self.shutter,
+            tomography_motor=self.tomo_motor)
+
+        synchrotron_rotation = await SynchrotronContinuousTomography(
+            walker=self.walker,
+            flat_motor=self.rotation_motor,
+            radio_position=0 * q.deg,
+            flat_position=-10 * q.deg,
+            camera=self.camera,
+            shutter=self.shutter,
+            tomography_motor=self.tomo_motor)
+
+    async def test_stepped_spiral(self):
+        xray_linear = await XRayTubeSteppedSpiralTomography(
+            walker=self.walker,
+            flat_motor=self.linear_motor,
+            radio_position=0 * q.mm,
+            flat_position=-10 * q.mm,
+            camera=self.camera,
+            xray_tube=self.xray_tube,
+            tomography_motor=self.tomo_motor,
+            vertical_motor=self.vertical_motor,
+            sample_height=10 * q.mm,
+            vertical_shift_per_tomogram=2 * q.mm,
+            start_position_vertical=0 * q.mm)
+
+        xray_rotation = await XRayTubeSteppedSpiralTomography(
+            walker=self.walker,
+            flat_motor=self.rotation_motor,
+            radio_position=0 * q.deg,
+            flat_position=-10 * q.deg,
+            camera=self.camera,
+            xray_tube=self.xray_tube,
+            tomography_motor=self.tomo_motor,
+            vertical_motor=self.vertical_motor,
+            sample_height=10 * q.mm,
+            vertical_shift_per_tomogram=2 * q.mm,
+            start_position_vertical=0 * q.mm)
+
+        synchrotron_linear = await SynchrotronSteppedSpiralTomography(
+            walker=self.walker,
+            flat_motor=self.linear_motor,
+            radio_position=0 * q.mm,
+            flat_position=-10 * q.mm,
+            camera=self.camera,
+            shutter=self.shutter,
+            tomography_motor=self.tomo_motor,
+            vertical_motor=self.vertical_motor,
+            sample_height=10 * q.mm,
+            vertical_shift_per_tomogram=2 * q.mm,
+            start_position_vertical=0 * q.mm)
+
+        synchrotron_rotation = await SynchrotronSteppedSpiralTomography(
+            walker=self.walker,
+            flat_motor=self.rotation_motor,
+            radio_position=0 * q.deg,
+            flat_position=-10 * q.deg,
+            camera=self.camera,
+            shutter=self.shutter,
+            tomography_motor=self.tomo_motor,
+            vertical_motor=self.vertical_motor,
+            sample_height=10 * q.mm,
+            vertical_shift_per_tomogram=2 * q.mm,
+            start_position_vertical=0 * q.mm)
+
+    async def test_continuous_spiral(self):
+        xray_linear = await XRayTubeContinuousSpiralTomography(
+            walker=self.walker,
+            flat_motor=self.linear_motor,
+            radio_position=0 * q.mm,
+            flat_position=-10 * q.mm,
+            camera=self.camera,
+            xray_tube=self.xray_tube,
+            tomography_motor=self.tomo_motor,
+            vertical_motor=self.vertical_motor,
+            sample_height=10 * q.mm,
+            vertical_shift_per_tomogram=2 * q.mm,
+            start_position_vertical=0 * q.mm)
+
+        xray_rotation = await XRayTubeContinuousSpiralTomography(
+            walker=self.walker,
+            flat_motor=self.rotation_motor,
+            radio_position=0 * q.deg,
+            flat_position=-10 * q.deg,
+            camera=self.camera,
+            xray_tube=self.xray_tube,
+            tomography_motor=self.tomo_motor,
+            vertical_motor=self.vertical_motor,
+            sample_height=10 * q.mm,
+            vertical_shift_per_tomogram=2 * q.mm,
+            start_position_vertical=0 * q.mm)
+
+        synchrotron_linear = await SynchrotronContinuousSpiralTomography(
+            walker=self.walker,
+            flat_motor=self.linear_motor,
+            radio_position=0 * q.mm,
+            flat_position=-10 * q.mm,
+            camera=self.camera,
+            shutter=self.shutter,
+            tomography_motor=self.tomo_motor,
+            vertical_motor=self.vertical_motor,
+            sample_height=10 * q.mm,
+            vertical_shift_per_tomogram=2 * q.mm,
+            start_position_vertical=0 * q.mm)
+
+        synchrotron_rotation = await SynchrotronContinuousSpiralTomography(
+            walker=self.walker,
+            flat_motor=self.rotation_motor,
+            radio_position=0 * q.deg,
+            flat_position=-10 * q.deg,
+            camera=self.camera,
+            shutter=self.shutter,
+            tomography_motor=self.tomo_motor,
+            vertical_motor=self.vertical_motor,
+            sample_height=10 * q.mm,
+            vertical_shift_per_tomogram=2 * q.mm,
+            start_position_vertical=0 * q.mm)
