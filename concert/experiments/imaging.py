@@ -8,6 +8,7 @@ from concert.quantities import q
 from concert.experiments.base import Experiment, Acquisition
 from concert.base import background, Parameter, Quantity, Parameterizable, \
     AccessorNotImplementedError
+from concert.base import check
 
 
 async def frames(num_frames, camera, callback=None):
@@ -106,11 +107,11 @@ class Radiography(Experiment):
         :param num_projections: Number of projections.
         :type num_projections: int
         """
-        self._num_flats = num_flats
-        self._num_darks = num_darks
-        self._num_projections = num_projections
-        self._radio_position = radio_position
-        self._flat_position = flat_position
+        self._num_flats = None
+        self._num_darks = None
+        self._num_projections = None
+        self._radio_position = None
+        self._flat_position = None
         self._finished = None
         self._flat_motor = flat_motor
         self._camera = camera
@@ -123,6 +124,11 @@ class Radiography(Experiment):
                                 separate_scans=separate_scans)
         self.install_parameters({"flat_position": Quantity(flat_motor_unit),
                                  "radio_position": Quantity(flat_motor_unit)})
+        await self.set_radio_position(radio_position)
+        await self.set_flat_position(flat_position)
+        await self.set_num_flats(num_flats)
+        await self.set_num_darks(num_darks)
+        await self.set_num_projections(num_projections)
 
     async def prepare(self):
         if await self._camera.get_state() != "standby":
@@ -334,8 +340,8 @@ class Tomography(Radiography):
         :param start_angle: Start position of *tomography_motor* for the first projection.
         :type start_angle: q.deg
         """
-        self._angular_range = angular_range
-        self._start_angle = start_angle
+        self._angular_range = None
+        self._start_angle = None
         self._tomography_motor = tomography_motor
         await super().__ainit__(
             walker=walker, flat_motor=flat_motor,
@@ -344,6 +350,8 @@ class Tomography(Radiography):
             num_projections=num_projections,
             separate_scans=separate_scans
         )
+        await self.set_angular_range(angular_range)
+        await self.set_start_angle(start_angle)
 
     async def _get_angular_range(self):
         return self._angular_range
@@ -584,11 +592,14 @@ class SpiralMixin(Parameterizable):
             *angular_range*.
         :type vertical_shift_per_tomogram: q.mm
         """
-        self._start_position_vertical = start_position_vertical
-        self._vertical_shift_per_tomogram = vertical_shift_per_tomogram
-        self._sample_height = sample_height
+        self._start_position_vertical = None
+        self._vertical_shift_per_tomogram = None
+        self._sample_height = None
         self._vertical_motor = vertical_motor
         await Parameterizable.__ainit__(self)
+        await self.set_start_position_vertical(start_position_vertical)
+        await self.set_vertical_shift_per_tomogram(vertical_shift_per_tomogram)
+        await self.set_sample_height(sample_height)
 
     async def _get_start_position_vertical(self):
         return self._start_position_vertical
@@ -1015,13 +1026,15 @@ class GratingInterferometryStepping(GratingInterferometryMixin, Radiography):
         return 0
 
     async def _set_num_flats(self, n):
-        raise AccessorNotImplementedError
+        if n != 0:
+            raise AccessorNotImplementedError
 
     async def _get_num_projections(self):
         return 1
 
     async def _set_num_projections(self, n):
-        raise AccessorNotImplementedError
+        if n != 1:
+            raise AccessorNotImplementedError
 
     async def _take_reference_scan(self):
         """
