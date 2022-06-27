@@ -135,6 +135,11 @@ class Radiography(Experiment):
         if await self._camera.get_state() != "standby":
             await self._camera.stop_recording()
 
+    async def finish(self):
+        if await self._camera.get_state() != "standby":
+            await self._camera.stop_recording()
+        await self.stop_sample_exposure()
+
     async def _last_acquisition_running(self) -> bool:
         return await self.acquisitions[-1].get_state() == "running"
 
@@ -283,6 +288,10 @@ class Radiography(Experiment):
         """
         await self._camera.set_trigger_source("AUTO")
         async with self._camera.recording():
+            if isinstance(self, Tomography):
+                self.log.info("First frame started at position %s" %
+                              await self._tomography_motor.get_position())
+
             for i in range(int(number)):
                 yield await self._camera.grab()
 
@@ -510,6 +519,11 @@ class ContinuousTomography(Tomography):
             start_angle=start_angle, separate_scans=separate_scans
         )
 
+    async def finish(self):
+        await super().finish()
+        if await self._tomography_motor.get_state() == 'moving':
+            await self._tomography_motor.stop()
+
     async def _get_velocity(self):
         angular_range = await self.get_angular_range()
         num_projections = await self.get_num_projections()
@@ -537,7 +551,8 @@ class ContinuousTomography(Tomography):
         """
         if self._finished:
             return
-        await self._tomography_motor.stop()
+        if await self._tomography_motor.get_state() == "moving":
+            await self._tomography_motor.stop()
         if 'motion_velocity' in self._tomography_motor:
             await self._tomography_motor['motion_velocity'].restore()
         await super()._finish_radios()
@@ -808,6 +823,11 @@ class ContinuousSpiralTomography(ContinuousTomography, SpiralMixin):
             start_position_vertical=start_position_vertical
         )
 
+    async def finish(self):
+        await super().finish()
+        if await self._vertical_motor.get_state() == 'moving':
+            await self._vertical_motor.stop()
+
     async def _get_vertical_velocity(self):
         shift = await self.get_vertical_shift_per_tomogram()
         fps = await self._camera.get_frame_rate()
@@ -836,9 +856,12 @@ class ContinuousSpiralTomography(ContinuousTomography, SpiralMixin):
         """
         if self._finished:
             return
-        await asyncio.gather(self.stop_sample_exposure(),
-                             self._tomography_motor.stop(),
-                             self._vertical_motor.stop())
+        await self.stop_sample_exposure()
+
+        if await self._tomography_motor.get_state() == "moving":
+            self._tomography_motor.stop()
+        if await self._vertical_motor.get_state() == "moving":
+            self._vertical_motor.stop()
 
         if 'motion_velocity' in self._tomography_motor:
             await self._tomography_motor['motion_velocity'].restore()
@@ -1061,7 +1084,7 @@ class GratingInterferometryStepping(GratingInterferometryMixin, Radiography):
         """
         Scans the stepping motor and acquires a frame after each position is reached.
 
-        As step *size grating_period* / *num_steps_per_period* is used.
+        As step *size grating_period* /_sz *num_steps_per_period* is used.
         A total of *num_steps_per_period* * *num_periods* frames is acquired.
         """
         step_size = await self.get_grating_period() / await self.get_num_steps_per_period()

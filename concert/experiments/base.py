@@ -7,6 +7,9 @@ import asyncio
 import logging
 import os
 import time
+from asyncio import ensure_future
+
+from concert.coroutines.base import background, broadcast, wait_until
 import json
 
 import concert.devices.base
@@ -317,6 +320,22 @@ class Experiment(Parameterizable):
                     handler.close()
                     self.log.removeHandler(handler)
                 await self.set_iteration(iteration + 1)
+
+    @background
+    async def stop(self):
+        """
+        Stops the experiment. This should be used if the experiment should be stopped as fast as
+        possible but still keeping everything in a defined state. To really stop everything as fast
+        as possible ctrl-k should be used.
+        This function blocks until the experiment is completely stopped.
+
+        To handle the CancelError must be handled and checked for CancelError.args[0] == 'stop'.
+        """
+        LOG.info("Experiment stopped.")
+
+        if self._run_awaitable:
+            self._run_awaitable.cancel('stop')
+            await self._run_awaitable
 
 
 class AcquisitionError(Exception):

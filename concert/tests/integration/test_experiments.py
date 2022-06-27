@@ -49,6 +49,8 @@ class ExperimentSimple(Experiment):
 
     async def _run_test_acq(self):
         for i in range(10):
+            if self._stop:
+                break
             await asyncio.sleep(0.1)
             yield np.random.random((100, 100))
 
@@ -271,6 +273,10 @@ class TestExperimentStates(TestCase):
         self.assertEqual(await exp.get_state(), "running")
         exp_handle.cancel()
         await exp_handle
+        self.assertEqual(await exp.get_state(), "standby")
+        exp_handle = start(exp.run())
+        await asyncio.sleep(0.2)
+        await exp.stop()
         self.assertEqual(await exp.get_state(), "standby")
 
     async def test_experiment_exception(self):

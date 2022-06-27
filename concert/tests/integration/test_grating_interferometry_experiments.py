@@ -1,6 +1,9 @@
+import asyncio
 import tempfile
 import shutil
 import numpy as np
+
+from concert.coroutines.base import start
 from concert.quantities import q
 from concert.tests import TestCase, slow
 from concert.storage import DirectoryWalker
@@ -177,6 +180,18 @@ class GratingInterferometryStepping:
         self.assertAlmostEqual(self.phase_stepping_addon.object_phase[1, 1], np.pi / 2., places=3,
                                msg="object_phase")
 
+    async def test_finish_states(self):
+        self.assertEqual(await self.camera.get_state(), "standby")
+        source_state = await self.source.get_state() in ["off", "closed"]
+        self.assertTrue(source_state, msg="Source state test")
+
+    async def test_stop(self):
+        exp_instance = start(self.run_experiment())
+        await asyncio.sleep(0.1)
+        await self.exp.stop()
+        await self.test_finish_states()
+        self.assertEqual(self.exp._stop, True)
+        await exp_instance
 
 @slow
 class TestSynchrotronGratingInterferometryStepping(GratingInterferometryStepping, TestCase):
