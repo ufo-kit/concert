@@ -376,7 +376,13 @@ class StartCommand(SubCommand):
         # It is crucial to call this here, after setting the asyncio's loop to the one from IPython,
         # otherwise we might be importing with another event loop than the one used in the concert
         # session and thus have devices and Locks and other things bound to a wrong loop.
-        register(paths=[cs.path()])
+        if sys.version_info >= (3, 8):
+            register(paths=[cs.path()])
+        else:
+            print(
+                "top-level `await' in imported modules not possible (requires Python 3.8 "
+                f"but you have {sys.version})"
+            )
 
         if session:
             cs.exit_if_not_exists(session)
