@@ -3,9 +3,11 @@ import time
 import inspect
 import functools
 import logging
+import concert.config
 from dataclasses import dataclass, field
 from typing import Any
 from pint.errors import DimensionalityError
+from concert.quantities import q
 
 import numpy as np
 
@@ -306,3 +308,55 @@ async def get_state_from_awaitable(awaitable) -> str:
             return 'error'
         else:
             return 'standby'
+
+
+class PerformanceTracker:
+
+    """A stopwatch with the ability to report data throughput.
+
+    :param summary: if True, output everything at the end, otherwise immediately on :meth:`.lap`
+    call.
+    :param loglevel: logging level
+    """
+
+    def __init__(self, summary=False, loglevel=concert.config.PERFDEBUG):
+        self.start = 0 * q.s
+        self.duration = 0 * q.s
+        self.size = 0 * q.B
+        self.loglevel = loglevel
+        self.summary = [] if summary else None
+        self.iteration = 0
+
+    def __enter__(self):
+        self.start = time.perf_counter() * q.s
+
+        return self
+
+    def lap(self, name=None, final=False):
+        duration = time.perf_counter() * q.s - self.start
+
+        if final:
+            self.duration = duration
+
+        if name is None:
+            if final:
+                name = 'final'
+            else:
+                name = str(self.iteration)
+                self.iteration += 1
+
+        output = f'{name} duration: {duration:.2f}'
+        if self.size:
+            size = self.size.to(q.mebibyte)
+            output += f', size: {size:.2f}, throughput: {size / duration:.2f}'
+
+        if self.summary is not None:
+            self.summary.append(output)
+        else:
+            LOG.log(self.loglevel, output)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.lap(final=True)
+        if self.summary is not None:
+            for record in self.summary:
+                LOG.log(self.loglevel, record)
