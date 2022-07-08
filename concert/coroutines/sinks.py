@@ -44,6 +44,20 @@ async def null(producer):
         raise
 
 
+@background
+async def count(producer):
+    """
+    count(producer)
+
+    Count number of produced items.
+    """
+    i = 0
+    async for item in producer:
+        i += 1
+
+    return i
+
+
 class Accumulate(object):
     """Accumulate items in a list or a numpy array if *shape* is given, *dtype* is the data type. If
     *reset_on_call* is True, the saved values will be overwritten every time the accumulator is
