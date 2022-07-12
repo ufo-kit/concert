@@ -102,7 +102,9 @@ class Camera(Base):
         """
         await super(Camera, self).__ainit__()
         self.simulate = simulate
+        await self.set_background(background)
 
+    async def set_background(self, background):
         if background is not None:
             self._roi_width = background.shape[1] * q.pixel
             self._roi_height = background.shape[0] * q.pixel
