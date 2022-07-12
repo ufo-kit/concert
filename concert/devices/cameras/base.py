@@ -60,6 +60,7 @@ frame. The callable is applied to the frame and the converted one is returned by
     # The frame is left-right flipped
     grab(camera)
 """
+import asyncio
 import contextlib
 import logging
 from concert.base import AccessorNotImplementedError, Parameter, Quantity, State, check, identity
@@ -191,3 +192,60 @@ class BufferedMixin(Device):
 
     async def _readout_real(self, *args, **kwargs):
         raise AccessorNotImplementedError
+
+
+class RemoteMixin:
+
+    """
+    A remote camera which can grab more frames at once and instead of returning them to concert they
+    are processed otherwise, e.g. sent over network to some consumer.
+    """
+
+    remote = True
+
+    @background
+    @check(source='recording', target='standby')
+    async def stop_recording(self):
+        """
+        stop_recording()
+
+        Stop recording frames, this means we first stop streaming and then stop the camera.
+        """
+        await self._stop_streaming()
+        await self._stop_real()
+
+    @background
+    async def grab_many(self, num):
+        try:
+            await self._grab_many_real(num)
+        except asyncio.CancelledError:
+            # Stop stream immediately and don't send poison pill, it is the responsibility of the
+            # application to cancel consumers
+            await self._cancel_streaming()
+            raise
+
+    @background
+    @check(source='recording')
+    async def grab(self):
+        """Grab a frame remotely, no conversion happens as opposed to local cameras."""
+        await self._grab_real()
+
+    async def _grab_real(self):
+        await self._grab_many_real(1)
+
+    async def _grab_many_real(self, num):
+        raise NotImplementedError
+
+    async def _stop_streaming(self):
+        """
+        Stop sending images. The server must send a poison pill which serves as an end-of-stream
+        indicator to a consumer. This is the normal way to end a stream.
+        """
+        raise NotImplementedError
+
+    async def _cancel_streaming(self):
+        """
+        Immediate interruption of :meth:`.grab_many`. The server must stop sending images, poison
+        pill is not sent. This is to be used in exceptions.
+        """
+        raise NotImplementedError
