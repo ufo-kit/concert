@@ -2,6 +2,7 @@
 import asyncio
 import time
 import numpy as np
+from concert.base import Parameter
 from concert.coroutines.base import run_in_executor
 from concert.quantities import q
 from concert.base import transition, Quantity
@@ -93,6 +94,8 @@ class Camera(Base):
 
     """A simple dummy camera."""
 
+    simulate = Parameter(help='Simulate noise')
+
     async def __ainit__(self, background=None, simulate=True):
         """
         *background* can be an array-like that will be used to generate the frame when calling grab.
@@ -101,8 +104,14 @@ class Camera(Base):
         modifications to it.
         """
         await super(Camera, self).__ainit__()
-        self.simulate = simulate
+        self._simulate = simulate
         await self.set_background(background)
+
+    async def _get_simulate(self):
+        return self._simulate
+
+    async def _set_simulate(self, value):
+        self._simulate = value
 
     async def set_background(self, background):
         if background is not None:
@@ -115,7 +124,7 @@ class Camera(Base):
             self._background = np.ones(shape[::-1], dtype=np.uint8)
 
     async def _grab_real(self):
-        if not self.simulate:
+        if not await self.get_simulate():
             return self._background
         start = time.time()
         cur_time = (await self.get_exposure_time()).to(q.s).magnitude
@@ -149,8 +158,9 @@ class FileCamera(Base):
         self._reader = TiffSequenceReader(pattern)
         self.index = start_index
         self.reset_on_start = reset_on_start
-        self._roi_height = 0 * q.px
-        self._roi_width = 0 * q.px
+        image = self._reader.read(0)
+        self._roi_height = image.shape[0] * q.px
+        self._roi_width = image.shape[1] * q.px
 
     @transition(target='recording')
     async def _record_real(self):
