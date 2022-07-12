@@ -121,7 +121,7 @@ class Camera(Base):
         else:
             shape = (640, 480)
             self._roi_width, self._roi_height = shape * q.pixel
-            self._background = np.ones(shape[::-1], dtype=np.uint8)
+            self._background = np.ones(shape[::-1], dtype=np.uint16)
 
     async def _grab_real(self):
         if not await self.get_simulate():
