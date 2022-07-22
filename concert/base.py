@@ -93,6 +93,9 @@ def _find_object_by_name(instance):
         for task in tasks:
             # Python 3.7 compatibility, later task.get_coro()
             coro = task._coro
+            if not inspect.iscoroutine(coro):
+                # can be a regular generator in a tango server
+                continue
             while coro:
                 instance_name = _find_in_dict(inspect.getcoroutinelocals(coro))
                 if _is_name_ok(instance_name):
