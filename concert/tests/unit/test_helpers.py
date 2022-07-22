@@ -2,7 +2,14 @@ import inspect
 import time
 from concert.tests import TestCase, suppressed_logging
 from concert.quantities import q
-from concert.helpers import is_iterable, measure, memoize, arange, linspace
+from concert.helpers import (
+    get_state_from_awaitable,
+    is_iterable,
+    measure,
+    memoize,
+    arange,
+    linspace
+)
 from concert.processes.common import focus, align_rotation_axis, ProcessError
 from concert.devices.motors.dummy import LinearMotor, RotationMotor
 from concert.devices.cameras.dummy import Camera
@@ -143,3 +150,49 @@ class TestArangeLinspace(TestCase):
         self.assertEqual(len(x), num_steps)
         for i in range(num_steps):
             self.assertEqual(x[i], float(i) * q.deg)
+
+
+class TestVarious(TestCase):
+    async def test_get_state_from_awaitable(self):
+        import asyncio
+        from concert.coroutines.base import start
+
+        async def _test_error(coro, exc, cancel=False):
+            t = start(coro)
+            if cancel:
+                t.cancel()
+
+            try:
+                await t
+            except exc:
+                pass
+            self.assertEqual(await get_state_from_awaitable(t), 'cancelled' if cancel else 'error')
+
+        # Running
+        async def long_coro():
+            await asyncio.sleep(100)
+
+        t = start(long_coro())
+        await asyncio.sleep(0)
+        self.assertEqual(await get_state_from_awaitable(t), 'running')
+        t.cancel()
+
+        # Normal
+        async def coro():
+            pass
+
+        t = start(coro())
+        await t
+        self.assertEqual(await get_state_from_awaitable(t), 'standby')
+
+        # Error
+        async def error_coro():
+            raise RuntimeError
+
+        await _test_error(error_coro(), RuntimeError)
+
+        # asyncio.CancelledError
+        async def cancelled_error_coro():
+            await asyncio.sleep(100)
+
+        await _test_error(cancelled_error_coro(), asyncio.CancelledError, cancel=True)
