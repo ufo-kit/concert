@@ -70,7 +70,7 @@ class Acquisition(Parameterizable):
         await asyncio.gather(*coros, return_exceptions=False)
 
     @background
-    @check(source=['standby', 'error'], target='standby')
+    @check(source=['standby', 'error', 'cancelled'], target=['standby', 'cancelled'])
     async def __call__(self):
         self._run_awaitable = self._run()
         await self._run_awaitable
@@ -253,7 +253,7 @@ class Experiment(Parameterizable):
             await acq()
 
     @background
-    @check(source=['standby', 'error'], target='standby')
+    @check(source=['standby', 'error', 'cancelled'], target=['standby', 'cancelled'])
     async def run(self):
         self._run_awaitable = self._run()
         await self._run_awaitable
@@ -299,7 +299,7 @@ class Experiment(Parameterizable):
             raise StateError('error', msg=str(e))
         except KeyboardInterrupt:
             LOG.warning('Experiment cancelled by keyboard interrupt')
-            self._state_value = 'standby'
+            self._state_value = 'cancelled'
             raise
         finally:
             try:
