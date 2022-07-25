@@ -15,6 +15,7 @@ import zipfile
 import concert
 import concert.config
 import concert.session.management as cs
+from concert.session.utils import SubCommand
 from concert._aimport import eval_source, register
 from concert.ext.cmd import plugins
 
@@ -52,27 +53,6 @@ def get_prompt_config(path):
             return []
 
     return MyPrompt
-
-
-class SubCommand(object):
-
-    """Base sub-command class (concert [subcommand])."""
-
-    def __init__(self, name, opts):
-        """
-        SubCommand objects are loaded at run-time and injected into Concert's
-        command parser.
-
-        *name* denotes the name of the sub-command parser, e.g. "mv" for the
-        MoveCommand. *opts* must be an argparse-compatible dictionary
-        of command options.
-        """
-        self.name = name
-        self.opts = opts
-
-    def run(self, *args, **kwargs):
-        """Run the command"""
-        raise NotImplementedError
 
 
 class InitCommand(SubCommand):

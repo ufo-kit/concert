@@ -14,6 +14,27 @@ from concert.quantities import q
 LOG = logging.getLogger(__name__)
 
 
+class SubCommand(object):
+
+    """Base sub-command class (concert [subcommand])."""
+
+    def __init__(self, name, opts):
+        """
+        SubCommand objects are loaded at run-time and injected into Concert's
+        command parser.
+
+        *name* denotes the name of the sub-command parser, e.g. "mv" for the
+        MoveCommand. *opts* must be an argparse-compatible dictionary
+        of command options.
+        """
+        self.name = name
+        self.opts = opts
+
+    def run(self, *args, **kwargs):
+        """Run the command"""
+        raise NotImplementedError
+
+
 def _get_param_description_table(device, max_width):
     field_names = ["Name", "Unit", "Description"]
     widths = [int(math.floor(f * max_width)) for f in (0.3, 0.2, 0.5)]
