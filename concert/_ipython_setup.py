@@ -22,6 +22,7 @@ def _handler(_shell, _etype, evalue, _traceback_, tb_offset=None):
         if len(messages) > 1:
             messages = messages[1:]
         LOG.info('asyncio.CancelledError\n' + ''.join(messages))
+        print('Cancelled')
     elif _etype == KeyboardInterrupt:
         # Silently log the error message without polluting the terminal
         messages = traceback.extract_tb(_traceback_).format()
