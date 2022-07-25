@@ -1004,8 +1004,10 @@ class GeneralBackprojectManager(Parameterizable):
                 if not self.args.width:
                     (self.args.height, self.args.width) = projection.shape
                 elif (self.args.height, self.args.width) != projection.shape:
-                    raise GeneralBackprojectManagerError('Projections have different '
-                                                         'shape from normalization images')
+                    raise GeneralBackprojectManagerError(
+                        f'Projections have different shape ({projection.shape}) '
+                        'shape from normalization images'
+                    )
                 in_shape = (self.args.number,) + projection.shape
                 if (self.projections is None or in_shape != self.projections.shape
                         or projection.dtype != self.projections.dtype):
