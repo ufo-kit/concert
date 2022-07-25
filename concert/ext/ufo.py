@@ -1023,6 +1023,7 @@ class GeneralBackprojectManager(Parameterizable):
         except asyncio.CancelledError:
             if self._processing_task and not self._processing_task.cancelled():
                 self._processing_task.cancel()
+            raise
         finally:
             self._processing_task = None
             self._state_value = 'standby'
