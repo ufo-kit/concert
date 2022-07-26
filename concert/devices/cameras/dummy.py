@@ -194,6 +194,7 @@ class FileCamera(Base):
 
         image = await run_in_executor(self._reader.read, self.index)
         self.index += 1
+        await asyncio.sleep((1 / (await self.get_frame_rate())).to(q.s).magnitude)
 
         return image[roi_y0.magnitude:y_region, roi_x0.magnitude:x_region]
 
