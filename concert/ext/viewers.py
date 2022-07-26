@@ -379,7 +379,7 @@ class _PyQtGraphUpdater:
     def update_all(self, image):
         """Display *image*."""
         now = time.perf_counter()
-        self.view.imageItem.setImage(image, autoLevels=self.clim == 'auto', autoDownsample=True)
+        self.view.imageItem.setImage(image, autoLevels=self.clim == 'auto')
         if self.clim == 'stream':
             self.clim = (image.min(), image.max())
             self.sync_image_and_clim()
@@ -438,8 +438,7 @@ class _PyQtGraphUpdater:
 
         if clim == 'auto':
             # Synchronize histogram range and current image range drawn as lines
-            self.view.imageItem.setImage(self.view.imageItem.image, autoLevels=True,
-                                         autoDownsample=True)
+            self.view.imageItem.setImage(self.view.imageItem.image, autoLevels=True)
             # Adjust histogram range
             self.view.ui.histogram.autoHistogramRange()
             return
@@ -449,8 +448,7 @@ class _PyQtGraphUpdater:
     def sync_image_and_clim(self):
         self.view.imageItem.setLevels(self.clim)
         # Synchronize histogram range and current image range drawn as lines
-        self.view.imageItem.setImage(self.view.imageItem.image, autoLevels=False,
-                                     autoDownsample=True)
+        self.view.imageItem.setImage(self.view.imageItem.image, autoLevels=False)
         self.view.ui.histogram.setHistogramRange(*self.clim)
 
     def toggle_show_refresh_rate(self, value):
