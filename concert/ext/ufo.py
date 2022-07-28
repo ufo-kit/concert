@@ -24,7 +24,7 @@ except ImportError:
     print("You must install tofu to use Ufo features, see 'https://github.com/ufo-kit/tofu.git'",
           file=sys.stderr)
 
-from concert.base import Parameterizable, Parameter, Quantity, State, check, transition
+from concert.base import Parameterizable, Parameter, Quantity, State
 from concert.config import PERFDEBUG
 from concert.coroutines.base import background, async_generate, run_in_executor, run_in_loop, start
 from concert.imageprocessing import filter_low_frequencies
@@ -896,11 +896,15 @@ class GeneralBackprojectManager(Parameterizable):
             await self._consume(offset, bp(self._produce()))
 
         LOG.debug('Reconstructing %d batches: %s', len(self._regions), self._regions)
-        for batch_index in range(len(self._regions)):
-            coros = []
-            for region_index in range(len(self._regions[batch_index])):
-                coros.append(start_one(batch_index, region_index))
-            await asyncio.gather(*coros)
+        try:
+            self._state_value = 'running'
+            for batch_index in range(len(self._regions)):
+                coros = []
+                for region_index in range(len(self._regions[batch_index])):
+                    coros.append(start_one(batch_index, region_index))
+                await asyncio.gather(*coros)
+        finally:
+            self._state_value = 'standby'
 
         # Process results
         duration = time.perf_counter() - st
@@ -973,8 +977,6 @@ class GeneralBackprojectManager(Parameterizable):
         self._num_received_projections = self._num_processed_projections = 0
 
     @background
-    @check(source='standby', target='*')
-    @transition(immediate='running', target='standby')
     async def update_darks(self, producer):
         """Get new darks from *producer*. Immediately start the reconstruction so that averaging
         starts.
@@ -982,8 +984,6 @@ class GeneralBackprojectManager(Parameterizable):
         await self._copy_normalization(producer, self.darks, self._darks_condition)
 
     @background
-    @check(source='standby', target='*')
-    @transition(immediate='running', target='standby')
     async def update_flats(self, producer):
         """Get new flats from *producer*. Immediately start the reconstruction so that averaging
         starts.
@@ -991,10 +991,8 @@ class GeneralBackprojectManager(Parameterizable):
         await self._copy_normalization(producer, self.flats, self._flats_condition)
 
     @background
-    @check(source='standby', target='*')
     async def backproject(self, producer):
         """Backproject projections from *producer*."""
-        self._state_value = 'running'
         self._num_received_projections = self._num_processed_projections = 0
 
         try:
@@ -1026,7 +1024,6 @@ class GeneralBackprojectManager(Parameterizable):
             raise
         finally:
             self._processing_task = None
-            self._state_value = 'standby'
 
 
 class InjectProcessError(Exception):
