@@ -30,6 +30,7 @@ def _handler(_shell, _etype, evalue, _traceback_, tb_offset=None):
             # Skip IPython part and our sigint handler
             messages = messages[1:-1]
         LOG.info('KeyboardInterrupt in normal mode\n' + ''.join(messages))
+        print('KeyboardInterrupt')
     else:
         print("Sorry, {0}".format(str(evalue)))
     return None
