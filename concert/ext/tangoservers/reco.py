@@ -1,9 +1,12 @@
 """Tango device for online 3D reconstruction from zmq image stream."""
 import numpy as np
-from tango import DebugIt
+from tango import DebugIt, CmdArgType
 from tango.server import command
 from .base import TangoRemoteProcessing
 from concert.ext.ufo import GeneralBackprojectManager, GeneralBackprojectArgs
+from concert.quantities import q
+from concert.networking.base import get_tango_device, ZmqSender
+from concert.storage import RemoteDirectoryWalker
 
 
 MAX_DIM = 100000
@@ -93,6 +96,8 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
             self._args,
             average_normalization=True
         )
+        self._walker = None
+        self._sender = None
 
     @DebugIt()
     @command()
@@ -115,9 +120,43 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
         await self._process_stream(self._manager.update_flats(self._receiver.subscribe()))
 
     @DebugIt()
-    @command()
-    async def reconstruct(self):
+    @command(
+        dtype_in=CmdArgType.DevVarStringArray,
+        doc_in="1. walker's tango server URI, "
+               "2. root path, "
+               "3. protocol, "
+               "4. host, "
+               "5. port "
+    )
+    async def setup_walker(self, args):
+        """Slice walker for writing slices remotely."""
+        tango_remote = args[0]
+        root = args[1]
+        protocol = args[2]
+        host = args[3]
+        port = args[4]
+
+        walker_device = get_tango_device(tango_remote, timeout=1000 * q.s)
+        await walker_device.write_attribute('endpoint', f"{protocol}://{host}:{port}")
+        self._walker = await RemoteDirectoryWalker(
+            device=walker_device,
+            root=root,
+            bytes_per_file=2 ** 40,
+        )
+        if self._sender:
+            self._sender.close()
+        self._sender = ZmqSender(endpoint=f"{protocol}://*:{port}", reliable=True)
+
+    @DebugIt(show_args=True)
+    @command(dtype_in=str)
+    async def reconstruct(self, slice_directory):
         await self._process_stream(self._manager.backproject(self._receiver.subscribe()))
+        if slice_directory:
+            f = self._walker.write_sequence(name=slice_directory)
+            for image in self._manager.volume:
+                await self._sender.send_image(image)
+            # Poison pill
+            await self._sender.send_image(None)
 
     @DebugIt(show_ret=True)
     @command(dtype_out=(int,))

@@ -1,11 +1,16 @@
 """Dummy experiments."""
 
+import logging
 import os
 import numpy as np
 from concert.coroutines.base import run_in_executor
 from concert.experiments.base import Acquisition, Experiment
+from concert.devices.cameras.base import RemoteMixin
 from concert.devices.cameras.dummy import FileCamera
 from concert.progressbar import wrap_iterable
+
+
+LOG = logging.getLogger(__name__)
 
 
 class ImagingExperiment(Experiment):
@@ -52,10 +57,15 @@ class ImagingExperiment(Experiment):
             raise ValueError("random must be one of 'off', 'single', 'multi'")
         self.random = random
         self.dtype = dtype
-        darks = await Acquisition('darks', self.take_darks)
-        flats = await Acquisition('flats', self.take_flats)
-        radios = await Acquisition('radios', self.take_radios)
-        await super(ImagingExperiment, self).__ainit__([darks, flats, radios], walker=walker)
+        darks = await Acquisition('darks', np.ndarray, self.take_darks)
+        flats = await Acquisition('flats', np.ndarray, self.take_flats)
+        radios = await Acquisition('radios', np.ndarray, self.take_radios)
+        await super().__ainit__(
+            [darks, flats, radios],
+            walker=walker,
+            separate_scans=separate_scans,
+            name_fmt=name_fmt
+        )
 
     async def _produce_images(self, num, mean=128, std=10):
         def make_random_image():
@@ -138,7 +148,7 @@ class ImagingFileExperiment(Experiment):
     async def __ainit__(self, directory, num_darks, num_flats, num_radios, darks_pattern='darks',
                         flats_pattern='flats', radios_pattern='projections', roi_x0=None,
                         roi_width=None, roi_y0=None, roi_height=None, walker=None,
-                        separate_scans=True, name_fmt='scan_{:>04}'):
+                        separate_scans=True, name_fmt='scan_{:>04}', camera_class=FileCamera):
         self.directory = directory
         self.num_darks = num_darks
         self.num_flats = num_flats
@@ -150,13 +160,19 @@ class ImagingFileExperiment(Experiment):
         self.roi_width = roi_width
         self.roi_y0 = roi_y0
         self.roi_height = roi_height
-        darks = await Acquisition('darks', self.take_darks)
-        flats = await Acquisition('flats', self.take_flats)
-        radios = await Acquisition('radios', self.take_radios)
-        await super(ImagingFileExperiment, self).__ainit__([darks, flats, radios], walker=walker)
+        self._camera_class = camera_class
+        darks = await Acquisition('darks', self._camera_class, self.take_darks)
+        flats = await Acquisition('flats', self._camera_class, self.take_flats)
+        radios = await Acquisition('radios', self._camera_class, self.take_radios)
+        await super().__ainit__(
+            [darks, flats, radios],
+            walker=walker,
+            separate_scans=separate_scans,
+            name_fmt=name_fmt
+        )
 
     async def _produce_images(self, pattern, num):
-        camera = FileCamera(os.path.join(self.directory, pattern))
+        camera = await self._camera_class(os.path.join(self.directory, pattern))
         if self.roi_x0 is not None:
             await camera.set_roi_x0(self.roi_x0)
         if self.roi_width is not None:
@@ -166,8 +182,9 @@ class ImagingFileExperiment(Experiment):
         if self.roi_height is not None:
             await camera.set_roi_height(self.roi_height)
 
-        for i in wrap_iterable(list(range(num))):
-            yield await camera.grab()
+        async with camera.recording():
+            for i in wrap_iterable(list(range(num))):
+                yield await camera.grab()
 
     def take_darks(self):
         return self._produce_images(self.darks_pattern, self.num_darks)
@@ -177,3 +194,47 @@ class ImagingFileExperiment(Experiment):
 
     def take_radios(self):
         return self._produce_images(self.radios_pattern, self.num_radios)
+
+
+class RemoteFileImagingExperiment(Experiment):
+
+    """
+    Uses a client camera and instead of yielding frames just tells the remote file camera to send
+    them via network.
+    """
+
+    async def __ainit__(self, camera, num_darks, num_flats, num_radios, darks_pattern='darks',
+                        flats_pattern='flats', radios_pattern='projections', walker=None,
+                        separate_scans=True, name_fmt='scan_{:>04}'):
+        self.darks_pattern = darks_pattern
+        self.flats_pattern = flats_pattern
+        self.radios_pattern = radios_pattern
+        self.num_darks = num_darks
+        self.num_flats = num_flats
+        self.num_radios = num_radios
+        self._camera = camera
+        darks = await Acquisition('darks', camera, self.take_darks)
+        flats = await Acquisition('flats', camera, self.take_flats)
+        radios = await Acquisition('radios', camera, self.take_radios)
+        await super().__ainit__(
+            [darks, flats, radios],
+            walker=walker,
+            separate_scans=separate_scans,
+            name_fmt=name_fmt
+        )
+
+    async def _produce_frames(self, pattern, number):
+        await self._camera.set_pattern(pattern)
+        async with self._camera.recording():
+            await self._camera.grab_send(number)
+
+        return number
+
+    def take_darks(self):
+        return self._produce_frames(self.darks_pattern, self.num_darks)
+
+    def take_flats(self):
+        return self._produce_frames(self.flats_pattern, self.num_flats)
+
+    def take_radios(self):
+        return self._produce_frames(self.radios_pattern, self.num_radios)
