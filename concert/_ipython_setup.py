@@ -22,7 +22,7 @@ def _handler(_shell, _etype, evalue, _traceback_, tb_offset=None):
         if len(messages) > 1:
             messages = messages[1:]
         LOG.info('asyncio.CancelledError\n' + ''.join(messages))
-        print('Cancelled')
+        print('KeyboardInterrupt')
     elif _etype == KeyboardInterrupt:
         # Silently log the error message without polluting the terminal
         messages = traceback.extract_tb(_traceback_).format()
@@ -51,8 +51,20 @@ _custom_exceptions = (
     asyncio.CancelledError
 )
 
+
+def _custom_showtraceback(*args, **kwargs):
+    if args[0] == KeyboardInterrupt:
+        # Swallow here so that the terminal is not polluted on asyncio.CancelledError with
+        # KeyboardInterrupt tracebacks which happens when we cancel run_cell_async
+        LOG.debug('Got KeyboardInterrupt in _showtraceback')
+    else:
+        _orig_showtraceback(*args, **kwargs)
+
+
 try:
     ip = get_ipython()
+    _orig_showtraceback = ip._showtraceback
+    ip._showtraceback = _custom_showtraceback
     ip.set_custom_exc(_custom_exceptions, _handler)
     # ctrl-k (abort everything, also background awaitables)
     ip.pt_app.key_bindings.add('c-k')(_abort_all_awaiting)
