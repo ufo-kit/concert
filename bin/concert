@@ -405,12 +405,18 @@ class StartCommand(SubCommand):
 
         print("Welcome to Concert {0}".format(concert.__version__))
 
+        filename_session = session is None and path and path.endswith('.py')
+        if filename_session:
+            session = os.path.splitext(os.path.basename(path))[0]
+
         ip_config = traitlets.config.Config()
+        if session is not None:
+            ip_config.BaseIPythonApplication.profile = f"concert_{session}"
         if path and path.endswith('.py'):
             lockdir = os.path.join(os.path.expanduser("~"), ".concert")
             os.makedirs(lockdir, mode=0o755, exist_ok=True)
             lockfile = os.path.join(lockdir, '.' + os.path.basename(path))
-            if not cs.is_multiinstance(session):
+            if not cs.is_multiinstance(path if filename_session else session):
                 if os.path.exists(lockfile):
                     print(f"An instance of `{session}' seems to be already running.")
                     print(
@@ -426,9 +432,8 @@ class StartCommand(SubCommand):
             if docstring:
                 print(docstring)
 
-            if session is None:
+            if filename_session:
                 # --filename must have been specified
-                session = os.path.splitext(os.path.basename(path))[0]
                 sys.path.append(os.path.dirname(path))
             ip_config.InteractiveShellApp.exec_lines = [STARTUP_FMT.format(session, lockfile)]
         else:
