@@ -524,9 +524,10 @@ class ContinuousTomography(Tomography):
         Calls :py:meth:`.Tomography._prepare_radios()` and stashed the *motion_velocity* property of
         the *tomography_motor*.
         """
-        await super()._prepare_radios()
         if 'motion_velocity' in self._tomography_motor:
             await self._tomography_motor['motion_velocity'].stash()
+        await super()._prepare_radios()
+        await self._tomography_motor.set_velocity(await self.get_velocity())
 
     async def _finish_radios(self):
         """
@@ -537,7 +538,8 @@ class ContinuousTomography(Tomography):
         """
         if self._finished:
             return
-        await self._tomography_motor.stop()
+        if await self._tomography_motor.get_state() == "moving":
+            await self._tomography_motor.stop()
         if 'motion_velocity' in self._tomography_motor:
             await self._tomography_motor['motion_velocity'].restore()
         await super()._finish_radios()
@@ -554,7 +556,6 @@ class ContinuousTomography(Tomography):
         """
         try:
             await self._prepare_radios()
-            await self._tomography_motor.set_velocity(await self.get_velocity())
 
             async for frame in self._produce_frames(await self.get_num_projections()):
                 yield frame
@@ -819,13 +820,27 @@ class ContinuousSpiralTomography(ContinuousTomography, SpiralMixin):
         """
         Called before the projection images are acquired.
 
-        The :py:meth:`ContinuousTomography._prepare_radios()` is called and the vertical motor is
-        moved to vertica_start_position.
+        Stashes motion velocities of *tomography_motor* and *vertical_motor*.
+        Moves *tomography_motor* to the start position and *vertical_motor* to the start position.
+        Moves *flat_motor* to the *radio_position*.
+        Starts sample exposure.
+        Starts motion of *tomography_motor* and *vertical_motor*.
+
         """
+        if 'motion_velocity' in self._vertical_motor:
+            await self._vertical_motor['motion_velocity'].stash()
+        if 'motion_velocity' in self._tomography_motor:
+            await self._tomography_motor['motion_velocity'].stash()
+
         await asyncio.gather(
-            ContinuousTomography._prepare_radios(self),
-            self._vertical_motor.set_position(await self.get_start_position_vertical())
+            self._tomography_motor.set_position(await self.get_start_angle()),
+            self._vertical_motor.set_position(await self.get_start_position_vertical()),
+            self._flat_motor.set_position(await self.get_radio_position())
         )
+        await self.start_sample_exposure()
+
+        await asyncio.gather(self._tomography_motor.set_velocity(await self.get_velocity()),
+                             self._vertical_motor.set_velocity(await self.get_vertical_velocity()))
 
     async def _finish_radios(self):
         """
@@ -836,9 +851,13 @@ class ContinuousSpiralTomography(ContinuousTomography, SpiralMixin):
         """
         if self._finished:
             return
-        await asyncio.gather(self.stop_sample_exposure(),
-                             self._tomography_motor.stop(),
-                             self._vertical_motor.stop())
+
+        await self.stop_sample_exposure()
+
+        if await self._tomography_motor.get_state() == 'moving':
+            await self._tomography_motor.stop()
+        if await self._vertical_motor.get_state() == 'moving':
+            await self._vertical_motor.stop()
 
         if 'motion_velocity' in self._tomography_motor:
             await self._tomography_motor['motion_velocity'].restore()
@@ -860,10 +879,6 @@ class ContinuousSpiralTomography(ContinuousTomography, SpiralMixin):
         """
         try:
             await self._prepare_radios()
-            if 'motion_velocity' in self._vertical_motor:
-                await self._vertical_motor['motion_velocity'].stash()
-            await self._tomography_motor.set_velocity(await self.get_velocity())
-            await self._vertical_motor.set_velocity(await self.get_vertical_velocity())
 
             num_projections = await self.get_num_projections() * await self.get_num_tomograms()
             async for frame in self._produce_frames(num_projections):
