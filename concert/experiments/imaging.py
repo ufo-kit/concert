@@ -441,6 +441,18 @@ class SteppedTomography(Tomography):
             separate_scans=separate_scans
         )
 
+    async def _prepare_frame(self, frame_number: int):
+        """
+        Prepares the next frame for acquisition. This function is called before a projection is
+        triggered.
+        :param frame_number:
+        :return:
+        """
+        await self._tomography_motor.set_position(
+            frame_number * await self.get_angular_range() / await self.get_num_projections()
+            + await self.get_start_angle()
+        )
+
     async def _take_radios(self):
         """
         Generator for projection images.
@@ -456,10 +468,7 @@ class SteppedTomography(Tomography):
             await self._camera.set_trigger_source("SOFTWARE")
             async with self._camera.recording():
                 for i in range(await self.get_num_projections()):
-                    await self._tomography_motor.set_position(
-                        i * await self.get_angular_range() / await self.get_num_projections()
-                        + await self.get_start_angle()
-                    )
+                    await self._prepare_frame(i)
                     await self._camera.trigger()
                     yield await self._camera.grab()
         finally:
@@ -688,6 +697,15 @@ class SteppedSpiralTomography(SteppedTomography, SpiralMixin):
             start_position_vertical=start_position_vertical
         )
 
+    async def _prepare_frame(self, frame_number: int):
+        vertical_step = (await self.get_vertical_shift_per_tomogram()
+                         / await self.get_num_projections())
+        angular_step = await self.get_angular_range() / await self.get_num_projections()
+        rot_position = frame_number * angular_step + await self.get_start_angle()
+        vertical_position = frame_number * vertical_step + await self.get_start_position_vertical()
+        await asyncio.gather(self._tomography_motor.set_position(rot_position),
+                             self._vertical_motor.set_position(vertical_position))
+
     async def _prepare_radios(self):
         """
         Prepares the radios.
@@ -727,17 +745,11 @@ class SteppedSpiralTomography(SteppedTomography, SpiralMixin):
         """
         try:
             num_projections = int(await self.get_num_projections() * await self.get_num_tomograms())
-            vertical_step = (await self.get_vertical_shift_per_tomogram()
-                             / await self.get_num_projections())
-            angular_step = await self.get_angular_range() / await self.get_num_projections()
             await self._prepare_radios()
             await self._camera.set_trigger_source("SOFTWARE")
             async with self._camera.recording():
                 for i in range(num_projections):
-                    rot_position = i * angular_step + await self.get_start_angle()
-                    vertical_position = i * vertical_step + await self.get_start_position_vertical()
-                    await asyncio.gather(self._tomography_motor.set_position(rot_position),
-                                         self._vertical_motor.set_position(vertical_position))
+                    await self._prepare_frame(i)
                     await self._camera.trigger()
                     yield await self._camera.grab()
         finally:
