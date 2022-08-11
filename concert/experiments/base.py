@@ -18,6 +18,8 @@ from concert.helpers import get_state_from_awaitable
 
 LOG = logging.getLogger(__name__)
 
+_runnable_state = ['standby', 'error', 'cancelled']
+
 
 class Acquisition(Parameterizable):
 

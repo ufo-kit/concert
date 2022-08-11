@@ -10,6 +10,8 @@ from concert.base import background, Parameter, Quantity, Parameterizable, \
     AccessorNotImplementedError
 from concert.base import check
 
+from concert.experiments.base import _runnable_state
+
 
 async def frames(num_frames, camera, callback=None):
     """
@@ -78,13 +80,13 @@ class Radiography(Experiment):
     well as the projections with the sample in the beam.
     """
 
-    num_flats = Parameter(check=check(source=['standby', 'error']))
+    num_flats = Parameter(check=check(source=_runnable_state))
     """Number of images acquired for flatfield correction."""
 
-    num_darks = Parameter(check=check(source=['standby', 'error']))
+    num_darks = Parameter(check=check(source=_runnable_state))
     """Number of images acquired for dark correction."""
 
-    num_projections = Parameter(check=check(source=['standby', 'error']))
+    num_projections = Parameter(check=check(source=_runnable_state))
     """Number of projection images."""
 
     async def __ainit__(self, walker, flat_motor, radio_position, flat_position, camera, num_flats,
@@ -123,8 +125,9 @@ class Radiography(Experiment):
         await super().__ainit__([darks_acq, flats_acq, radios_acq], walker,
                                 separate_scans=separate_scans)
         self.install_parameters(
-            {"flat_position": Quantity(flat_motor_unit, check=check(source=['standby', 'error'])),
-             "radio_position": Quantity(flat_motor_unit, check=check(source=['standby', 'error']))})
+            {"flat_position": Quantity(flat_motor_unit, check=check(source=_runnable_state)),
+             "radio_position": Quantity(flat_motor_unit,
+                                        check=check(source=_runnable_state))})
         await self.set_radio_position(radio_position)
         await self.set_flat_position(flat_position)
         await self.set_num_flats(num_flats)
@@ -308,10 +311,10 @@ class Tomography(Radiography):
        Abstract implementation of a tomography experiment.
        """
 
-    angular_range = Quantity(q.deg, check=check(source=['standby', 'error']))
+    angular_range = Quantity(q.deg, check=check(source=_runnable_state))
     """Range for scanning the *tomography_motor*."""
 
-    start_angle = Quantity(q.deg, check=check(source=['standby', 'error']))
+    start_angle = Quantity(q.deg, check=check(source=_runnable_state))
     """Initial position of the *tomography_motor*."""
 
     async def __ainit__(self, walker, flat_motor, tomography_motor, radio_position,
@@ -576,13 +579,13 @@ class SpiralMixin(Parameterizable):
     """
     Mixin for spiral tomography.
     """
-    start_position_vertical = Quantity(q.mm, check=check(source=['standby', 'error']))
+    start_position_vertical = Quantity(q.mm, check=check(source=_runnable_state))
     """Initial position of the vertical motor."""
 
-    vertical_shift_per_tomogram = Quantity(q.mm, check=check(source=['standby', 'error']))
+    vertical_shift_per_tomogram = Quantity(q.mm, check=check(source=_runnable_state))
     """Vertical shift per tomogram."""
 
-    sample_height = Quantity(q.mm, check=check(source=['standby', 'error']))
+    sample_height = Quantity(q.mm, check=check(source=['standby', 'error', 'cancelled']))
     """Height of the sample. *vertical_motor* will be scanned from *start_position_vertical* to
     *sample_height* + *vertical_shift_per_tomogram* to sample the whole specimen.
     """
@@ -904,19 +907,19 @@ class GratingInterferometryMixin(Parameterizable):
     Mixin for grating interferometry specific experiments.
     """
 
-    grating_period = Quantity(q.um, check=check(source=['standby', 'error']))
+    grating_period = Quantity(q.um, check=check(source=_runnable_state))
     """Period of the grating to scan."""
 
-    num_periods = Parameter(check=check(source=['standby', 'error']))
+    num_periods = Parameter(check=check(source=_runnable_state))
     """Number of gratings period so scan."""
 
-    num_steps_per_period = Parameter(check=check(source=['standby', 'error']))
+    num_steps_per_period = Parameter(check=check(source=_runnable_state))
     """Number of stepping positions per grating period."""
 
-    stepping_start_position = Quantity(q.um, check=check(source=['standby', 'error']))
+    stepping_start_position = Quantity(q.um, check=check(source=_runnable_state))
     """Position of the first grating step of *stepping_motor*"""
 
-    propagation_distance = Quantity(q.mm, check=check(source=['standby', 'error']))
+    propagation_distance = Quantity(q.mm, check=check(source=_runnable_state))
     """
     Distance between the sample and the analyzer grating.
 
