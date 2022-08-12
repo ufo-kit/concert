@@ -559,6 +559,8 @@ class ContinuousTomography(Tomography):
             return
         if await self._tomography_motor.get_state() == "moving":
             await self._tomography_motor.stop()
+        else:
+            self.log.error("tomography_motor not in moving state after radios finished.")
         if 'motion_velocity' in self._tomography_motor:
             await self._tomography_motor['motion_velocity'].restore()
         await super()._finish_radios()
@@ -863,8 +865,12 @@ class ContinuousSpiralTomography(SpiralMixin, ContinuousTomography):
 
         if await self._tomography_motor.get_state() == 'moving':
             await self._tomography_motor.stop()
+        else:
+            self.log.error("Tomography_motor not in moving state after radios finished.")
         if await self._vertical_motor.get_state() == 'moving':
             await self._vertical_motor.stop()
+        else:
+            self.log.error("Vertical_motor not in moving state after radios finished.")
 
         if 'motion_velocity' in self._tomography_motor:
             await self._tomography_motor['motion_velocity'].restore()
