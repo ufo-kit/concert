@@ -34,32 +34,32 @@ Tomography
 
 .. autoclass:: concert.experiments.imaging.Tomography
     :show-inheritance:
-    :members: flat_position, radio_position, num_darks, num_flats, num_projections, angular_range, start_angle, start_sample_exposure, stop_sample_exposure, _produce_frames, _prepare_darks, _finish_darks, _prepare_flats, _finish_flats,  _prepare_radios, _finish_radios, _take_radios, _take_darks, _take_flats
+    :members: flat_position, radio_position, num_darks, num_flats, num_projections, num_projections_total, angular_range, start_angle, start_sample_exposure, stop_sample_exposure, _produce_frames, _prepare_darks, _finish_darks, _prepare_flats, _finish_flats,  _prepare_radios, _finish_radios, _take_radios, _take_darks, _take_flats
 
 Stepped tomography
 ------------------
 
 .. autoclass:: concert.experiments.imaging.SteppedTomography
     :show-inheritance:
-    :members: flat_position, radio_position, num_darks, num_flats, num_projections, angular_range, start_angle, start_sample_exposure, stop_sample_exposure, _produce_frames, _prepare_darks, _finish_darks, _prepare_flats, _finish_flats,  _prepare_radios, _finish_radios, _take_radios, _take_darks, _take_flats
+    :members: flat_position, radio_position, num_darks, num_flats, num_projections, num_projections_total, angular_range, start_angle, start_sample_exposure, stop_sample_exposure, _produce_frames, _prepare_darks, _finish_darks, _prepare_flats, _finish_flats,  _prepare_radios, _finish_radios, _take_radios, _take_darks, _take_flats
 
 Continuous tomography
 ---------------------
 
 .. autoclass:: concert.experiments.imaging.ContinuousTomography
     :show-inheritance:
-    :members: flat_position, radio_position, num_darks, num_flats, num_projections, angular_range, start_angle, velocity, start_sample_exposure, stop_sample_exposure, _produce_frames, _prepare_darks, _finish_darks, _prepare_flats, _finish_flats,  _prepare_radios, _finish_radios, _take_radios, _take_darks, _take_flats
+    :members: flat_position, radio_position, num_darks, num_flats, num_projections, num_projections_total, angular_range, start_angle, velocity, start_sample_exposure, stop_sample_exposure, _produce_frames, _prepare_darks, _finish_darks, _prepare_flats, _finish_flats,  _prepare_radios, _finish_radios, _take_radios, _take_darks, _take_flats
 
 Stepped spiral tomography
 -------------------------
 
 .. autoclass:: concert.experiments.imaging.SteppedSpiralTomography
     :show-inheritance:
-    :members: flat_position, radio_position, num_darks, num_flats, num_projections, angular_range, start_angle, start_position_vertical, vertical_shift_per_tomogram, sample_height, start_sample_exposure, stop_sample_exposure, _produce_frames, _prepare_darks, _finish_darks, _prepare_flats, _finish_flats,  _prepare_radios, _finish_radios, _take_radios, _take_darks, _take_flats
+    :members: flat_position, radio_position, num_darks, num_flats, num_projections, num_projections_total, angular_range, start_angle, start_position_vertical, vertical_shift_per_tomogram, sample_height, start_sample_exposure, stop_sample_exposure, _produce_frames, _prepare_darks, _finish_darks, _prepare_flats, _finish_flats,  _prepare_radios, _finish_radios, _take_radios, _take_darks, _take_flats
 
 Continuous spiral tomography
 ----------------------------
 
 .. autoclass:: concert.experiments.imaging.ContinuousSpiralTomography
     :show-inheritance:
-    :members: flat_position, radio_position, num_darks, num_flats, num_projections, angular_range, start_angle, velocity,  start_position_vertical, vertical_shift_per_tomogram, sample_height, start_sample_exposure, stop_sample_exposure, _produce_frames, _prepare_darks, _finish_darks, _prepare_flats, _finish_flats,  _prepare_radios, _finish_radios, _take_radios, _take_darks, _take_flats
+    :members: flat_position, radio_position, num_darks, num_flats, num_projections, num_projections_total, angular_range, start_angle, velocity,  start_position_vertical, vertical_shift_per_tomogram, sample_height, start_sample_exposure, stop_sample_exposure, _produce_frames, _prepare_darks, _finish_darks, _prepare_flats, _finish_flats,  _prepare_radios, _finish_radios, _take_radios, _take_darks, _take_flats

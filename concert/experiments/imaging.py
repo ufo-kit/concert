@@ -89,6 +89,10 @@ class Radiography(Experiment):
     num_projections = Parameter(check=check(source=_runnable_state))
     """Number of projection images."""
 
+    num_projections_total = Parameter()
+    """Total number of projections. For most of the experiments this is the same as the number of
+    projections."""
+
     async def __ainit__(self, walker, flat_motor, radio_position, flat_position, camera, num_flats,
                         num_darks, num_projections, separate_scans=True):
         """
@@ -155,6 +159,9 @@ class Radiography(Experiment):
 
     async def _get_flat_position(self):
         return self._flat_position
+
+    async def _get_num_projections_total(self):
+        return await self.get_num_projections()
 
     async def _set_num_flats(self, n):
         self._num_flats = int(n)
@@ -241,7 +248,7 @@ class Radiography(Experiment):
         """
         try:
             await self._prepare_radios()
-            async for frame in self._produce_frames(self._num_projections):
+            async for frame in self._produce_frames(await self.get_num_projections_total()):
                 yield frame
         finally:
             await self._finish_radios()
@@ -470,7 +477,7 @@ class SteppedTomography(Tomography):
             await self._prepare_radios()
             await self._camera.set_trigger_source("SOFTWARE")
             async with self._camera.recording():
-                for i in range(await self.get_num_projections()):
+                for i in range(await self.get_num_projections_total()):
                     await self._prepare_frame(i)
                     await self._camera.trigger()
                     yield await self._camera.grab()
@@ -569,7 +576,7 @@ class ContinuousTomography(Tomography):
         try:
             await self._prepare_radios()
 
-            async for frame in self._produce_frames(await self.get_num_projections()):
+            async for frame in self._produce_frames(await self.get_num_projections_total()):
                 yield frame
         finally:
             await self._finish_radios()
@@ -592,6 +599,10 @@ class SpiralMixin(Parameterizable):
 
     num_tomograms = Parameter()
     """Number of tomograms, that are required to cover the whole specimen."""
+
+    num_projections_total = Parameter()
+    """Total number of projection. This is equal to
+    *num_tomograms* * *num_projections_per_tomogram*."""
 
     async def __ainit__(self, vertical_motor, start_position_vertical, sample_height,
                         vertical_shift_per_tomogram):
@@ -630,6 +641,9 @@ class SpiralMixin(Parameterizable):
     async def _get_sample_height(self):
         return self._sample_height
 
+    async def _get_num_projections_total(self):
+        return int(await self.get_num_tomograms() * await self.get_num_projections())
+
     async def _set_start_position_vertical(self, position):
         self._start_position_vertical = position
 
@@ -640,7 +654,7 @@ class SpiralMixin(Parameterizable):
         self._vertical_shift_per_tomogram = shift
 
 
-class SteppedSpiralTomography(SteppedTomography, SpiralMixin):
+class SteppedSpiralTomography(SpiralMixin, SteppedTomography):
     """
     Stepped spiral tomography
     """
@@ -736,30 +750,8 @@ class SteppedSpiralTomography(SteppedTomography, SpiralMixin):
         )
         self._finished = True
 
-    async def _take_radios(self):
-        """
-        Generator for projection images
 
-        First the :py:meth:`_prepare_radios()` is called. Then the camera is set to trigger_source
-        'SOFTWARE'.
-        Then num_projections * num_tomograms images are recorded. For each image i the
-        tomography_motor is moved to angular_range/num_projections * i.
-        The vertical motor is moved to vertical_shift_per_tomogram / num_projections * i`.
-        """
-        try:
-            num_projections = int(await self.get_num_projections() * await self.get_num_tomograms())
-            await self._prepare_radios()
-            await self._camera.set_trigger_source("SOFTWARE")
-            async with self._camera.recording():
-                for i in range(num_projections):
-                    await self._prepare_frame(i)
-                    await self._camera.trigger()
-                    yield await self._camera.grab()
-        finally:
-            await self._finish_radios()
-
-
-class ContinuousSpiralTomography(ContinuousTomography, SpiralMixin):
+class ContinuousSpiralTomography(SpiralMixin, ContinuousTomography):
     """
     Spiral Tomography
 
@@ -884,22 +876,6 @@ class ContinuousSpiralTomography(ContinuousTomography, SpiralMixin):
             self._vertical_motor.set_position(await self.get_start_position_vertical())
         )
         self._finished = True
-
-    async def _take_radios(self):
-        """
-        Generator for the projection images.
-
-        The :py:meth:`_prepare_radios()` is called. Then the *motion_velocity* of the vertical_motor
-        is stashed. The velocities of the tomography_motor and the vertical_motor are set-
-        """
-        try:
-            await self._prepare_radios()
-
-            num_projections = await self.get_num_projections() * await self.get_num_tomograms()
-            async for frame in self._produce_frames(num_projections):
-                yield frame
-        finally:
-            await self._finish_radios()
 
 
 class GratingInterferometryMixin(Parameterizable):
