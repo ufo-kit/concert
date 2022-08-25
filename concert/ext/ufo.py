@@ -162,31 +162,31 @@ class InjectProcess(object):
 
         await run_in_executor(_insert_real, array, node, index)
 
+    def _result_real(self, leave_index):
+        if self.output_tasks:
+            if leave_index is None:
+                indices = list(range(len(self.output_tasks)))
+            else:
+                indices = [leave_index]
+            results = []
+            for index in indices:
+                buf = self.output_tasks[index].get_output_buffer()
+                if not buf:
+                    return [None]
+                results.append(np.copy(ufo.numpy.asarray(buf)))
+                self.output_tasks[index].release_output_buffer(buf)
+
+            if leave_index is not None:
+                results = results[0]
+
+            return results
+
     @background
     async def result(self, leave_index=None):
         """Get result from *leave_index* if not None, all leaves if None. Returns a list of results
         in case *leave_index* is None or one result for the specified leave_index.
         """
-        def _result_real(leave_index=None):
-            if self.output_tasks:
-                if leave_index is None:
-                    indices = list(range(len(self.output_tasks)))
-                else:
-                    indices = [leave_index]
-                results = []
-                for index in indices:
-                    buf = self.output_tasks[index].get_output_buffer()
-                    if not buf:
-                        return [None]
-                    results.append(np.copy(ufo.numpy.asarray(buf)))
-                    self.output_tasks[index].release_output_buffer(buf)
-
-                if leave_index is not None:
-                    results = results[0]
-
-                return results
-
-        return await run_in_executor(_result_real, leave_index)
+        return await run_in_executor(self._result_real, leave_index)
 
     def stop(self):
         """Stop input tasks."""
@@ -543,6 +543,8 @@ class GeneralBackproject(InjectProcess):
             self.ufo_buffers[self.ffc] = [None]
             self.graph.connect_nodes_full(self.input_tasks[self.ffc][0], self.ffc, 0)
 
+        self._generating = False
+
     async def _average(self, producer, node):
         what = 'darks' if node == self.dark_avg else 'flats'
         LOG.log(PERFDEBUG, 'Starting %s averaging', what)
@@ -565,12 +567,22 @@ class GeneralBackproject(InjectProcess):
         await self._average(producer, self.flat_avg)
         self._flats_averaged = True
 
+    def abort(self):
+        LOG.debug("Aborting GeneralBackproject's scheduler")
+        self.stop()
+        self.sched.abort()
+        if self._generating:
+            while self._result_real(None)[0] is not None:
+                pass
+        LOG.debug("GeneralBackproject's scheduler aborted")
+
     async def __call__(self, producer):
         async def consume_volume():
             if not self._started:
                 yield None
                 return
             self.stop()
+            self._generating = True
             st = time.perf_counter()
             for k in np.arange(*self.args.region):
                 result = (await self.result())[0]
@@ -578,43 +590,42 @@ class GeneralBackproject(InjectProcess):
                     LOG.warning('Not all slices received (last: %g)', k)
                     break
                 yield result
+            self._generating = False
             LOG.log(PERFDEBUG, 'Volume downloaded in: %.2f s', time.perf_counter() - st)
             self.wait()
             self._darks_averaged = False
             self._flats_averaged = False
 
+        self._generating = False
         i = 0
-        try:
-            async for projection in producer:
-                if i == 0:
-                    st = time.perf_counter()
-                    if not self._started:
-                        self.start()
-                    if self.do_normalization:
-                        if not (self._darks_averaged and self._flats_averaged):
-                            raise GeneralBackprojectError('Darks and flats not processed yet')
-                        # Tell averagers to generate instead of consuming from now on
-                        self.input_tasks[self.dark_avg][0].stop()
-                        self.input_tasks[self.flat_avg][0].stop()
-                i += 1
+        async for projection in producer:
+            if i == 0:
+                st = time.perf_counter()
+                if not self._started:
+                    self.start()
+                if self.do_normalization:
+                    if not (self._darks_averaged and self._flats_averaged):
+                        raise GeneralBackprojectError('Darks and flats not processed yet')
+                    # Tell averagers to generate instead of consuming from now on
+                    self.input_tasks[self.dark_avg][0].stop()
+                    self.input_tasks[self.flat_avg][0].stop()
+            i += 1
 
-                projection = projection[self.args.y:self.args.y + self.args.height]
-                if projection.dtype != np.float32:
-                    projection = projection.astype(np.float32)
-                # If ffc is None, node=None and that's OK because there is only one input which the
-                # parent can deal with. Projection port of ffc task is zero, so no need for special
-                # handling.
-                await self.insert(projection, node=self.ffc, index=0)
+            projection = projection[self.args.y:self.args.y + self.args.height]
+            if projection.dtype != np.float32:
+                projection = projection.astype(np.float32)
+            # If ffc is None, node=None and that's OK because there is only one input which the
+            # parent can deal with. Projection port of ffc task is zero, so no need for special
+            # handling.
+            await self.insert(projection, node=self.ffc, index=0)
 
-                if i == self.args.number:
-                    LOG.log(PERFDEBUG, 'Backprojected %d projections, duration: %.2f s', i,
-                            time.perf_counter() - st)
-                    async for item in consume_volume():
-                        yield item
-        except asyncio.CancelledError:
-            # Stop scheduler to free up memory
-            self.wait()
-            raise
+            if i == self.args.number:
+                LOG.log(PERFDEBUG, 'Backprojected %d projections, duration: %.2f s', i,
+                        time.perf_counter() - st)
+                j = 0
+                async for item in consume_volume():
+                    yield item
+                    j += 1
 
 
 class GeneralBackprojectManager(Parameterizable):
@@ -717,13 +728,19 @@ class GeneralBackprojectManager(Parameterizable):
                 await self._producer_condition.wait_for(lambda: self._num_received_projections > i)
             yield self.projections[i]
             self._num_processed_projections = i + 1
+        LOG.debug(
+            "Last projection %d dispatched to backprojectors",
+            self._num_processed_projections
+        )
 
     async def _consume(self, offset, producer):
         """Consume slices from individual backprojectors."""
+        LOG.debug("Consuming slices at offset %d", offset)
         i = 0
         async for item in producer:
             self.volume[offset + i] = item
             i += 1
+        LOG.debug("Consuming slices at offset %d finished", offset)
 
     def find_parameters(self, parameters, projections=None, metrics=('sag',), regions=None,
                         iterations=1, fwhm=0, minimize=(True,), z=None, method='powell',
@@ -849,6 +866,8 @@ class GeneralBackprojectManager(Parameterizable):
             self._num_received_projections += 1
             async with self._producer_condition:
                 self._producer_condition.notify_all()
+            if self._num_received_projections == self.args.number:
+                LOG.debug("Last projection %d came", self._num_received_projections)
 
     async def _copy_projections(self, producer):
         async for projection in producer:
@@ -893,7 +912,24 @@ class GeneralBackprojectManager(Parameterizable):
                                                                   self._flats_condition)
                 await asyncio.gather(bp.average_darks(darks_generator),
                                      bp.average_flats(flats_generator))
-            await self._consume(offset, bp(self._produce()))
+
+            def consume_cb(task):
+                LOG.debug("consume task finished: %s", task)
+                if task.cancelled() or task.exception():
+                    bp.abort()
+
+                # Help garbage collection which would otherwise leave the graph and tasks hanging
+                # around for too long blocking GPU memory
+                del bp.graph
+
+            # We need to take care of aborting here because if there is a KeyboardInterrupt in
+            # _consume during a blocking (non-asyncio call), it will never be thrown into the back
+            # projector, hence there is no way of checking inside it whether the processing stopped
+            # or was aborted. Thus, we attach a callback here and if we get a CancelledError or a
+            # KeyboardInterrupt, we detect it and abort the back projector and free up resources.
+            consume_task = start(self._consume(offset, bp(self._produce())))
+            consume_task.add_done_callback(consume_cb)
+            await consume_task
 
         LOG.debug('Reconstructing %d batches: %s', len(self._regions), self._regions)
         try:
