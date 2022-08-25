@@ -8,7 +8,6 @@ import os
 import re
 import sys
 import shutil
-import signal
 import subprocess
 import tempfile
 import zipfile
@@ -393,24 +392,6 @@ class StartCommand(SubCommand):
     def run_shell(self, path=None, session=None):
         import IPython
         import traitlets.config
-        from concert.session.utils import abort_awaiting
-
-        # ctrl-c handling (abort whatever what is running in the foreground (blocks))
-        orig_sigint_handler = signal.getsignal(signal.SIGINT)
-
-        # Cancel running tasks in IPython's asyncio event loop
-        def concert_sigint_handler(sig, frame):
-            LOG.info('KeyboardInterrupt in awaiting mode')
-            aborted = abort_awaiting()
-            LOG.debug('Aborted: %s', aborted)
-            if not aborted:
-                # If there is a task being awaited cancel it and swallow the exception so that we
-                # don't flood the terminal with the stack trace, otherwise do the usual business
-                # TODO: we may still keep hanging if the task being cancelled calls a blocking
-                # function not in executor.
-                orig_sigint_handler(sig, frame)
-
-        signal.signal(signal.SIGINT, concert_sigint_handler)
 
         print("Welcome to Concert {0}".format(concert.__version__))
 
