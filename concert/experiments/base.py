@@ -297,10 +297,6 @@ class Experiment(Parameterizable):
             # Something bad happened and we can't know what, so set the state to error
             LOG.warning(f"Error `{e}' while running experiment")
             raise StateError('error', msg=str(e))
-        except KeyboardInterrupt:
-            LOG.warning('Experiment cancelled by keyboard interrupt')
-            self._state_value = 'cancelled'
-            raise
         finally:
             try:
                 await self.finish()
