@@ -4,6 +4,7 @@ import math
 import os
 import inspect
 import subprocess
+import sys
 import prettytable
 from concert.config import AIODEBUG
 from concert.coroutines.base import background, get_event_loop, run_in_loop
@@ -33,6 +34,22 @@ class SubCommand(object):
     def run(self, *args, **kwargs):
         """Run the command"""
         raise NotImplementedError
+
+
+def setup_logging(name, to_stream=False, filename=None, loglevel=None):
+    logformat = '[%(asctime)s] %(levelname)s: %(name)s: {}: %(message)s'
+    formatter = logging.Formatter(logformat.format(name))
+    logger = logging.getLogger()
+    logger.setLevel(loglevel.upper())
+
+    if to_stream:
+        stream_handler = logging.StreamHandler(sys.stderr)
+        stream_handler.setFormatter(formatter)
+        logger.addHandler(stream_handler)
+    if filename:
+        file_handler = logging.FileHandler(filename)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
 
 
 def _get_param_description_table(device, max_width):
