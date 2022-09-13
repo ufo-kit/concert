@@ -103,11 +103,11 @@ def start(coroutine):
     return task
 
 
-def background(coroutine):
+def background(corofunc):
     """Same as :func:`.start`, just meant to be used as a decorator."""
-    @functools.wraps(coroutine)
+    @functools.wraps(corofunc)
     def inner(*args, **kwargs):
-        return start(coroutine(*args, **kwargs))
+        return start(corofunc(*args, **kwargs))
 
     return inner
 
