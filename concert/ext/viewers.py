@@ -280,8 +280,8 @@ class ImageViewerBase(ViewerBase):
         or 'stream'. When 'auto', limits are adjusted for every shown image, when 'stream', limits
         are adjusted on every __call__.
         """
-        if not (limits == 'auto' or limits == 'stream' or len(limits) == 2):
-            raise ViewerError("limits can be a tuple (min, max), 'auto' or 'stream'")
+        if not (limits == 'auto' or limits == 'stream' or limits == 'now' or len(limits) == 2):
+            raise ViewerError("limits can be a tuple (min, max), 'auto', 'stream' or 'now'")
         self._queue.put(('clim', limits))
         self._limits = limits
 
@@ -493,7 +493,7 @@ class _PyQtGraphUpdater(_ImageUpdaterBase):
             # No image has been displayed yet or the limits will be set with the next image
             return
 
-        if clim == 'auto':
+        if clim in ['auto', 'now']:
             # Synchronize histogram range and current image range drawn as lines
             self.view.imageItem.setImage(self.view.imageItem.image, autoLevels=True)
             # Adjust histogram range
@@ -790,7 +790,7 @@ class _PyplotImageUpdaterBase(_PyplotUpdaterBase, _ImageUpdaterBase):
         if self.mpl_image is None or clim == 'stream':
             return
 
-        if clim == 'auto':
+        if clim in ['auto', 'now']:
             image = self.mpl_image.get_array()
             clim = (image.min(), image.max())
 
