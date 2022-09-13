@@ -1,6 +1,7 @@
 import asyncio
 import concert.config
 import functools
+import inspect
 import queue
 import logging
 import time
@@ -69,7 +70,34 @@ def start(coroutine):
     """Wrap *coroutine* into a task and start its execution right away. The returned task will also
     be cancellable by ctrl-k.
     """
-    task = asyncio.ensure_future(coroutine)
+    # Wrap *coroutine* into another one which catches KeyboardInterrupt, so that when we are on
+    # IPython 8.5+ and have a blocking call inside *coroutine* we won't crash, see
+    # https://github.com/ipython/ipython/issues/13737 for proper fix in future IPython versions.
+    # @functools.wraps(coroutine)
+    async def wrapper_coro():
+        try:
+            return await coroutine
+        except KeyboardInterrupt:
+            LOG.debug('KeyboardInterrupt in start()')
+            raise asyncio.CancelledError
+
+    if hasattr(coroutine, '_is_concert_task'):
+        # Do not unnecessarily nest tasks
+        return coroutine
+
+    wrapped_coroutine = wrapper_coro()
+
+    # Keep the names
+    orig_coro = None
+    if inspect.iscoroutine(coroutine):
+        orig_coro = coroutine
+    elif isinstance(coroutine, asyncio.Task):
+        orig_coro = coroutine._coro
+    if orig_coro:
+        wrapped_coroutine.__name__ = orig_coro.__name__
+        wrapped_coroutine.__qualname__ = orig_coro.__qualname__
+
+    task = asyncio.ensure_future(wrapped_coroutine)
     task._is_concert_task = True
 
     return task
