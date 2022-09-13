@@ -7,3 +7,4 @@ pyqtgraph
 pyxdg
 scipy
 tifffile
+pyzmq>=23.2.1
