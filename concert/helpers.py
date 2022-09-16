@@ -299,7 +299,10 @@ async def get_state_from_awaitable(awaitable) -> str:
     task = asyncio.ensure_future(awaitable)
     if not task.done():
         return 'running'
-    elif task.exception() is None:
-        return 'standby'
     else:
-        return 'error'
+        if task.cancelled():
+            return 'cancelled'
+        elif task.exception():
+            return 'error'
+        else:
+            return 'standby'

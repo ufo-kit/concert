@@ -270,8 +270,10 @@ class TestExperimentStates(TestCase):
         await asyncio.sleep(0.2)
         self.assertEqual(await exp.get_state(), "running")
         exp_handle.cancel()
-        await exp_handle
-        self.assertEqual(await exp.get_state(), "standby")
+        try:
+            await exp_handle
+        except asyncio.CancelledError:
+            self.assertEqual(await exp.get_state(), "cancelled")
 
     async def test_experiment_exception(self):
         exp = await ExperimentException(self.walker)
