@@ -22,21 +22,16 @@ def _new_setter_wrapper(name, unit=None):
             raise base.CameraError('Changing parameters is not allowed while recording')
 
         if unit:
-            value = value.to(unit)
+            value = value.to(unit).magnitude
 
-        try:
-            dic = {name: value.magnitude}
-        except AttributeError:
-            dic = {name: value}
-
-        instance.uca.set_properties(**dic)
+        await run_in_executor(instance.uca.set_property, name, value)
 
     return _wrapper
 
 
 def _new_getter_wrapper(name, unit=None):
     async def _wrapper(instance):
-        value = instance.uca.get_property(name)
+        value = await run_in_executor(instance.uca.get_property, name)
 
         if unit:
             return q.Quantity(value, unit)
@@ -162,20 +157,20 @@ class Camera(base.Camera):
 
     @background
     async def start_readout(self):
-        self.uca.start_readout()
+        await run_in_executor(self.uca.start_readout)
 
     @background
     async def stop_readout(self):
-        self.uca.stop_readout()
+        await run_in_executor(self.uca.stop_readout)
 
     @background
     async def grab(self, index=None):
         return self.convert(await self._grab_real(index))
 
-    def write(self, name, data):
+    async def write(self, name, data):
         """Write NumPy array *data* for *name*."""
         raw = data.__array_interface__['data'][0]
-        self.uca.write(name, raw, data.nbytes)
+        await run_in_executor(self.uca.write, name, raw, data.nbytes)
 
     async def _get_frame_rate(self):
         return await self._uca_get_frame_rate(self) / q.s
@@ -194,15 +189,15 @@ class Camera(base.Camera):
     @_translate_gerror
     async def _record_real(self):
         await self._determine_shape_for_grab()
-        self.uca.start_recording()
+        await run_in_executor(self.uca.start_recording)
 
     @_translate_gerror
     async def _stop_real(self):
-        self.uca.stop_recording()
+        await run_in_executor(self.uca.stop_recording)
 
     @_translate_gerror
     async def _trigger_real(self):
-        self.uca.trigger()
+        await run_in_executor(self.uca.trigger)
 
     @_translate_gerror
     async def _grab_real(self, index=None):
