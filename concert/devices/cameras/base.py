@@ -139,11 +139,13 @@ class Camera(Device):
             await self.stop_recording()
 
     @background
+    @check(source='recording')
     async def trigger(self):
         """Trigger a frame if possible."""
         await self._trigger_real()
 
     @background
+    @check(source=['recording', 'readout'])
     async def grab(self) -> ImageWithMetadata:
         """Return a concert.storage.ImageWithMetadata (subclass of np.ndarray) with data of the
         current frame."""
@@ -225,7 +227,7 @@ class RemoteMixin:
             raise
 
     @background
-    @check(source='recording')
+    @check(source=['recording', 'readout'])
     async def grab(self):
         """Grab a frame remotely, no conversion happens as opposed to local cameras."""
         await self._grab_real()
