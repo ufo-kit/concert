@@ -18,6 +18,8 @@ from concert.helpers import get_state_from_awaitable
 
 LOG = logging.getLogger(__name__)
 
+_runnable_state = ['standby', 'error', 'cancelled']
+
 
 class Acquisition(Parameterizable):
 
@@ -83,7 +85,7 @@ class Experiment(Parameterizable):
 
     """
     Experiment base class. An experiment can be run multiple times with the output data and log
-    stored on disk. You can prepare every run by :meth:`.prepare` and finsh the run by
+    stored on disk. You can prepare every run by :meth:`.prepare` and finish the run by
     :meth:`.finish`. These methods do nothing by default. They can be useful e.g. if you need to
     reinitialize some experiment parts or want to attach some logging output.
 
@@ -219,7 +221,7 @@ class Experiment(Parameterizable):
 
     def swap(self, first, second):
         """
-        Swap acquisition *first* with *second*. If there are more occurences
+        Swap acquisition *first* with *second*. If there are more occurrences
         of either of them then the ones which are found first in the acquisitions
         list are swapped.
         """
@@ -244,7 +246,7 @@ class Experiment(Parameterizable):
     async def acquire(self):
         """
         Acquire data by running the acquisitions. This is the method which implements
-        the data acquisition and should be overriden if more functionality is required,
+        the data acquisition and should be overwritten if more functionality is required,
         unlike :meth:`~.Experiment.run`.
         """
         for acq in wrap_iterable(self._acquisitions):
@@ -291,7 +293,7 @@ class Experiment(Parameterizable):
             await self.prepare()
             await self.acquire()
         except Exception as e:
-            # Something bad happened and we can't know what, so set the state to error
+            # Something bad happened, and we can't know what, so set the state to error
             LOG.warning(f"Error `{e}' while running experiment")
             raise StateError('error', msg=str(e))
         finally:

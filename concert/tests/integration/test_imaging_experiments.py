@@ -322,6 +322,10 @@ class ContinuousSpiralTomography(Radiography):
         time_per_tomogram = await self.exp.get_angular_range() / await self.exp.get_velocity()
         vertical_velocity = await self.exp.get_vertical_shift_per_tomogram() / time_per_tomogram
 
+        for radio in self.acc.items[self.exp.get_acquisition("radios")]:
+            self.assertEqual(radio[0, 1], (await self.exp.get_radio_position()).to(q.mm).magnitude)
+            self.assertEqual(radio[0, 3], 1.0)
+
         for i in range(len(self.acc.items[self.exp.get_acquisition("radios")])):
             radio = self.acc.items[self.exp.get_acquisition("radios")][i]
             self.assertAlmostEqual(radio[1, 0],
