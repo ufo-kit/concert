@@ -8,7 +8,7 @@ import numpy as np
 import struct
 from concert.coroutines.base import background, run_in_executor
 from concert.quantities import q
-from concert.base import Parameter, Quantity
+from concert.base import check, Parameter, Quantity
 from concert.helpers import Bunch
 from concert.devices.cameras import base
 
@@ -59,6 +59,10 @@ class Camera(base.Camera):
 
     All properties that are exported by the underlying camera are also visible.
     """
+
+    concert_cached_recording_state = Parameter(
+        help="If True, concert caches `recording' state to speed up grab()"
+    )
 
     async def __ainit__(self, name, params=None):
         """
@@ -154,6 +158,8 @@ class Camera(base.Camera):
 
         self._record_shape = None
         self._record_dtype = None
+        self._cached_state = None
+        self._concert_cached_recording_state = True
 
     @background
     async def start_readout(self):
@@ -164,6 +170,7 @@ class Camera(base.Camera):
         await run_in_executor(self.uca.stop_readout)
 
     @background
+    @check(source=['recording', 'readout'])
     async def grab(self, index=None):
         return self.convert(await self._grab_real(index))
 
@@ -193,6 +200,7 @@ class Camera(base.Camera):
 
     @_translate_gerror
     async def _stop_real(self):
+        self._cached_state = None
         await run_in_executor(self.uca.stop_recording)
 
     @_translate_gerror
@@ -219,7 +227,27 @@ class Camera(base.Camera):
         self._record_dtype = (np.uint16 if (await self.get_sensor_bitdepth()).magnitude > 8 else
                               np.uint8)
 
+    async def _get_concert_cached_recording_state(self):
+        return self._concert_cached_recording_state
+
+    async def _set_concert_cached_recording_state(self, value):
+        self._concert_cached_recording_state = value
+
     async def _get_state(self):
+        if not self._concert_cached_recording_state:
+            return await self._get_real_state()
+
+        if self._cached_state:
+            current_state = self._cached_state
+        else:
+            current_state = await self._get_real_state()
+            if current_state == 'recording':
+                # Do not cache anything else than recording state for performance
+                self._cached_state = current_state
+
+        return current_state
+
+    async def _get_real_state(self):
         if self.uca.props.is_recording:
             return 'recording'
         elif self.uca.props.is_readout:
