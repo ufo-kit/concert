@@ -2,6 +2,46 @@
 
 from datetime import datetime
 import numpy as np
+import logging
+
+from concert.coroutines.base import background
+
+from concert.devices.cameras.uca import Camera as UcaCamera
+from concert.helpers import ImageWithMetadata
+
+LOG = logging.getLogger(__name__)
+
+
+class Camera(UcaCamera):
+    async def __ainit__(self, name="pco", params=None):
+        self._timestamp_enabled = False
+        await super().__ainit__(name=name, params=params)
+
+    async def _record_real(self):
+        self._timestamp_enabled = await self.get_timestamp() in ['both', 'binary']
+        await super()._record_real()
+
+    @background
+    async def start_readout(self):
+        self._timestamp_enabled = await self.get_timestamp() in ['both', 'binary']
+        await super().start_readout()
+
+    @background
+    async def grab(self) -> ImageWithMetadata:
+        """Return a concert.storage.ImageWithMetadata (subclass of np.ndarray) with data of the
+        current frame."""
+        img = await self._grab_real()
+        if self._timestamp_enabled:
+            try:
+                timestamp = Timestamp(img)
+                img = self.convert(img)
+                img = img.view(ImageWithMetadata)
+                img.metadata['frame_number'] = timestamp.number
+                img.metadata['timestamp'] = timestamp.time.isoformat()
+                return img
+            except TimestampError:
+                LOG.error("Can not extract timestamp from frame.")
+        return self.convert(img.view(ImageWithMetadata))
 
 
 class Timestamp:
