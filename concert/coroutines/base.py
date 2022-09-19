@@ -75,6 +75,9 @@ def start(coroutine):
     # https://github.com/ipython/ipython/issues/13737 for proper fix in future IPython versions.
     # @functools.wraps(coroutine)
     async def wrapper_coro():
+        # Tell IPython not to print this frame
+        __tracebackhide__ = True
+
         try:
             return await coroutine
         except KeyboardInterrupt:

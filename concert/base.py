@@ -37,6 +37,8 @@ async def _execute_func(func, instance, *args, **kwargs):
     """Execute *func* irrespective of whether it is a function or a method. *instance*
     is discarded if *func* is a function, otherwise it is used as a first real argument.
     """
+    # Tell IPython not to print this frame
+    __tracebackhide__ = True
     if isinstance(func, types.MethodType):
         result = await func(*args, **kwargs)
     else:
@@ -270,6 +272,8 @@ def check(source='*', target='*'):
 
         @functools.wraps(func)
         async def call_func(instance, *args, **kwargs):
+            # Tell IPython not to print this frame
+            __tracebackhide__ = True
             if 'state' not in instance:
                 raise FSMError('Transitioning requires state parameter')
 
