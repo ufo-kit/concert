@@ -60,7 +60,12 @@ class ImagingExperiment(Experiment):
         darks = await Acquisition('darks', np.ndarray, self.take_darks)
         flats = await Acquisition('flats', np.ndarray, self.take_flats)
         radios = await Acquisition('radios', np.ndarray, self.take_radios)
-        await super(ImagingExperiment, self).__ainit__([darks, flats, radios], walker=walker)
+        await super().__ainit__(
+            [darks, flats, radios],
+            walker=walker,
+            separate_scans=separate_scans,
+            name_fmt=name_fmt
+        )
 
     async def _produce_images(self, num, mean=128, std=10):
         def make_random_image():
@@ -159,7 +164,12 @@ class ImagingFileExperiment(Experiment):
         darks = await Acquisition('darks', self._camera_class, self.take_darks)
         flats = await Acquisition('flats', self._camera_class, self.take_flats)
         radios = await Acquisition('radios', self._camera_class, self.take_radios)
-        await super(ImagingFileExperiment, self).__ainit__([darks, flats, radios], walker=walker)
+        await super().__ainit__(
+            [darks, flats, radios],
+            walker=walker,
+            separate_scans=separate_scans,
+            name_fmt=name_fmt
+        )
 
     async def _produce_images(self, pattern, num):
         camera = await self._camera_class(os.path.join(self.directory, pattern))
@@ -172,8 +182,9 @@ class ImagingFileExperiment(Experiment):
         if self.roi_height is not None:
             await camera.set_roi_height(self.roi_height)
 
-        for i in wrap_iterable(list(range(num))):
-            yield await camera.grab()
+        async with camera.recording():
+            for i in wrap_iterable(list(range(num))):
+                yield await camera.grab()
 
     def take_darks(self):
         return self._produce_images(self.darks_pattern, self.num_darks)
