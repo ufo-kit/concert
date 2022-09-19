@@ -5,7 +5,7 @@ import logging
 import re
 import tifffile
 from logging import FileHandler, Formatter
-from concert.coroutines.base import background, feed_queue
+from concert.coroutines.base import background
 from concert.writers import TiffWriter
 
 
@@ -79,7 +79,7 @@ def create_directory(directory, rights="750"):
         os.makedirs(directory, int(rights, base=8))
 
 
-def write_images(pqueue, writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0,
+def write_images(producer, writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0,
                  bytes_per_file=0, rights="750"):
     """
     write_images(pqueue, writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0,
@@ -95,6 +95,7 @@ def write_images(pqueue, writer=TiffWriter, prefix="image_{:>05}.tif", start_ind
     im_writer = None
     file_index = 0
     written = 0
+    written_total = 0
     dir_name = os.path.dirname(prefix)
     # If there is no formatting user wants just one file, in which case we append
     append = prefix.format(0) == prefix
@@ -107,11 +108,7 @@ def write_images(pqueue, writer=TiffWriter, prefix="image_{:>05}.tif", start_ind
     i = 0
 
     try:
-        while True:
-            image = pqueue.get().data
-            if image is None:
-                pqueue.task_done()
-                break
+        async for image in producer:
             if not append and (not im_writer or written + image.nbytes > bytes_per_file):
                 if im_writer:
                     im_writer.close()
@@ -123,8 +120,10 @@ def write_images(pqueue, writer=TiffWriter, prefix="image_{:>05}.tif", start_ind
                 written = 0
             im_writer.write(image)
             written += image.nbytes
+            written_total += image.nbytes
             i += 1
-            pqueue.task_done()
+
+        return written_total
     finally:
         if im_writer:
             im_writer.close()
@@ -320,8 +319,13 @@ class DirectoryWalker(Walker):
 
         prefix = os.path.join(self._current, dsetname)
 
-        return feed_queue(producer, write_images, self.writer, prefix,
-                          self._start_index, self._bytes_per_file)
+        return write_images(
+            producer,
+            self.writer,
+            prefix,
+            self._start_index,
+            self._bytes_per_file
+        )
 
     def _dset_exists(self, dsetname):
         """Check if *dsetname* exists on the current level."""
