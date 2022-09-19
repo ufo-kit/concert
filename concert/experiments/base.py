@@ -428,10 +428,6 @@ class Experiment(Parameterizable):
         try:
             await self.prepare()
             await self.acquire()
-        except Exception as e:
-            # Something bad happened, and we can't know what, so set the state to error
-            LOG.warning(f"Error `{e}' while running experiment")
-            raise StateError('error', msg=str(e))
         finally:
             try:
                 await self.finish()
