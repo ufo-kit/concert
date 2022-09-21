@@ -1,4 +1,5 @@
 """Image writers for uniform acces by :func:`.storage.write_images`"""
+from concert.helpers import ImageWithMetadata
 
 
 class ImageWriter(object):
@@ -20,7 +21,8 @@ class TiffWriter(ImageWriter):
                                            bigtiff=bytes_per_file >= 2 ** 32 - 2 ** 25)
 
     def write(self, image):
-        self._writer.write(image)
+        metadata = None if not isinstance(image, ImageWithMetadata) else image.metadata
+        self._writer.write(image, metadata=metadata)
 
 
 class LibTiffWriter(ImageWriter):
