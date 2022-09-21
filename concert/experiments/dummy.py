@@ -31,9 +31,13 @@ class ImagingExperiment(Experiment):
 
         Number of radiographic images
 
+    .. py:attribute:: camera
+
+        Camera to use for generating images
+
     .. py:attribute:: shape
 
-        Shape of the generated images (H x W) (default: 1024 x 1024)
+        Shape of the generated images (H x W) (default: 1024 x 1024) if *camera* is not specified
 
     .. py:attribute:: random
 
@@ -46,12 +50,13 @@ class ImagingExperiment(Experiment):
         Data type of the generated images (default: unsigned short)
     """
 
-    async def __ainit__(self, num_darks, num_flats, num_radios, shape=(1024, 1024), walker=None,
-                        random=False, dtype=np.ushort, separate_scans=True,
+    async def __ainit__(self, num_darks, num_flats, num_radios, camera=None, shape=(1024, 1024),
+                        walker=None, random=False, dtype=np.ushort, separate_scans=True,
                         name_fmt='scan_{:>04}'):
         self.num_darks = num_darks
         self.num_flats = num_flats
         self.num_radios = num_radios
+        self.camera = camera
         self.shape = shape
         if random not in ['off', 'single', 'multi']:
             raise ValueError("random must be one of 'off', 'single', 'multi'")
@@ -68,21 +73,27 @@ class ImagingExperiment(Experiment):
         )
 
     async def _produce_images(self, num, mean=128, std=10):
-        def make_random_image():
-            return np.random.normal(mean, std, size=self.shape).astype(self.dtype)
+        if self.camera:
+            async with self.camera.recording():
+                for i in wrap_iterable(list(range(num))):
+                    yield await self.camera.grab()
 
-        def make_const_image():
-            return (np.ones(self.shape) * mean).astype(self.dtype)
+        else:
+            def make_random_image():
+                return np.random.normal(mean, std, size=self.shape).astype(self.dtype)
 
-        if self.random == 'off':
-            image = await run_in_executor(make_const_image)
-        elif self.random == 'single':
-            image = await run_in_executor(make_random_image)
+            def make_const_image():
+                return (np.ones(self.shape) * mean).astype(self.dtype)
 
-        for i in wrap_iterable(list(range(num))):
-            if self.random == 'multi':
+            if self.random == 'off':
+                image = await run_in_executor(make_const_image)
+            elif self.random == 'single':
                 image = await run_in_executor(make_random_image)
-            yield image
+
+            for i in wrap_iterable(list(range(num))):
+                if self.random == 'multi':
+                    image = await run_in_executor(make_random_image)
+                yield image
 
     def take_darks(self):
         return self._produce_images(self.num_darks)
