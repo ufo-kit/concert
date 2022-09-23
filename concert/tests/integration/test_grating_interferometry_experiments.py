@@ -4,8 +4,11 @@ import numpy as np
 from concert.quantities import q
 from concert.tests import TestCase, slow
 from concert.storage import DirectoryWalker
-from concert.experiments.addons import ImageWriter, Accumulator, \
+from concert.experiments.addons.local import (
+    ImageWriter,
+    Accumulator,
     PhaseGratingSteppingFourierProcessing
+)
 from concert.devices.cameras.dummy import Camera
 from concert.devices.motors.dummy import LinearMotor
 from concert.devices.xraytubes.dummy import XRayTube
@@ -102,9 +105,9 @@ class GratingInterferometryStepping:
 
     async def run_experiment(self):
         self.camera.experiment = self.exp
-        self.acc = Accumulator(self.exp.acquisitions)
-        self.writer = ImageWriter(walker=self.walker, acquisitions=self.exp.acquisitions)
-        self.phase_stepping_addon = PhaseGratingSteppingFourierProcessing(experiment=self.exp)
+        self.acc = await Accumulator(acquisitions=self.exp.acquisitions)
+        self.writer = await ImageWriter(self.walker, acquisitions=self.exp.acquisitions)
+        self.phase_stepping_addon = await PhaseGratingSteppingFourierProcessing(experiment=self.exp)
         await self.exp.run()
 
     def tearDown(self):
@@ -118,9 +121,9 @@ class GratingInterferometryStepping:
         - Correct number of frames recorded
         - Correct exposure for all frames
         """
-        self.assertEqual(len(self.acc.items[self.exp.get_acquisition("darks")]),
-                         await self.exp.get_num_darks())
-        for flat in self.acc.items[self.exp.get_acquisition("darks")]:
+        items = (await self.acc.get_items(self.exp.get_acquisition("darks")))
+        self.assertEqual(len(items), await self.exp.get_num_darks())
+        for flat in items:
             self.assertEqual(flat[0, 0], 0.0)
 
     async def _test_stepping(self, stepping_type):
@@ -139,43 +142,71 @@ class GratingInterferometryStepping:
         if stepping_type not in ["reference", "object"]:
             raise Exception("Stepping type not known.")
 
-        self.assertEqual(len(self.acc.items[self.exp.get_acquisition(stepping_type + "_stepping")]),
-                         (await self.exp.get_num_periods()
-                          * await self.exp.get_num_steps_per_period()))
+        items = (await self.acc.get_items(self.exp.get_acquisition(stepping_type + "_stepping")))
+        self.assertEqual(
+            len(items),
+            (await self.exp.get_num_periods() * await self.exp.get_num_steps_per_period())
+        )
 
         stepping_start = await self.exp.get_stepping_start_position()
         step_size = await self.exp.get_grating_period() / await self.exp.get_num_steps_per_period()
-        for i in range(len(self.acc.items[self.exp.get_acquisition(stepping_type + "_stepping")])):
-            radio = self.acc.items[self.exp.get_acquisition(stepping_type + "_stepping")][i]
+        for i in range(len(items)):
+            radio = items[i]
             stepping_position = i * step_size + stepping_start
             self.assertAlmostEqual(radio[1, 0], stepping_position.to(q.um).magnitude, places=3)
             self.assertEqual(radio[0, 0], 1.0)
 
     async def test_reference_stepping(self):
         await self._test_stepping("reference")
-        for i in range(len(self.acc.items[self.exp.get_acquisition("reference_stepping")])):
-            radio = self.acc.items[self.exp.get_acquisition("reference_stepping")][i]
+        items = (await self.acc.get_items(self.exp.get_acquisition("reference_stepping")))
+        for i in range(len(items)):
+            radio = items[i]
             self.assertEqual(radio[0, 1], (await self.exp.get_flat_position()).to(q.mm).magnitude)
 
     async def test_object_stepping(self):
         await self._test_stepping("object")
-        for i in range(len(self.acc.items[self.exp.get_acquisition("object_stepping")])):
-            radio = self.acc.items[self.exp.get_acquisition("object_stepping")][i]
+        items = (await self.acc.get_items(self.exp.get_acquisition("object_stepping")))
+        for i in range(len(items)):
+            radio = items[i]
             self.assertEqual(radio[0, 1], (await self.exp.get_radio_position()).to(q.mm).magnitude)
 
     async def test_addon(self):
-        self.assertAlmostEqual(self.phase_stepping_addon.object_intensity[1, 1], 0.5, places=3,
-                               msg="object intensity")
-        self.assertAlmostEqual(self.phase_stepping_addon.reference_intensity[1, 1], 1.0, places=3,
-                               msg="reference_intensity")
-        self.assertAlmostEqual(self.phase_stepping_addon.reference_visibility[1, 1], 1.0, places=3,
-                               msg="reference_visibility")
-        self.assertAlmostEqual(self.phase_stepping_addon.object_visibility[1, 1], 0.5, places=3,
-                               msg="object_visibility")
-        self.assertAlmostEqual(self.phase_stepping_addon.reference_phase[1, 1], 0, places=3,
-                               msg="reference_phase")
-        self.assertAlmostEqual(self.phase_stepping_addon.object_phase[1, 1], np.pi / 2., places=3,
-                               msg="object_phase")
+        self.assertAlmostEqual(
+            (await self.phase_stepping_addon.get_object_intensity())[1, 1],
+            0.5,
+            places=3,
+            msg="object intensity"
+        )
+        self.assertAlmostEqual(
+            (await self.phase_stepping_addon.get_reference_intensity())[1, 1],
+            1.0,
+            places=3,
+            msg="reference_intensity"
+        )
+        self.assertAlmostEqual(
+            (await self.phase_stepping_addon.get_reference_visibility())[1, 1],
+            1.0,
+            places=3,
+            msg="reference_visibility"
+        )
+        self.assertAlmostEqual(
+            (await self.phase_stepping_addon.get_object_visibility())[1, 1],
+            0.5,
+            places=3,
+            msg="object_visibility"
+        )
+        self.assertAlmostEqual(
+            (await self.phase_stepping_addon.get_reference_phase())[1, 1],
+            0,
+            places=3,
+            msg="reference_phase"
+        )
+        self.assertAlmostEqual(
+            (await self.phase_stepping_addon.get_object_phase())[1, 1],
+            np.pi / 2.,
+            places=3,
+            msg="object_phase"
+        )
 
 
 @slow
