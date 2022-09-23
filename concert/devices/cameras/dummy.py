@@ -5,7 +5,7 @@ import numpy as np
 from concert.base import Parameter
 from concert.coroutines.base import run_in_executor
 from concert.quantities import q
-from concert.base import transition, Quantity
+from concert.base import check, transition, Quantity
 from concert.devices.cameras import base
 from concert.readers import TiffSequenceReader
 
@@ -152,15 +152,28 @@ class FileCamera(Base):
     multi-page).
     """
 
+    pattern = Parameter(help='Image file pattern to read')
+
     async def __ainit__(self, pattern, reset_on_start=True, start_index=0):
         # Let users change the directory
         await super(FileCamera, self).__ainit__()
+        self._pattern = pattern
         self._reader = TiffSequenceReader(pattern)
+        self._start_index = start_index
         self.index = start_index
         self.reset_on_start = reset_on_start
         image = self._reader.read(0)
         self._roi_height = image.shape[0] * q.px
         self._roi_width = image.shape[1] * q.px
+
+    async def _get_pattern(self):
+        return self._pattern
+
+    @check(source='standby')
+    async def _set_pattern(self, pattern):
+        self._pattern = pattern
+        self._reader = TiffSequenceReader(pattern)
+        self.index = self._start_index
 
     @transition(target='recording')
     async def _record_real(self):
