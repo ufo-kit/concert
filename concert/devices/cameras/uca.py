@@ -161,12 +161,10 @@ class Camera(base.Camera):
         self._cached_state = None
         self._concert_cached_recording_state = True
 
-    @background
-    async def start_readout(self):
+    async def _start_readout_real(self):
         await run_in_executor(self.uca.start_readout)
 
-    @background
-    async def stop_readout(self):
+    async def _stop_readout_real(self):
         await run_in_executor(self.uca.stop_readout)
 
     @background

@@ -187,8 +187,55 @@ class BufferedMixin(Device):
 
     state = State(default='standby')
 
-    def readout_buffer(self, *args, **kwargs):
-        return self._readout_real(*args, **kwargs)
+    @background
+    @check(source='standby', target='readout')
+    async def start_readout(self):
+        """
+        start_readout()
+
+        Start reading out frames.
+        """
+        await self._start_readout_real()
+
+    @background
+    @check(source='readout', target='standby')
+    async def stop_readout(self):
+        """
+        stop_readout()
+
+        Stop reading out frames.
+        """
+        await self._stop_readout_real()
+
+    @contextlib.asynccontextmanager
+    async def readout(self):
+        """
+        readout()
+
+        A context manager for starting and stopping the readout.
+
+        In general it is used with the ``async with`` keyword like this::
+
+            async with camera.readout():
+                frames = await camera.readout_buffer()
+        """
+        await self.start_readout()
+        try:
+            yield
+        finally:
+            LOG.log(AIODEBUG, 'stop readout in readout()')
+            await self.stop_readout()
+
+    @check(source='readout')
+    async def readout_buffer(self, *args, **kwargs):
+        async for item in self._readout_real(*args, **kwargs):
+            yield item
+
+    async def _start_readout_real(self):
+        raise AccessorNotImplementedError
+
+    async def _stop_readout_real(self):
+        raise AccessorNotImplementedError
 
     async def _readout_real(self, *args, **kwargs):
         raise AccessorNotImplementedError
