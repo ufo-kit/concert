@@ -39,12 +39,25 @@ async def _execute_func(func, instance, *args, **kwargs):
     """
     # Tell IPython not to print this frame
     __tracebackhide__ = True
-    if isinstance(func, types.MethodType):
-        result = await func(*args, **kwargs)
-    else:
-        result = await func(instance, *args, **kwargs)
 
-    return result
+    if not isinstance(func, types.MethodType):
+        func = functools.partial(func, instance)
+
+    return await func(*args, **kwargs)
+
+
+async def _execute_asyncgen(func, instance, *args, **kwargs):
+    """Execute *func* irrespective of whether it is a function or a method. *instance*
+    is discarded if *func* is a function, otherwise it is used as a first real argument.
+    """
+    # Tell IPython not to print this frame
+    __tracebackhide__ = True
+
+    if not isinstance(func, types.MethodType):
+        func = functools.partial(func, instance)
+
+    async for item in func(*args, **kwargs):
+        yield item
 
 
 def _find_object_by_name(instance):
@@ -283,7 +296,19 @@ def check(source='*', target='*'):
 
             return result
 
-        return call_func
+        @functools.wraps(func)
+        async def call_asyncgen(instance, *args, **kwargs):
+            # Tell IPython not to print this frame
+            __tracebackhide__ = True
+            if 'state' not in instance:
+                raise FSMError('Transitioning requires state parameter')
+
+            await check_now(instance, sources, 'Current')
+            async for item in _execute_asyncgen(func, instance, *args, **kwargs):
+                yield item
+            await check_now(instance, targets, 'Final')
+
+        return call_asyncgen if inspect.isasyncgenfunction(func) else call_func
 
     return wrapped
 
