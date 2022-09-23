@@ -1,4 +1,5 @@
 import concert.config as cfg
+import functools
 import logging
 import unittest
 import numpy as np
@@ -19,11 +20,14 @@ def slow(func):
 
 def suppressed_logging(func):
     """Decorator for test functions."""
+    @functools.wraps(func)
     def test_wrapper(*args, **kwargs):
         suppress_logging()
-        func(*args, **kwargs)
+        try:
+            func(*args, **kwargs)
+        finally:
+            logging.disable(logging.NOTSET)
 
-    test_wrapper.__name__ = func.__name__
     return test_wrapper
 
 
@@ -58,3 +62,6 @@ class TestCase(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         suppress_logging()
         cfg.PROGRESS_BAR = False
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
