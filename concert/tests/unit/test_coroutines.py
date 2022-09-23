@@ -151,6 +151,7 @@ class TestCoroutines(TestCase):
         self.assertTrue(isinstance(future, asyncio.Future))
         await asyncio.sleep(.1)
         self.assertTrue(self.iteration != 0)
+        self.assertEqual(future, start(future))
 
     async def test_null(self):
         await null(self.produce())
