@@ -385,6 +385,7 @@ class PCOTimestampCheck(Addon):
     async def _check_timestamp(self, producer):
         self.timestamp_incorrect = False
         i = 0
+        last_acquisition = await self._experiment.acquisitions[-1].get_state() == "running"
         async for img in producer:
             if i == 0:
                 if not isinstance(img, ImageWithMetadata) or (
@@ -400,6 +401,8 @@ class PCOTimestampCheck(Addon):
                     f"Frame {i + 1} had wrong frame number {img.metadata['frame_number']}.")
                 self.timestamp_incorrect = True
             i += 1
+        if last_acquisition and self.timestamp_incorrect:
+            raise PCOTimestampCheckError("Not all 'frame_numbers' where correct.")
 
 
 class AddonError(Exception):
@@ -409,4 +412,8 @@ class AddonError(Exception):
 
 
 class OnlineReconstructionError(Exception):
+    pass
+
+
+class PCOTimestampCheckError(Exception):
     pass
