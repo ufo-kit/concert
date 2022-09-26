@@ -36,7 +36,8 @@ setup(
         'pyqtgraph',
         'pyxdg',
         'scipy',
-        'tifffile'
+        'tifffile',
+        'pyzmq>=23.2.1',
     ],
     test_suite='concert.tests',
 )
