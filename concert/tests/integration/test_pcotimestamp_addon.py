@@ -13,7 +13,7 @@ from concert.helpers import ImageWithMetadata
 from concert.experiments.synchrotron import Radiography
 from concert.devices.motors.dummy import LinearMotor
 from concert.devices.shutters.dummy import Shutter
-from concert.experiments.addons import PCOTimestampCheck, ImageWriter
+from concert.experiments.addons import PCOTimestampCheck, ImageWriter, PCOTimestampCheckError
 from concert.base import transition, Parameter, identity
 
 
@@ -137,7 +137,9 @@ class TestPCOTimestampAddon(TestCase):
         self.assertFalse(self.addon.timestamp_incorrect)
 
         await self.camera.set_random_timestamp_numbers(True)
-        await self.exp.run()
+        with self.assertRaises(PCOTimestampCheckError):
+                await self.exp.run()
+
         self.assertTrue(self.addon.timestamp_incorrect)
 
     async def test_addon_without_camera_convert(self):
