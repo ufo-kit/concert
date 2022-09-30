@@ -405,7 +405,7 @@ class PCOTimestampCheck(Addon):
             i += 1
         if last_acquisition and self.timestamp_incorrect:
             raise PCOTimestampCheckError("Not all 'frame_numbers' where correct.")
-        if last_acquisition and self._timestamp_checks:
+        if last_acquisition and self.timestamp_missing:
             raise PCOTimestampCheckError("Not all images contained timestamps.")
 
 
