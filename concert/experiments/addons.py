@@ -369,6 +369,7 @@ class PCOTimestampCheck(Addon):
         self._timestamp_checks = {}
         self._experiment = experiment
         self.timestamp_incorrect = False
+        self.timestamp_missing = False
         super().__init__(experiment.acquisitions)
 
     def _attach(self):
@@ -384,6 +385,7 @@ class PCOTimestampCheck(Addon):
 
     async def _check_timestamp(self, producer):
         self.timestamp_incorrect = False
+        self.timestamp_missing = False
         i = 0
         last_acquisition = await self._experiment.acquisitions[-1].get_state() == "running"
         async for img in producer:
@@ -394,7 +396,7 @@ class PCOTimestampCheck(Addon):
                                                "camera.timestamp needs to be set to 'both' or"
                                                "'binary' to use this addon."
                                                "Works only with pco cameras.")
-                    self.timestamp_incorrect = True
+                    self.timestamp_missing = True
                     return
             if img.metadata['frame_number'] != i + 1:
                 self._experiment.log.error(
@@ -403,6 +405,8 @@ class PCOTimestampCheck(Addon):
             i += 1
         if last_acquisition and self.timestamp_incorrect:
             raise PCOTimestampCheckError("Not all 'frame_numbers' where correct.")
+        if last_acquisition and self._timestamp_checks:
+            raise PCOTimestampCheckError("Not all images contained timestamps.")
 
 
 class AddonError(Exception):
