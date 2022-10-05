@@ -98,6 +98,10 @@ class Camera(Device):
     async def __ainit__(self):
         await super(Camera, self).__ainit__()
         self.convert = identity
+        self._streaming_finished = asyncio.Event()
+        self._streaming_finished.set()
+        self._request_streaming_stop = False
+        self._grab_lock = asyncio.Lock()
 
     @background
     @check(source='standby', target='recording')
@@ -117,7 +121,14 @@ class Camera(Device):
 
         Stop recording frames.
         """
-        await self._stop_real()
+        if self._streaming_finished.is_set():
+            await self._stop_real()
+        else:
+            # We are streaming, request stop and wait for it to finish, stop_recording() will be
+            # handled there
+            self._request_streaming_stop = True
+            await self._streaming_finished.wait()
+            self._request_streaming_stop = False
 
     @contextlib.asynccontextmanager
     async def recording(self):
@@ -142,6 +153,8 @@ class Camera(Device):
     @check(source='recording')
     async def trigger(self):
         """Trigger a frame if possible."""
+        if not self._streaming_finished.is_set():
+            raise CameraError('Cannot trigger while streaming')
         await self._trigger_real()
 
     @background
@@ -149,20 +162,31 @@ class Camera(Device):
     async def grab(self) -> ImageWithMetadata:
         """Return a concert.storage.ImageWithMetadata (subclass of np.ndarray) with data of the
         current frame."""
-        img = self.convert(await self._grab_real())
-        return img.view(ImageWithMetadata)
+        async with self._grab_lock:
+            img = self.convert(await self._grab_real())
+            return img.view(ImageWithMetadata)
 
+    # Be strict, if the camera is recording an experiment might be in progress, so let's restrict
+    # this to 'standby'
+    @check(source=['standby'])
     async def stream(self):
         """
         stream()
 
         Grab frames continuously yield them. This is an async generator.
         """
+        self._streaming_finished.clear()
+        await self['trigger_source'].stash()
         await self.set_trigger_source(self.trigger_sources.AUTO)
         await self.start_recording()
 
-        while await self.get_state() == 'recording':
-            yield await self.grab()
+        try:
+            while not self._request_streaming_stop:
+                yield await self.grab()
+        finally:
+            await self._stop_real()
+            await self['trigger_source'].restore()
+            self._streaming_finished.set()
 
     async def _get_trigger_source(self):
         raise AccessorNotImplementedError
