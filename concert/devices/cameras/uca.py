@@ -170,7 +170,8 @@ class Camera(base.Camera):
     @background
     @check(source=['recording', 'readout'])
     async def grab(self, index=None):
-        return self.convert(await self._grab_real(index))
+        async with self._grab_lock:
+            return self.convert(await self._grab_real(index))
 
     async def write(self, name, data):
         """Write NumPy array *data* for *name*."""
