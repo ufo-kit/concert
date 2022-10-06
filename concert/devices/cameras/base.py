@@ -289,19 +289,21 @@ class RemoteMixin:
 
     @background
     async def grab_many(self, num):
-        try:
-            await self._grab_many_real(num)
-        except asyncio.CancelledError:
-            # Stop stream immediately and don't send poison pill, it is the responsibility of the
-            # application to cancel consumers
-            await self._cancel_streaming()
-            raise
+        async with self._grab_lock:
+            try:
+                await self._grab_many_real(num)
+            except asyncio.CancelledError:
+                # Stop stream immediately and don't send poison pill, it is the responsibility of the
+                # application to cancel consumers
+                await self._cancel_streaming()
+                raise
 
     @background
     @check(source=['recording', 'readout'])
     async def grab(self):
         """Grab a frame remotely, no conversion happens as opposed to local cameras."""
-        await self._grab_real()
+        async with self._grab_lock:
+            await self._grab_real()
 
     async def _grab_real(self):
         await self._grab_many_real(1)
