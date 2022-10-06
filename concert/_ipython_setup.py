@@ -63,8 +63,14 @@ class ConcertAsyncioRunner:
             # Transform KeyboardInterrupt into asyncio.CancelledError
             LOG.debug('KeyboardInterrupt in ConcertAsyncioRunner')
             task.cancel()
-            # Wake up the loop for cancel to take place
-            loop.run_until_complete(asyncio.sleep(0))
+            while not task.done():
+                # If the task runs some blocking code in an executor we need to wait for it to
+                # finish.  Moreover, prevent interruption by multiple ctrl-c presses by the while
+                # loop.
+                try:
+                    loop.run_until_complete(asyncio.wait([task]))
+                except KeyboardInterrupt:
+                    print('Waiting for task to finish cancellation...')
             # Do not re-raise because CancelledError will be thrown into the coroutine which should
             # either re-raise it, hence we will get it in the terminal; or swallow it silently.
             # Either way, it's up to the coroutine to deal with it.
