@@ -43,27 +43,25 @@ def run_in_loop(coroutine, error_msg_if_running=None):
         task.cancel()
 
 
-def run_in_executor(func, *args):
-    r"""Run a blocking function *func* with signature func(\*args) in an executor."""
-    # Leave this here for now, if there are problems with the normal run_in_executor returning a
-    # future then let's re-visit
-    # """Run a blocking function *func* with signature func(*args) in an executor, wrap the future
-    # into a real coroutine and return it.
-    # """
-    # async def make_coro():
-    #     loop = asyncio.get_running_loop()
-    #     future = loop.run_in_executor(None, func, *args)
-    #
-    #     try:
-    #         return await future
-    #     except asyncio.CancelledError:
-    #         # Wait for the future to finish even if we are cancelled.
-    #         LOG.log(AIODEBUG, f'{func.__name__} waiting for concurrent.Future')
-    #         return await future
-    # return make_coro()
-    loop = get_event_loop()
+async def run_in_executor(func, *args):
+    r"""Run a blocking function *func* with signature func(\*args) in an executor. If
+    run_in_executor() is cancelled, it blocks until *func* finishes so that all resources are in
+    consistent state.
+    """
+    __tracebackhide__ = True
 
-    return loop.run_in_executor(None, func, *args)
+    loop = asyncio.get_running_loop()
+    future = loop.run_in_executor(None, func, *args)
+
+    try:
+        # Shield makes sure future isn't cancelled when we are cancelled, then we can wait for it in
+        # the except block
+        return await asyncio.shield(future)
+    except asyncio.CancelledError:
+        # Wait for the future to finish even if we are cancelled.
+        LOG.log(AIODEBUG, "CancelledError in run_in_executor, cancelling `%s'", func.__name__)
+        await future
+        raise
 
 
 def start(awaitable):
