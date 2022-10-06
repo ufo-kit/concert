@@ -43,12 +43,12 @@ def _new_getter_wrapper(name, unit=None):
 
 def _translate_gerror(func):
     @functools.wraps(func)
-    def _wrapper(*args, **kwargs):
+    async def _wrapper(*args, **kwargs):
         from gi.repository import GLib
         try:
-            return func(*args, **kwargs)
+            return await func(*args, **kwargs)
         except GLib.GError as ge:
-            raise base.CameraError(str(ge))
+            raise base.CameraError(str(ge)) from ge
 
     return _wrapper
 
