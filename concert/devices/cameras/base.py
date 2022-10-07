@@ -98,9 +98,6 @@ class Camera(Device):
     async def __ainit__(self):
         await super(Camera, self).__ainit__()
         self.convert = identity
-        self._streaming_finished = asyncio.Event()
-        self._streaming_finished.set()
-        self._request_streaming_stop = False
         self._grab_lock = asyncio.Lock()
 
     @background
@@ -121,14 +118,8 @@ class Camera(Device):
 
         Stop recording frames.
         """
-        if self._streaming_finished.is_set():
+        async with self._grab_lock:
             await self._stop_real()
-        else:
-            # We are streaming, request stop and wait for it to finish, stop_recording() will be
-            # handled there
-            self._request_streaming_stop = True
-            await self._streaming_finished.wait()
-            self._request_streaming_stop = False
 
     @contextlib.asynccontextmanager
     async def recording(self):
@@ -153,8 +144,6 @@ class Camera(Device):
     @check(source='recording')
     async def trigger(self):
         """Trigger a frame if possible."""
-        if not self._streaming_finished.is_set():
-            raise CameraError('Cannot trigger while streaming')
         await self._trigger_real()
 
     @background
@@ -175,18 +164,25 @@ class Camera(Device):
 
         Grab frames continuously yield them. This is an async generator.
         """
-        self._streaming_finished.clear()
         await self['trigger_source'].stash()
         await self.set_trigger_source(self.trigger_sources.AUTO)
         await self.start_recording()
 
         try:
-            while not self._request_streaming_stop:
-                yield await self.grab()
+            while True:
+                # Make state checking and grabbing atomic so that no one can stop_recording()
+                # between the state is obtained and grab() is called.
+                async with self._grab_lock:
+                    if await self.get_state() == 'recording':
+                        image = self.convert(await self._grab_real())
+                    else:
+                        break
+                yield image
+        except asyncio.CancelledError:
+            if await self.get_state() == 'recording':
+                await self.stop_recording()
         finally:
-            await self._stop_real()
             await self['trigger_source'].restore()
-            self._streaming_finished.set()
 
     async def _get_trigger_source(self):
         raise AccessorNotImplementedError
