@@ -138,7 +138,7 @@ class TestPCOTimestampAddon(TestCase):
 
         await self.camera.set_random_timestamp_numbers(True)
         with self.assertRaises(PCOTimestampCheckError):
-                await self.exp.run()
+            await self.exp.run()
 
         self.assertTrue(self.addon.timestamp_incorrect)
 
