@@ -89,7 +89,8 @@ class FileSequenceReader:
         """Returns an open file."""
         raise NotImplementedError
 
-    def _close_real(self, filename):
+    def _close_real(self):
+        """Closes the open file."""
         raise NotImplementedError
 
     def _get_num_images_in_file_real(self):
