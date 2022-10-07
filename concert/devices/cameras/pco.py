@@ -29,19 +29,25 @@ class Camera(UcaCamera):
     @background
     async def grab(self) -> ImageWithMetadata:
         """Return a concert.storage.ImageWithMetadata (subclass of np.ndarray) with data of the
-        current frame."""
+        current frame.
+
+        If timestamps are enabled, the frame number and the time is added as 'frame_number' and
+        'timestamp' to the images metadata dictionary.
+        If the timestamp can not be extracted (and it should be there), a TimestampError will be
+        raised.
+        """
         img = await self._grab_real()
         if self._timestamp_enabled:
             try:
                 timestamp = Timestamp(img)
-                img = self.convert(img)
-                img = img.view(ImageWithMetadata)
-                img.metadata['frame_number'] = timestamp.number
-                img.metadata['timestamp'] = timestamp.time.isoformat()
-                return img
-            except TimestampError:
+            except TimestampError as e:
                 LOG.error("Can not extract timestamp from frame.")
-        return self.convert(img.view(ImageWithMetadata))
+                raise e
+            img = self.convert(img)
+            img = img.view(ImageWithMetadata)
+            img.metadata['frame_number'] = timestamp.number
+            img.metadata['timestamp'] = timestamp.time.isoformat()
+        return img
 
 
 class Timestamp:
