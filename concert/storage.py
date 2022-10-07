@@ -115,7 +115,8 @@ def write_images(pqueue, writer=TiffWriter, prefix="image_{:>05}.tif", start_ind
                     im_writer.close()
                     LOG.debug('Writer "{}" closed'.format(prefix.format(start_index
                                                                         + file_index - 1)))
-                im_writer = writer(prefix.format(start_index + file_index), bytes_per_file)
+                im_writer = writer(prefix.format(start_index + file_index), bytes_per_file,
+                                   first_frame=start_index+i)
                 file_index += 1
                 written = 0
             im_writer.write(image)
