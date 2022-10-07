@@ -60,6 +60,7 @@ frame. The callable is applied to the frame and the converted one is returned by
     # The frame is left-right flipped
     grab(camera)
 """
+import asyncio
 import contextlib
 import logging
 from concert.base import AccessorNotImplementedError, Parameter, Quantity, State, check, identity
@@ -97,6 +98,7 @@ class Camera(Device):
     async def __ainit__(self):
         await super(Camera, self).__ainit__()
         self.convert = identity
+        self._grab_lock = asyncio.Lock()
 
     @background
     @check(source='standby', target='recording')
@@ -116,7 +118,8 @@ class Camera(Device):
 
         Stop recording frames.
         """
-        await self._stop_real()
+        async with self._grab_lock:
+            await self._stop_real()
 
     @contextlib.asynccontextmanager
     async def recording(self):
@@ -138,26 +141,48 @@ class Camera(Device):
             await self.stop_recording()
 
     @background
+    @check(source='recording')
     async def trigger(self):
         """Trigger a frame if possible."""
         await self._trigger_real()
 
     @background
+    @check(source=['recording', 'readout'])
     async def grab(self):
         """Return a NumPy array with data of the current frame."""
-        return self.convert(await self._grab_real())
+        async with self._grab_lock:
+            # Make sure there are no two concurrent grabs (e.g. we are streaming in a separate task
+            # and someone calls grab() in the session
+            return self.convert(await self._grab_real())
 
+    # Be strict, if the camera is recording an experiment might be in progress, so let's restrict
+    # this to 'standby'
+    @check(source=['standby'])
     async def stream(self):
         """
         stream()
 
         Grab frames continuously yield them. This is an async generator.
         """
+        await self['trigger_source'].stash()
         await self.set_trigger_source(self.trigger_sources.AUTO)
         await self.start_recording()
 
-        while await self.get_state() == 'recording':
-            yield await self.grab()
+        try:
+            while True:
+                # Make state checking and grabbing atomic so that no one can stop_recording()
+                # between the state is obtained and grab() is called.
+                async with self._grab_lock:
+                    if await self.get_state() == 'recording':
+                        image = self.convert(await self._grab_real())
+                    else:
+                        break
+                yield image
+        except asyncio.CancelledError:
+            if await self.get_state() == 'recording':
+                await self.stop_recording()
+        finally:
+            await self['trigger_source'].restore()
 
     async def _get_trigger_source(self):
         raise AccessorNotImplementedError
@@ -184,8 +209,114 @@ class BufferedMixin(Device):
 
     state = State(default='standby')
 
-    def readout_buffer(self, *args, **kwargs):
-        return self._readout_real(*args, **kwargs)
+    @background
+    @check(source='standby', target='readout')
+    async def start_readout(self):
+        """
+        start_readout()
+
+        Start reading out frames.
+        """
+        await self._start_readout_real()
+
+    @background
+    @check(source='readout', target='standby')
+    async def stop_readout(self):
+        """
+        stop_readout()
+
+        Stop reading out frames.
+        """
+        await self._stop_readout_real()
+
+    @contextlib.asynccontextmanager
+    async def readout(self):
+        """
+        readout()
+
+        A context manager for starting and stopping the readout.
+
+        In general it is used with the ``async with`` keyword like this::
+
+            async with camera.readout():
+                frames = await camera.readout_buffer()
+        """
+        await self.start_readout()
+        try:
+            yield
+        finally:
+            LOG.log(AIODEBUG, 'stop readout in readout()')
+            await self.stop_readout()
+
+    @check(source='readout')
+    async def readout_buffer(self, *args, **kwargs):
+        async for item in self._readout_real(*args, **kwargs):
+            yield item
+
+    async def _start_readout_real(self):
+        raise AccessorNotImplementedError
+
+    async def _stop_readout_real(self):
+        raise AccessorNotImplementedError
 
     async def _readout_real(self, *args, **kwargs):
         raise AccessorNotImplementedError
+
+
+class RemoteMixin:
+
+    """
+    A remote camera which can grab more frames at once and instead of returning them to concert they
+    are processed otherwise, e.g. sent over network to some consumer.
+    """
+
+    remote = True
+
+    @background
+    @check(source='recording', target='standby')
+    async def stop_recording(self):
+        """
+        stop_recording()
+
+        Stop recording frames, this means we first stop streaming and then stop the camera.
+        """
+        await self._stop_streaming()
+        await self._stop_real()
+
+    @background
+    async def grab_many(self, num):
+        async with self._grab_lock:
+            try:
+                await self._grab_many_real(num)
+            except asyncio.CancelledError:
+                # Stop stream immediately and don't send poison pill, it is the responsibility of the
+                # application to cancel consumers
+                await self._cancel_streaming()
+                raise
+
+    @background
+    @check(source=['recording', 'readout'])
+    async def grab(self):
+        """Grab a frame remotely, no conversion happens as opposed to local cameras."""
+        async with self._grab_lock:
+            await self._grab_real()
+
+    async def _grab_real(self):
+        await self._grab_many_real(1)
+
+    async def _grab_many_real(self, num):
+        raise NotImplementedError
+
+    async def _stop_streaming(self):
+        """
+        Stop sending images. The server must send a poison pill which serves as an end-of-stream
+        indicator to a consumer. This is the normal way to end a stream.
+        """
+        raise NotImplementedError
+
+    async def _cancel_streaming(self):
+        """
+        Immediate interruption of :meth:`.grab_many`. The server must stop sending images, poison
+        pill is not sent. This is to be used in exceptions.
+        """
+        raise NotImplementedError

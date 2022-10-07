@@ -1,9 +1,10 @@
 import sys
 import concert.session.management as cs
-from concert.helpers import Command, Bunch
+from concert.session.utils import SubCommand
+from concert.helpers import Bunch
 
 
-class SpyderCommand(Command):
+class SpyderCommand(SubCommand):
     """Start session using Spyder."""
     def __init__(self):
         opts = {'session': {'type': str}}

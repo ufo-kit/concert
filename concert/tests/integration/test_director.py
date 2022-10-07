@@ -27,7 +27,7 @@ class Experiment(BaseExperiment):
     *test*.
     """
     async def __ainit__(self, walker, separate_scans):
-        acquisition = await Acquisition("test", self._frame_producer)
+        acquisition = await Acquisition("test", self._frame_producer, self._frame_producer)
         await super().__ainit__(acquisitions=[acquisition], walker=walker,
                                 separate_scans=separate_scans)
 

@@ -30,8 +30,9 @@ class TestRotationAxisMeasure(TestCase):
         await self.x_motor.set_position(z_angle)
         await self.z_motor.set_position(x_angle)
         values = np.linspace(0, 2 * np.pi, intervals) * q.rad
-        async for pair in scan(self.y_motor["position"], values, self.image_source.grab):
-            yield pair[1]
+        async with self.image_source.recording():
+            async for pair in scan(self.y_motor["position"], values, self.image_source.grab):
+                yield pair[1]
 
     async def align_check(self, x_angle, z_angle):
         images = self.make_images(x_angle, z_angle)

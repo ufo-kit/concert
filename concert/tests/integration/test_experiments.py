@@ -9,11 +9,15 @@ import tempfile
 import shutil
 from concert.quantities import q
 from concert.coroutines.base import start
-from concert.coroutines.sinks import Accumulate
-from concert.experiments.base import Acquisition, Experiment, ExperimentError
+from concert.coroutines.sinks import Accumulate, null
+from concert.experiments.base import (Acquisition, Consumer as AcquisitionConsumer, Experiment,
+                                      ExperimentError)
 from concert.experiments.imaging import (tomo_angular_step, tomo_max_speed,
                                          tomo_projections_number, frames)
-from concert.experiments.addons import Addon, Consumer, ImageWriter, Accumulator
+from concert.experiments.addons.base import Addon
+from concert.experiments.addons.local import (Accumulator as LocalAccumulator,
+                                              Consumer as LocalConsumer,
+                                              ImageWriter as LocalImageWriter)
 from concert.devices.cameras.dummy import Camera
 from concert.tests import TestCase, suppressed_logging, assert_almost_equal
 from concert.storage import DummyWalker, DirectoryWalker
@@ -31,20 +35,27 @@ class VisitChecker(object):
 
 
 class DummyAddon(Addon):
-    def __init__(self):
-        self.attached_num_times = 0
-        super(DummyAddon, self).__init__([])
 
-    def _attach(self):
-        self.attached_num_times += 1
+    remote = False
 
-    def _detach(self):
-        self.attached_num_times -= 1
+    async def __ainit__(self):
+        await super(DummyAddon, self).__ainit__()
+
+    def _make_consumers(self, acquisitions):
+        return dict((acq, AcquisitionConsumer(null)) for acq in acquisitions)
+
+    def is_attached(self, acquisitions):
+        for acq in acquisitions:
+            for consumer in self._consumers:
+                if acq.contains(consumer):
+                    return True
+
+        return False
 
 
 class ExperimentSimple(Experiment):
     async def __ainit__(self, walker):
-        acq = await Acquisition("test", self._run_test_acq)
+        acq = await Acquisition("test", np.ndarray, self._run_test_acq)
         await super(ExperimentSimple, self).__ainit__([acq], walker)
 
     async def _run_test_acq(self):
@@ -55,7 +66,7 @@ class ExperimentSimple(Experiment):
 
 class ExperimentException(Experiment):
     async def __ainit__(self, walker):
-        acq = await Acquisition("test", self._run_test_acq)
+        acq = await Acquisition("test", np.ndarray, self._run_test_acq)
         await super(ExperimentException, self).__ainit__([acq], walker)
 
     async def _run_test_acq(self):
@@ -99,8 +110,8 @@ class TestAcquisition(TestCase):
         await super().asyncSetUp()
         self.acquired = False
         self.item = None
-        self.acquisition = await Acquisition('foo', self.produce, consumers=[self.consume],
-                                             acquire=self.acquire)
+        self.acquisition = await Acquisition('foo', int, self.produce, acquire=self.acquire)
+        self.acquisition.add_consumer(AcquisitionConsumer(self.consume), False)
 
     async def test_run(self):
         await self.acquisition()
@@ -127,9 +138,9 @@ class TestExperimentBase(TestCase):
         self.walker = DummyWalker(root=self.root)
         self.name_fmt = 'scan_{:>04}'
         self.visited = 0
-        self.foo = await Acquisition("foo", self.produce, consumers=[self.consume],
-                                     acquire=self.acquire)
-        self.bar = await Acquisition("bar", self.produce, acquire=self.acquire)
+        self.foo = await Acquisition("foo", int, self.produce, acquire=self.acquire)
+        self.foo.add_consumer(AcquisitionConsumer(self.consume), False)
+        self.bar = await Acquisition("bar", int, self.produce, acquire=self.acquire)
         self.acquisitions = [self.foo, self.bar]
         self.num_produce = 2
         self.item = None
@@ -140,7 +151,7 @@ class TestExperimentBase(TestCase):
     async def produce(self):
         self.visited += 1
         for i in range(self.num_produce):
-            yield i
+            yield np.ones((1,)) * i
 
     async def consume(self, producer):
         async for item in producer:
@@ -202,51 +213,55 @@ class TestExperiment(TestExperimentBase):
 
     async def test_consumer_addon(self):
         accumulate = Accumulate()
-        Consumer([self.acquisitions[0]], accumulate)
+        consumer = await LocalConsumer(accumulate, acquisitions=[self.acquisitions[0]])
         await self.experiment.run()
         self.assertEqual(accumulate.items, list(range(self.num_produce)))
 
     async def test_image_writing(self):
-        ImageWriter(self.acquisitions, self.walker)
-        await self.experiment.run()
+        data_dir = tempfile.mkdtemp()
+        try:
+            walker = DirectoryWalker(root=data_dir, bytes_per_file=0)
+            writer = await LocalImageWriter(walker, acquisitions=self.acquisitions)
+            await self.experiment.run()
 
-        scan_name = self.name_fmt.format(0)
-        # Check if the writing coroutine has been attached
-        for i in range(self.num_produce):
-            foo = op.join(self.root, scan_name, 'foo', self.walker.dsetname, str(i))
-            bar = op.join(self.root, scan_name, 'bar', self.walker.dsetname, str(i))
+            # Check if the writing coroutine has been attached
+            for i in range(self.num_produce):
+                foo = op.join(data_dir, 'foo', walker.dsetname.format(i))
+                bar = op.join(data_dir, 'bar', walker.dsetname.format(i))
 
-            self.assertTrue(self.walker.exists(foo))
-            self.assertTrue(self.walker.exists(bar))
+                self.assertTrue(walker.exists(foo))
+                self.assertTrue(walker.exists(bar))
+        finally:
+            shutil.rmtree(data_dir)
 
     async def test_accumulation(self):
-        acc = Accumulator(self.acquisitions)
+        acc = await LocalAccumulator(self.acquisitions)
         await self.experiment.run()
 
         for acq in self.acquisitions:
-            self.assertEqual(acc.items[acq], list(range(self.num_produce)))
+            self.assertEqual(await acc.get_items(acq), list(range(self.num_produce)))
 
         # Test detach
-        acc.detach()
+        acc = await LocalAccumulator(self.acquisitions)
+        await acc.detach(self.acquisitions)
+        await self.experiment.run()
         for acq in self.acquisitions:
-            for consumer in acq.consumers:
-                self.assertFalse(isinstance(consumer, Accumulate))
-        self.assertEqual(acc.items, {})
+            self.assertEqual(await acc.get_items(acq), [])
 
-    def test_attach_num_times(self):
+    async def test_attach_num_times(self):
         """An attached addon cannot be attached the second time."""
-        addon = DummyAddon()
+        addon = await DummyAddon()
         # Does nothing because it's attached during construction
-        addon.attach()
-        self.assertEqual(1, addon.attached_num_times)
+        await addon.attach(self.acquisitions)
+        self.assertTrue(addon.is_attached(self.acquisitions))
 
         # Detach
-        addon.detach()
-        self.assertEqual(0, addon.attached_num_times)
+        await addon.detach(self.acquisitions)
+        self.assertFalse(addon.is_attached(self.acquisitions))
 
         # Second time, cannot be called
-        addon.detach()
-        self.assertEqual(0, addon.attached_num_times)
+        await addon.detach(self.acquisitions)
+        self.assertFalse(addon.is_attached(self.acquisitions))
 
 
 class TestExperimentStates(TestCase):

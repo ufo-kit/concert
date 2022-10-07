@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 from concert.tests import TestCase
 from concert.base import (transition, check, StateError, TransitionNotAllowed, State, Parameter,
                           FSMError)
@@ -67,6 +68,10 @@ class SomeDevice(Device):
     @transition(target='standby')
     async def reset(self):
         self._error = False
+
+    @check()
+    async def produce(self):
+        yield None
 
 
 class BaseDevice(Device):
@@ -210,3 +215,9 @@ class TestStateMachine(TestCase):
         dev.faulty = True
         with self.assertRaises(RuntimeError):
             await dev.start_moving()
+
+    async def test_check_coro(self):
+        self.assertTrue(inspect.iscoroutinefunction(self.device.start_moving))
+
+    async def test_check_asyncgen(self):
+        self.assertTrue(inspect.isasyncgenfunction(self.device.produce))

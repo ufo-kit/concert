@@ -24,10 +24,11 @@ except ImportError:
     print("You must install tofu to use Ufo features, see 'https://github.com/ufo-kit/tofu.git'",
           file=sys.stderr)
 
-from concert.base import Parameterizable, State, check, transition
+from concert.base import Parameterizable, Parameter, Quantity, State
 from concert.config import PERFDEBUG
 from concert.coroutines.base import background, async_generate, run_in_executor, run_in_loop, start
 from concert.imageprocessing import filter_low_frequencies
+from concert.quantities import q
 
 
 LOG = logging.getLogger(__name__)
@@ -161,31 +162,31 @@ class InjectProcess(object):
 
         await run_in_executor(_insert_real, array, node, index)
 
+    def _result_real(self, leave_index):
+        if self.output_tasks:
+            if leave_index is None:
+                indices = list(range(len(self.output_tasks)))
+            else:
+                indices = [leave_index]
+            results = []
+            for index in indices:
+                buf = self.output_tasks[index].get_output_buffer()
+                if not buf:
+                    return [None]
+                results.append(np.copy(ufo.numpy.asarray(buf)))
+                self.output_tasks[index].release_output_buffer(buf)
+
+            if leave_index is not None:
+                results = results[0]
+
+            return results
+
     @background
     async def result(self, leave_index=None):
         """Get result from *leave_index* if not None, all leaves if None. Returns a list of results
         in case *leave_index* is None or one result for the specified leave_index.
         """
-        def _result_real(leave_index=None):
-            if self.output_tasks:
-                if leave_index is None:
-                    indices = list(range(len(self.output_tasks)))
-                else:
-                    indices = [leave_index]
-                results = []
-                for index in indices:
-                    buf = self.output_tasks[index].get_output_buffer()
-                    if not buf:
-                        return [None]
-                    results.append(np.copy(ufo.numpy.asarray(buf)))
-                    self.output_tasks[index].release_output_buffer(buf)
-
-                if leave_index is not None:
-                    results = results[0]
-
-                return results
-
-        return await run_in_executor(_result_real, leave_index)
+        return await run_in_executor(self._result_real, leave_index)
 
     def stop(self):
         """Stop input tasks."""
@@ -232,26 +233,39 @@ class FlatCorrect(InjectProcess):
 
 
 class GeneralBackprojectArgs(object):
-    def __init__(self, center_position_x, center_position_z, number,
-                 overall_angle=np.pi):
+
+    """Data class holding arguments for tofu."""
+
+    parameters = {}
+
+    for section in GEN_RECO_PARAMS:
+        for arg in SECTIONS[section]:
+            settings = SECTIONS[section][arg]
+            parameters[arg.replace('-', '_')] = settings
+    parameters['y'] = SECTIONS['reading']['y']
+    parameters['height'] = SECTIONS['reading']['height']
+    parameters['width'] = SECTIONS['general']['width']
+    parameters['number'] = SECTIONS['reading']['number']
+
+    def __init__(self, **kwargs):
         self._slice_metric = None
         self._slice_metrics = ['min', 'max', 'sum', 'mean', 'var', 'std', 'skew',
                                'kurtosis', 'sag']
         self._z_parameters = SECTIONS['general-reconstruction']['z-parameter']['choices']
-        for section in GEN_RECO_PARAMS:
-            for arg in SECTIONS[section]:
-                settings = SECTIONS[section][arg]
-                default = settings['default']
-                if default is not None and 'type' in settings:
-                    default = settings['type'](default)
-                setattr(self, arg.replace('-', '_'), default)
-        self.y = 0
-        self.height = None
-        self.width = None
-        self.center_position_x = center_position_x
-        self.center_position_z = center_position_z
-        self.number = number
-        self.overall_angle = overall_angle
+        for arg, settings in self.parameters.items():
+            default = settings['default']
+            if default is not None and 'type' in settings:
+                default = settings['type'](default)
+            setattr(self, arg.replace('-', '_'), default)
+
+        if kwargs:
+            self._set_args(**kwargs)
+
+    def _set_args(self, **kwargs):
+        for arg in kwargs:
+            if not hasattr(self, arg):
+                raise AttributeError(f"GeneralBackprojectArgs do not have attribute `{arg}'")
+            setattr(self, arg, kwargs[arg])
 
     @property
     def z_parameters(self):
@@ -280,6 +294,150 @@ class GeneralBackprojectArgs(object):
         if name not in self.z_parameters:
             raise GeneralBackprojectArgsError("Unknown z parameter '{}'".format(name))
         self._z_parameter = name
+
+
+class QuantifiedProxyArgs(Parameterizable):
+
+    """Data class holding arguments for tofu with units."""
+
+    UNITS = {
+        'source_position_y': q.px,
+        'detector_position_y': q.px,
+        'center_position_x': q.px,
+        'center_position_z': q.px,
+        'axis_angle_x': q.rad,
+        'energy': q.keV,
+        'propagation_distance': q.m,
+        'pixel_size': q.m,
+        'retrieval_padded_width': q.px,
+        'retrieval_padded_height': q.px,
+        'projection_margin': q.px,
+        'x_region': q.px,
+        'y_region': q.px,
+        'z': q.px,
+        'source_position_x': q.px,
+        'source_position_z': q.px,
+        'detector_position_x': q.px,
+        'detector_position_z': q.px,
+        'detector_angle_x': q.rad,
+        'detector_angle_y': q.rad,
+        'detector_angle_z': q.rad,
+        'axis_angle_y': q.rad,
+        'axis_angle_z': q.rad,
+        'volume_angle_x': q.rad,
+        'volume_angle_y': q.rad,
+        'volume_angle_z': q.rad,
+        'overall_angle': q.rad,
+        'y': q.px,
+        'height': q.px,
+        'width': q.px,
+    }
+
+    async def __ainit__(self, proxy, **kwargs):
+        # We keep a unitless version of the args to store the actual values
+        self._proxy = proxy
+        await super().__ainit__()
+
+        params = {}
+
+        for arg, settings in GeneralBackprojectArgs.parameters.items():
+
+            if arg in self.UNITS:
+                unit = self.UNITS[arg]
+                params[arg] = Quantity(
+                    unit,
+                    fget=self._make_getter(arg, unit=unit),
+                    fset=self._make_setter(arg, unit=unit),
+                    help=settings['help']
+                )
+            else:
+                params[arg] = Parameter(
+                    fget=self._make_getter(arg),
+                    fset=self._make_setter(arg),
+                    help=settings['help']
+                )
+
+        self.install_parameters(params)
+        await self._set_args(**kwargs)
+
+    def _make_getter(self, arg, unit=None):
+        async def getter(instance):
+            value = await self._proxy.get_reco_arg(arg)
+            if value is not None and unit is not None:
+                value *= unit
+
+            return value
+
+        return getter
+
+    def _make_setter(self, arg, unit=None):
+        async def setter(instance, value):
+            if unit is not None:
+                value = value.to(unit).magnitude
+                if isinstance(value, np.ndarray):
+                    value = value.tolist()
+
+            await self._proxy.set_reco_arg(arg, value)
+
+        return setter
+
+    async def _set_args(self, **kwargs):
+        for arg in kwargs:
+            if arg not in self._params:
+                raise AttributeError(
+                    f"QuantifiedGeneralBackprojectArgs do not have attribute `{arg}'"
+                )
+            await self._params[arg].set(kwargs[arg])
+
+    @property
+    def z_parameters(self):
+        return self._proxy.z_parameters
+
+    @property
+    def slice_metrics(self):
+        return self._proxy.slice_metrics
+
+    @property
+    def slice_metric(self):
+        return self._proxy.slice_metric
+
+    @slice_metric.setter
+    def slice_metric(self, metric):
+        self._proxy.slice_metric = metric
+
+    @property
+    def z_parameter(self):
+        return self._proxy.z_parameter
+
+    @z_parameter.setter
+    def z_parameter(self, name):
+        self._proxy.z_parameter = name
+
+
+class LocalGeneralBackprojectArgs(GeneralBackprojectArgs):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    async def set_reco_arg(self, arg, value):
+        if not hasattr(self, arg):
+            raise AttributeError(f"LocalGeneralBackprojectArgs do not have attribute `{arg}'")
+        setattr(self, arg, value)
+
+    async def get_reco_arg(self, arg):
+        return getattr(self, arg)
+
+
+class QuantifiedArgs(QuantifiedProxyArgs):
+    async def __ainit__(self, **kwargs):
+        # We can't pass kwargs on because they have units, we need to set them via the proxy class
+        # in _set_args below
+        await super().__ainit__(LocalGeneralBackprojectArgs())
+        await self._set_args(**kwargs)
+
+    @property
+    def tofu_args(self):
+        # Convenience for GeneralBackprojectManager
+        return self._proxy
 
 
 class GeneralBackproject(InjectProcess):
@@ -385,6 +543,8 @@ class GeneralBackproject(InjectProcess):
             self.ufo_buffers[self.ffc] = [None]
             self.graph.connect_nodes_full(self.input_tasks[self.ffc][0], self.ffc, 0)
 
+        self._generating = False
+
     async def _average(self, producer, node):
         what = 'darks' if node == self.dark_avg else 'flats'
         LOG.log(PERFDEBUG, 'Starting %s averaging', what)
@@ -407,12 +567,22 @@ class GeneralBackproject(InjectProcess):
         await self._average(producer, self.flat_avg)
         self._flats_averaged = True
 
+    def abort(self):
+        LOG.debug("Aborting GeneralBackproject's scheduler")
+        self.stop()
+        self.sched.abort()
+        if self._generating:
+            while self._result_real(None)[0] is not None:
+                pass
+        LOG.debug("GeneralBackproject's scheduler aborted")
+
     async def __call__(self, producer):
         async def consume_volume():
             if not self._started:
                 yield None
                 return
             self.stop()
+            self._generating = True
             st = time.perf_counter()
             for k in np.arange(*self.args.region):
                 result = (await self.result())[0]
@@ -420,43 +590,42 @@ class GeneralBackproject(InjectProcess):
                     LOG.warning('Not all slices received (last: %g)', k)
                     break
                 yield result
+            self._generating = False
             LOG.log(PERFDEBUG, 'Volume downloaded in: %.2f s', time.perf_counter() - st)
             self.wait()
             self._darks_averaged = False
             self._flats_averaged = False
 
+        self._generating = False
         i = 0
-        try:
-            async for projection in producer:
-                if i == 0:
-                    st = time.perf_counter()
-                    if not self._started:
-                        self.start()
-                    if self.do_normalization:
-                        if not (self._darks_averaged and self._flats_averaged):
-                            raise GeneralBackprojectError('Darks and flats not processed yet')
-                        # Tell averagers to generate instead of consuming from now on
-                        self.input_tasks[self.dark_avg][0].stop()
-                        self.input_tasks[self.flat_avg][0].stop()
-                i += 1
+        async for projection in producer:
+            if i == 0:
+                st = time.perf_counter()
+                if not self._started:
+                    self.start()
+                if self.do_normalization:
+                    if not (self._darks_averaged and self._flats_averaged):
+                        raise GeneralBackprojectError('Darks and flats not processed yet')
+                    # Tell averagers to generate instead of consuming from now on
+                    self.input_tasks[self.dark_avg][0].stop()
+                    self.input_tasks[self.flat_avg][0].stop()
+            i += 1
 
-                projection = projection[self.args.y:self.args.y + self.args.height]
-                if projection.dtype != np.float32:
-                    projection = projection.astype(np.float32)
-                # If ffc is None, node=None and that's OK because there is only one input which the
-                # parent can deal with. Projection port of ffc task is zero, so no need for special
-                # handling.
-                await self.insert(projection, node=self.ffc, index=0)
+            projection = projection[self.args.y:self.args.y + self.args.height]
+            if projection.dtype != np.float32:
+                projection = projection.astype(np.float32)
+            # If ffc is None, node=None and that's OK because there is only one input which the
+            # parent can deal with. Projection port of ffc task is zero, so no need for special
+            # handling.
+            await self.insert(projection, node=self.ffc, index=0)
 
-                if i == self.args.number:
-                    LOG.log(PERFDEBUG, 'Backprojected %d projections, duration: %.2f s', i,
-                            time.perf_counter() - st)
-                    async for item in consume_volume():
-                        yield item
-        except asyncio.CancelledError:
-            # Stop scheduler to free up memory
-            self.wait()
-            raise
+            if i == self.args.number:
+                LOG.log(PERFDEBUG, 'Backprojected %d projections, duration: %.2f s', i,
+                        time.perf_counter() - st)
+                j = 0
+                async for item in consume_volume():
+                    yield item
+                    j += 1
 
 
 class GeneralBackprojectManager(Parameterizable):
@@ -559,13 +728,19 @@ class GeneralBackprojectManager(Parameterizable):
                 await self._producer_condition.wait_for(lambda: self._num_received_projections > i)
             yield self.projections[i]
             self._num_processed_projections = i + 1
+        LOG.debug(
+            "Last projection %d dispatched to backprojectors",
+            self._num_processed_projections
+        )
 
     async def _consume(self, offset, producer):
         """Consume slices from individual backprojectors."""
+        LOG.debug("Consuming slices at offset %d", offset)
         i = 0
         async for item in producer:
             self.volume[offset + i] = item
             i += 1
+        LOG.debug("Consuming slices at offset %d finished", offset)
 
     def find_parameters(self, parameters, projections=None, metrics=('sag',), regions=None,
                         iterations=1, fwhm=0, minimize=(True,), z=None, method='powell',
@@ -691,6 +866,8 @@ class GeneralBackprojectManager(Parameterizable):
             self._num_received_projections += 1
             async with self._producer_condition:
                 self._producer_condition.notify_all()
+            if self._num_received_projections == self.args.number:
+                LOG.debug("Last projection %d came", self._num_received_projections)
 
     async def _copy_projections(self, producer):
         async for projection in producer:
@@ -735,14 +912,35 @@ class GeneralBackprojectManager(Parameterizable):
                                                                   self._flats_condition)
                 await asyncio.gather(bp.average_darks(darks_generator),
                                      bp.average_flats(flats_generator))
-            await self._consume(offset, bp(self._produce()))
+
+            def consume_cb(task):
+                LOG.debug("consume task finished: %s", task)
+                if task.cancelled() or task.exception():
+                    bp.abort()
+
+                # Help garbage collection which would otherwise leave the graph and tasks hanging
+                # around for too long blocking GPU memory
+                del bp.graph
+
+            # We need to take care of aborting here because if there is a KeyboardInterrupt in
+            # _consume during a blocking (non-asyncio call), it will never be thrown into the back
+            # projector, hence there is no way of checking inside it whether the processing stopped
+            # or was aborted. Thus, we attach a callback here and if we get a CancelledError or a
+            # KeyboardInterrupt, we detect it and abort the back projector and free up resources.
+            consume_task = start(self._consume(offset, bp(self._produce())))
+            consume_task.add_done_callback(consume_cb)
+            await consume_task
 
         LOG.debug('Reconstructing %d batches: %s', len(self._regions), self._regions)
-        for batch_index in range(len(self._regions)):
-            coros = []
-            for region_index in range(len(self._regions[batch_index])):
-                coros.append(start_one(batch_index, region_index))
-            await asyncio.gather(*coros)
+        try:
+            self._state_value = 'running'
+            for batch_index in range(len(self._regions)):
+                coros = []
+                for region_index in range(len(self._regions[batch_index])):
+                    coros.append(start_one(batch_index, region_index))
+                await asyncio.gather(*coros)
+        finally:
+            self._state_value = 'standby'
 
         # Process results
         duration = time.perf_counter() - st
@@ -815,8 +1013,6 @@ class GeneralBackprojectManager(Parameterizable):
         self._num_received_projections = self._num_processed_projections = 0
 
     @background
-    @check(source='standby', target='*')
-    @transition(immediate='running', target='standby')
     async def update_darks(self, producer):
         """Get new darks from *producer*. Immediately start the reconstruction so that averaging
         starts.
@@ -824,8 +1020,6 @@ class GeneralBackprojectManager(Parameterizable):
         await self._copy_normalization(producer, self.darks, self._darks_condition)
 
     @background
-    @check(source='standby', target='*')
-    @transition(immediate='running', target='standby')
     async def update_flats(self, producer):
         """Get new flats from *producer*. Immediately start the reconstruction so that averaging
         starts.
@@ -833,10 +1027,8 @@ class GeneralBackprojectManager(Parameterizable):
         await self._copy_normalization(producer, self.flats, self._flats_condition)
 
     @background
-    @check(source='standby', target='*')
     async def backproject(self, producer):
         """Backproject projections from *producer*."""
-        self._state_value = 'running'
         self._num_received_projections = self._num_processed_projections = 0
 
         try:
@@ -846,8 +1038,10 @@ class GeneralBackprojectManager(Parameterizable):
                 if not self.args.width:
                     (self.args.height, self.args.width) = projection.shape
                 elif (self.args.height, self.args.width) != projection.shape:
-                    raise GeneralBackprojectManagerError('Projections have different '
-                                                         'shape from normalization images')
+                    raise GeneralBackprojectManagerError(
+                        f'Projections have different shape ({projection.shape}) '
+                        'shape from normalization images'
+                    )
                 in_shape = (self.args.number,) + projection.shape
                 if (self.projections is None or in_shape != self.projections.shape
                         or projection.dtype != self.projections.dtype):
@@ -863,9 +1057,9 @@ class GeneralBackprojectManager(Parameterizable):
         except asyncio.CancelledError:
             if self._processing_task and not self._processing_task.cancelled():
                 self._processing_task.cancel()
+            raise
         finally:
             self._processing_task = None
-            self._state_value = 'standby'
 
 
 class InjectProcessError(Exception):

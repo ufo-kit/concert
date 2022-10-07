@@ -1,9 +1,0 @@
-ipython
-matplotlib
-numpy
-pint>=0.12
-prettytable
-pyqtgraph
-pyxdg
-scipy
-tifffile
