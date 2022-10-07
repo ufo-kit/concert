@@ -304,7 +304,7 @@ class Experiment(Parameterizable):
         except Exception as e:
             # Something bad happened, and we can't know what, so set the state to error
             LOG.warning(f"Error `{e}' while running experiment")
-            raise StateError('error', msg=str(e))
+            raise e
         finally:
             try:
                 await self.finish()
