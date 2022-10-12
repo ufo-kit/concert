@@ -16,6 +16,7 @@ class ImageWriter(object):
                                                                      0] + ".json"
             self._metadata_file = open(self._metadata_file_name, 'a')
             self._metadata_file.write("{\n")
+            self._first_entry = True
 
     def write(self, image):
         self._write_real(image)
@@ -29,7 +30,11 @@ class ImageWriter(object):
         if self._metadata_file:
             metadata = {} if not isinstance(image, ImageWithMetadata) else image.metadata
             metadata_json = json.dumps(metadata)
-            self._metadata_file.write(f"'{self._frame_number}': {metadata_json},\n")
+            if not self._first_entry:
+                self._metadata_file.write(",\n")
+            else:
+                self._first_entry = False
+            self._metadata_file.write(f'"{self._frame_number}": {metadata_json}')
 
     def close(self):
         self._writer.close()
