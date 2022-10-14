@@ -64,9 +64,9 @@ class TiffWriter(ImageWriter):
 
 
 class LibTiffWriter(ImageWriter):
-    def __init__(self, filename, bytes_per_file, append=False):
+    def __init__(self, filename, bytes_per_file, append=False, first_frame=0):
         super().__init__(filename=filename, bytes_per_file=bytes_per_file, append=append,
-                         metadata_file=True)
+                         metadata_file=True, first_frame=first_frame)
         from libtiff import TIFF
         mode = 'a' if append else 'w'
         if bytes_per_file >= 2 ** 31:
