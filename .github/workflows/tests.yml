@@ -31,7 +31,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install flake8 pytest coverage
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        pip install scikit-image
+        pip install scikit-image libtiff
     - name: Test with pytest
       run: |
         coverage run --source=concert -m pytest -m "not skip_ci"
