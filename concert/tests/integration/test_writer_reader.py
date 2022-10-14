@@ -26,9 +26,11 @@ def generate_frames(number=10, dimensions=(10, 10)) -> [ImageWithMetadata]:
 class TestReaderWriter(TestCase):
     async def asyncSetUp(self) -> None:
         self._data_dir = tempfile.mkdtemp()
+        print(self._data_dir)
         self.data = generate_frames(20)
 
     def tearDown(self) -> None:
+        return
         shutil.rmtree(self._data_dir)
 
     async def run_test(self, writer, reader):
@@ -45,7 +47,7 @@ class TestReaderWriter(TestCase):
         run_file_name = "tiffiele"
         folder = os.path.join(self._data_dir, run_file_name)
         os.mkdir(folder)
-        walker = DirectoryWalker(root=folder, writer=TiffWriter, dsetname="frame_{:>06}.tif")
+        walker = DirectoryWalker(root=folder, writer=LibTiffWriter, dsetname="frame_{:>06}.tif")
 
         await walker.write(async_generate(self.data))
         reader = TiffSequenceReader(os.path.join(folder))
