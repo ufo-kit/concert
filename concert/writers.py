@@ -3,10 +3,13 @@ import json
 
 from concert.helpers import ImageWithMetadata
 import os
+from concert import config
 
 
-class ImageWriter(object):
+class ImageWriter:
     def __init__(self, filename, bytes_per_file, first_frame=0, append=False, metadata_file=True):
+        if config.ALWAYS_WRITE_JSON_METADATA_FILE:
+            metadata_file = True
         self._writer = None
         self._frame_number = first_frame
         self._metadata_file = None
