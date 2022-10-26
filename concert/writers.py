@@ -61,17 +61,3 @@ class TiffWriter(ImageWriter):
         else:
             metadata = {} if not isinstance(image, ImageWithMetadata) else image.metadata
         self._writer.write(image, metadata=metadata)
-
-
-class LibTiffWriter(ImageWriter):
-    def __init__(self, filename, bytes_per_file, append=False, first_frame=0):
-        super().__init__(filename=filename, bytes_per_file=bytes_per_file, append=append,
-                         metadata_file=True, first_frame=first_frame)
-        from libtiff import TIFF
-        mode = 'a' if append else 'w'
-        if bytes_per_file >= 2 ** 31:
-            mode += '8'
-        self._writer = TIFF.open(filename, mode)
-
-    def _write_real(self, image):
-        self._writer.write_image(image)
