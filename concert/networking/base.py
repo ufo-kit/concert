@@ -1,6 +1,5 @@
 """Connection protocols for network communication."""
 import asyncio
-import os
 import logging
 from concert.quantities import q
 from concert.config import AIODEBUG
@@ -92,7 +91,7 @@ def get_tango_device(uri, peer=None, timeout=10 * q.s):
     import tango
 
     if peer is not None:
-        os.environ["TANGO_HOST"] = peer
+        uri = f"{peer}/{uri}"
 
     executor = None
     if IPython.version_info >= (8, 0):
