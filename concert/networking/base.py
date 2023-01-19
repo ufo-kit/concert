@@ -1,6 +1,5 @@
 """Connection protocols for network communication."""
 import asyncio
-import os
 import logging
 from concert.quantities import q
 from concert.config import AIODEBUG
@@ -89,19 +88,19 @@ def get_tango_device(uri, peer=None, timeout=10 * q.s):
     device's `set_timout_millis` is called with the converted integer value.
     """
     import IPython
-    import PyTango
+    import tango
 
     if peer is not None:
-        os.environ["TANGO_HOST"] = peer
+        uri = f"{peer}/{uri}"
 
     executor = None
     if IPython.version_info >= (8, 0):
         from IPython.core.async_helpers import get_asyncio_loop
         ipython_loop = get_asyncio_loop()
-        executor = PyTango.asyncio_executor.AsyncioExecutor(loop=ipython_loop)
+        executor = tango.asyncio_executor.AsyncioExecutor(loop=ipython_loop)
 
-    device = PyTango.DeviceProxy(
-        uri, green_mode=PyTango.GreenMode.Asyncio, asyncio_executor=executor
+    device = tango.DeviceProxy(
+        uri, green_mode=tango.GreenMode.Asyncio, asyncio_executor=executor
     )
     device.set_timeout_millis(int(timeout.to(q.ms).magnitude))
 
