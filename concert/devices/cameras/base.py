@@ -66,7 +66,7 @@ from concert.base import AccessorNotImplementedError, Parameter, Quantity, State
 from concert.config import AIODEBUG
 from concert.coroutines.base import background
 from concert.quantities import q
-from concert.helpers import Bunch
+from concert.helpers import Bunch, ImageWithMetadata
 from concert.devices.base import Device
 
 
@@ -143,9 +143,11 @@ class Camera(Device):
         await self._trigger_real()
 
     @background
-    async def grab(self):
-        """Return a NumPy array with data of the current frame."""
-        return self.convert(await self._grab_real())
+    async def grab(self) -> ImageWithMetadata:
+        """Return a concert.storage.ImageWithMetadata (subclass of np.ndarray) with data of the
+        current frame."""
+        img = self.convert(await self._grab_real())
+        return img.view(ImageWithMetadata)
 
     async def stream(self):
         """

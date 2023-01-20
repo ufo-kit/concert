@@ -243,6 +243,15 @@ class Experiment(Parameterizable):
                 return acq
         raise ExperimentError("Acquisition with name `{}' not found".format(name))
 
+    async def get_running_acquisition(self):
+        """
+        Get the currently running acquisition.
+        """
+        for acq in self._acquisitions:
+            if await acq.get_state() == "running":
+                return acq
+        return None
+
     async def acquire(self):
         """
         Acquire data by running the acquisitions. This is the method which implements
@@ -295,7 +304,7 @@ class Experiment(Parameterizable):
         except Exception as e:
             # Something bad happened, and we can't know what, so set the state to error
             LOG.warning(f"Error `{e}' while running experiment")
-            raise StateError('error', msg=str(e))
+            raise e
         finally:
             try:
                 await self.finish()

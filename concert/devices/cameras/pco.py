@@ -1,112 +1,53 @@
 """PCO cameras implementation."""
 
-import asyncio
-import time
 from datetime import datetime
 import numpy as np
+import logging
+
 from concert.coroutines.base import background
-from concert.devices.cameras import base
-from concert.devices.cameras.uca import Camera
-from concert.quantities import q
+
+from concert.devices.cameras.uca import Camera as UcaCamera
+from concert.helpers import ImageWithMetadata
+
+LOG = logging.getLogger(__name__)
 
 
-class Pco(Camera):
+class Camera(UcaCamera):
+    async def __ainit__(self, name="pco", params=None):
+        self._timestamp_enabled = False
+        await super().__ainit__(name=name, params=params)
 
-    """Pco camera implemented by libuca."""
+    async def _record_real(self):
+        self._timestamp_enabled = await self.get_timestamp() in ['both', 'binary']
+        await super()._record_real()
 
-    async def __ainit__(self):
-        await super().__ainit__('pco')
+    @background
+    async def start_readout(self):
+        self._timestamp_enabled = await self.get_timestamp() in ['both', 'binary']
+        await super().start_readout()
 
-    async def stream(self):
+    @background
+    async def grab(self) -> ImageWithMetadata:
+        """Return a concert.storage.ImageWithMetadata (subclass of np.ndarray) with data of the
+        current frame.
+
+        If timestamps are enabled, the frame number and the time is added as 'frame_number' and
+        'timestamp' to the images metadata dictionary.
+        If the timestamp can not be extracted (and it should be there), a TimestampError will be
+        raised.
         """
-        stream()
-
-        Grab frames continuously yield them. This is an async generator.
-        """
-        try:
-            await self.set_acquire_mode(self.uca.enum_values.acquire_mode.AUTO)
-            await self.set_storage_mode(self.uca.enum_values.storage_mode.RECORDER)
-            await self.set_record_mode(self.uca.enum_values.record_mode.RING_BUFFER)
-        except Exception:
-            pass
-
-        async for image in super().stream():
-            yield image
-
-
-class PCO4000(Pco):
-
-    """PCO.4000 camera implementation."""
-
-    _ALLOWED_DURING_RECORDING = ['trigger', '_trigger_real', '_last_grab_time',
-                                 'grab', '_grab_real', '_record_shape', '_record_dtype',
-                                 'uca', 'stop_recording', 'convert', 'state', '_get_state',
-                                 '_state_value']
-
-    async def __ainit__(self):
-        self._lock_access = False
-        self._last_grab_time = None
-        await super().__ainit__()
-
-    @background
-    async def start_recording(self):
-        super().start_recording()
-        self._lock_access = True
-
-    @background
-    async def stop_recording(self):
-        self._lock_access = False
-        super().stop_recording()
-
-    async def _grab_real(self, index=None):
-        # For the PCO.4000 there must be a delay of at least 1.2 second
-        # between consecutive grabs, otherwise it crashes. We provide
-        # appropriate timeout here.
-        current = time.time()
-        if self._last_grab_time and current - self._last_grab_time < 1.2:
-            await asyncio.sleep(1.2 - current + self._last_grab_time)
-        result = await super()._grab_real(index=index)
-        self._last_grab_time = time.time()
-
-        return result
-
-    def __getattribute__(self, name):
-        if object.__getattribute__(self, '_lock_access') and name \
-           not in PCO4000._ALLOWED_DURING_RECORDING:
-            raise AttributeError("{} cannot be accessed during recording".format(name))
-        return object.__getattribute__(self, name)
-
-
-class Dimax(Pco, base.BufferedMixin):
-
-    """A pco.dimax camera implementation."""
-
-    @background
-    async def start_recording(self):
-        await super().start_recording()
-        # By low frame rates the camera returns status that it is already recording, whereas it is
-        # not. Waiting 1 frame time seems to help.
-        time.sleep((1 / self.frame_rate).to(q.s).magnitude)
-
-    async def _readout_real(self, num_frames=None):
-        """Readout *num_frames* frames."""
-        recorded_frames = await self.get_recorded_frames()
-
-        if num_frames is None:
-            num_frames = recorded_frames.magnitude
-
-        if not 0 < num_frames <= recorded_frames:
-            raise base.CameraError("Number of frames {} ".format(num_frames)
-                                   + "must be more than zero and less than the recorded "
-                                   + "number of frames {}".format(recorded_frames))
-
-        try:
-            self.uca.start_readout()
-
-            for i in range(num_frames):
-                yield await self.grab()
-        finally:
-            self.uca.stop_readout()
+        img = await self._grab_real()
+        if self._timestamp_enabled:
+            try:
+                timestamp = Timestamp(img)
+            except TimestampError as e:
+                LOG.error("Can not extract timestamp from frame.")
+                raise e
+            img = self.convert(img)
+            img = img.view(ImageWithMetadata)
+            img.metadata['frame_number'] = timestamp.number
+            img.metadata['timestamp'] = timestamp.time.isoformat()
+        return img
 
 
 class Timestamp:

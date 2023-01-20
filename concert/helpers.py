@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import time
 import inspect
@@ -13,7 +15,6 @@ LOG = logging.getLogger(__name__)
 
 
 class Bunch(object):
-
     """Encapsulate a list or dictionary to provide attribute-like access.
 
     Common use cases look like this::
@@ -86,6 +87,7 @@ def measure(func=None, return_result=False):
             else:
                 print("`{}' took {}s".format(func.__name__, elapsed))
                 return result
+
         return wrapper
     else:
         return functools.partial(measure, return_result=return_result)
@@ -174,7 +176,6 @@ class _Structure(object):
 
 
 class expects(object):
-
     """
     Decorator which determines expected arguments for the function
     and also check correctness of given arguments. If input arguments differ from
@@ -221,7 +222,6 @@ class Numeric(object):
 
 @dataclass(order=True)
 class PrioItem:
-
     """To be used in combination with `queue.PriorityQueue`."""
 
     priority: int
@@ -306,3 +306,21 @@ async def get_state_from_awaitable(awaitable) -> str:
             return 'error'
         else:
             return 'standby'
+
+
+class ImageWithMetadata(np.ndarray):
+    """
+    Subclass of numpy.ndarray with a metadata dictionary to hold images its metadata.
+    """
+    def __new__(cls, input_array, metadata: dict | None = None):
+        obj = np.asarray(input_array).view(cls)
+        if metadata is None:
+            metadata = {}
+        obj.metadata = metadata
+        return obj
+
+    def __array_finalize__(self, obj):
+        # see InfoArray.__array_finalize__ for comments
+        if obj is None:
+            return
+        self.metadata = getattr(obj, 'metadata', {})

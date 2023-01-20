@@ -1,7 +1,10 @@
 """Image readers for convenient work with multi-page image sequences."""
+import ast
 import glob
+import json
 import os
 from concert.coroutines.base import run_in_executor
+from concert.helpers import ImageWithMetadata
 
 
 class FileSequenceReader:
@@ -89,7 +92,8 @@ class FileSequenceReader:
         """Returns an open file."""
         raise NotImplementedError
 
-    def _close_real(self, filename):
+    def _close_real(self):
+        """Closes the open file."""
         raise NotImplementedError
 
     def _get_num_images_in_file_real(self):
@@ -101,9 +105,14 @@ class FileSequenceReader:
 
 class TiffSequenceReader(FileSequenceReader):
     def __init__(self, file_prefix, ext='.tif'):
+        self._metadata_file = None
         super(TiffSequenceReader, self).__init__(file_prefix, ext=ext)
 
     def _open_real(self, filename):
+        metadata_file_name = os.path.splitext(filename)[0] + ".json"
+        if os.path.exists(metadata_file_name):
+            with open(metadata_file_name, 'r') as f:
+                self._json_metadata = json.load(f)
         import tifffile
         return tifffile.TiffFile(filename)
 
@@ -114,7 +123,18 @@ class TiffSequenceReader(FileSequenceReader):
         return len(self._file.pages)
 
     def _read_real(self, index):
-        return self._file.pages[index].asarray()
+        image = self._file.pages[index].asarray().view(ImageWithMetadata)
+        if self._metadata_file:
+            image.metadata = self._json_metadata[str(index)]
+        else:
+            try:
+                image.metadata = ast.literal_eval(self._file.pages[index].description)
+            except SyntaxError:
+                # No metadata in file
+                pass
+            except Exception as e:
+                raise e
+        return image
 
 
 class SequenceReaderError(Exception):

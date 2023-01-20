@@ -4,6 +4,8 @@ the acquired data, e.g. write images to disk, do tomographic reconstruction etc.
 import os
 import logging
 import numpy as np
+from concert.helpers import ImageWithMetadata
+
 from concert.base import AsyncObject
 from concert.coroutines.base import async_generate
 from concert.coroutines.sinks import Accumulate
@@ -362,6 +364,51 @@ class PhaseGratingSteppingFourierProcessing(Addon):
         im_writer.write(image)
 
 
+class PCOTimestampCheck(Addon):
+    def __init__(self, experiment):
+        self._timestamp_checks = {}
+        self._experiment = experiment
+        self.timestamp_incorrect = False
+        self.timestamp_missing = False
+        super().__init__(experiment.acquisitions)
+
+    def _attach(self):
+        """Attach all acquisitions."""
+        for acq in self.acquisitions:
+            self._timestamp_checks[acq] = self._check_timestamp
+            acq.consumers.append(self._timestamp_checks[acq])
+
+    def _detach(self):
+        """Detach all acquisitions."""
+        for acq in self.acquisitions:
+            acq.consumers.remove(self._timestamp_checks)
+
+    async def _check_timestamp(self, producer):
+        self.timestamp_incorrect = False
+        self.timestamp_missing = False
+        i = 0
+        last_acquisition = await self._experiment.acquisitions[-1].get_state() == "running"
+        async for img in producer:
+            if i == 0:
+                if not isinstance(img, ImageWithMetadata) or (
+                        isinstance(img, ImageWithMetadata) and 'frame_number' not in img.metadata):
+                    self._experiment.log.error("No 'frame_number' present in image."
+                                               "camera.timestamp needs to be set to 'both' or"
+                                               "'binary' to use this addon."
+                                               "Works only with pco cameras.")
+                    self.timestamp_missing = True
+                    return
+            if img.metadata['frame_number'] != i + 1:
+                self._experiment.log.error(
+                    f"Frame {i + 1} had wrong frame number {img.metadata['frame_number']}.")
+                self.timestamp_incorrect = True
+            i += 1
+        if last_acquisition and self.timestamp_incorrect:
+            raise PCOTimestampCheckError("Not all 'frame_numbers' where correct.")
+        if last_acquisition and self.timestamp_missing:
+            raise PCOTimestampCheckError("Not all images contained timestamps.")
+
+
 class AddonError(Exception):
     """Addon errors."""
 
@@ -369,4 +416,8 @@ class AddonError(Exception):
 
 
 class OnlineReconstructionError(Exception):
+    pass
+
+
+class PCOTimestampCheckError(Exception):
     pass
