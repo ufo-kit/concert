@@ -34,9 +34,8 @@ class Camera(DummyCamera):
 
     async def grab(self) -> ImageWithMetadata:
         img = await super().grab()
-        img.metadata['index_int'] = np.int(self._frame_iterator)
-        img.metadata['index_float'] = np.float(self._frame_iterator)
-        img.metadata['index_double'] = np.double(self._frame_iterator)
+        img.metadata['index_int'] = int(self._frame_iterator)
+        img.metadata['index_float'] = float(self._frame_iterator)
         img.metadata['index_string'] = str(self._frame_iterator)
         self._frame_iterator += 1
         return img
@@ -71,15 +70,12 @@ class TestMetadataExperiment(TestCase):
         """
         self.walker.descend("metadata")
         await self.exp.run()
-        print(self.walker.current)
         radio_images = tifffile.TiffReader(
             os.path.join(self.walker.current, "radios", "frame_000000.tif"))
         for i in range(await self.exp.get_num_projections()):
             self.assertEqual(ast.literal_eval(radio_images.pages[i].description)['index_int'],
-                             np.int(i))
+                             int(i))
             self.assertEqual(ast.literal_eval(radio_images.pages[i].description)['index_float'],
-                             np.float(i))
-            self.assertEqual(ast.literal_eval(radio_images.pages[i].description)['index_double'],
-                             np.double(i))
+                             float(i))
             self.assertEqual(ast.literal_eval(radio_images.pages[i].description)['index_string'],
                              str(i))
