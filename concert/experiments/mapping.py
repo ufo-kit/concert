@@ -1,3 +1,5 @@
+import os.path
+
 from concert.experiments.base import Experiment as BaseExperiment, Acquisition, _runnable_state
 from concert.quantities import q
 from concert.base import Parameter, Quantity, check, Parameterizable
@@ -10,13 +12,14 @@ class Mapping(BaseExperiment):
     num_darks = Parameter(check=check(source=_runnable_state))
 
     async def __ainit__(self, walker, camera, separate_scans=False):
-        darks_acquisition = Acquisition('darks', self._take_darks)
-        mapping_acquisition = Acquisition('mapping', self._take_mapping)
+        darks_acquisition = await Acquisition('darks', self._take_darks)
+        mapping_acquisition = await Acquisition('mapping', self._take_mapping)
         self._camera = camera
         self._num_darks = None
         await super().__ainit__(acquisitions=[darks_acquisition, mapping_acquisition],
                                 walker=walker,
                                 separate_scans=separate_scans)
+        await self.set_num_darks(10)
 
     async def _set_num_darks(self, n: int):
         self._num_darks = int(n)
@@ -25,7 +28,17 @@ class Mapping(BaseExperiment):
         return self._num_darks
 
     async def sample_positions(self) -> [(q.Quantity, q.Quantity)]:
-        pass
+        raise NotImplementedError
+
+    async def write_positions(self, path=None):
+        if path is None:
+            path = self.walker.current
+        positions = await self.sample_positions()
+        position_dict = {}
+        for i, (x, y) in enumerate(positions):
+            position_dict[f"position_{i}"] = {'x': x, 'y': y}
+        with open(os.path.join(path, "positions.json"), "w") as f:
+            json.dump(position_dict, f)
 
     async def position_sample(self, position_x, position_y):
         raise NotImplementedError
@@ -109,7 +122,7 @@ class MappingPositionMixin(Parameterizable):
         self._field_of_view_y = None
         self._overlap = None
 
-        await super().__ainit__()
+        await Parameterizable.__ainit__(self)
         await self.set_effective_pixel_size(effective_pixel_size)
         await self.set_field_of_view_x(field_of_view_x)
         await self.set_field_of_view_y(field_of_view_y)
@@ -272,7 +285,7 @@ class Mapping2DMotorsMixin:
         await self._y_motor.set_position(y)
 
 
-class RectangularMotorMapping(Mapping, Mapping2DMotorsMixin, RectangleMappingMixin):
+class RectangularMotorMapping(Mapping2DMotorsMixin, RectangleMappingMixin, Mapping):
     async def __ainit__(self, walker, camera, x_motor, y_motor, effective_pixel_size,
                         field_of_view_x, field_of_view_y, center_x,
                         center_y, size_x, size_y, overlap=0.1, separate_scans=False):
