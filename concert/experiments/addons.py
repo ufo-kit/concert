@@ -373,10 +373,14 @@ class PhaseGratingSteppingFourierProcessing(Addon):
 
 class PhaseGratingSteppingSinFit(PhaseGratingSteppingFourierProcessing):
     async def _process_data(self, stepping, dark):
-        stepping_curve = np.zeros((stepping[0].shape[0],
-                                   stepping[0].shape[1],
-                                   len(stepping)),
-                                  dtype=np.float32)
+        stepping_curve = np.zeros(
+            (
+                stepping[0].shape[0],
+                stepping[0].shape[1],
+                len(stepping)
+            ),
+            dtype=np.float32
+        )
         for i, step in enumerate(stepping):
             if dark is not None:
                 stepping_curve[:, :, i] = step - dark
@@ -385,23 +389,32 @@ class PhaseGratingSteppingSinFit(PhaseGratingSteppingFourierProcessing):
 
         def cos_fit(x, a, b, c, d):
             return a * np.cos(b * x + c) + d
-        x_data = np.arange(start=0,
-                           stop=await self._experiment.get_num_periods() * 2 * np.pi,
-                           step=2 * np.pi / await self._experiment.get_num_steps_per_period())
+        x_data = np.arange(
+            start=0,
+            stop=await self._experiment.get_num_periods() * 2 * np.pi,
+            step=2 * np.pi / await self._experiment.get_num_steps_per_period()
+        )
 
         def fit(y_measured):
             try:
-                popt, pcov = curve_fit(cos_fit,
-                                       x_data,
-                                       y_measured,
-                                       p0=[np.abs(0.1*np.mean(y_measured)), 1, 1E-9, np.abs(np.mean(y_measured))],
-                                       bounds=[0, np.inf])
+                popt, pcov = curve_fit(
+                    cos_fit,
+                    x_data,
+                    y_measured,
+                    p0=[np.abs(0.1 * np.mean(y_measured)), 1, 1e-9, np.abs(np.mean(y_measured))],
+                    bounds=[0, np.inf]
+                )
             except ValueError:
                 popt = [-1, -1, -1, -1]
             return popt
 
         fit_values = np.apply_along_axis(fit, 2, stepping_curve)
-        return fit_values[:, :, 3], fit_values[:, :, 2], fit_values[:, :, 0]/fit_values[:, :, 3], fit_values[:, :, 1]
+        return (
+            fit_values[:, :, 3],
+            fit_values[:, :, 2],
+            fit_values[:, :, 0] / fit_values[:, :, 3],
+            fit_values[:, :, 1]
+        )
 
 
 class PCOTimestampCheck(Addon):
