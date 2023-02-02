@@ -27,23 +27,30 @@ class TangoCommand(SubCommand):
         super(TangoCommand, self).__init__('tango', opts)
 
     def run(self, server, logfile=None, loglevel=None):
-        from concert.ext.tangoservers import benchmarking, camera, reco, writer
+        server_class = None
+        if server == "benchmarker":
+            from concert.ext.tangoservers import benchmarking
+            server_class = {'class': benchmarking.TangoBenchmarker, 'id': 1235}
+        if server == "dummycamera":
+            from concert.ext.tangoservers import camera
+            server_class = {'class': camera.TangoDummyCamera, 'id': 1236}
+        if server == "filecamera":
+            from concert.ext.tangoservers import camera
+            server_class = {'class': camera.TangoFileCamera, 'id': 1236}
+        if server == "reco":
+            from concert.ext.tangoservers import reco
+            server_class = {'class': reco.TangoOnlineReconstruction, 'id': 1237}
+        if server == "writer":
+            from concert.ext.tangoservers import writer
+            server_class = {'class': writer.TangoWriter, 'id': 1238}
 
         setup_logging(server, to_stream=True, filename=logfile, loglevel=loglevel)
 
-        SERVERS = {
-            'benchmarker': {'class': benchmarking.TangoBenchmarker, 'id': 1235},
-            'dummycamera': {'class': camera.TangoDummyCamera, 'id': 1236},
-            'filecamera': {'class': camera.TangoFileCamera, 'id': 1236},
-            'reco': {'class': reco.TangoOnlineReconstruction, 'id': 1237},
-            'writer': {'class': writer.TangoWriter, 'id': 1238},
-        }
-
-        SERVERS[server]['class'].run_server(
+        server_class['class'].run_server(
             args=[
                 'name',
                 '-ORBendPoint',
-                'giop:tcp::{}'.format(SERVERS[server]['id']),
+                'giop:tcp::{}'.format(server_class['id']),
                 '-v4',
                 '-nodb',
                 '-dlist',
