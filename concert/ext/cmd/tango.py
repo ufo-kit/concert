@@ -1,4 +1,3 @@
-import tango
 from concert.session.utils import setup_logging, SubCommand
 
 
@@ -6,7 +5,6 @@ SERVER_NAMES = ['benchmarker', 'dummycamera', 'filecamera', 'reco', 'writer']
 
 
 class TangoCommand(SubCommand):
-
     """Start a Tango server"""
 
     def __init__(self):
@@ -27,6 +25,7 @@ class TangoCommand(SubCommand):
         super(TangoCommand, self).__init__('tango', opts)
 
     def run(self, server, logfile=None, loglevel=None):
+        import tango
         server_class = None
         if server == "benchmarker":
             from concert.ext.tangoservers import benchmarking
