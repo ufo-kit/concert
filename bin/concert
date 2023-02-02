@@ -507,6 +507,8 @@ class BroadcastCommand(SubCommand):
                     raise ValueError('sndhwm must be a positive integer')
                 if start_consumers and dest in SERVER_NAMES and is_zmq_endpoint_local(values['address']):
                     cmd = f'concert tango {dest} --loglevel {loglevel}'
+                    if 'tango-port' in values:
+                        cmd += f' --port {values["tango-port"]}'
                     if logfile:
                         # Put the logs to the directory of *logfile* and use modified endpoint names
                         # for identification
