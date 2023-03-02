@@ -487,7 +487,7 @@ class _PyQtGraphUpdater:
 
         signal.signal(signal.SIGINT, signal.SIG_IGN)
 
-        app = pg.QtGui.QApplication([])
+        app = pg.Qt.mkQApp()
         # row-major for not transposing the array
         pg.setConfigOptions(antialias=True, imageAxisOrder='row-major')
 
