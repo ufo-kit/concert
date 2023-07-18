@@ -33,7 +33,6 @@ def _start_command(program, image):
             process.wait()
     finally:
         os.remove(full_path)
-        LOG.debug('Temporary file removed')
 
 
 def imagej(image, path="imagej"):
