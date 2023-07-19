@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import QWidget, QLabel, QComboBox, QPushButton, QHBoxLayout, QVBoxLayout, QLineEdit, \
-    QCheckBox, QDoubleSpinBox
-from PyQt5.QtCore import QTimer, pyqtSignal
+    QCheckBox, QDoubleSpinBox, QStyle, QMenu, QScrollArea
+from PyQt5.QtCore import QTimer, pyqtSignal, Qt
 from concert.base import Parameterizable, ParameterValue, QuantityValue, StateValue, SelectionValue
 import concert.base
 from concert.coroutines.base import run_in_loop
@@ -8,7 +8,7 @@ from concert.quantities import q
 from qasync import asyncSlot
 
 
-class ParameterizableWidget(QWidget):
+class ParameterizableWidget(QScrollArea):
     def __init__(self, parameterizable, exclude_properties=None):
         if exclude_properties is None:
             exclude_properties = []
@@ -16,14 +16,18 @@ class ParameterizableWidget(QWidget):
             raise Exception("Only Parameterizables can be wrapped.")
 
         self._parameterizable = parameterizable
-        parameterizable.widget = self
         super().__init__()
+
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setWidgetResizable(False)
+
         self._layout = QVBoxLayout()
         self.setLayout(self._layout)
         self._exclude_properties = exclude_properties
         self.params = {}
         self.build_layout()
-        self._layout.addWidget(PollingWidget(self))
+        self._layout.insertStretch(-1, 1)
 
     def build_layout(self):
         for param in self._parameterizable:
@@ -62,7 +66,7 @@ class ParameterizableWidget(QWidget):
 
     def update(self):
         for param in self.params.values():
-            param.read()
+            param.update()
 
     def polling(self, state):
         for param in self.params.values():
@@ -70,38 +74,6 @@ class ParameterizableWidget(QWidget):
                 param.deactivate()
             else:
                 param.activate()
-
-
-class PollingWidget(QWidget):
-    def __init__(self, parent):
-        super().__init__(parent=parent)
-        self._layout = QHBoxLayout()
-        self.setLayout(self._layout)
-        self._layout.addWidget(QLabel("Poll"))
-        self._interval = QDoubleSpinBox()
-        self._interval.setMinimum(0.01)
-        self._interval.setMaximum(100.)
-        self._interval.setValue(1.0)
-        self._polling = QCheckBox()
-        self._polling.stateChanged.connect(self.changed_polling)
-        self._layout.addWidget(self._polling)
-        self._timer = QTimer()
-        self._timer.setSingleShot(False)
-        self._timer.timeout.connect(parent.update)
-        self._layout.addWidget(QLabel("Interval in s:"))
-        self._layout.addWidget(self._interval)
-
-    def changed_polling(self, state):
-        # 2 == checked??? 0 == unchecked
-        if state == 2:
-            self._timer.setInterval(int(self._interval.value() * 1000.))
-            self._timer.start()
-            self._interval.setEnabled(False)
-            self.parent().polling(True)
-        if state == 0:
-            self._timer.stop()
-            self._interval.setEnabled(True)
-            self.parent().polling(False)
 
 
 class ParameterWidget(QWidget):
@@ -115,13 +87,29 @@ class ParameterWidget(QWidget):
 
     def __init__(self, param):
         super().__init__()
+        self.polling = False
         self._param = param
         self.name_label = QLabel(param.name)
-        self.read_button = QPushButton('read')
-        self.write_button = QPushButton('write')
+        self._timer = QTimer()
+        self._timer.setSingleShot(False)
+        self._timer.setInterval(500)
+        self._timer.timeout.connect(self.update)
+        self._timer.start()
+
+        self.read_button = QPushButton()
+        self.read_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload))
+        self.write_button = QPushButton()
+        self.write_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton))
 
         self.read_button.clicked.connect(self.read)
         self.write_button.clicked.connect(self.write)
+
+        self.context_menu = QMenu(self)
+        poll_action = self.context_menu.addAction("Poll")
+        poll_action.setCheckable(True)
+        poll_action.toggled.connect(self.toggle_polling)
+        hide_action = self.context_menu.addAction("Hide")
+        hide_action.triggered.connect(self.deleteLater)
 
         # TODO: in standalone the run_in_loop is not working -> fix
         try:
@@ -143,6 +131,16 @@ class ParameterWidget(QWidget):
         self._layout.addWidget(self.write_button)
         self.setLayout(self._layout)
         self.show()
+
+    def toggle_polling(self):
+        self.polling = not self.polling
+        if self.polling:
+            self.deactivate()
+        else:
+            self.activate()
+
+    def contextMenuEvent(self, event):
+        action = self.context_menu.exec_(self.mapToGlobal(event.pos()))
 
     def deactivate(self):
         self.value.setEnabled(False)
@@ -181,6 +179,9 @@ class ParameterWidget(QWidget):
         finally:
             self.setter_finished.emit()
 
+    def update(self) -> None:
+        if self.polling:
+            self.read()
 
 class StateWidget(ParameterWidget):
     pass
