@@ -43,14 +43,19 @@ async def main():
     tomo_motor = await RotationMotor()
     tomo_motor_widget = ParameterizableWidget(tomo_motor)
     tomo_motor_widget.setWindowTitle("Tomo motor")
+    camera_widget = ParameterizableWidget(camera)
+
     exp = await SteppedTomography(walker=walker, flat_motor=lin, tomography_motor=tomo_motor, radio_position=0 * q.mm,
                                   flat_position=10 * q.mm, camera=camera, shutter=shutter)
-    viewer = await PyQtGraphViewer()
 
+
+    viewer = await PyQtGraphViewer()
     live_view = Consumer(exp.acquisitions, viewer)
     exp_widget = ParameterizableWidget(exp)
     exp_widget.setWindowTitle("Experiment")
     run_button = QPushButton("run experiment")
+
+
 
     @asyncSlot()
     async def run_exp(a):
@@ -72,6 +77,7 @@ async def main():
     layout.addWidget(make_frame("Tomo motor", tomo_motor_widget))
     layout.addWidget(make_frame("Sample changer", sample_changer_widget))
     layout.addWidget(make_frame("Lin motor", lin_widget))
+    layout.addWidget(make_frame("Camera", camera_widget))
     layout.addWidget(make_frame("CT Experiment", exp_widget))
 
     main_window.setLayout(layout)
