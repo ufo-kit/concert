@@ -1,6 +1,7 @@
 PYTHON = python
 SETUP = $(PYTHON) setup.py
 RUNTEST = pytest concert/tests
+RUN_STATIC_TYPE_CHECK = mypy concert/storage.py
 
 .PHONY: build clean check check-fast dist init install html
 
@@ -20,6 +21,9 @@ check:
 
 check-fast:
 	$(RUNTEST) -m 'not slow'
+
+type-check:
+	$(RUN_STATIC_TYPE_CHECK)
 
 clean:
 	$(SETUP) clean --all

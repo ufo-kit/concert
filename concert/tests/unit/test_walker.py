@@ -1,17 +1,21 @@
 import tempfile
+from typing import List
 import shutil
 import numpy as np
 import os.path as op
 from concert.coroutines.base import async_generate
-from concert.storage import DummyWalker, DirectoryWalker, StorageError
+from concert.storage import DirectoryWalker, StorageError
+from concert.tests.unit.resources.storage import TestableWalker
 from concert.tests import TestCase
 
 
 class TestWalker(TestCase):
 
+    walker: TestableWalker
+    data: List[int]
+
     def setUp(self):
-        super(TestWalker, self).setUp()
-        self.walker = DummyWalker()
+        self.walker = TestableWalker()
         self.data = [0, 1]
 
     def check(self, subdir=''):

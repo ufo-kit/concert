@@ -11,7 +11,7 @@ class BlurringCamera(DummyCameraBase):
 
     async def __ainit__(self, motor):
         await super(BlurringCamera, self).__ainit__()
-        self._original = scipy.misc.ascent()
+        self._original = scipy.datasets.ascent()
         self.motor = motor
 
     async def _grab_real(self):

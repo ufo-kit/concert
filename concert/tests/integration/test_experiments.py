@@ -20,7 +20,8 @@ from concert.experiments.addons.local import (Accumulator as LocalAccumulator,
                                               ImageWriter as LocalImageWriter)
 from concert.devices.cameras.dummy import Camera
 from concert.tests import TestCase, suppressed_logging, assert_almost_equal
-from concert.storage import DummyWalker, DirectoryWalker
+from concert.storage import DirectoryWalker
+from concert.tests.unit.resources.storage import TestableWalker
 
 
 class VisitChecker(object):
@@ -135,7 +136,7 @@ class TestExperimentBase(TestCase):
         await super(TestExperimentBase, self).asyncSetUp()
         self.acquired = 0
         self.root = ''
-        self.walker = DummyWalker(root=self.root)
+        self.walker = TestableWalker(root=self.root)
         self.name_fmt = 'scan_{:>04}'
         self.visited = 0
         self.foo = await Acquisition("foo", int, self.produce, acquire=self.acquire)

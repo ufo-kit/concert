@@ -1,7 +1,11 @@
 """Storage implementations."""
+from __future__ import annotations
+
 import asyncio
 import os
 import logging
+from typing import Awaitable, Optional, Type
+from logging import Logger, Handler
 import re
 import tifffile
 from logging import FileHandler, Formatter
@@ -128,13 +132,29 @@ async def write_images(producer, writer=TiffWriter, prefix="image_{:>05}.tif", s
 
 
 class Walker(object):
-
     """
     A Walker moves through an abstract hierarchy and allows to write data
     at a specific location.
+
+    - **parameters**, **types**, **return** and **return types**::
+
+        :param _root: top level of the data structure
+        :type _root: str
+        :param _current: current position
+        :type _current: str
+        :param dsetname: dataset name
+        :type dsetname: str
+        :param _log: logger for walker
+        :type _log: logging.Logger
+        :param _log_handler: logging event dispatcher
+        :type _log_handler: logging.Handler
     """
 
-    def __init__(self, root, dsetname='frames', log=None, log_handler=None):
+    def __init__(self,
+                 root: str,
+                 dsetname: str = 'frames',
+                 log: Optional[Logger] = None,
+                 log_handler: Optional[Handler] = None) -> None:
         """Constructor. *root* is the topmost level of the data structure."""
         self._root = root
         self._current = self._root
@@ -142,8 +162,7 @@ class Walker(object):
         self._log = log
         self._log_handler = log_handler
         self._lock = asyncio.Lock()
-
-        if self._log:
+        if self._log and self._log_handler:
             self._log_handler.setLevel(logging.INFO)
             formatter = Formatter("[%(asctime)s] %(levelname)s: %(name)s: %(message)s")
             self._log_handler.setFormatter(formatter)
@@ -157,46 +176,58 @@ class Walker(object):
 
     async def __aenter__(self):
         await self._lock.acquire()
-
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
         self._lock.release()
 
-    def home(self):
+    def home(self) -> None:
         """Return to root."""
         self._current = self._root
 
     @property
-    def current(self):
+    def current(self) -> str:
         """Return current position."""
         return self._current
 
-    def exists(self, *paths):
+    def exists(self, *paths: str) -> bool:
         """Return True if path from current position specified by a list of *paths* exists."""
         raise NotImplementedError
 
-    def descend(self, name):
+    def descend(self, name: str) -> Walker:
         """Descend to *name* and return *self*."""
         self._descend(name)
-
         return self
 
-    def ascend(self):
+    def ascend(self) -> Walker:
         """Ascend from current depth and return *self*."""
         self._ascend()
-
         return self
 
-    def _descend(self, name):
+    def _descend(self, name) -> None:
         """Descend to *name*."""
         raise NotImplementedError
 
-    def _ascend(self):
+    def _ascend(self) -> None:
         """Ascend from current depth."""
         raise NotImplementedError
 
-    def create_writer(self, producer, name=None, dsetname=None):
+    async def _create_writer(self, producer, dsetname: Optional[str]) -> Awaitable:
+        """Creates a coroutines for writing data set
+
+        :param producer:
+        :type producer:
+        :param dsetname: dataset name
+        :type dsetname: Optional[str]
+        :returns: Coroutine object to create a writer
+        :rtype: Awaitable
+        """
+        raise NotImplementedError
+
+    def create_writer(self,
+                      producer,
+                      name: Optional[str] = None,
+                      dsetname: Optional[str] = None) -> Awaitable:
         """
         Create a writer coroutine for writing data set *dsetname* with images from *producer*
         inside. If *name* is given, descend to it first and once the writer is created ascend back.
@@ -205,10 +236,18 @@ class Walker(object):
         coroutine is not guaranteed to be wrapped into a :class:`.asyncio.Task`, hence to be started
         immediately.  This function also does not block after creating the writer. This is useful
         for splitting the preparation of writing (creating directories, ...) and the I/O itself.
+
+        :param producer: an asynchronous generator of projections
+        :type producer: TODO: Need to check the type of producer
+        :param name: a directory path for writing data
+        :type name: Optional[str]
+        :param dsetname: image dataset name
+        :type dsetname: Optional[str]
+        :returns: Awaitable writer coroutine
+        :rtype: Awaitable
         """
         if name:
             self.descend(name)
-
         try:
             return self._create_writer(producer, dsetname=dsetname)
         finally:
@@ -225,39 +264,6 @@ class Walker(object):
         return await self._create_writer(producer, dsetname=dsetname)
 
 
-class DummyWalker(Walker):
-    def __init__(self, root=''):
-        super(DummyWalker, self).__init__(root)
-        self._paths = set([])
-
-    @property
-    def paths(self):
-        return self._paths
-
-    def exists(self, *paths):
-        return os.path.join(*paths) in self._paths
-
-    def _descend(self, name):
-        self._current = os.path.join(self._current, name)
-        self._paths.add(self._current)
-
-    def _ascend(self):
-        if self._current != self._root:
-            self._current = os.path.dirname(self._current)
-
-    def _create_writer(self, producer, dsetname=None):
-        dsetname = dsetname or self.dsetname
-        path = os.path.join(self._current, dsetname)
-
-        async def _append_paths():
-            i = 0
-            async for item in producer:
-                self._paths.add(os.path.join(path, str(i)))
-                i += 1
-
-        return _append_paths()
-
-
 class DirectoryWalker(Walker):
 
     """
@@ -265,8 +271,14 @@ class DirectoryWalker(Walker):
     specific filename template.
     """
 
-    def __init__(self, writer=TiffWriter, dsetname='frame_{:>06}.tif', start_index=0,
-                 bytes_per_file=0, root=None, log=None, log_name='experiment.log'):
+    def __init__(self,
+                 writer: Type[TiffWriter] = TiffWriter,
+                 dsetname: str = "frame_{:>06}.tif",
+                 start_index: int = 0,
+                 bytes_per_file: int = 0,
+                 root: Optional[str] = None,
+                 log: Optional[Logger] = None,
+                 log_name: str = "experiment.log") -> None:
         """
         Use *writer* to write data to files with filenames with a template from *dsetname*.
         *start_index* specifies the number in the first file name, e.g. for the default *dsetname*
@@ -342,4 +354,8 @@ def split_dsetformat(dsetname):
 
 class StorageError(Exception):
     """Exceptions related to logical issues with storage."""
+    pass
+
+
+if __name__ == "__main__":
     pass
