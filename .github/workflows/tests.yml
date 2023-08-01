@@ -36,7 +36,7 @@ jobs:
         coverage run --source=concert -m pytest -m "not skip_ci"
     - name: Upload coverage to Codecov
       if: matrix.python-version == 3.8
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v2
       with:
         fail_ci_if_error: true
         verbose: true
