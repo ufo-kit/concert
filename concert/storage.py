@@ -8,7 +8,7 @@ from typing import Awaitable, Optional, Type, Dict, Callable, AsyncIterable
 from logging import Logger, Handler
 import re
 from logging import FileHandler, Formatter
-import tifffile  # type: ignore[import]
+import tifffile
 import numpy as np
 from concert.coroutines.base import background
 from concert.writers import TiffWriter
@@ -33,7 +33,7 @@ READERS: Dict[str, Callable[[str], np.ndarray]] = {".tif": read_tiff, ".tiff": r
 # Imports optional package fabio to read EDF(extended depth of filed) format images
 # if applicable
 try:
-    import fabio  # type: ignore[import]
+    import fabio
 
     def read_edf_via_fabio(filename: str) -> np.ndarray:
         """Defines an optional reader function to read the images in EDF(extended depth of field)
@@ -82,7 +82,7 @@ def write_tiff(file_name: str, data) -> str:
 
 def write_libtiff(file_name, data):
     """Write a TIFF file using pylibtiff. Return the written file name."""
-    from libtiff import TIFF  # type: ignore[import]
+    from libtiff import TIFF
 
     tiff_file = TIFF.open(file_name, "w")
     try:
