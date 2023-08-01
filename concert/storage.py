@@ -4,66 +4,85 @@ from __future__ import annotations
 import asyncio
 import os
 import logging
-from typing import Awaitable, Optional, Type
+from typing import Awaitable, Optional, Type, Dict, Callable, AsyncIterable
 from logging import Logger, Handler
 import re
-import tifffile
 from logging import FileHandler, Formatter
+import tifffile  # type: ignore[import]
+import numpy as np
 from concert.coroutines.base import background
 from concert.writers import TiffWriter
-
 
 LOG = logging.getLogger(__name__)
 
 
-def read_image(filename):
+def read_tiff(file_name: str) -> np.ndarray:
+    """Defines a recommended reader for TIFF image files using :py:mod:`tifffile` module.
+
+    :param file_name: tiff file name
+    :type file_name: str
+    :returns: tiff image file as ndarray
+    :rtype: np.ndarray
     """
-    Read image from file with *filename*. The file type is detected
-    automatically.
-    """
-    for ext, reader in list(READERS.items()):
-        if filename.lower().endswith(ext):
-            return reader(filename)
-
-    raise ValueError("Unsupported file type")
-
-
-def read_tiff(file_name):
-    """Read tiff file from disk by :py:mod:`tifffile` module."""
     with tifffile.TiffFile(file_name) as f:
-        return f.asarray(out='memmap')
+        return f.asarray(out="memmap")
 
 
-READERS = {".tif": read_tiff,
-           ".tiff": read_tiff}
+READERS: Dict[str, Callable[[str], np.ndarray]] = {".tif": read_tiff, ".tiff": read_tiff}
 
+# Imports optional package fabio to read EDF(extended depth of filed) format images
+# if applicable
 try:
-    import fabio
+    import fabio  # type: ignore[import]
 
-    def read_edf_via_fabio(filename):
+    def read_edf_via_fabio(filename: str) -> np.ndarray:
+        """Defines an optional reader function to read the images in EDF(extended depth of field)
+        format and return as ndarray
+
+        :param filename: edf image file name
+        :type filename: str
+        :returns: edf image file as ndarray
+        :rtype: np.ndarray
+        """
         edf = fabio.edfimage.edfimage()
         edf.read(filename)
         return edf.data
 
-    for ext in ('.edf', '.edf.gz'):
+    for ext in (".edf", ".edf.gz"):
         READERS[ext] = read_edf_via_fabio
 except ImportError:
+    LOG.debug("could not import fabio package as optional dependency")
     pass
 
 
-def write_tiff(file_name, data):
+def read_image(filename: str) -> np.ndarray:
+    """
+    Read image from file with *filename*. The file type is detected
+    automatically.
+
+    :param filename: image file name
+    :type filename: str
+    :returns: image file as ndarray
+    :rtype: np.ndarray
+    """
+    for extension, reader in list(READERS.items()):
+        if filename.lower().endswith(extension):
+            return reader(filename)
+    raise ValueError("Unsupported file type")
+
+
+def write_tiff(file_name: str, data) -> str:
     """
     The default TIFF writer which uses :py:mod:`tifffile` module.
     Return the written file name.
     """
-    tifffile.imsave(file_name, data)
-
+    tifffile.imwrite(file_name, data)
     return file_name
 
 
 def write_libtiff(file_name, data):
     """Write a TIFF file using pylibtiff. Return the written file name."""
-    from libtiff import TIFF
+    from libtiff import TIFF  # type: ignore[import]
 
     tiff_file = TIFF.open(file_name, "w")
     try:
@@ -81,8 +100,12 @@ def create_directory(directory, rights=0o0750):
         os.makedirs(directory, rights)
 
 
-async def write_images(producer, writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0,
-                       bytes_per_file=0):
+async def write_images(
+        producer: AsyncIterable[np.ndarray],
+        writer: Type[TiffWriter] = TiffWriter,
+        prefix: str = "image_{:>05}.tif",
+        start_index: int = 0,
+        bytes_per_file: int = 0) -> int:
     """
     write_images(pqueue, writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0,
                  bytes_per_file=0)
@@ -91,8 +114,22 @@ async def write_images(producer, writer=TiffWriter, prefix="image_{:>05}.tif", s
     *bytes_per_file* bytes has been written. If it is 0, then one file per image is created.
     *writer* is a subclass of :class:`.writers.ImageWriter`. *start_index* specifies the number in
     the first file name, e.g. for the default *prefix* and *start_index* 100, the first file name
-    will be image_00100.tif. If *prefix* is not formattable images are appended to the filename
+    will be image_00100.tif. If *prefix* is not format-able images are appended to the filename
     specified by *prefix*.
+
+    :param producer: asynchronous iterable object for slice volumes
+    :type producer: AsyncIterable[np.ndarray]
+    :param writer: tiff image writer utility
+    :type writer: TiffWriter
+    :param prefix: image file name prefix
+    :type prefix: str
+    :param start_index: index number of the first file name, defaults to 0
+    :type start_index: int
+    :param bytes_per_file: bytes to write in one file, defaults to 0, means 1 file per image is
+    created
+    :type bytes_per_file: int
+    :returns: total bytes written
+    :rtype: int
     """
     im_writer = None
     file_index = 0
@@ -103,12 +140,9 @@ async def write_images(producer, writer=TiffWriter, prefix="image_{:>05}.tif", s
     append = prefix.format(0) == prefix
     if append:
         im_writer = writer(prefix, bytes_per_file, append=True)
-
     if dir_name and not os.path.exists(dir_name):
         create_directory(dir_name)
-
     i = 0
-
     try:
         async for image in producer:
             if not append and (not im_writer or written + image.nbytes > bytes_per_file):
@@ -119,16 +153,26 @@ async def write_images(producer, writer=TiffWriter, prefix="image_{:>05}.tif", s
                 im_writer = writer(prefix.format(start_index + file_index), bytes_per_file)
                 file_index += 1
                 written = 0
-            im_writer.write(image)
+            if im_writer:
+                im_writer.write(image)
             written += image.nbytes
             written_total += image.nbytes
             i += 1
-
         return written_total
     finally:
         if im_writer:
             im_writer.close()
             LOG.debug('Writer "{}" closed'.format(prefix.format(start_index + file_index - 1)))
+
+
+def split_dsetformat(dsetname: str) -> str:
+    """Strip *dsetname* off the formatting part which leaves us with the data set name."""
+    return dsetname.split("{")[0]
+
+
+class StorageError(Exception):
+    """Exceptions related to logical issues with storage."""
+    pass
 
 
 class Walker(object):
@@ -168,9 +212,9 @@ class Walker(object):
             self._log_handler.setFormatter(formatter)
             self._log.addHandler(self._log_handler)
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Destructor."""
-        if self._log:
+        if self._log and self._log_handler:
             self._log_handler.close()
             self._log.removeHandler(self._log_handler)
 
@@ -212,11 +256,13 @@ class Walker(object):
         """Ascend from current depth."""
         raise NotImplementedError
 
-    async def _create_writer(self, producer, dsetname: Optional[str]) -> Awaitable:
+    def _create_writer(self,
+                       producer: AsyncIterable[np.ndarray],
+                       dsetname: Optional[str] = None) -> Awaitable:
         """Creates a coroutines for writing data set
 
-        :param producer:
-        :type producer:
+        :param producer: asynchronous iterable object of slice volumes
+        :type producer: AsyncIterable[np.ndarray]
         :param dsetname: dataset name
         :type dsetname: Optional[str]
         :returns: Coroutine object to create a writer
@@ -225,7 +271,7 @@ class Walker(object):
         raise NotImplementedError
 
     def create_writer(self,
-                      producer,
+                      producer: AsyncIterable[np.ndarray],
                       name: Optional[str] = None,
                       dsetname: Optional[str] = None) -> Awaitable:
         """
@@ -237,8 +283,8 @@ class Walker(object):
         immediately.  This function also does not block after creating the writer. This is useful
         for splitting the preparation of writing (creating directories, ...) and the I/O itself.
 
-        :param producer: an asynchronous generator of projections
-        :type producer: TODO: Need to check the type of producer
+        :param producer: asynchronous iterable object of slice volumes
+        :type producer: AsyncIterable[np.ndarray]
         :param name: a directory path for writing data
         :type name: Optional[str]
         :param dsetname: image dataset name
@@ -255,7 +301,9 @@ class Walker(object):
                 self.ascend()
 
     @background
-    async def write(self, producer, dsetname=None):
+    async def write(self,
+                    producer: AsyncIterable[np.ndarray],
+                    dsetname: Optional[str] = None) -> Awaitable:
         """
         Create a coroutine for writing data set *dsetname* with images from *producer*. The
         execution starts immediately in the background and await will block until the images are
@@ -265,7 +313,6 @@ class Walker(object):
 
 
 class DirectoryWalker(Walker):
-
     """
     A DirectoryWalker moves through a file system and writes flat files using a
     specific filename template.
@@ -287,45 +334,40 @@ class DirectoryWalker(Walker):
         if not root:
             root = os.getcwd()
         root = os.path.abspath(root)
-
         log_handler = None
-
         if log:
             create_directory(root)
             log_path = os.path.join(root, log_name)
             log_handler = FileHandler(log_path)
-
         super(DirectoryWalker, self).__init__(root, dsetname=dsetname,
                                               log=log, log_handler=log_handler)
         self.writer = writer
         self._bytes_per_file = bytes_per_file
         self._start_index = start_index
 
-    def _descend(self, name):
+    def _descend(self, name: str) -> None:
         new = os.path.join(self._current, name)
         create_directory(new)
         self._current = new
 
-    def _ascend(self):
+    def _ascend(self) -> None:
         if self._current == self._root:
             raise StorageError("Cannot break out of `{}'.".format(self._root))
-
         self._current = os.path.dirname(self._current)
 
-    def exists(self, *paths):
+    def exists(self, *paths: str) -> bool:
         """Check if *paths* exist."""
         return os.path.exists(os.path.join(self.current, *paths))
 
-    def _create_writer(self, producer, dsetname=None):
+    def _create_writer(self,
+                       producer: AsyncIterable[np.ndarray],
+                       dsetname: Optional[str] = None) -> Awaitable:
         dsetname = dsetname or self.dsetname
-
         if self._dset_exists(dsetname):
             dset_prefix = split_dsetformat(dsetname)
             dset_path = os.path.join(self.current, dset_prefix)
             raise StorageError("`{}' is not empty".format(dset_path))
-
         prefix = os.path.join(self._current, dsetname)
-
         return write_images(
             producer,
             self.writer,
@@ -334,27 +376,15 @@ class DirectoryWalker(Walker):
             self._bytes_per_file
         )
 
-    def _dset_exists(self, dsetname):
+    def _dset_exists(self, dsetname: str) -> bool:
         """Check if *dsetname* exists on the current level."""
         if not re.match('.*{.*}.*', dsetname):
             raise ValueError('dsetname `{}\' has wrong format'.format(dsetname))
-
         filenames = os.listdir(self._current)
         for name in filenames:
             if name.startswith(split_dsetformat(dsetname)):
                 return True
-
         return False
-
-
-def split_dsetformat(dsetname):
-    """Strip *dsetname* off the formatting part wihch leaves us with the data set name."""
-    return dsetname.split('{')[0]
-
-
-class StorageError(Exception):
-    """Exceptions related to logical issues with storage."""
-    pass
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ import logging
 import os
 import time
 import json
+from typing import Optional
 
 import concert.devices.base
 from concert.coroutines.base import background, broadcast, start
@@ -225,7 +226,8 @@ class Experiment(Parameterizable):
 
     .. py:attribute:: walker
 
-       A :class:`concert.storage.Walker` descends to a data set specific for every run if given
+       A :class: `concert.protocols.storage.GenericWalker` descends to a data set specific for
+       every run if given
 
     .. py:attribute:: separate_scans
 
@@ -253,7 +255,7 @@ class Experiment(Parameterizable):
 
     async def __ainit__(self,
                         acquisitions,
-                        walker: GenericWalker = None,
+                        walker: Optional[GenericWalker] = None,
                         separate_scans=True,
                         name_fmt='scan_{:>04}'):
         self._acquisitions = []
@@ -269,7 +271,7 @@ class Experiment(Parameterizable):
         self._run_awaitable = None
         await Parameterizable.__ainit__(self)
 
-        if separate_scans and walker:
+        if separate_scans and walker and isinstance(walker, GenericWalker):
             # The data is not supposed to be overwritten, so find an iteration which
             # hasn't been used yet
             while self.walker.exists(self._name_fmt.format(self._iteration)):
@@ -411,7 +413,7 @@ class Experiment(Parameterizable):
         iteration = await self.get_iteration()
         separate_scans = await self.get_separate_scans()
 
-        if self.walker:
+        if self.walker and isinstance(self.walker, GenericWalker):
             if separate_scans:
                 self.walker.descend((await self.get_name_fmt()).format(iteration))
             if os.path.exists(self.walker.current):
@@ -440,7 +442,7 @@ class Experiment(Parameterizable):
                 raise StateError('error', msg=str(e))
             finally:
                 self.ready_to_prepare_next_sample.set()
-                if separate_scans and self.walker:
+                if separate_scans and self.walker and isinstance(self.walker, GenericWalker):
                     self.walker.ascend()
                 LOG.debug('Experiment iteration %d duration: %.2f s',
                           iteration, time.time() - start_time)
