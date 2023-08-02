@@ -17,7 +17,7 @@ from concert.coroutines.sinks import count
 from concert.progressbar import wrap_iterable
 from concert.base import check, Parameterizable, Parameter, Selection, State, StateError
 from concert.helpers import get_state_from_awaitable
-from concert.protocols.storage import GenericWalker
+from concert.storage import GenericWalker
 from functools import partial
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import os
 import logging
-from typing import Awaitable, Optional, Type, Dict, Callable, AsyncIterable
+from typing import Awaitable, Optional, Type, Dict, Callable, AsyncIterable, Protocol
 from logging import Logger, Handler
 import re
 from logging import FileHandler, Formatter
@@ -173,6 +173,51 @@ def split_dsetformat(dsetname: str) -> str:
 class StorageError(Exception):
     """Exceptions related to logical issues with storage."""
     pass
+
+
+class GenericWalker(Protocol):
+    """
+    Defines high-level requirements for a generic walker. It functions as an interface,
+    encapsulating public utilities which any given walker should expose
+    """
+
+    @property
+    def current(self) -> str:
+        """Returns current position of the walker
+
+        :returns: current directory path of the walker
+        :rtype: str
+        """
+        ...
+
+    def exists(self, *paths: str) -> bool:
+        """Returns True if path from current position specified by a list of *paths
+        exists
+
+        :param paths: an iterable collection of directory paths
+        :type paths: Iterable[str]
+        :returns: True if the path from the current position exists
+        :rtype: bool
+        """
+        ...
+
+    def descend(self, name: str) -> GenericWalker:
+        """Descends to the path specified
+
+        :param name: given directory path
+        :type name: str
+        :returns: self
+        :rtype: Walker
+        """
+        ...
+
+    def ascend(self) -> GenericWalker:
+        """Ascend from current depth of the directory path
+
+        :returns: self
+        :rtype: Walker
+        """
+        ...
 
 
 class Walker(object):
