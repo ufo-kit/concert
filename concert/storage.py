@@ -11,7 +11,7 @@ from logging import FileHandler, Formatter
 import tifffile
 import numpy as np
 from concert.coroutines.base import background
-from concert.writers import TiffWriter
+from concert.writers import TiffWriter, ImageWriter
 
 LOG = logging.getLogger(__name__)
 
@@ -177,7 +177,7 @@ class StorageError(Exception):
 
 class GenericWalker(Protocol):
     """
-    Defines high-level requirements for a generic walker. It functions as an interface,
+    Defines high-level requirements for a walker. It functions as an interface,
     encapsulating public utilities which any given walker should expose
     """
 

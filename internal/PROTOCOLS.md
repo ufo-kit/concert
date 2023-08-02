@@ -8,16 +8,25 @@ intelligible for the concert users.
 
 ## External(API-Layer) Protocols
 
+```mermaid
+classDiagram
+class GenericControlDevice {
+    +write_attribute(String attr_name, Generic value)
+}
+note for GenericControlDevice "Defines an abstract control system device on which we can set
+arbitrary attributes"
+```
+
 ## Internal(Implementation-Layer) Protocols
 
-- GenericWalker
+```mermaid
+classDiagram
 
-    ```mermaid
-    classDiagram
-    class GenericWalker {
-        + (property) current() String
-        +exists(Set~String~ paths) bool
-        +descend(String name) GenericWalker
-        +ascend() GenericWalker
-    }
-    ```
+class GenericWalker {
+    + (property) current() String
+    +exists(Set~String~ paths) bool
+    +descend(String name) GenericWalker
+    +ascend() GenericWalker
+}
+note for GenericWalker "Encapsulates publicly exposed functionalities for a walker"
+```

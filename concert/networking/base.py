@@ -4,6 +4,7 @@ import os
 import logging
 import numpy as np
 import time
+from typing import Protocol, Any, Optional
 import zmq
 import zmq.asyncio
 from concert.quantities import q
@@ -11,6 +12,21 @@ from concert.config import AIODEBUG, PERFDEBUG
 
 
 LOG = logging.getLogger(__name__)
+
+
+class GenericControlDevice(Protocol):
+    """Abstract control system device which lets users write arbitrary attribute as
+    key value pairs."""
+
+    async def write_attribute(self, attr_name: str, value: Any) -> None:
+        """Lets the caller write a device attribute
+
+        :param attr_name: attribute name
+        :type attr_name: str
+        :param value: attribute value
+        :type value: str
+        """
+        ...
 
 
 class SocketConnection(object):
@@ -85,30 +101,37 @@ class SocketConnection(object):
         return result
 
 
-def get_tango_device(uri, peer=None, timeout=10 * q.s):
+def get_tango_device(uri: str, peer: Optional[str] = None,
+                     timeout: int = 10 * q.s) -> GenericControlDevice:
     """
     Get a Tango device by specifying its *uri*. If *peer* is given change the tango_host specifying
     which database to connect to. Format is host:port as a string. *timeout* sets the device's
     general timeout. It is converted to milliseconds, converted to integer and then the tango
     device's `set_timout_millis` is called with the converted integer value.
+
+    :param uri: network uri for the control device
+    :type uri: str
+    :param peer: specifies which control device database to connect to, formatted as host:port
+    :type peer: str
+    :param timeout: general timeout for the device
+    :type timeout: int
+    :returns: a control system device on which we can set some arbitrary attributes
+    :rtype: GenericControlDevice
     """
     import IPython
     import PyTango
 
     if peer is not None:
         os.environ["TANGO_HOST"] = peer
-
     executor = None
     if IPython.version_info >= (8, 0):
         from IPython.core.async_helpers import get_asyncio_loop
         ipython_loop = get_asyncio_loop()
         executor = PyTango.asyncio_executor.AsyncioExecutor(loop=ipython_loop)
-
     device = PyTango.DeviceProxy(
         uri, green_mode=PyTango.GreenMode.Asyncio, asyncio_executor=executor
     )
     device.set_timeout_millis(int(timeout.to(q.ms).magnitude))
-
     return device
 
 
