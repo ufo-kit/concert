@@ -2,15 +2,21 @@
 import asyncio
 import os
 import logging
+from typing import Optional, Union, Dict, Any
+from typing_extensions import TypeAlias
 import numpy as np
 import time
 import zmq
-import zmq.asyncio
+from numpy.typing import NDArray
+import zmq.asyncio as zao
 from concert.quantities import q
 from concert.config import AIODEBUG, PERFDEBUG
 
 
 LOG = logging.getLogger(__name__)
+
+# Defines a type-alias for sending metadata over socket connection
+SockCommMetaData_t: TypeAlias = Union[Dict[str, bool], Dict[str, Union[tuple, str]]]
 
 
 class SocketConnection(object):
@@ -112,8 +118,12 @@ def get_tango_device(uri, peer=None, timeout=10 * q.s):
     return device
 
 
-def zmq_create_image_metadata(image):
-    """Create metadata needed for sending *image* over zmq."""
+def zmq_create_image_metadata(image: Optional[NDArray]) -> SockCommMetaData_t:
+    """Create metadata needed for sending *image* over zmq.
+
+    :param image: image captured by camera device, could be None
+    :type image: Optional[NDArray]
+    """
     if image is None:
         return {'end': True}
     else:
@@ -135,14 +145,28 @@ async def zmq_receive_image(socket, return_metadata=False):
     return (metadata, array) if return_metadata else array
 
 
-async def zmq_send_image(socket, image, metadata=None):
-    """Send *image* over zmq *socket*. If *metadata* is None, it is created. If *image* is None,
-    {'end': True} is sent in metadata and no actual payload is sent.
+async def zmq_send_image(
+        socket: zao.Socket,
+        image: Optional[NDArray],
+        metadata: Optional[SockCommMetaData_t] = None) -> None:
+    """Sends *image* over zmq *socket*.
+    If *metadata* is None, it is created.
+    If *image* is None, {'end': True} is sent in metadata and no actual payload is sent.
+
+    :param socket: zmq socket connection
+    :type socket: zao.Socket
+    :param image: image captured by camera device, could be None in case end of
+    transmission
+    :type image: Optional[NDArray]
+    :param metadata: metadata to specify type or shape of the image or end of
+    transmitting images
+    :type metadata: Optional[SockCommMetaData_t]
     """
     if image is None or not metadata:
-        metadata = zmq_create_image_metadata(image)
-
+        metadata: SockCommMetaData_t = zmq_create_image_metadata(image)
     try:
+        # TODO: Clarify: following methods from zmq.asyncio.Socket class methods are not
+        #  defined to be awaitable. Why we are invoking them with `await` ?
         if image is None:
             await socket.send_json(metadata, zmq.NOBLOCK)
         else:
@@ -153,79 +177,102 @@ async def zmq_send_image(socket, image, metadata=None):
 
 
 class ZmqBase:
-
     """
     Base for sending/receiving zmq image streams.
 
-    :param endpoint: endpoint in form transport://address
+    :param endpoint: socket connection endpoint in form transport://address
+    :type endpoint: str
     """
 
-    def __init__(self, endpoint=None):
+    _endpoint: str
+    _context: zao.Context
+    _socket: Optional[zao.Socket]
+
+    def __init__(self, endpoint: Optional[str] = None) -> None:
         self._endpoint = endpoint
-        self._context = zmq.asyncio.Context()
+        self._context = zao.Context()
         self._socket = None
         if endpoint:
             self.connect(endpoint)
 
     @property
-    def endpoint(self):
+    def endpoint(self) -> str:
         """endpoint in form transport://address"""
         return self._endpoint
 
-    def connect(self, endpoint):
+    def connect(self, endpoint: str) -> None:
         """Connect to an *endpoint* which must not be None. If it's the same one as the one we are
         connected to now nothing happens, otherwise current socket is disconnected and the new
         connection is made.
+
+        :param endpoint: endpoint having format transport://address
+        :type endpoint: str
         """
         if not endpoint:
             raise RuntimeError('Cannot connect when endpoint is not specified')
-
         if self._socket:
             if endpoint == self._endpoint:
-                # We are connected to the desired endpoint already
+                # If we are connected to the desired endpoint already no action
+                # is required
                 return
-            # New endpoint specified, first disconnect
+            # If a new endpoint is specified disconnect from the old endpoint
+            # before setting up a new socket connection
             self.close()
-
         self._endpoint = endpoint
         self._setup_socket()
 
-    def close(self):
-        """Close the socket."""
+    def close(self) -> None:
+        """Closes the socket connection and invalidates the socket reference."""
         if self._socket:
             self._socket.close()
             self._socket = None
 
-    def _setup_socket(self):
-        """Create and connect zmq socket, implementation-specific."""
+    def _setup_socket(self) -> None:
+        """Creates and connect zmq socket. Deriving class should provide the
+        implementation"""
         raise NotImplementedError
 
 
 class ZmqSender(ZmqBase):
-
     """
     Sender of zmq image streams.
     :param endpoint: endpoint in form transport://address
-    :param sndhwm: high send water mark
+    :param snd_hwm: high send watermark, depicts a hard limit on the max number of
+    outstanding messages that should be queued in memory for the intended socket
+    communication peer: http://api.zeromq.org/2-1:zmq-setsockopt#toc3
+    :type snd_hwm: int
     """
 
-    def __init__(self, endpoint=None, sndhwm=None):
-        self._sndhwm = sndhwm
+    _snd_hwm: Optional[int]
+
+    def __init__(self,
+                 endpoint: Optional[str] = None,
+                 snd_hwm: Optional[int] = None) -> None:
+        self._snd_hwm = snd_hwm
         super().__init__(endpoint=endpoint)
 
-    def _setup_socket(self):
+    def _setup_socket(self) -> None:
         """Create and connect a PUSH socket."""
         self._socket = self._context.socket(zmq.PUSH)
-        # Do not keep old images
-        self._socket.setsockopt(zmq.LINGER, 0)
-        if self._sndhwm:
+        # Do not keep old images. Setting the ZMQ_LINGER option means
+        # upon closing the socket connection all pending messages would
+        # be discarded: http://api.zeromq.org/2-1:zmq-setsockopt#toc15
+        self._socket.setsockopt(option=zmq.LINGER, value=0)
+        if self._snd_hwm:
             # TODO: use this if we cannot send and hang on blocking behavior or start getting Again
             # errors in case of NOBLOCK
-            self._socket.set(zmq.SNDHWM, self._sndhwm)
-        self._socket.bind(self._endpoint)
+            # TODO: Clarify what its implications are. By default it is supposed to set a hard
+            #   limit on the number of messages to keep in memory for intended recipient.
+            self._socket.set(option=zmq.SNDHWM, value=self._snd_hwm)
+        self._socket.bind(addr=self._endpoint)
 
-    async def send_image(self, image):
-        """Send *image*."""
+    async def send_image(self, image: Optional[NDArray]) -> None:
+        """Send *image*.
+
+        :param image: image captured by camera device, modelled by NumPy array, could
+        be None if end of transmission
+        :type image: NDArray
+        """
         await zmq_send_image(self._socket, image)
 
 
@@ -245,7 +292,7 @@ class ZmqReceiver(ZmqBase):
         self._reliable = reliable
         self._rcvhwm = rcvhwm
         self._topic = topic
-        self._poller = zmq.asyncio.Poller()
+        self._poller = zao.Poller()
         self._polling_timeout = polling_timeout
         self._request_stop = False
         super().__init__(endpoint=endpoint)
@@ -354,7 +401,7 @@ class BroadcastServer(ZmqReceiver):
     def __init__(self, endpoint, broadcast_endpoints, polling_timeout=100):
         super().__init__(endpoint, polling_timeout=polling_timeout)
         self._broadcast_sockets = set([])
-        self._poller_out = zmq.asyncio.Poller()
+        self._poller_out = zao.Poller()
         self._finished = None
         self._request_stop_forwarding = False
 
