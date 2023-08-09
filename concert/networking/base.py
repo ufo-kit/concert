@@ -2,7 +2,7 @@
 import asyncio
 import os
 import logging
-from typing import Optional, Union, Dict, Any
+from typing import Optional, Union, Dict, List, Tuple, AsyncIterable, Any
 from typing_extensions import TypeAlias
 import numpy as np
 import time
@@ -12,15 +12,16 @@ import zmq.asyncio as zao
 from concert.quantities import q
 from concert.config import AIODEBUG, PERFDEBUG
 
-
 LOG = logging.getLogger(__name__)
 
-# Defines a type-alias for sending metadata over socket connection
-SockCommMetaData_t: TypeAlias = Union[Dict[str, bool], Dict[str, Union[tuple, str]]]
+# Defines convenient type-aliases for send and receive metadata for socket communication
+SendMetadata_t: TypeAlias = Union[Dict[str, bool], Dict[str, str]]
+RecvMetadata_t: TypeAlias = Union[List[Any], str, int, float, Dict[Any, Any]]
+RecvPayload_t: TypeAlias = Union[Tuple[RecvMetadata_t, Optional[NDArray]], Optional[NDArray]]
+Subscription_t: TypeAlias = Union[Tuple[RecvMetadata_t, NDArray], NDArray]
 
 
 class SocketConnection(object):
-
     """A two-way socket connection. *return_sequence* is a string appended
     after every command indicating the end of it, the default value
     is a newline (\\n).
@@ -118,37 +119,48 @@ def get_tango_device(uri, peer=None, timeout=10 * q.s):
     return device
 
 
-def zmq_create_image_metadata(image: Optional[NDArray]) -> SockCommMetaData_t:
+def zmq_create_image_metadata(image: Optional[NDArray]) -> SendMetadata_t:
     """Create metadata needed for sending *image* over zmq.
 
     :param image: image captured by camera device, could be None
     :type image: Optional[NDArray]
     """
     if image is None:
-        return {'end': True}
+        return {"end": True}
     else:
         return {
-            'dtype': str(image.dtype),
-            'shape': image.shape,
+            "dtype": str(image.dtype),
+            "shape": str(image.shape),
         }
 
 
-async def zmq_receive_image(socket, return_metadata=False):
-    """Receive image data from a zmq *socket*."""
-    metadata = await socket.recv_json()
-    if 'end' in metadata:
+async def zmq_receive_image(
+        socket: zao.Socket,
+        return_metadata: bool = False) -> RecvPayload_t:
+    """Receive image data from a zmq *socket*.
+
+    :param socket: zmq socket connection
+    :type socket: zao.Socket
+    :param return_metadata: whether communication metadata would be propagated to caller
+    :type return_metadata: bool
+    :returns: received image and optional metadata
+    :rtype: RecvPayload_t
+    """
+    # TODO: Clarify - recv_json is not defined as a coroutine. Why use
+    #   await ?
+    metadata: RecvMetadata_t = socket.recv_json()
+    if "end" in metadata:  # type: ignore
         return (metadata, None) if return_metadata else None
-
-    msg = await socket.recv(copy=False)
-    array = np.frombuffer(msg, dtype=metadata['dtype']).reshape(metadata['shape'])
-
+    msg = await socket.recv(copy=False)  # type: ignore
+    array: NDArray = np.frombuffer(
+        msg, dtype=metadata["dtype"]).reshape(metadata["shape"])  # type: ignore
     return (metadata, array) if return_metadata else array
 
 
 async def zmq_send_image(
         socket: zao.Socket,
         image: Optional[NDArray],
-        metadata: Optional[SockCommMetaData_t] = None) -> None:
+        metadata: Optional[SendMetadata_t] = None) -> None:
     """Sends *image* over zmq *socket*.
     If *metadata* is None, it is created.
     If *image* is None, {'end': True} is sent in metadata and no actual payload is sent.
@@ -162,15 +174,15 @@ async def zmq_send_image(
     transmitting images
     :type metadata: Optional[SockCommMetaData_t]
     """
-    if image is None or not metadata:
-        metadata: SockCommMetaData_t = zmq_create_image_metadata(image)
+    if metadata is None:
+        metadata = zmq_create_image_metadata(image)
     try:
         # TODO: Clarify: following methods from zmq.asyncio.Socket class methods are not
         #  defined to be awaitable. Why we are invoking them with `await` ?
         if image is None:
-            await socket.send_json(metadata, zmq.NOBLOCK)
+            socket.send_json(metadata, zmq.NOBLOCK)
         else:
-            await socket.send_json(metadata, zmq.NOBLOCK | zmq.SNDMORE)
+            socket.send_json(metadata, zmq.NOBLOCK | zmq.SNDMORE)
             await socket.send(image, flags=zmq.NOBLOCK, copy=False)
     except zmq.Again:
         LOG.debug('No listeners or queue full on %s', socket.get(zmq.LAST_ENDPOINT))
@@ -184,7 +196,7 @@ class ZmqBase:
     :type endpoint: str
     """
 
-    _endpoint: str
+    _endpoint: Optional[str]
     _context: zao.Context
     _socket: Optional[zao.Socket]
 
@@ -196,7 +208,7 @@ class ZmqBase:
             self.connect(endpoint)
 
     @property
-    def endpoint(self) -> str:
+    def endpoint(self) -> Optional[str]:
         """endpoint in form transport://address"""
         return self._endpoint
 
@@ -228,7 +240,7 @@ class ZmqBase:
             self._socket = None
 
     def _setup_socket(self) -> None:
-        """Creates and connect zmq socket. Deriving class should provide the
+        """Creates and connect zmq socket. Derived class should provide the
         implementation"""
         raise NotImplementedError
 
@@ -252,7 +264,11 @@ class ZmqSender(ZmqBase):
         super().__init__(endpoint=endpoint)
 
     def _setup_socket(self) -> None:
-        """Create and connect a PUSH socket."""
+        """Create and connect a PUSH-type socket"""
+        # We create a push-type socker connection at the sender end, means if there is a one
+        # receiver peer, it would result in a strongly coupled messaging pattern and if there are
+        # multiple receiver peers the messages from sender would be served in round-robin(turn
+        # -based) fashion.
         self._socket = self._context.socket(zmq.PUSH)
         # Do not keep old images. Setting the ZMQ_LINGER option means
         # upon closing the socket connection all pending messages would
@@ -264,6 +280,7 @@ class ZmqSender(ZmqBase):
             # TODO: Clarify what its implications are. By default it is supposed to set a hard
             #   limit on the number of messages to keep in memory for intended recipient.
             self._socket.set(option=zmq.SNDHWM, value=self._snd_hwm)
+        assert (self._endpoint is not None)
         self._socket.bind(addr=self._endpoint)
 
     async def send_image(self, image: Optional[NDArray]) -> None:
@@ -273,79 +290,141 @@ class ZmqSender(ZmqBase):
         be None if end of transmission
         :type image: NDArray
         """
+        assert (self._socket is not None)
         await zmq_send_image(self._socket, image)
 
 
 class ZmqReceiver(ZmqBase):
-
     """
     Receiver of zmq image streams.
     :param endpoint: endpoint in form transport://address
+    :type endpoint: str
+    :param reliable: determines whether receiver would act as a pull type receiver or as
+    subscriber to a topic in accordance with decoupled pub-sub communication pattern
+    :type reliable: bool
+    :param rcv_hwm:
+    :type rcv_hwm: int
+    :param topic: topic filter for image subscription, works only in combination with
+    :type topic: str
+    :param polling_timeout: wait this many milliseconds between asking for images
+    :type polling_timeout: int
+
+    # TODO: What is timeout parameter, how it is used ?
     :param timeout: wait this many milliseconds between checking for the finished state and trying
     to get the next image
-    :param topic: topic filter for image subscription, works only in combination with
-    *reliable=False*
-    :param polling_timeout: wait this many milliseconds between asking for images
     """
 
-    def __init__(self, endpoint=None, reliable=True, rcvhwm=1, topic='', polling_timeout=100):
+    _rcv_hwm: int
+    _reliable: bool
+    _topic: str
+    _poller: zao.Poller
+    _polling_timeout: int
+    _request_stop: bool
+
+    def __init__(self,
+                 endpoint: Optional[str] = None,
+                 reliable: bool = True,
+                 rcv_hwm: int = 1,
+                 topic: str = "",
+                 polling_timeout: int = 100) -> None:
         self._reliable = reliable
-        self._rcvhwm = rcvhwm
+        self._rcv_hwm = rcv_hwm
         self._topic = topic
         self._poller = zao.Poller()
         self._polling_timeout = polling_timeout
         self._request_stop = False
         super().__init__(endpoint=endpoint)
 
-    def _setup_socket(self):
-        """Create and connect a PULL socket."""
+    def _setup_socket(self) -> None:
+        """Creates and connects the receiver end socket connection"""
+        # We create either a pull-type (if reliable parameter is set to true) or a subscriber-type
+        # socket peer (if reliable parameter is set to false). In case of a pull-type socket we'd
+        # end up in a more strongly coupled messaging pattern and in alternative case we can
+        # expect sender to be broadcasting the message with a topic on which receiver is supposed
+        # to subscribe and establish an asynchronous loosely-coupled communication pattern.
         self._socket = self._context.socket(zmq.PULL if self._reliable else zmq.SUB)
         if not self._reliable:
-            self._socket.set(zmq.RCVHWM, self._rcvhwm)
+            # When we don't want a reliable receiver we set a hard limit on the number of messages
+            # in the receiver buffer which are yet to be read.
+            # TODO: How it should work in our context ?
+            self._socket.set(zmq.RCVHWM, self._rcv_hwm)
             self._socket.setsockopt_string(zmq.SUBSCRIBE, self._topic)
+        # Connect to the socker endpoint and start polling for incoming messages on the socket
+        # endpoint
+        assert (self._endpoint is not None)
         self._socket.connect(self._endpoint)
         self._poller.register(self._socket, zmq.POLLIN)
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop receiving data."""
+        # This flag is read inside the asynchronous subscribe function
         self._request_stop = True
 
-    def close(self):
+    def close(self) -> None:
+        """Stops polling for incoming data and triggers socket connection closure."""
         if self._socket:
             self._poller.unregister(self._socket)
         super().close()
 
-    async def is_message_available(self, polling_timeout=None):
+    async def is_message_available(self, polling_timeout: Optional[int] = None) -> bool:
         """Wait on the socket *polling_timeout* milliseconds and if an image is available return
         True, False otherwise. If *polling_timeout* is None, use the constructor value; -1 means
         infinity.
+
+        :param polling_timeout: timeout at the receiver end for waiting on the incoming message
+        :type polling_timeout: Optional[int]
+        :returns: if new message is available
+        :rtype: bool
         """
         polling_timeout = self._polling_timeout if polling_timeout is None else polling_timeout
         sockets = dict(await self._poller.poll(timeout=polling_timeout))
-
+        # ZMQ_POLLIN is a zmq socket event whose presence tells us that at least one message
+        # may be received from the socket without blocking: http://api.zeromq.org/2-1:zmq-poll#toc2
         return self._socket in sockets and sockets[self._socket] == zmq.POLLIN
 
-    async def receive_image(self, return_metadata=False):
-        """Receive image."""
+    async def receive_image(self, return_metadata: bool = False) -> RecvPayload_t:
+        """Receive image.
+
+        :param return_metadata: whether communication metadata would be propagated to caller
+        :type return_metadata: bool
+        :returns: received image and optional metadata
+        :rtype: RecvPayload_t
+        """
+        assert (self._socket is not None)
         return await zmq_receive_image(self._socket, return_metadata=return_metadata)
 
-    async def subscribe(self, return_metadata=False):
-        """Receive images."""
-        i = 0
-        finished = False
+    async def subscribe(self, return_metadata: bool = False) -> AsyncIterable[Subscription_t]:
+        """Receive images via subscription
 
+        :param return_metadata: whether communication metadata would be propagated to caller
+        :type return_metadata: bool
+        :returns: asynchronous iterable collection of optional metadata and images
+        :rtype: AsyncIterable
+        """
+        i = 0
+        # finished = False  # TODO: Verify its purpose
         try:
+            metadata: RecvMetadata_t = {}
+            image: Optional[NDArray] = None
             while True:
                 num_tries = 0
                 while True:
                     if await self.is_message_available():
                         # There is something to consume
-                        image = await self.receive_image(return_metadata=return_metadata)
+                        received = await self.receive_image(return_metadata=return_metadata)
                         if return_metadata:
-                            metadata, image = image
+                            # If there is something to consume we expect the same to be a
+                            # non-null iterable collection of associated metadata and the image
+                            # so that we could unpack the same
+                            assert (received is not None)
+                            metadata, image = received
                         break
+                    # An explicit stop invocation from external caller could lead to this
+                    # case
                     elif self._request_stop:
                         break
+                    # If we have neither received an explicit stop signal nor a new message is
+                    # available at the socket endpoint we keep retrying
                     else:
                         num_tries += 1
                 if self._request_stop or image is None:
@@ -365,6 +444,7 @@ class ZmqReceiver(ZmqBase):
                         'i=%d (current tries=%d [%.3f ms])',
                         i + 1, num_tries, self._polling_timeout * num_tries * 1e-3
                     )
+                    assert (image is not None)  # TODO: Verify if this is reasonable assumption
                     yield (metadata, image) if return_metadata else image
                 i += 1
         except BaseException as e:
@@ -373,13 +453,14 @@ class ZmqReceiver(ZmqBase):
                 self._endpoint,
                 i,
                 e.__class__.__name__,
-                num_tries
+                num_tries  # noqa
             )
             raise
         finally:
             # Make sure no images are lingering around
             flush_i = 0
             while await self.is_message_available():
+                assert (self._socket is not None)
                 await self._socket.recv()
                 flush_i += 1
             if flush_i:
@@ -398,6 +479,7 @@ class BroadcastServer(ZmqReceiver):
     high water mark (use 1 for always getting the newest image, only applicable for non-reliable
     case)
     """
+
     def __init__(self, endpoint, broadcast_endpoints, polling_timeout=100):
         super().__init__(endpoint, polling_timeout=polling_timeout)
         self._broadcast_sockets = set([])
