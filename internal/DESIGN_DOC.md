@@ -147,8 +147,8 @@ classDiagram
 class ZmqBase {
     <<base class for zmq image streams>>
     +String endpoint
-    -zmq.asyncio.Context context
-    -zmq.asyncio.Socket socket
+    -Context context
+    -Socket socket
     +connect(String endpoint)
     +close()
     -_setup_socket()
@@ -173,7 +173,7 @@ class ZmqReceiver {
     -Int _rcv_hwm
     -Bool _reliable
     -String _topic
-    -zao.Poller _poller
+    -Poller _poller
     -Int _polling_timeout
     -Bool _request_stop
     -(override)_setup_socket()
@@ -184,7 +184,23 @@ class ZmqReceiver {
     +subscribe(Boolean return_metadata) AsyncIterable[Subscription_t]
 }
 
-note for ZmqReceiver "TODO"
+note for ZmqReceiver "Creates a conditionally ZMQ_PULL | ZMQ_SUB type socket connection peer to receive images from
+the ZmqSender endpoint. The socket connection type determines the degree of coupling with the sender endpoint."
+
 ZmqReceiver --|> ZmqBase
 
+class BroadcastServer {
+    -Set~Socket~ _broadcast_sockets
+    -Poller _poller_out
+    -Event _finished
+    -Boolean _request_stop_forwarding
+    -_forward_image(Optional~NDArray~ image, Optional~Metadata~ metadata)
+    +consume()
+    +serve()
+    +shutdown()
+}
+
+note for BroadcastServer "TODO"
+
+BroadcastServer --|> ZmqReceiver
 ```

@@ -2,7 +2,7 @@
 import asyncio
 import os
 import logging
-from typing import Optional, Union, Dict, List, Tuple, AsyncIterable, Any
+from typing import Optional, Union, Dict, List, Tuple, AsyncIterable, Any, Set
 from typing_extensions import TypeAlias
 import numpy as np
 import time
@@ -15,10 +15,9 @@ from concert.config import AIODEBUG, PERFDEBUG
 LOG = logging.getLogger(__name__)
 
 # Defines convenient type-aliases for send and receive metadata for socket communication
-SendMetadata_t: TypeAlias = Union[Dict[str, bool], Dict[str, str]]
-RecvMetadata_t: TypeAlias = Union[List[Any], str, int, float, Dict[Any, Any]]
-RecvPayload_t: TypeAlias = Union[Tuple[RecvMetadata_t, Optional[NDArray]], Optional[NDArray]]
-Subscription_t: TypeAlias = Union[Tuple[RecvMetadata_t, NDArray], NDArray]
+Metadata_t: TypeAlias = Union[List[Any], str, int, float, Dict[Any, Any]]
+RecvPayload_t: TypeAlias = Union[Tuple[Metadata_t, Optional[NDArray]], Optional[NDArray]]
+Subscription_t: TypeAlias = Union[Tuple[Metadata_t, NDArray], NDArray]
 
 
 class SocketConnection(object):
@@ -119,7 +118,7 @@ def get_tango_device(uri, peer=None, timeout=10 * q.s):
     return device
 
 
-def zmq_create_image_metadata(image: Optional[NDArray]) -> SendMetadata_t:
+def zmq_create_image_metadata(image: Optional[NDArray]) -> Metadata_t:
     """Create metadata needed for sending *image* over zmq.
 
     :param image: image captured by camera device, could be None
@@ -148,7 +147,7 @@ async def zmq_receive_image(
     """
     # TODO: Clarify - recv_json is not defined as a coroutine. Why use
     #   await ?
-    metadata: RecvMetadata_t = socket.recv_json()
+    metadata: Metadata_t = socket.recv_json()
     if "end" in metadata:  # type: ignore
         return (metadata, None) if return_metadata else None
     msg = await socket.recv(copy=False)  # type: ignore
@@ -160,7 +159,7 @@ async def zmq_receive_image(
 async def zmq_send_image(
         socket: zao.Socket,
         image: Optional[NDArray],
-        metadata: Optional[SendMetadata_t] = None) -> None:
+        metadata: Optional[Metadata_t] = None) -> None:
     """Sends *image* over zmq *socket*.
     If *metadata* is None, it is created.
     If *image* is None, {'end': True} is sent in metadata and no actual payload is sent.
@@ -309,7 +308,7 @@ class ZmqReceiver(ZmqBase):
     :param polling_timeout: wait this many milliseconds between asking for images
     :type polling_timeout: int
 
-    # TODO: What is timeout parameter, how it is used ?
+    # TODO: What is timeout parameter, how it is used if at all ?
     :param timeout: wait this many milliseconds between checking for the finished state and trying
     to get the next image
     """
@@ -369,7 +368,7 @@ class ZmqReceiver(ZmqBase):
     async def is_message_available(self, polling_timeout: Optional[int] = None) -> bool:
         """Wait on the socket *polling_timeout* milliseconds and if an image is available return
         True, False otherwise. If *polling_timeout* is None, use the constructor value; -1 means
-        infinity.
+        infinity i.e., poll indefinitely until a message is available.
 
         :param polling_timeout: timeout at the receiver end for waiting on the incoming message
         :type polling_timeout: Optional[int]
@@ -404,7 +403,7 @@ class ZmqReceiver(ZmqBase):
         i = 0
         # finished = False  # TODO: Verify its purpose
         try:
-            metadata: RecvMetadata_t = {}
+            metadata: Metadata_t = {}
             image: Optional[NDArray] = None
             while True:
                 num_tries = 0
@@ -468,34 +467,49 @@ class ZmqReceiver(ZmqBase):
 
 
 class BroadcastServer(ZmqReceiver):
-    """
-    A ZMQ server which listens to some remote host and broadcasts the data further to the specified
-    endpoints. If *reliable* is True, use PUSH/PULL, otherwise PUB/SUB (in which case
+    """A ZMQ server which listens to some remote host and broadcasts the data further to the
+    specified endpoints. If *reliable* is True, use PUSH/PULL, otherwise PUB/SUB (in which case
     *broadcast_endpoints* must be a list of just one endpoint).
 
     :param endpoint: data source endpoint in form transport://address
-    :param broadcast_endpoints: tuples of destination endpoints in form (transport://address,
-    reliable, sndhwm), if *reliable* is True use PUSH, otherwise PUB socket type; *sndhwm* is the
-    high water mark (use 1 for always getting the newest image, only applicable for non-reliable
+    :type endpoint: str
+    :param broadcast_endpoints: tuples of destination endpoints in the form (transport://address,
+    reliable, snd_hwm), if *reliable* is True use PUSH, otherwise PUB socket type; *snd_hwm* is the
+    high watermark (use 1 for always getting the newest image, only applicable for non-reliable
     case)
+    :type broadcast_endpoints: List[Tuple[str, bool, int]]
+    :param polling_timeout: wait this many milliseconds between asking for images
+    :type polling_timeout: int
     """
 
-    def __init__(self, endpoint, broadcast_endpoints, polling_timeout=100):
+    _broadcast_sockets: Set[zao.Socket]
+    _poller_out: zao.Poller
+    _finished: Optional[asyncio.Event]
+    _request_stop_forwarding: bool
+
+    def __init__(self,
+                 endpoint: str,
+                 broadcast_endpoints: List[Tuple[str, bool, int]],
+                 polling_timeout: int = 100) -> None:
         super().__init__(endpoint, polling_timeout=polling_timeout)
         self._broadcast_sockets = set([])
         self._poller_out = zao.Poller()
         self._finished = None
         self._request_stop_forwarding = False
-
-        for (destination, reliable, sndhwm) in broadcast_endpoints:
-            socket = self._context.socket(zmq.PUSH if reliable else zmq.PUB)
+        # Iterate over each endpoint and create push or publisher type socket connection
+        for (destination, reliable, snd_hwm) in broadcast_endpoints:
+            socket: zao.Socket = self._context.socket(zmq.PUSH if reliable else zmq.PUB)
             if not reliable:
-                socket.set(zmq.SNDHWM, sndhwm)
+                socket.set(option=zmq.SNDHWM, value=snd_hwm)
             socket.bind(destination)
             self._broadcast_sockets.add(socket)
             self._poller_out.register(socket, flags=zmq.POLLOUT)
 
-    async def _forward_image(self, image, metadata):
+    async def _forward_image(self,
+                             image: Optional[NDArray],
+                             metadata: Optional[Metadata_t]) -> None:
+        """Asynchronously send optional image and metadata to each destination socket endpoint
+        which were registered in init. Image and metadata could be None."""
         # Until zmq 23.2.1, this would take the whole *timeout* time even if there were events on
         # the sockets
         sockets = dict(await self._poller_out.poll(timeout=self._polling_timeout))
@@ -516,18 +530,18 @@ class BroadcastServer(ZmqReceiver):
             ) for socket in self._broadcast_sockets)
         )
 
-    async def consume(self):
+    async def consume(self) -> None:
         """Receive data from server and broadcast to all consumers."""
         if self._request_stop_forwarding:
             raise BroadcastError('Cannot consume streams with shutdown BroadcastServer')
 
         LOG.debug('BroadcastServer: forwarding new stream')
         self._finished = asyncio.Event()
-        st = None
+        st: float = 0.
         try:
             i = 1
             async for (metadata, image) in self.subscribe(return_metadata=True):
-                if st is None:
+                if st == 0.:
                     st = time.perf_counter()
                 if self._request_stop_forwarding:
                     break
@@ -539,11 +553,13 @@ class BroadcastServer(ZmqReceiver):
             await self._forward_image(None, None)
         finally:
             self._finished.set()
-            if st is None:
+            # If st is still 0. at this point, it means we did not broadcast any image
+            if st == 0.:
                 st = time.perf_counter()
-            LOG.debug('BroadcastServer: stream finished in %.3f s', time.perf_counter() - st)
+            LOG.debug(
+                'BroadcastServer: stream finished in %.3f s', time.perf_counter() - st)
 
-    async def serve(self):
+    async def serve(self) -> None:
         """Serve until asked to stop."""
         while True:
             # Wait until actual data is available in case someone requests stop between one stream
@@ -553,7 +569,7 @@ class BroadcastServer(ZmqReceiver):
                 break
             await self.consume()
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """Shutdown forwarding forever. It is not possible to call *consume()* from now on. If this
         has been called before it has no effect.
         """
@@ -561,16 +577,16 @@ class BroadcastServer(ZmqReceiver):
             # Already shutdown
             return
         self._request_stop_forwarding = True
-
         if self._finished and not self._finished.is_set():
-            # We have been started and are not finished
+            # If finished event is instantiated and its underlying flag indicates False (event
+            # criterion is not met) i.e., broadcast started but not finished yet.
             self.stop()
-            # Wait for the forwarding to finish gracefully
+            # Wait for the forwarding to finish gracefully. We wait until the consume coroutine
+            # eventually calls set on the Event at the end of broadcast.
             await self._finished.wait()
 
         for socket in self._broadcast_sockets:
             socket.close()
-
         LOG.info('BroadcastServer: shut down')
 
 
