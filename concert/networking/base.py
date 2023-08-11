@@ -2,26 +2,24 @@
 import asyncio
 import os
 import logging
-from typing import Optional, Union, Dict, List, Tuple, AsyncIterable, Any, Set
-from typing_extensions import TypeAlias
+from typing import Optional, List, Tuple, AsyncIterable, Set
 import numpy as np
 import time
 import zmq
 from numpy.typing import NDArray
 import zmq.asyncio as zao
+from pint import UnitRegistry
 from concert.quantities import q
 from concert.config import AIODEBUG, PERFDEBUG
+from concert.networking.typing import Metadata_t, Payload_t, Subscription_t
+from concert.networking.typing import ConcertDeviceProxy, BroadcastError
 
 LOG = logging.getLogger(__name__)
 
-# Defines convenient type-aliases for send and receive metadata for socket communication
-Metadata_t: TypeAlias = Union[List[Any], str, int, float, Dict[Any, Any]]
-RecvPayload_t: TypeAlias = Union[Tuple[Metadata_t, Optional[NDArray]], Optional[NDArray]]
-Subscription_t: TypeAlias = Union[Tuple[Metadata_t, NDArray], NDArray]
-
 
 class SocketConnection(object):
-    """A two-way socket connection. *return_sequence* is a string appended
+    """
+    A two-way socket connection. *return_sequence* is a string appended
     after every command indicating the end of it, the default value
     is a newline (\\n).
     """
@@ -91,35 +89,49 @@ class SocketConnection(object):
         return result
 
 
-def get_tango_device(uri, peer=None, timeout=10 * q.s):
+def get_tango_device(
+        uri: str,
+        peer: Optional[str] = None,
+        timeout: UnitRegistry = 10 * q.s) -> ConcertDeviceProxy:
     """
-    Get a Tango device by specifying its *uri*. If *peer* is given change the tango_host specifying
-    which database to connect to. Format is host:port as a string. *timeout* sets the device's
-    general timeout. It is converted to milliseconds, converted to integer and then the tango
-    device's `set_timout_millis` is called with the converted integer value.
+    Get a Tango device.
+
+    :param uri: device identifier for the tango device
+    :type uri: str
+    :param peer: if *peer* is given change the tango_host specifying which database to connect to.
+    Format is host:port as a string
+    :type peer: Optional[str]
+    :param timeout: sets the device's general timeout. It is converted to milliseconds,
+    (converted to integer and then the tango device's `set_timout_millis` is called with
+    the converted integer value)
+    :type timeout: UnitRegistry
+    :return: an abstract tango device which lets users write arbitrary attribute as
+    key value pairs.
+    :rtype: ConcertDeviceProxy
     """
     import IPython
     import PyTango
 
     if peer is not None:
+        # Specifies the location of the tango database server. Its default format is
+        # "<host>:<port>"
+        # https://tango-controls.readthedocs.io/en/latest/development/advanced/reference.html#tango-host
         os.environ["TANGO_HOST"] = peer
-
     executor = None
     if IPython.version_info >= (8, 0):
         from IPython.core.async_helpers import get_asyncio_loop
         ipython_loop = get_asyncio_loop()
         executor = PyTango.asyncio_executor.AsyncioExecutor(loop=ipython_loop)
-
     device = PyTango.DeviceProxy(
         uri, green_mode=PyTango.GreenMode.Asyncio, asyncio_executor=executor
     )
     device.set_timeout_millis(int(timeout.to(q.ms).magnitude))
-
     return device
 
 
 def zmq_create_image_metadata(image: Optional[NDArray]) -> Metadata_t:
-    """Create metadata needed for sending *image* over zmq.
+    """
+    Create metadata needed for sending *image* over zmq.
 
     :param image: image captured by camera device, could be None
     :type image: Optional[NDArray]
@@ -133,16 +145,15 @@ def zmq_create_image_metadata(image: Optional[NDArray]) -> Metadata_t:
         }
 
 
-async def zmq_receive_image(
-        socket: zao.Socket,
-        return_metadata: bool = False) -> RecvPayload_t:
-    """Receive image data from a zmq *socket*.
+async def zmq_receive_image(socket: zao.Socket, return_metadata: bool = False) -> Payload_t:
+    """
+    Receive image data from a zmq *socket*.
 
     :param socket: zmq socket connection
     :type socket: zao.Socket
     :param return_metadata: whether communication metadata would be propagated to caller
     :type return_metadata: bool
-    :returns: received image and optional metadata
+    :return: received image and optional metadata
     :rtype: RecvPayload_t
     """
     # TODO: Clarify - recv_json is not defined as a coroutine. Why use
@@ -160,8 +171,8 @@ async def zmq_send_image(
         socket: zao.Socket,
         image: Optional[NDArray],
         metadata: Optional[Metadata_t] = None) -> None:
-    """Sends *image* over zmq *socket*.
-    If *metadata* is None, it is created.
+    """
+    Sends *image* over zmq *socket*. If *metadata* is None, it is created.
     If *image* is None, {'end': True} is sent in metadata and no actual payload is sent.
 
     :param socket: zmq socket connection
@@ -212,7 +223,8 @@ class ZmqBase:
         return self._endpoint
 
     def connect(self, endpoint: str) -> None:
-        """Connect to an *endpoint* which must not be None. If it's the same one as the one we are
+        """
+        Connect to an *endpoint* which must not be None. If it's the same one as the one we are
         connected to now nothing happens, otherwise current socket is disconnected and the new
         connection is made.
 
@@ -233,13 +245,15 @@ class ZmqBase:
         self._setup_socket()
 
     def close(self) -> None:
-        """Closes the socket connection and invalidates the socket reference."""
+        """
+        Closes the socket connection and invalidates the socket reference."""
         if self._socket:
             self._socket.close()
             self._socket = None
 
     def _setup_socket(self) -> None:
-        """Creates and connect zmq socket. Derived class should provide the
+        """
+        Creates and connect zmq socket. Derived class should provide the
         implementation"""
         raise NotImplementedError
 
@@ -283,7 +297,8 @@ class ZmqSender(ZmqBase):
         self._socket.bind(addr=self._endpoint)
 
     async def send_image(self, image: Optional[NDArray]) -> None:
-        """Send *image*.
+        """
+        Send *image*.
 
         :param image: image captured by camera device, modelled by NumPy array, could
         be None if end of transmission
@@ -355,24 +370,29 @@ class ZmqReceiver(ZmqBase):
         self._poller.register(self._socket, zmq.POLLIN)
 
     def stop(self) -> None:
-        """Stop receiving data."""
+        """
+        Stops receiving data.
+        """
         # This flag is read inside the asynchronous subscribe function
         self._request_stop = True
 
     def close(self) -> None:
-        """Stops polling for incoming data and triggers socket connection closure."""
+        """
+        Stops polling for incoming data and triggers socket connection closure.
+        """
         if self._socket:
             self._poller.unregister(self._socket)
         super().close()
 
     async def is_message_available(self, polling_timeout: Optional[int] = None) -> bool:
-        """Wait on the socket *polling_timeout* milliseconds and if an image is available return
+        """
+        Wait on the socket *polling_timeout* milliseconds and if an image is available return
         True, False otherwise. If *polling_timeout* is None, use the constructor value; -1 means
         infinity i.e., poll indefinitely until a message is available.
 
         :param polling_timeout: timeout at the receiver end for waiting on the incoming message
         :type polling_timeout: Optional[int]
-        :returns: if new message is available
+        :return: if new message is available
         :rtype: bool
         """
         polling_timeout = self._polling_timeout if polling_timeout is None else polling_timeout
@@ -381,23 +401,25 @@ class ZmqReceiver(ZmqBase):
         # may be received from the socket without blocking: http://api.zeromq.org/2-1:zmq-poll#toc2
         return self._socket in sockets and sockets[self._socket] == zmq.POLLIN
 
-    async def receive_image(self, return_metadata: bool = False) -> RecvPayload_t:
-        """Receive image.
+    async def receive_image(self, return_metadata: bool = False) -> Payload_t:
+        """
+        Receive image.
 
         :param return_metadata: whether communication metadata would be propagated to caller
         :type return_metadata: bool
-        :returns: received image and optional metadata
+        :return: received image and optional metadata
         :rtype: RecvPayload_t
         """
         assert (self._socket is not None)
         return await zmq_receive_image(self._socket, return_metadata=return_metadata)
 
     async def subscribe(self, return_metadata: bool = False) -> AsyncIterable[Subscription_t]:
-        """Receive images via subscription
+        """
+        Receive images via subscription.
 
         :param return_metadata: whether communication metadata would be propagated to caller
         :type return_metadata: bool
-        :returns: asynchronous iterable collection of optional metadata and images
+        :return: asynchronous iterable collection of optional metadata and images
         :rtype: AsyncIterable
         """
         i = 0
@@ -467,7 +489,8 @@ class ZmqReceiver(ZmqBase):
 
 
 class BroadcastServer(ZmqReceiver):
-    """A ZMQ server which listens to some remote host and broadcasts the data further to the
+    """
+    A ZMQ server which listens to some remote host and broadcasts the data further to the
     specified endpoints. If *reliable* is True, use PUSH/PULL, otherwise PUB/SUB (in which case
     *broadcast_endpoints* must be a list of just one endpoint).
 
@@ -508,7 +531,8 @@ class BroadcastServer(ZmqReceiver):
     async def _forward_image(self,
                              image: Optional[NDArray],
                              metadata: Optional[Metadata_t]) -> None:
-        """Asynchronously send optional image and metadata to each destination socket endpoint
+        """
+        Asynchronously send optional image and metadata to each destination socket endpoint
         which were registered in init. Image and metadata could be None."""
         # Until zmq 23.2.1, this would take the whole *timeout* time even if there were events on
         # the sockets
@@ -531,7 +555,9 @@ class BroadcastServer(ZmqReceiver):
         )
 
     async def consume(self) -> None:
-        """Receive data from server and broadcast to all consumers."""
+        """
+        Receive data from server and broadcast to all consumers.
+        """
         if self._request_stop_forwarding:
             raise BroadcastError('Cannot consume streams with shutdown BroadcastServer')
 
@@ -560,7 +586,9 @@ class BroadcastServer(ZmqReceiver):
                 'BroadcastServer: stream finished in %.3f s', time.perf_counter() - st)
 
     async def serve(self) -> None:
-        """Serve until asked to stop."""
+        """
+        Serve until asked to stop.
+        """
         while True:
             # Wait until actual data is available in case someone requests stop between one stream
             # end and second stream start
@@ -570,7 +598,8 @@ class BroadcastServer(ZmqReceiver):
             await self.consume()
 
     async def shutdown(self) -> None:
-        """Shutdown forwarding forever. It is not possible to call *consume()* from now on. If this
+        """
+        Shutdown forwarding forever. It is not possible to call *consume()* from now on. If this
         has been called before it has no effect.
         """
         if self._request_stop_forwarding:
@@ -591,7 +620,9 @@ class BroadcastServer(ZmqReceiver):
 
 
 def is_zmq_endpoint_local(endpoint):
-    """Return True if *endpoint* belongs to this machine."""
+    """
+    Return True if *endpoint* belongs to this machine.
+    """
     prefixes = ['tcp://localhost', 'tcp://127.0.0.1', 'ipc://']
 
     for prefix in prefixes:
@@ -601,6 +632,6 @@ def is_zmq_endpoint_local(endpoint):
     return False
 
 
-class BroadcastError(Exception):
-    """BroadcastServer-related exceptions."""
+if __name__ == "__main__":
     pass
+

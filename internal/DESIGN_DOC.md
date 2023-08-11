@@ -1,5 +1,7 @@
 # Concert Design Document
 
+> Work In Progress
+
 This document encapsulates the internal development structure for concert. It would depict the API and implementation
 layer objects and their relationships using UML diagrams. In the process we'd skip the private and less-relevant
 attributes e.g., logger from the structures. The `-` and `+` denotes private and public members of an object respectively.
@@ -111,10 +113,6 @@ class SelectionValue
 SelectionValue --|> ParameterValue
 ```
 
-## Device Object Structures
-
-> TODO
-
 ## File System Traversal
 
 ```mermaid
@@ -141,6 +139,15 @@ Walker <|-- DirectoryWalker
 ```
 
 ## Decentralized Implementation
+
+The [PyZMQ](https://pyzmq.readthedocs.io/en/latest/#) makes the backbone of the decentralized networking stack for
+concert. Concretely, we define a base class `ZmqBase` which makes the high-level API for a socket connection. On top
+of that we define `ZmqSender` and `ZmqReceiver` as two abstract endpoints engaged in a peer-2-peer socket connection.
+The `ZmqBase` class does not dictate the nature of the socket connection, rather delegates that implementation to
+its derived classes. At the time of writing we have conceived two alternative connection paradigms, namely PUSH-PULL
+oriented strong-coupling and PUB-SUB oriented loose coupling. Furthermore, we defined a `BroadcastReceiver` class
+extending the `ZmqReceiver` as a listening endpoint from a source and propagate to all potentially interested parties
+listed as the parameter _broadcast\_endpoints_.
 
 ```mermaid
 classDiagram
@@ -200,7 +207,8 @@ class BroadcastServer {
     +shutdown()
 }
 
-note for BroadcastServer "TODO"
+note for BroadcastServer "As the name suggests its main job is to listen for incoming data on its underlying receiver
+endpoint and propagates same to all other interested parties who could use the data."
 
 BroadcastServer --|> ZmqReceiver
 ```
