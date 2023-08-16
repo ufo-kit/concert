@@ -147,7 +147,8 @@ The `ZmqBase` class does not dictate the nature of the socket connection, rather
 its derived classes. At the time of writing we have conceived two alternative connection paradigms, namely PUSH-PULL
 oriented strong-coupling and PUB-SUB oriented loose coupling. Furthermore, we defined a `BroadcastReceiver` class
 extending the `ZmqReceiver` as a listening endpoint from a source and propagate to all potentially interested parties
-listed as the parameter _broadcast\_endpoints_.
+listed as the parameter _broadcast\_endpoints_ for the class. Following is the class diagram of the ZMQ implementation
+stack.
 
 ```mermaid
 classDiagram
@@ -211,4 +212,53 @@ note for BroadcastServer "As the name suggests its main job is to listen for inc
 endpoint and propagates same to all other interested parties who could use the data."
 
 BroadcastServer --|> ZmqReceiver
+```
+
+### Orchestration of Tango devices
+
+```mermaid
+classDiagram
+    class Device {
+        <<Abstract Tango device server>>
+    }
+    note for Device "Each tango device is encapsulated by a so-called tango DeviceServer. In essence a
+    DeviceServer represents a generic listener endpoint. We are responsible to provide implementation for various
+    utilities that a concrete device server should serve."
+
+    class TangoRemoteProcessing {
+        <<Base device class that encapsulates a ZMQ receiver>>
+        
+    }
+    note for TangoRemoteProcessing "Base implementation for a Tango device server. Encapsulates a ZmqReceiver instance,
+    which is the actual consumer of the stream that is broadcast by the BroadcastReceiver."
+
+    TangoRemoteProcessing ..|> Device
+    
+    class TangoBenchmarker {
+        <<Abstract tango device for benchmarking>>
+    }
+    TangoBenchmarker ..|> TangoRemoteProcessing
+
+    class TangoFileCamera {
+        <<Abstract camera device to mock acquisitions reading from file system>>
+    }
+    TangoFileCamera ..|> TangoRemoteProcessing
+
+    class TangoOnlineReconstruction {
+        <<Abstract online reconstruction device to start reconstructing upon receiving each single acquisition>>
+    }
+    TangoOnlineReconstruction ..|> TangoRemoteProcessing
+
+    class TangoWriter {
+        <<Abstract storage handler device>>
+    }
+    TangoWriter ..|> TangoRemoteProcessing
+```
+
+```mermaid
+sequenceDiagram
+    TangoFileCamera (DeviceServer) ->> BroadcastReceiver: Acquisitions
+    BroadcastReceiver ->> TangoOnlineReconstruction (DeviceServer): Acquisitions
+    BroadcastReceiver ->> TangoWriter (DeviceServer): Acquisitions
+    BroadcastReceiver ->> TangoBenchmarker (DeviceServer): Acquisitions
 ```
