@@ -35,7 +35,7 @@ jobs:
     #   run: make type-check
     - name: Execute Tango TestCase
       if: matrix.python-version == 3.8
-      uses: ./
+      uses: ufo-kit/concert@decentralize_proposals
     - name: Test with pytest
       run: |
         coverage run --source=concert -m pytest -m "not skip_ci"
