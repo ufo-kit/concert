@@ -37,7 +37,7 @@ jobs:
       uses: actions/checkout@v3
     - name: Execute Tango TestCase
       if: matrix.python-version == 3.8
-      uses: ./.github/actions/tango-service-action
+      uses: ./.github/actions/tango-service-test
     - name: Test with pytest
       run: |
         coverage run --source=concert -m pytest -m "not skip_ci"
