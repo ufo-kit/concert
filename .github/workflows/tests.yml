@@ -31,11 +31,15 @@ jobs:
           pip install flake8 pytest coverage scikit-image mypy pytango
           pip install .
       - name: Setup Tango Service
-        run: make tango-service-up
+        run: |
+          make tango-service-up
+          export TANGO_HOST="127.0.0.1:8090"
       - name: Execute Tango Tests
         run: make check-tango
       - name: Teardown Tango Service
-        run: make tango-service-down
+        run: |
+          unset TANGO_HOST
+          make tango-service-down
       # - name: Partial Type-Check
       #   run: make type-check
       # - name: Checkout before using Tango service action
