@@ -33,9 +33,11 @@ jobs:
         pip install .
     # - name: Partial Type-Check
     #   run: make type-check
+    - name: Checkout before using Tango service action
+      uses: actions/checkout@v3
     - name: Execute Tango TestCase
       if: matrix.python-version == 3.8
-      uses: ufo-kit/concert@decentralize_proposals
+      uses: ./.github/actions/tango-service-action
     - name: Test with pytest
       run: |
         coverage run --source=concert -m pytest -m "not skip_ci"
