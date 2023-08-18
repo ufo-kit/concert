@@ -31,13 +31,19 @@ jobs:
         python -m pip install --upgrade pip
         pip install flake8 pytest coverage scikit-image mypy
         pip install .
+    - name: Setup Tango Service
+      run: make tango-service-up
+    - name: Execute Tango Tests
+      run: make check-tango
+    - name: Teardown Tango Service
+      run: make tango-service-down
     # - name: Partial Type-Check
     #   run: make type-check
-    - name: Checkout before using Tango service action
-      uses: actions/checkout@v3
-    - name: Execute Tango TestCase
-      if: matrix.python-version == 3.8
-      uses: ./.github/actions/tango-service-test
+    # - name: Checkout before using Tango service action
+    #   uses: actions/checkout@v3
+    # - name: Execute Tango TestCase
+      # if: matrix.python-version == 3.8
+    #   uses: ./.github/actions/tango-service-test
     - name: Test with pytest
       run: |
         coverage run --source=concert -m pytest -m "not skip_ci"
