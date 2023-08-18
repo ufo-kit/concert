@@ -1,7 +1,8 @@
 import unittest
+import time
+import os
 import tango
 import numpy
-import time
 
 from tango import AttrQuality, AttrWriteType, DispLevel, DevState, DebugIt
 from tango.server import Device, attribute, command, pipe, device_property
@@ -91,6 +92,7 @@ class PowerSupply(Device):
 class TestTango(unittest.TestCase):
 
     def setUp(self) -> None:
+        os.environ["TANGO_HOST"] = "localhost:8090"
         dev_info = tango.DbDevInfo()
         dev_info.server = "PowerSupply/test"
         dev_info._class = "PowerSupply"

@@ -2,54 +2,53 @@ name: concert tests
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master, decentralize ]
+    branches: [master, decentralize]
 
 permissions:
   contents: read
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.8', '3.9', '3.10']
+        python-version: ["3.8", "3.9", "3.10"]
       fail-fast: false
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Print python version
-      run: python -c "import sys; print(sys.version)"
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install flake8 pytest coverage scikit-image mypy
-        pip install .
-    - name: Setup Tango Service
-      run: make tango-service-up
-    - name: Execute Tango Tests
-      run: make check-tango
-    - name: Teardown Tango Service
-      run: make tango-service-down
-    # - name: Partial Type-Check
-    #   run: make type-check
-    # - name: Checkout before using Tango service action
-    #   uses: actions/checkout@v3
-    # - name: Execute Tango TestCase
+      - uses: actions/checkout@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Print python version
+        run: python -c "import sys; print(sys.version)"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 pytest coverage scikit-image mypy pytango
+          pip install .
+      - name: Setup Tango Service
+        run: make tango-service-up
+      - name: Execute Tango Tests
+        run: make check-tango
+      - name: Teardown Tango Service
+        run: make tango-service-down
+      # - name: Partial Type-Check
+      #   run: make type-check
+      # - name: Checkout before using Tango service action
+      #   uses: actions/checkout@v3
+      # - name: Execute Tango TestCase
       # if: matrix.python-version == 3.8
-    #   uses: ./.github/actions/tango-service-test
-    - name: Test with pytest
-      run: |
-        coverage run --source=concert -m pytest -m "not skip_ci"
-    - name: Upload coverage to Codecov
-      if: matrix.python-version == 3.8
-      uses: codecov/codecov-action@v2
-      with:
-        fail_ci_if_error: true
-        verbose: true
+      #   uses: ./.github/actions/tango-service-test
+      - name: Test with pytest
+        run: |
+          coverage run --source=concert -m pytest -m "not skip_ci"
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == 3.8
+        uses: codecov/codecov-action@v2
+        with:
+          fail_ci_if_error: true
+          verbose: true
