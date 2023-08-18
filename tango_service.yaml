@@ -1,0 +1,39 @@
+# Minimal Tango Control System Docker orchestration
+# Maintainer repository: https://gitlab.com/tango-controls/docker
+# USAGE:
+# Run Tango containers in detach mode: docker-compose up -d
+# Set TANGO_HOST environment variable: export TANGO_HOST="localhost:8090"
+# Run Tango experimentation
+# Teardown Tango containers: docker-compose down
+# Unset TANGO_HOST environment variable: unset TANGO_HOST
+version: '3.7'
+services:
+  # Tango database server: MySQL:5.21
+  # Maintainer repository: https://gitlab.com/tango-controls/docker/tango-db
+  mysql:
+    restart: on-failure
+    image: registry.gitlab.com/tango-controls/docker/mysql:5
+    networks:
+      - tango_net
+    environment:
+     - MYSQL_ROOT_PASSWORD=root
+  # Tango control system: Tango:9.4.1
+  # Maintainer repository: https://gitlab.com/tango-controls/docker/tango-cs
+  tango-cs:
+    restart: on-failure
+    image: registry.gitlab.com/tango-controls/docker/tango-cs:9
+    networks:
+      - tango_net
+    ports:
+     - "8090:10000"
+    environment:
+     - TANGO_HOST=localhost:10000
+     - MYSQL_HOST=mysql:3306
+     - MYSQL_USER=tango
+     - MYSQL_PASSWORD=tango
+     - MYSQL_DATABASE=tango
+    depends_on:
+     - mysql
+
+networks:
+  tango_net:

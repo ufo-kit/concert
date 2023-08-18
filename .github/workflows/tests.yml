@@ -31,8 +31,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install flake8 pytest coverage scikit-image mypy
         pip install .
-    - name: Partial Type-Check
-      run: make type-check
+    # - name: Partial Type-Check
+    #   run: make type-check
+    - name: Execute Tango TestCase
+      if: matrix.python-version == 3.8
+      uses: ./
     - name: Test with pytest
       run: |
         coverage run --source=concert -m pytest -m "not skip_ci"

@@ -1,7 +1,9 @@
 PYTHON = python
 SETUP = $(PYTHON) setup.py
-RUNTEST = pytest concert/tests
+RUNTEST = pytest concert/tests --ignore concert/tests/integration/tango
+RUNTEST_TANGO = pytest concert/tests/integration/tango
 RUN_STATIC_TYPE_CHECK = mypy concert/networking/base.py
+TANGO_SERVICE_DOCKER = docker-compose -f tango_service.yaml
 
 .PHONY: build clean check check-fast dist init install html
 
@@ -22,6 +24,9 @@ check:
 check-fast:
 	$(RUNTEST) -m 'not slow'
 
+check-tango:
+	$(RUNTEST_TANGO)
+
 type-check:
 	$(RUN_STATIC_TYPE_CHECK)
 
@@ -33,3 +38,9 @@ html:
 
 init:
 	pip install -r ./requirements.txt
+
+tango-service-up:
+	$(TANGO_SERVICE_DOCKER) up -d
+
+tango-service-down:
+	$(TANGO_SERVICE_DOCKER) down
