@@ -33,15 +33,24 @@ jobs:
       - name: Partial Type-Check
         if: matrix.python-version == 3.8
         run: make type-check
-      - name: Setup Tango Service and Execute Test
+      - name: SpinUp Tango Control Server
+        if: matrix.python-version == 3.8
+        run: make tango-service-up
+      - name: Wait For Tango Control Server
+        if: matrix.python-version == 3.8
+        uses: whatnick/wait-action@master
+        with:
+          time: '10s'
+      - name: Register Tango Device and Run Server
         if: matrix.python-version == 3.8
         run: |
-          make tango-service-up
           docker container ls
-          export TANGO_HOST=0.0.0.0:8090
+          export TANGO_HOST=127.0.0.1:8090
           python concert/tests/integration/tango/dev_reg.py
-          (python concert/tests/integration/tango/power_supply.py test)
-          make check-tango
+          bash --rcfile <(echo '. ~/.bashrc; python concert/tests/integration/tango/power_supply.py test')
+      - name: Execute Tango Test
+        if: matrix.python-version == 3.8
+        run: make check-tango
       - name: Teardown Tango Service
         if: matrix.python-version == 3.8
         run: |
