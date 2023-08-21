@@ -41,16 +41,14 @@ jobs:
         uses: whatnick/wait-action@master
         with:
           time: '10s'
-      - name: Register Tango Device and Run Server
+      - name: Register Tango Device, Run Server and Execute Test
         if: matrix.python-version == 3.8
         run: |
           docker container ls
           export TANGO_HOST=127.0.0.1:8090
           python concert/tests/integration/tango/dev_reg.py
           bash --rcfile <(echo '. ~/.bashrc; python concert/tests/integration/tango/power_supply.py test')
-      - name: Execute Tango Test
-        if: matrix.python-version == 3.8
-        run: make check-tango
+          make check-tango
       - name: Teardown Tango Service
         if: matrix.python-version == 3.8
         run: |
