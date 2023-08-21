@@ -27,7 +27,7 @@ services:
     ports:
      - "8090:10000"
     environment:
-     - TANGO_HOST=localhost:10000
+     - TANGO_HOST=127.0.0.1:10000
      - MYSQL_HOST=mysql:3306
      - MYSQL_USER=tango
      - MYSQL_PASSWORD=tango

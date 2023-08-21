@@ -30,22 +30,26 @@ jobs:
           python -m pip install --upgrade pip
           pip install flake8 pytest coverage scikit-image mypy pytango
           pip install .
-      - name: Setup Tango Service
+      - name: Partial Type-Check
+        if: matrix.python-version == 3.8
+        run: make type-check
+      - name: Setup Tango Service and Execute Test
+        if: matrix.python-version == 3.8
         run: |
           make tango-service-up
-          export TANGO_HOST="127.0.0.1:8090"
-      - name: Execute Tango Tests
-        run: make check-tango
+          export TANGO_HOST=127.0.0.1:8090
+          python concert/tests/integration/tango/dev_reg.py
+          (python concert/tests/integration/tango/power_supply.py test)
+          make check-tango
       - name: Teardown Tango Service
+        if: matrix.python-version == 3.8
         run: |
           unset TANGO_HOST
           make tango-service-down
-      # - name: Partial Type-Check
-      #   run: make type-check
+      # TODO: Investigate why the composite action is not being executed
       # - name: Checkout before using Tango service action
       #   uses: actions/checkout@v3
       # - name: Execute Tango TestCase
-      # if: matrix.python-version == 3.8
       #   uses: ./.github/actions/tango-service-test
       - name: Test with pytest
         run: |
