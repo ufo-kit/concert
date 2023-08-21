@@ -38,7 +38,7 @@ jobs:
         run: |
           make tango-service-up
           docker container ls
-          export TANGO_HOST=127.0.0.1:8090
+          export TANGO_HOST=0.0.0.0:8090
           python concert/tests/integration/tango/dev_reg.py
           (python concert/tests/integration/tango/power_supply.py test)
           make check-tango
@@ -54,7 +54,7 @@ jobs:
       #   uses: ./.github/actions/tango-service-test
       - name: Test with pytest
         run: |
-          coverage run --source=concert -m pytest -m "not skip_ci"
+          coverage run --source=concert -m pytest -m "not skip_ci" --ignore concert/tests/integration/tango
       - name: Upload coverage to Codecov
         if: matrix.python-version == 3.8
         uses: codecov/codecov-action@v2

@@ -1,6 +1,6 @@
 PYTHON = python
 SETUP = $(PYTHON) setup.py
-RUNTEST = pytest concert/tests --ignore concert/tests/integration/tango
+RUNTEST = pytest concert/tests
 RUNTEST_TANGO = pytest concert/tests/integration/tango
 RUN_STATIC_TYPE_CHECK = mypy concert/networking/base.py
 TANGO_SERVICE_DOCKER = docker-compose -f tango_service.yaml
