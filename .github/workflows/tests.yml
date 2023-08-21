@@ -37,6 +37,7 @@ jobs:
         if: matrix.python-version == 3.8
         run: |
           make tango-service-up
+          docker container ls
           export TANGO_HOST=127.0.0.1:8090
           python concert/tests/integration/tango/dev_reg.py
           (python concert/tests/integration/tango/power_supply.py test)
