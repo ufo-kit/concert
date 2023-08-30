@@ -123,16 +123,16 @@ def zmq_create_image_metadata(image):
         }
 
 
-async def zmq_receive_image(socket, return_metadata=False):
+async def zmq_receive_image(socket):
     """Receive image data from a zmq *socket*."""
     metadata = await socket.recv_json()
     if 'end' in metadata:
-        return (metadata, None) if return_metadata else None
+        return (metadata, None)
 
     msg = await socket.recv(copy=False)
     array = np.frombuffer(msg, dtype=metadata['dtype']).reshape(metadata['shape'])
 
-    return (metadata, array) if return_metadata else array
+    return (metadata, array)
 
 
 async def zmq_send_image(socket, image, metadata=None):
@@ -282,9 +282,9 @@ class ZmqReceiver(ZmqBase):
 
         return self._socket in sockets and sockets[self._socket] == zmq.POLLIN
 
-    async def receive_image(self, return_metadata=False):
+    async def receive_image(self):
         """Receive image."""
-        return await zmq_receive_image(self._socket, return_metadata=return_metadata)
+        return await zmq_receive_image(self._socket)
 
     async def subscribe(self, return_metadata=False):
         """Receive images."""
@@ -297,9 +297,7 @@ class ZmqReceiver(ZmqBase):
                 while True:
                     if await self.is_message_available():
                         # There is something to consume
-                        image = await self.receive_image(return_metadata=return_metadata)
-                        if return_metadata:
-                            metadata, image = image
+                        metadata, image = await self.receive_image()
                         break
                     elif self._request_stop:
                         break
