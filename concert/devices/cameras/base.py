@@ -273,50 +273,24 @@ class RemoteMixin:
     remote = True
 
     @background
-    @check(source='recording', target='standby')
-    async def stop_recording(self):
+    @check(source=['recording', 'readout'])
+    async def grab_send(self, num, end=True):
+        """Grab and send over a zmq socket. If *end* is True, end-of-stream indicator is sent to all
+        consumers when the desired number of images is sent.
         """
-        stop_recording()
-
-        Stop recording frames, this means we first stop streaming and then stop the camera.
-        """
-        await self._stop_streaming()
-        await self._stop_real()
-
-    @background
-    async def grab_many(self, num):
         async with self._grab_lock:
             try:
-                await self._grab_many_real(num)
+                await self._grab_send_real(num, end=end)
             except asyncio.CancelledError:
-                # Stop stream immediately and don't send poison pill, it is the responsibility of the
-                # application to cancel consumers
-                await self._cancel_streaming()
+                await self.stop_sending()
                 raise
 
-    @background
-    @check(source=['recording', 'readout'])
-    async def grab(self):
-        """Grab a frame remotely, no conversion happens as opposed to local cameras."""
-        async with self._grab_lock:
-            await self._grab_real()
-
-    async def _grab_real(self):
-        await self._grab_many_real(1)
-
-    async def _grab_many_real(self, num):
+    async def _grab_send_real(self, num, end=True):
         raise NotImplementedError
 
-    async def _stop_streaming(self):
+    async def stop_sending(self):
         """
         Stop sending images. The server must send a poison pill which serves as an end-of-stream
-        indicator to a consumer. This is the normal way to end a stream.
-        """
-        raise NotImplementedError
-
-    async def _cancel_streaming(self):
-        """
-        Immediate interruption of :meth:`.grab_many`. The server must stop sending images, poison
-        pill is not sent. This is to be used in exceptions.
+        indicator to consumers.
         """
         raise NotImplementedError

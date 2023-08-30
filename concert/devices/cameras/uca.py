@@ -276,19 +276,16 @@ class RemoteNetCamera(base.RemoteMixin, Camera):
             writer.close()
             await writer.wait_closed()
 
-    async def _send_grab_push_command(self, num_images=1):
+    async def _send_grab_push_command(self, num_images=1, end=True):
         """Grab images in ucad and push them over network to another receiver than us."""
         # UCA_NET_MESSAGE_PUSH = 10
-        await self._communicate(struct.pack('Iq', 10, num_images))
+        await self._communicate(struct.pack('Iq?', 10, num_images, end))
 
-    async def _stop_streaming(self):
-        await self._send_grab_push_command(num_images=0)
-
-    async def _cancel_streaming(self):
+    async def stop_sending(self):
         await self._communicate(struct.pack('I', 11))
 
-    async def _grab_many_real(self, num):
-        await self._send_grab_push_command(num_images=num)
+    async def _grab_send_real(self, num, end=True):
+        await self._send_grab_push_command(num_images=num, end=end)
 
     async def register_endpoint(self, endpoint, socket_type, sndhwm=-1):
         await self._communicate(
