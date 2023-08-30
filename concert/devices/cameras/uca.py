@@ -287,6 +287,12 @@ class RemoteNetCamera(base.RemoteMixin, Camera):
     async def _grab_many_real(self, num):
         await self._send_grab_push_command(num_images=num)
 
+    async def register_endpoint(self, endpoint):
+        await self._communicate(struct.pack(f"I{len(endpoint)}s", 12, bytes(endpoint, 'ascii')))
+
+    async def unregister_endpoint(self, endpoint):
+        await self._communicate(struct.pack(f"I{len(endpoint)}s", 13, bytes(endpoint, 'ascii')))
+
 
 def _construct_ucad_error(message):
     # struct UcaNetDefaultReply of uca-net-protocol.h
