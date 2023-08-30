@@ -382,7 +382,7 @@ class _ImageUpdaterBase:
         available = self._loop.run_until_complete(self._receiver.is_message_available())
 
         if available:
-            image = self._loop.run_until_complete(self._receiver.receive_image())
+            meta, image = self._loop.run_until_complete(self._receiver.receive_image())
             if image is None:
                 # No actual image data available
                 available = False
