@@ -279,7 +279,7 @@ class RemoteNetCamera(base.RemoteMixin, Camera):
     async def _send_grab_push_command(self, num_images=1):
         """Grab images in ucad and push them over network to another receiver than us."""
         # UCA_NET_MESSAGE_PUSH = 10
-        await self._communicate(struct.pack('IN', 10, num_images))
+        await self._communicate(struct.pack('Iq', 10, num_images))
 
     async def _stop_streaming(self):
         await self._communicate(struct.pack('I', 11))
