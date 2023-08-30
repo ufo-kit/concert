@@ -282,9 +282,6 @@ class RemoteNetCamera(base.RemoteMixin, Camera):
         await self._communicate(struct.pack('Iq', 10, num_images))
 
     async def _stop_streaming(self):
-        await self._send_grab_push_command(num_images=0)
-
-    async def _cancel_streaming(self):
         await self._communicate(struct.pack('I', 11))
 
     async def _grab_many_real(self, num):

@@ -273,25 +273,12 @@ class RemoteMixin:
     remote = True
 
     @background
-    @check(source='recording', target='standby')
-    async def stop_recording(self):
-        """
-        stop_recording()
-
-        Stop recording frames, this means we first stop streaming and then stop the camera.
-        """
-        await self._stop_streaming()
-        await self._stop_real()
-
-    @background
     async def grab_many(self, num):
         async with self._grab_lock:
             try:
                 await self._grab_many_real(num)
             except asyncio.CancelledError:
-                # Stop stream immediately and don't send poison pill, it is the responsibility of the
-                # application to cancel consumers
-                await self._cancel_streaming()
+                await self._stop_streaming()
                 raise
 
     @background
@@ -310,13 +297,6 @@ class RemoteMixin:
     async def _stop_streaming(self):
         """
         Stop sending images. The server must send a poison pill which serves as an end-of-stream
-        indicator to a consumer. This is the normal way to end a stream.
-        """
-        raise NotImplementedError
-
-    async def _cancel_streaming(self):
-        """
-        Immediate interruption of :meth:`.grab_many`. The server must stop sending images, poison
-        pill is not sent. This is to be used in exceptions.
+        indicator to consumers.
         """
         raise NotImplementedError
