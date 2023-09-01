@@ -287,11 +287,11 @@ class RemoteNetCamera(base.RemoteMixin, Camera):
     async def _grab_many_real(self, num):
         await self._send_grab_push_command(num_images=num)
 
-    async def register_endpoint(self, endpoint):
-        await self._communicate(struct.pack(f"I{len(endpoint)}s", 12, bytes(endpoint, 'ascii')))
+    async def register_endpoint(self, endpoint, socket_type):
+        await self._communicate(struct.pack(f"I128si", 12, bytes(endpoint, 'ascii'), socket_type))
 
     async def unregister_endpoint(self, endpoint):
-        await self._communicate(struct.pack(f"I{len(endpoint)}s", 13, bytes(endpoint, 'ascii')))
+        await self._communicate(struct.pack(f"I128s", 13, bytes(endpoint, 'ascii')))
 
 
 def _construct_ucad_error(message):
