@@ -283,6 +283,8 @@ class TangoDummyCamera(TangoCameraBase, Base):
 
     """Tango remote dummy camera."""
 
+    simulate = Parameter(help='Simulate noise')
+
     async def __ainit__(self, tango_device, background=None, simulate=True):
         await Base.__ainit__(self)
         await TangoCameraBase.__ainit__(self, tango_device)
