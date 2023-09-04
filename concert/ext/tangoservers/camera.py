@@ -139,10 +139,6 @@ class TangoCamera(Device, metaclass=DeviceMeta):
 
     @command(dtype_in=int)
     async def grab(self, num):
-        if not num:
-            self.debug_stream('Sending poisson pill')
-            await self._sender.send_image(None)
-
         for i in range(num):
             if self._stop_streaming_requested:
                 # Immediately reset
@@ -159,6 +155,9 @@ class TangoCamera(Device, metaclass=DeviceMeta):
             # all supposed to be high-performance camera, so an additional copy doesn't matter.
             await self._sender.send_image(np.copy(await self._camera.grab()))
             self._index += 1
+
+        self.debug_stream('Sending poisson pill')
+        await self._sender.send_image(None)
 
 
 class TangoDummyCamera(TangoCamera):
