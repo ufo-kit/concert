@@ -267,7 +267,7 @@ class PhaseGratingSteppingFourierProcessing(LocalMixin, base.PhaseGratingSteppin
 
     async def _write_single_image(self, name, image):
         async with self._experiment.walker:
-            file_name = os.path.join(self._experiment.walker.current, name)
+            file_name = os.path.join(await self._experiment.walker.current, name)
 
         im_writer = self._experiment.walker.writer(file_name, bytes_per_file=0)
         im_writer.write(image)

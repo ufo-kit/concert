@@ -72,8 +72,8 @@ class Benchmarker(TangoMixin, base.Benchmarker):
 
 class ImageWriter(TangoMixin, base.ImageWriter):
 
-    async def __ainit__(self, device, walker, acquisitions=None):
-        await TangoMixin.__ainit__(self, device)
+    async def __ainit__(self, walker, acquisitions=None):
+        await TangoMixin.__ainit__(self, walker.device)
         await base.ImageWriter.__ainit__(self, walker, acquisitions=acquisitions)
 
     @TangoMixin.cancel_remote

@@ -268,27 +268,28 @@ class Experiment(Parameterizable):
         if separate_scans and walker:
             # The data is not supposed to be overwritten, so find an iteration which
             # hasn't been used yet
-            while self.walker.exists(self._name_fmt.format(self._iteration)):
+            while await self.walker.exists(self._name_fmt.format(self._iteration)):
                 self._iteration += 1
 
     def add_device_to_log(self, name: str, device: concert.devices.base.Device):
         self._devices_to_log[name] = device
 
-    async def log_to_json(self, directory: str):
-        data = {}
-        experiment_parameters = {}
+    async def _prepare_metadata_str(self) -> str:
+        """Prepares the experiment metadata to be written to file. It is
+        a dictionary which potentially encapsulates one or more dictionary
+        objects.
+        """
+        metadata = {}
+        exp_params = {}
         for param in self:
-            experiment_parameters[param.name] = str(await param.get())
-
-        data['experiment'] = experiment_parameters
+            exp_params[param.name] = str(await param.get())
+        metadata["experiment"] = exp_params
         for name, device in self._devices_to_log.items():
             device_data = {}
             for param in device:
                 device_data[param.name] = str(await param.get())
-            data[name] = device_data
-
-        with open(os.path.join(directory, 'experiment.json'), 'w') as outfile:
-            json.dump(data, outfile, indent=4)
+            metadata[name] = device_data
+        return json.dumps(metadata, indent=4)
 
     async def _get_iteration(self):
         return self._iteration
@@ -418,16 +419,12 @@ class Experiment(Parameterizable):
 
         if self.walker:
             if separate_scans:
-                self.walker.descend((await self.get_name_fmt()).format(iteration))
-            if os.path.exists(self.walker.current):
-                # We might have a dummy walker which doesn't create the directory
-                handler = logging.FileHandler(os.path.join(self.walker.current,
-                                                           'experiment.log'))
-                formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s '
-                                              '- %(message)s')
-                handler.setFormatter(formatter)
+                await self.walker.descend((await self.get_name_fmt()).format(iteration))
+            if os.path.exists(await self.walker.current):
+                handler = await self.walker.get_log_handler()
                 self.log.addHandler(handler)
-                await self.log_to_json(self.walker.current)
+                exp_metadata: str = await self._prepare_metadata_str()
+                await self.walker.log_to_json(payload=exp_metadata)
         self.log.info(await self.info_table)
         for name, device in self._devices_to_log.items():
             self.log.info(f"Device {name}:")
@@ -446,11 +443,11 @@ class Experiment(Parameterizable):
             finally:
                 self.ready_to_prepare_next_sample.set()
                 if separate_scans and self.walker:
-                    self.walker.ascend()
+                    await self.walker.ascend()
                 LOG.debug('Experiment iteration %d duration: %.2f s',
                           iteration, time.time() - start_time)
                 if handler:
-                    handler.close()
+                    await handler.aclose()
                     self.log.removeHandler(handler)
                 await self.set_iteration(iteration + 1)
 

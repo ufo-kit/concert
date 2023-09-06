@@ -101,7 +101,7 @@ class GratingInterferometryStepping:
         self.stepping_axis = await LinearMotor()
         self.camera = await LoggingCamera()
         self._data_dir = tempfile.mkdtemp()
-        self.walker = DirectoryWalker(root=self._data_dir)
+        self.walker = await DirectoryWalker(root=self._data_dir)
 
     async def run_experiment(self):
         self.camera.experiment = self.exp
