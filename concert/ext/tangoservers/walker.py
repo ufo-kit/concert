@@ -8,7 +8,7 @@ from .base import TangoRemoteProcessing
 from concert.typing import StorageError
 
 
-class RemoteWalker(Device, metaclass=DeviceMeta):
+class TangoRemoteWalker(Device, metaclass=DeviceMeta):
     """Tango device for filesystem walker in a remote server"""
     
     _current: str
