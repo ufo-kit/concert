@@ -120,8 +120,8 @@ writing image sequences. You can use its :meth:`.descend` method to descend into
 a sub-directory and the :meth:`.ascend` method to return one level back.
 
 If you just want to write images in the current directory use the
-:meth:`~concert.storage.Walker.write` method. To create an image writer in
-either the current directory or one level below, you can use the
+:meth:`~concert.storage.Walker.write` method. To create an image writer
+in either the current directory or one level below, you can use the
 :meth:`.create_writer` method. This method creates the writer and if you specify
 a sub-directory also ascends back. You should use this in a `with` statement to
 make sure that while you are creating the image writer, some other coroutine

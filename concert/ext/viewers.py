@@ -40,6 +40,21 @@ def imagej(image, path="imagej"):
 
     Open *image* in ImageJ found by *path*.
     """
+    def start_command(program, image):
+        """
+        Create a tmp file for dumping the *image* and use *program*
+        to open that image. Use *writer* for writing the iamge to the disk.
+        """
+        from concert.storage import write_tiff
+        tmp_file = tempfile.mkstemp()[1]
+        try:
+            full_path = write_tiff(tmp_file, image)
+            with Popen([program, full_path]) as process:
+                process.wait()
+        finally:
+            os.remove(full_path)
+            LOG.debug('Temporary file removed')
+
     # Do not make a daemon process to make sure the interpreter waits for it to exit, i.e. the
     # *finally* will be called and temp file deleted.
     proc = _MP_CTX.Process(target=_start_command, args=(path, image), daemon=False)

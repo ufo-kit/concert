@@ -7,9 +7,9 @@ import asyncio
 import inspect
 import logging
 import os
-import time
 import json
-
+import time
+from typing import NewType, Dict, Any
 import concert.devices.base
 from concert.coroutines.base import background, broadcast, start
 from concert.coroutines.sinks import count
@@ -274,21 +274,22 @@ class Experiment(Parameterizable):
     def add_device_to_log(self, name: str, device: concert.devices.base.Device):
         self._devices_to_log[name] = device
 
-    async def log_to_json(self, directory: str):
-        data = {}
-        experiment_parameters = {}
+    async def _prepare_metadata_str(self) -> str:
+        """Prepares the experiment metadata to be written to file. It is
+        a dictionary which potentially encapsulates one or more dictionary
+        objects.
+        """
+        metadata: Dict[str, Dict[str, Any]] = {}
+        exp_params: Dict[str, Any] = {}
         for param in self:
-            experiment_parameters[param.name] = str(await param.get())
-
-        data['experiment'] = experiment_parameters
+            exp_params[param.name] = str(await param.get())
+        metadata["experiment"] = exp_params
         for name, device in self._devices_to_log.items():
-            device_data = {}
+            device_data: Dict[str, Any] = {}
             for param in device:
                 device_data[param.name] = str(await param.get())
-            data[name] = device_data
-
-        with open(os.path.join(directory, 'experiment.json'), 'w') as outfile:
-            json.dump(data, outfile, indent=4)
+            metadata[name] = device_data
+        return json.dumps(metadata, indent=4)
 
     async def _get_iteration(self):
         return self._iteration
@@ -427,7 +428,8 @@ class Experiment(Parameterizable):
                                               '- %(message)s')
                 handler.setFormatter(formatter)
                 self.log.addHandler(handler)
-                await self.log_to_json(self.walker.current)
+                exp_metadata: str = await self._prepare_metadata_str()
+                await self.walker.log_to_json(payload=exp_metadata)
         self.log.info(await self.info_table)
         for name, device in self._devices_to_log.items():
             self.log.info(f"Device {name}:")
@@ -468,3 +470,11 @@ class ConsumerError(Exception):
 class ExperimentError(Exception):
     """Experiment-related exceptions."""
     pass
+
+# Defines a convenient collection type for acquisitions that can be used for
+# type-hinting while dealing with a collection of acquisitions.
+Acquisitions = NewType("Acquisitions", "list[Acquisition]")
+
+if __name__ == "__main__":
+    pass
+

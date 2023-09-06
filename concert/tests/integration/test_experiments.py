@@ -20,8 +20,7 @@ from concert.experiments.addons.local import (Accumulator as LocalAccumulator,
                                               ImageWriter as LocalImageWriter)
 from concert.devices.cameras.dummy import Camera
 from concert.tests import TestCase, suppressed_logging, assert_almost_equal
-from concert.storage import DummyWalker, DirectoryWalker
-
+from concert.storage import DirectoryWalker, DummyWalker
 
 class VisitChecker(object):
 

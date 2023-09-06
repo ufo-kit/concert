@@ -9,7 +9,6 @@ from concert.base import check, transition, Quantity
 from concert.devices.cameras import base
 from concert.readers import TiffSequenceReader
 
-
 class Base(base.Camera):
 
     exposure_time = Quantity(q.s)
