@@ -7,6 +7,7 @@ import tifffile
 from logging import FileHandler, Formatter
 from concert.coroutines.base import background
 from concert.writers import TiffWriter
+from concert.typing import StorageError
 
 
 LOG = logging.getLogger(__name__)
@@ -339,7 +340,3 @@ def split_dsetformat(dsetname):
     """Strip *dsetname* off the formatting part wihch leaves us with the data set name."""
     return dsetname.split('{')[0]
 
-
-class StorageError(Exception):
-    """Exceptions related to logical issues with storage."""
-    pass
