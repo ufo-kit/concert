@@ -2,32 +2,41 @@
 the acquired data, e.g. write images to disk, do tomographic reconstruction etc.
 """
 import logging
+from typing import NewType, Optional, Awaitable, AsyncIterable
 from concert.base import AsyncObject
+from concert.typing import ArrayLike
+from concert.storage import RemoteDirectoryWalker
+from concert.experiments.base import Acquisition, Acquisitions
 from concert.experiments.base import Consumer as AcquisitionConsumer
 from concert.experiments.imaging import GratingInterferometryStepping
 
 
 LOG = logging.getLogger(__name__)
 
+# Defines a convenient mapping for acquisition with its corresponding consumer
+# which can be used for type hinting
+AcquisitionConsumerMapping = NewType("AcquisitionConsumerMapping",
+                                     "dict[Acquisition, AcquisitionConsumer]")
+
 
 class Addon(AsyncObject):
 
-    """A base addon class. An addon can be attached, i.e. its functionality is applied to the
-    specified *acquisitions* and detached.
+    """A base addon class. An addon can be attached, i.e. its functionality is
+    applied to the specified *acquisitions* and detached.
 
     .. py:attribute:: acquisitions
 
-    A list of :class:`~concert.experiments.base._Acquisition` objects. The addon attaches itself on
-    construction.
-
+    A list of :class:`~concert.experiments.base._Acquisition` objects. The
+    addon attaches itself on construction.
     """
 
-    async def __ainit__(self, acquisitions=None):
+    async def __ainit__(self,
+                        acquisitions: Optional[Acquisitions] = None) -> None:
         self._consumers = set([])
         if acquisitions is not None:
             await self.attach(acquisitions)
 
-    async def attach(self, acquisitions):
+    async def attach(self, acquisitions: Acquisitions) -> None:
         """Attach the addon to *acquisitions*."""
         unattached = set(acquisitions)
         for acq in acquisitions:
@@ -43,7 +52,7 @@ class Addon(AsyncObject):
 
         await self._setup()
 
-    async def detach(self, acquisitions):
+    async def detach(self, acquisitions: Acquisitions) -> None:
         """Detach the addon from *acquisitions*."""
         for acq in acquisitions:
             to_remove = set([])
@@ -55,16 +64,18 @@ class Addon(AsyncObject):
 
         await self._teardown()
 
-    async def _setup(self):
+    async def _setup(self) -> None:
         pass
 
-    async def _teardown(self):
+    async def _teardown(self) -> None:
         pass
 
-    def _make_consumers(self, acquisitions):
+    def _make_consumers(self,
+                        acquisitions: Acquisitions) -> AcquisitionConsumerMapping:
         """
-        Create consumers and store them in a dictionary in form {acquisition: consumer, ...}. Do not
-        add the consumers to acquisitions, that is taken care of in :meth:`attach`.
+        Create consumers and store them in a dictionary in form
+        {acquisition: consumer, ...}. Do not add the consumers to acquisitions,
+        that is taken care of in :meth:`attach`.
         """
         raise NotImplementedError
 
@@ -116,15 +127,18 @@ class ImageWriter(Addon):
     A :class:`~concert.storage.Walker` instance
     """
 
-    async def __ainit__(self, walker, acquisitions=None):
+    async def __ainit__(self,
+                        walker: RemoteDirectoryWalker,
+                        acquisitions: Acquisitions = None) -> None:
         self.walker = walker
         await super().__ainit__(acquisitions=acquisitions)
 
-    def _make_consumers(self, acquisitions):
+    def _make_consumers(self,
+                        acquisitions: Acquisitions) -> AcquisitionConsumerMapping:
         """Attach all acquisitions."""
         consumers = {}
 
-        def prepare_wrapper(acquisition):
+        def prepare_wrapper(acquisition: Acquisition) -> Awaitable:
             async def prepare_and_write(*args):
                 # Make sure the directory exists
                 async with self.walker:
@@ -146,7 +160,9 @@ class ImageWriter(Addon):
 
         return consumers
 
-    async def _write_sequence(self, path, producer=None):
+    async def write_sequence(self,
+                             path: str,
+                             producer: AsyncIterable[ArrayLike]=None) -> None:
         raise NotImplementedError
 
 

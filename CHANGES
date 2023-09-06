@@ -312,7 +312,7 @@ API breaks
 
 - `scan` yields futures instead of returning a list
 - Moved specific pco cameras to `concert.devices.cameras.pco`.
-- Moved `write_images` to `concert.storage`
+- Moved `write_images` to `concert.persistence.storage`
 - Removed `base.MultiContext` and `base.Process`
 
 Fixes
@@ -442,8 +442,8 @@ API breaks
 - ``Motor`` is renamed to ``LinearMotor`` for all devices.
 - ``Parameter`` objects are now declared at class-level instead of at run-time
   within the class constructor.
-- ``concert.storage.create_folder`` renamed to
-  ``concert.storage.create_directory``
+- ``concert.persistence.storage.create_folder`` renamed to
+  ``concert.persistence.storage.create_directory``
 - ``concert.ext.viewers.PyplotViewer`` substituted by 1D and 2D viewers
   ``concert.ext.viewers.PyplotCurveViewer`` and
   ``concert.ext.viewers.PyplotImageViewer``
