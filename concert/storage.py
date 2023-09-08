@@ -3,14 +3,28 @@ import asyncio
 import os
 import logging
 import re
-import tifffile
+from typing import Optional, AsyncIterable, Awaitable
 from logging import FileHandler, Formatter
+import numpy
+if numpy.__version__ >= "1.20":
+    from numpy.typing import ArrayLike
+else:
+    from numpy import ndarray as ArrayLike
+import tifffile
 from concert.coroutines.base import background
 from concert.writers import TiffWriter
-from concert.typing import StorageError
+from concert.typing import StorageError, AbstractTangoDevice
+from concert.networking.base import get_tango_device
 
 
 LOG = logging.getLogger(__name__)
+
+def split_dsetformat(dsetname):
+    """
+    Strip *dsetname* off the formatting part wihch leaves us with the data 
+    set name.
+    """
+    return dsetname.split('{')[0]
 
 
 def read_image(filename):
@@ -332,11 +346,79 @@ class DirectoryWalker(Walker):
         for name in filenames:
             if name.startswith(split_dsetformat(dsetname)):
                 return True
-
         return False
 
 
-def split_dsetformat(dsetname):
-    """Strip *dsetname* off the formatting part wihch leaves us with the data set name."""
-    return dsetname.split('{')[0]
+class RemoteDirectoryWalker(Walker):
+    """
+    Defines the api layer of a directory walker for a remote file system.
+    Encapsulates a Tango device which runs on the remote file system where the
+    data needs to be written.
+    """
+    
+    _device: AbstractTangoDevice
+
+    def __init__(self, 
+                 rem_uri: str, 
+                 wrt_cls: str = "TiffWriter", 
+                 dsetname: str = 'frame_{:>06}.tif',
+                 start_index: int = 0, 
+                 bytes_per_file: int = 0,
+                 root: Optional[str] = None,
+                 logger_cls: Optional[str] = None,
+                 log_name: str = "experiment.log") -> None:
+        """
+        Initializes a remote directory walker. This walker implementation
+        encapsulates a Tango device server and delegates its core utilities
+        to the same.
+
+        :param rem_uri: uri to address the remote tango device server
+        :type rem_uri: str
+        :param wrt_cls: specific writer class which the device should use
+        to write files
+        :type wrt_cls: str
+        :param dsetname: template for writing files of the dataset
+        :type dsetname: str
+        :param start_index: number of the first file name in the dataset
+        :type start_index: int
+        :param bytes_per_file: size limit for a file, `0` denotes 1 file per
+        image
+        :type bytes_per_file: int
+        :param root: file system root for to start traversal, if None current
+        directory of the walker is used
+        :type root: Optional[str]
+        :param logger_cls: logger instance, usually logging.Logger
+        :type logger_cls: Optional[str]
+        :param log_name: log file name
+        :type log_name: str
+        """
+        self._device = get_tango_device(uri=rem_uri)
+        self._device.write_attribute(attr_name="root", value=root)
+        self._device.write_attribute(
+                attr_name="writer_class", value=wrt_cls)
+        self._device.write_attribute(attr_name="dsetname", value=dsetname)
+        self._device.write_attribute(attr_name="start_index", value=start_index)
+        self._device.write_attribute(
+                attr_name="bytes_per_file", value=bytes_per_file)
+        self._device.write_attribute(attr_name="logger_class", value=logger_cls)
+        self._device.write_attribute(attr_name="log_name", value=log_name)
+
+    
+    def _descend(self, name: str) -> None:
+        self._device.descend(name=name)
+
+    def _ascend(self) -> None:
+        self._device.ascend()
+
+    def exists(self, *paths: str) -> bool:
+        self._device.exists(*paths)
+
+    def _create_writer(self, 
+                       producer: AsyncIterable[ArrayLike], 
+                       dsetname: Optional[str] = None) -> Awaitable:
+        return self._device.create_writer(producer=producer, dsetname=dsetname)
+
+
+if __name__ == "__main__":
+    pass
 
