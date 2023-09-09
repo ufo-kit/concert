@@ -5,10 +5,10 @@ Implements device server for remote directory walker
 """
 
 import os
-from logging import Logger, FileHandler
+import logging
 from typing import Type, Optional, Awaitable, AsyncIterable
 import re
-from tango import DebugIt, InfoIt
+from tango import DebugIt
 from tango.server import attribute, command, AttrWriteType
 from tango.server import Device, DeviceMeta
 import numpy
@@ -43,7 +43,7 @@ class TangoRemoteWalker(Device, metaclass=DeviceMeta):
     )
 
     writer_class = attribute(
-        label="WriterClass"
+        label="WriterClass",
         drype=str,
         access=AttrWriteType.READ_WRITE,
         fset="set_writer_class"
@@ -86,7 +86,7 @@ class TangoRemoteWalker(Device, metaclass=DeviceMeta):
 
     _writer: Type[writers.TiffWriter]
     _logger: Optional[logging.Logger]
-    _log_handler: Optional[FileHandler]
+    _log_handler: Optional[logging.FileHandler]
     
     @staticmethod
     def _create_dir(directory: str, mode: int = 0o0750) -> None:
@@ -145,7 +145,7 @@ class TangoRemoteWalker(Device, metaclass=DeviceMeta):
         if klass:
             self._logger = getattr(logging, klass)
             assert self.__root is not None and self.__log_name is not None
-            self._log_handler = FileHandler(
+            self._log_handler = logging.FileHandler(
                     os.path.join(self.__root, self.__log_name))
     
     @DebugIt()
@@ -182,9 +182,12 @@ class TangoRemoteWalker(Device, metaclass=DeviceMeta):
     @DebugIt()
     @command()
     def create_writer(self, 
-                      producer: AsyncIterable[ArrayLike], 
+                      producer: AsyncIterable[ArrayLike],
                       dsetname: Optional[str] = None) -> Awaitable:
-        dsn = self.__dsetname or dsetname
+        if dsetname:
+            dsn = dsetname
+        else:
+            dsn = self.__dsetname
         if self._dset_exists(dsetname=dsn):
             dset_prefix = split_dsetformat(dsn)
             dset_path = os.path.join(self.__current, dset_prefix)
