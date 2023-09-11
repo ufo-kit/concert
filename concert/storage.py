@@ -10,7 +10,6 @@ from concert.coroutines.base import background
 from concert.writers import TiffWriter
 from concert.typing import RemoteDirectoryWalkerTangoDevice
 from concert.typing import StorageError, ArrayLike
-from concert.networking.base import get_tango_device
 
 
 LOG = logging.getLogger(__name__)
