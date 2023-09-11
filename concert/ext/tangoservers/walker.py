@@ -8,7 +8,7 @@ import os
 import logging
 from typing import Type, Optional, Awaitable, AsyncIterable
 import re
-from tango import DebugIt, InfoIt
+from tango import DebugIt
 from tango.server import attribute, command, AttrWriteType
 from tango.server import Device, DeviceMeta
 from concert.typing import StorageError, ArrayLike
@@ -38,7 +38,7 @@ class TangoRemoteWalker(Device, metaclass=DeviceMeta):
     )
 
     writer_class = attribute(
-        label="WriterClass"
+        label="WriterClass",
         drype=str,
         access=AttrWriteType.READ_WRITE,
         fset="set_writer_class"
@@ -177,9 +177,12 @@ class TangoRemoteWalker(Device, metaclass=DeviceMeta):
     @DebugIt()
     @command()
     def create_writer(self, 
-                      producer: AsyncIterable[ArrayLike], 
+                      producer: AsyncIterable[ArrayLike],
                       dsetname: Optional[str] = None) -> Awaitable:
-        dsn = self.__dsetname or dsetname
+        if dsetname:
+            dsn = dsetname
+        else:
+            dsn = self.__dsetname
         if self._dset_exists(dsetname=dsn):
             dset_prefix = split_dsetformat(dsn)
             dset_path = os.path.join(self.__current, dset_prefix)
