@@ -5,18 +5,13 @@ Implements device server for remote directory walker
 """
 
 import os
-from logging import Logger, FileHandler
+import logging
 from typing import Type, Optional, Awaitable, AsyncIterable
 import re
 from tango import DebugIt, InfoIt
 from tango.server import attribute, command, AttrWriteType
 from tango.server import Device, DeviceMeta
-import numpy
-if numpy.__version__ >= "1.20":
-    from numpy.typing import ArrayLike
-else:
-    from numpy import ndarray as ArrayLike
-from concert.typing import StorageError
+from concert.typing import StorageError, ArrayLike
 from concert import writers
 from concert.storage import write_images, split_dsetformat
 
@@ -86,7 +81,7 @@ class TangoRemoteWalker(Device, metaclass=DeviceMeta):
 
     _writer: Type[writers.TiffWriter]
     _logger: Optional[logging.Logger]
-    _log_handler: Optional[FileHandler]
+    _log_handler: Optional[logging.FileHandler]
     
     @staticmethod
     def _create_dir(directory: str, mode: int = 0o0750) -> None:
@@ -145,7 +140,7 @@ class TangoRemoteWalker(Device, metaclass=DeviceMeta):
         if klass:
             self._logger = getattr(logging, klass)
             assert self.__root is not None and self.__log_name is not None
-            self._log_handler = FileHandler(
+            self._log_handler = logging.FileHandler(
                     os.path.join(self.__root, self.__log_name))
     
     @DebugIt()
