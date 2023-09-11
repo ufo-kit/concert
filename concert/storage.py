@@ -355,7 +355,7 @@ class RemoteDirectoryWalker(Walker):
     device: RemoteDirectoryWalkerTangoDevice
 
     def __init__(self,
-                 rem_uri: str,
+                 device: RemoteDirectoryWalkerTangoDevice,
                  wrt_cls: str = "TiffWriter",
                  dsetname: str = 'frame_{:>06}.tif',
                  start_index: int = 0,
@@ -368,8 +368,9 @@ class RemoteDirectoryWalker(Walker):
         encapsulates a Tango device server and delegates its core utilities
         to the same.
 
-        :param rem_uri: uri to address the remote tango device server
-        :type rem_uri: str
+        :param device: an abstract tango device conforming to remote tango
+        walker specification
+        :type rem_uri: RemoteDirectoryWalkerTangoDevice
         :param wrt_cls: specific writer class which the device should use
         to write files
         :type wrt_cls: str
@@ -388,7 +389,7 @@ class RemoteDirectoryWalker(Walker):
         :param log_name: log file name
         :type log_name: str
         """
-        self.device = get_tango_device(uri=rem_uri)
+        self.device = device
         self.device.write_attribute(attr_name="root", value=root)
         self.device.write_attribute(
                 attr_name="writer_class", value=wrt_cls)
