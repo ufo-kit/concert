@@ -39,7 +39,7 @@ class TangoRemoteWalker(Device, metaclass=DeviceMeta):
 
     writer_class = attribute(
         label="WriterClass",
-        drype=str,
+        dtype=str,
         access=AttrWriteType.WRITE,
         fset="set_writer_class"
     )
@@ -74,7 +74,7 @@ class TangoRemoteWalker(Device, metaclass=DeviceMeta):
 
     log_name = attribute(
         label="LogName",
-        drype=str,
+        dtype=str,
         access=AttrWriteType.WRITE,
         fset="set_log_name"
     )
