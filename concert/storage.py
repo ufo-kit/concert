@@ -397,6 +397,8 @@ class RemoteDirectoryWalker(Walker):
                 attr_name="bytes_per_file", value=bytes_per_file)
         self.device.write_attribute(attr_name="logger_class", value=logger_cls)
         self.device.write_attribute(attr_name="log_name", value=log_name)
+        super().__init__(root=root, dsetname=dsetname, log=None, 
+                         log_handler=None)  
 
     def _descend(self, name: str) -> None:
         self.device.descend(name=name)
