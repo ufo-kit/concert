@@ -40,42 +40,42 @@ class TangoRemoteWalker(Device, metaclass=DeviceMeta):
     writer_class = attribute(
         label="WriterClass",
         drype=str,
-        access=AttrWriteType.READ_WRITE,
+        access=AttrWriteType.WRITE,
         fset="set_writer_class"
     )
 
     dsetname = attribute(
         label="Dsetname",
         dtype=str,
-        access=AttrWriteType.READ_WRITE,
+        access=AttrWriteType.WRITE,
         fset="set_dsetname"
     )
 
     bytes_per_file = attribute(
         label="BytesPerFile",
         dtype=int,
-        access=AttrWriteType.READ_WRITE,
+        access=AttrWriteType.WRITE,
         fset="set_bytes_per_file",
     )
 
     start_index = attribute(
         label="StartIndex",
         dtype=int,
-        access=AttrWriteType.READ_WRITE,
+        access=AttrWriteType.WRITE,
         fset="set_start_index"
     )
 
     logger_class = attribute(
         label="LoggerClass",
         dtype=str,
-        access=AttrWriteType.READ_WRITE,
+        access=AttrWriteType.WRITE,
         fset="set_logger_class"
     )
 
     log_name = attribute(
         label="LogName",
         drype=str,
-        access=AttrWriteType.READ_WRITE,
+        access=AttrWriteType.WRITE,
         fset="set_log_name"
     )
 
