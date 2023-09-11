@@ -22,11 +22,8 @@ class StorageError(Exception):
 #####################################################################
 # Abstract Device Types
 
+
 class AbstractTangoDevice(Protocol):
-    """
-    Abstract Tango device which let's users to write arbitrary attribute as
-    key value pairs.
-    """
 
     async def write_attribute(self, attr_name: str, value: Any) -> None:
         """Lets the caller write a device attribute
@@ -36,6 +33,13 @@ class AbstractTangoDevice(Protocol):
         :param value: attribute value
         :type value: str
         """
+
+
+class RemoteDirectoryWalkerTangoDevice(AbstractTangoDevice, Protocol):
+    """
+    Abstract Tango device which let's users to write arbitrary attribute as
+    key value pairs.
+    """
 
     def descend(self, name: str) -> None:
         """

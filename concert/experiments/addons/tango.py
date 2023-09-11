@@ -8,7 +8,8 @@ from concert.experiments.addons import base
 from concert.experiments.base import Acquisition
 from concert.quantities import q
 from concert.storage import RemoteDirectoryWalker
-from concert.typing import AbstractTangoDevice, ArrayLike
+from concert.typing import AbstractTangoDevice
+from concert.typing import RemoteDirectoryWalkerTangoDevice, ArrayLike
 
 LOG = logging.getLogger(__name__)
 

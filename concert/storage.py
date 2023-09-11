@@ -8,7 +8,8 @@ from logging import FileHandler, Formatter
 import tifffile
 from concert.coroutines.base import background
 from concert.writers import TiffWriter
-from concert.typing import StorageError, AbstractTangoDevice, ArrayLike
+from concert.typing import RemoteDirectoryWalkerTangoDevice
+from concert.typing import StorageError, ArrayLike
 from concert.networking.base import get_tango_device
 
 
@@ -351,7 +352,7 @@ class RemoteDirectoryWalker(Walker):
     data needs to be written.
     """
     
-    device: AbstractTangoDevice
+    device: RemoteDirectoryWalkerTangoDevice
 
     def __init__(self,
                  rem_uri: str,
@@ -398,7 +399,7 @@ class RemoteDirectoryWalker(Walker):
         self.device.write_attribute(attr_name="logger_class", value=logger_cls)
         self.device.write_attribute(attr_name="log_name", value=log_name)
         super().__init__(root=root, dsetname=dsetname, log=None, 
-                         log_handler=None)  
+                         log_handler=None)
 
     def _descend(self, name: str) -> None:
         self.device.descend(name=name)
