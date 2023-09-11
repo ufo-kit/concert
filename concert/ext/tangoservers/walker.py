@@ -95,38 +95,48 @@ class TangoRemoteWalker(Device, metaclass=DeviceMeta):
         """
         if not os.path.exists(directory):
             os.makedirs(name=directory, mode=mode)
+
+    async def init_device(self) -> None:
+        """
+        Initializes the remote walker tango device. It sets current working
+        directory as the initial values for the root and current attributes,
+        without creating any directory which needs explicitly setting the root
+        attribute.
+        """
+        self.info_stream('%s init_device', self.__class__.__name__)
+        await super().init_device()
+        self._root = os.path.abspath(os.getcwd())
+        self._current = self._root
     
     def get_current(self) -> str:
-        return self.__current
+        return self._current
 
     def set_current(self, path: str) -> None:
-        self.__current = path
+        self._current = path
 
     def get_root(self) -> str:
-        return self.__root
+        return self._root
 
     def set_root(self, path: Optional[str] = None) -> None:
-        if not path:
-            self.__root = os.path.abspath(os.getcwd())
-        else:
-            self.__root = path
-        self.__current = self.__root
-        self._create_dir(directory=self.__root)
+        if path:
+            self._root = path
+            self._current = self._root
+            self._create_dir(directory=self._root)
 
     def set_writer_class(self, klass: str) -> None:
         self._writer = getattr(writers, klass)
 
     def set_dsetname(self, dsetname: str) -> None:
-        self.__dsetname = dsetname
+        self._dsetname = dsetname
 
     def set_bytes_per_file(self, val: int) -> None:
-        self.__bytes_per_file = val
+        self._bytes_per_file = val
 
     def set_start_index(self, idx: int) -> None:
-        self.__start_index = idx
+        self._start_index = idx
 
     def set_log_name(self, log_name: str) -> None:
-        self.__log_name = log_name
+        self._log_name = log_name
 
     def set_logger_class(self, klass: Optional[str] = None) -> None:
         # TODO: Understand the drawback of this approach. We are assuming
@@ -139,29 +149,29 @@ class TangoRemoteWalker(Device, metaclass=DeviceMeta):
         # https://pytango.readthedocs.io/en/stable/data_types.html#pytango-data-types
         if klass:
             self._logger = getattr(logging, klass)
-            assert self.__root is not None and self.__log_name is not None
+            assert self._root is not None and self._log_name is not None
             self._log_handler = logging.FileHandler(
-                    os.path.join(self.__root, self.__log_name))
+                    os.path.join(self._root, self.bytes_per_file_log_name))
     
     @DebugIt()
     @command(dtype_in=str)
     def descend(self, name: str) -> None:
-        assert self.__current is not None
-        new_path: str = os.path.join(self.__current, name)
+        assert self._current is not None
+        new_path: str = os.path.join(self._current, name)
         self._create_dir(directory=new_path)
-        self.__current = new_path
+        self._current = new_path
 
     @DebugIt()
     @command()
     def ascend(self) -> None:
-        if self.__current == self.__root:
-            raise StorageError(f"Cannot break out of `{self.__root}'.")
-        self.__current = os.path.dirname(self.__current)
+        if self._current == self._root:
+            raise StorageError(f"Cannot break out of `{self._root}'.")
+        self._current = os.path.dirname(self._current)
 
     @DebugIt()
     @command()
     def exists(self, *paths: str) -> bool:
-        return os.path.exists(os.path.join(self.__current, *paths))
+        return os.path.exists(os.path.join(self._current, *paths))
 
     def _dset_exists(self, dsetname: str) -> bool:
         """
@@ -169,7 +179,7 @@ class TangoRemoteWalker(Device, metaclass=DeviceMeta):
         """
         if not re.match('.*{.*}.*', dsetname):
             raise ValueError(f"dataset name {dsetname} has wrong format")
-        for f_name in os.listdir(self.__current):
+        for f_name in os.listdir(self._current):
             if f_name.startswith(split_dsetformat(dsetname)):
                 return True
         return False
@@ -182,18 +192,18 @@ class TangoRemoteWalker(Device, metaclass=DeviceMeta):
         if dsetname:
             dsn = dsetname
         else:
-            dsn = self.__dsetname
+            dsn = self._dsetname
         if self._dset_exists(dsetname=dsn):
             dset_prefix = split_dsetformat(dsn)
-            dset_path = os.path.join(self.__current, dset_prefix)
+            dset_path = os.path.join(self._current, dset_prefix)
             raise StorageError(f"{dset_path} is not empty")
-        prefix = os.path.join(self.__current, dsn)
+        prefix = os.path.join(self._current, dsn)
         return write_images(
             producer,
             self._writer,
             prefix,
-            self.__start_index,
-            self.__bytes_per_file
+            self._start_index,
+            self._bytes_per_file
         )
 
 
