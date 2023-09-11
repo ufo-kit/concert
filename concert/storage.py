@@ -5,15 +5,10 @@ import logging
 import re
 from typing import Optional, AsyncIterable, Awaitable
 from logging import FileHandler, Formatter
-import numpy
-if numpy.__version__ >= "1.20":
-    from numpy.typing import ArrayLike
-else:
-    from numpy import ndarray as ArrayLike
 import tifffile
 from concert.coroutines.base import background
 from concert.writers import TiffWriter
-from concert.typing import StorageError, AbstractTangoDevice
+from concert.typing import StorageError, AbstractTangoDevice, ArrayLike
 from concert.networking.base import get_tango_device
 
 
@@ -356,13 +351,13 @@ class RemoteDirectoryWalker(Walker):
     data needs to be written.
     """
     
-    _device: AbstractTangoDevice
+    device: AbstractTangoDevice
 
-    def __init__(self, 
-                 rem_uri: str, 
-                 wrt_cls: str = "TiffWriter", 
+    def __init__(self,
+                 rem_uri: str,
+                 wrt_cls: str = "TiffWriter",
                  dsetname: str = 'frame_{:>06}.tif',
-                 start_index: int = 0, 
+                 start_index: int = 0,
                  bytes_per_file: int = 0,
                  root: Optional[str] = None,
                  logger_cls: Optional[str] = None,
@@ -392,31 +387,38 @@ class RemoteDirectoryWalker(Walker):
         :param log_name: log file name
         :type log_name: str
         """
-        self._device = get_tango_device(uri=rem_uri)
-        self._device.write_attribute(attr_name="root", value=root)
-        self._device.write_attribute(
+        self.device = get_tango_device(uri=rem_uri)
+        self.device.write_attribute(attr_name="root", value=root)
+        self.device.write_attribute(
                 attr_name="writer_class", value=wrt_cls)
-        self._device.write_attribute(attr_name="dsetname", value=dsetname)
-        self._device.write_attribute(attr_name="start_index", value=start_index)
-        self._device.write_attribute(
+        self.device.write_attribute(attr_name="dsetname", value=dsetname)
+        self.device.write_attribute(attr_name="start_index", value=start_index)
+        self.device.write_attribute(
                 attr_name="bytes_per_file", value=bytes_per_file)
-        self._device.write_attribute(attr_name="logger_class", value=logger_cls)
-        self._device.write_attribute(attr_name="log_name", value=log_name)
+        self.device.write_attribute(attr_name="logger_class", value=logger_cls)
+        self.device.write_attribute(attr_name="log_name", value=log_name)
 
-    
     def _descend(self, name: str) -> None:
-        self._device.descend(name=name)
+        self.device.descend(name=name)
 
     def _ascend(self) -> None:
-        self._device.ascend()
+        self.device.ascend()
 
     def exists(self, *paths: str) -> bool:
-        self._device.exists(*paths)
+        """
+        Asserts whether the specified paths exists in the file system.
+
+        :param paths: a given number of file system paths
+        :type paths: str
+        :return: asserts whether specified path exists
+        :rtype: bool
+        """
+        self.device.exists(*paths)
 
     def _create_writer(self, 
                        producer: AsyncIterable[ArrayLike], 
                        dsetname: Optional[str] = None) -> Awaitable:
-        return self._device.create_writer(producer=producer, dsetname=dsetname)
+        return self.device.create_writer(producer=producer, dsetname=dsetname)
 
 
 if __name__ == "__main__":
