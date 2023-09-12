@@ -8,7 +8,7 @@ import os
 import logging
 from typing import Type, Optional, Awaitable, AsyncIterable
 import re
-from tango import DebugIt
+from tango import DebugIt, DevState, DevState
 from tango.server import attribute, command, AttrWriteType
 from tango.server import Device, DeviceMeta
 from concert.typing import StorageError, ArrayLike
@@ -98,15 +98,18 @@ class TangoRemoteWalker(Device, metaclass=DeviceMeta):
 
     async def init_device(self) -> None:
         """
-        Initializes the remote walker tango device. It sets current working
-        directory as the initial values for the root and current attributes,
-        without creating any directory which needs explicitly setting the root
-        attribute.
+        Initializes the remote walker tango device. Sets the remote server's
+        home directory as root as well as the current directory.
         """
-        self.info_stream('%s init_device', self.__class__.__name__)
+        self.info_stream("%s init_device", self.__class__.__name__)
         await super().init_device()
-        self._root = os.path.abspath(os.getcwd())
+        self._root = os.environ["HOME"]
         self._current = self._root
+        self.set_state(DevState.STANDBY)
+        self.info_stream(
+                "%s in state: %s in directory: %s",
+                self.__class__.__name__, self.state(), self.get_root()
+        )
     
     def get_current(self) -> str:
         return self._current
