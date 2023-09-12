@@ -108,7 +108,7 @@ class TangoRemoteWalker(Device, metaclass=DeviceMeta):
         self.set_state(DevState.STANDBY)
         self.info_stream(
                 "%s in state: %s in directory: %s",
-                self.__class__.__name__, self.state(), self.get_root()
+                self.__class__.__name__, self.get_state(), self.get_root()
         )
     
     def get_current(self) -> str:
