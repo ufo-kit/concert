@@ -8,7 +8,7 @@ import os
 import logging
 from typing import Type, Optional, Awaitable, AsyncIterable
 import re
-from tango import DebugIt, DevState, DevState
+from tango import DebugIt, DevState
 from tango.server import attribute, command, AttrWriteType
 from tango.server import Device, DeviceMeta
 from concert.typing import StorageError, ArrayLike

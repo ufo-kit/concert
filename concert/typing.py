@@ -9,21 +9,23 @@ if numpy.__version__ >= "1.20":
     from numpy.typing import ArrayLike
 else:
     from numpy import ndarray as ArrayLike
+
 #####################################################################
 # Error Types
 class StorageError(Exception):
     """
     Exceptions related to logical issues with storage.
     """
-    pass
 #####################################################################
 
 
 #####################################################################
 # Abstract Device Types
-
-
 class AbstractTangoDevice(Protocol):
+    """
+    Abstract Tango device which let's users to write arbitrary attribute as
+    key value pairs. 
+    """
 
     async def write_attribute(self, attr_name: str, value: Any) -> None:
         """Lets the caller write a device attribute
@@ -37,8 +39,10 @@ class AbstractTangoDevice(Protocol):
 
 class RemoteDirectoryWalkerTangoDevice(AbstractTangoDevice, Protocol):
     """
-    Abstract Tango device which let's users to write arbitrary attribute as
-    key value pairs.
+    Abstract remote walker device type. While invoking these methods on a 
+    Tango device server object we generally avoid using named arguments e.g., 
+    descend(name="dir"). It was observed that this does not work well with
+    Tango.
     """
 
     def descend(self, name: str) -> None:
