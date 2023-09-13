@@ -69,6 +69,14 @@ class RemoteDirectoryWalkerTangoDevice(AbstractTangoDevice, Protocol):
         :rtype: bool
         """
 
+    async def write_sequence(self, path: str) -> None:
+        """
+        Asynchronously writes sequence of images in the provided path.
+
+        :param path: path to write images to
+        :type path: str
+        """
+
     async def cancel(self) -> None:
         """
         TODO: Understand, what cancel does

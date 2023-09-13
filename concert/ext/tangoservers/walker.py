@@ -3,7 +3,6 @@ walker.py
 ---------
 Implements device server for remote directory walker
 """
-
 import os
 import logging
 from typing import Type, Optional, Awaitable, AsyncIterable
@@ -14,9 +13,10 @@ from tango.server import Device, DeviceMeta
 from concert.typing import StorageError, ArrayLike
 from concert import writers
 from concert.storage import write_images, split_dsetformat
+from concert.ext.tangoservers.base import TangoRemoteProcessing
 
 
-class TangoRemoteWalker(Device, metaclass=DeviceMeta):
+class TangoRemoteWalker(TangoRemoteProcessing):
     """Tango device for filesystem walker in a remote server"""
     
     current = attribute(
@@ -79,7 +79,7 @@ class TangoRemoteWalker(Device, metaclass=DeviceMeta):
         fset="set_log_name"
     )
 
-    _writer: Type[writers.TiffWriter]
+    _writer: Type[writers.ImageWriter]
     _logger: Optional[logging.Logger]
     _log_handler: Optional[logging.FileHandler]
     
@@ -208,6 +208,11 @@ class TangoRemoteWalker(Device, metaclass=DeviceMeta):
             self._start_index,
             self._bytes_per_file
         )
+
+    @DebugIt()
+    @command()
+    def write_sequence(self, path: str) -> None:
+        pass
 
 
 if __name__ == "__main__":

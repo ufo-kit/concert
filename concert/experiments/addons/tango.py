@@ -98,7 +98,7 @@ class ImageWriter(TangoMixin, base.ImageWriter):
         # eventually call the function with *args and **kwargs. Need to make
         # sure the semantic behind TangoMixin class as well.
         assert producer is None
-        await self._device.write_sequence(path)
+        await self.walker.write_sequence(path=path)
 
 
 class LiveView(base.LiveView):
