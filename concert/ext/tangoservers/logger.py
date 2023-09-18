@@ -59,7 +59,7 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
     def get_path(self) -> str:
         return self._path
 
-    def set_path(new_path: str) -> None:
+    def set_path(self, new_path: str) -> None:
         self._path = new_path
         # When remote directory walker descends to or ascends from a file path
         # we expects this setter to get a callback to update the path for the
@@ -72,20 +72,40 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
     def get_log_name(self) -> None:
         return self._log_name
 
-    def set_log_name(new_name: str) -> None:
+    def set_log_name(self, new_name: str) -> None:
         self._log_name = new_name
 
     @DebugIt()
     @command()
-    def log(payload: str) -> None:
-        raise NotImplementedError
+    def info(self, msg: str) -> None:
+        self._logger.info(msg)
+
+    @DebugIt()
+    @command()
+    def warning(self, msg: str) -> None:
+        self._logger.warning(msg)
     
     @DebugIt()
     @command()
-    def info(payload: str) -> None:
-        raise NotImplementedError
+    def debug(self, msg: str) -> None:
+        self._logger.debug(msg)
 
+    @DebugIt()
+    @command()
+    def error(self, msg: str) -> None:
+        self._logger.error(msg)
+
+    @DebugIt()
+    @command()
+    def critical(self, msg: str) -> None:
+        self._logger.critical(msg)
     
+    @DebugIt()
+    @command()
+    def log(self, msg: str) -> None:
+        self._logger.log(msg)
+
+
 if __name__ == "__main__":
     pass
 
