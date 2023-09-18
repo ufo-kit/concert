@@ -3,23 +3,23 @@ logger.py
 ---------
 Implements a custom handler to facilitate logging at the remote host.
 """
-import logging
-from concert.persistence.typing import RemoteLogDispatcherTangoDevice
+from typing import Optional
+from concert.persistence.typing import RemoteLoggerTangoDevice
 from concert.base import AsyncObject
 
 
-class LogDispatcher(AsyncObject):
+class RemoteLogger(AsyncObject):
     """
     Defines a convenient utility class which works as the frontend of the
     remote log dispatcher tango device.
     """
 
-    _device: RemoteLogDispatcherTangoDevice
+    _device: RemoteLoggerTangoDevice
     _log_name: str
     _path: str
 
-    async def __ainit__(self, 
-                        device: RemoteLogDispatcherTangoDevice,
+    async def __ainit__(self,
+                        device: RemoteLoggerTangoDevice,
                         path: Optional[str], 
                         log_name: str = "experiment.log") -> None:
         """
@@ -46,7 +46,7 @@ class LogDispatcher(AsyncObject):
             self._path = (await self._device["path"]).value
         await super().__ainit__()
     
-    async def set_log_path(new_path: str) -> None:
+    async def set_log_path(self, new_path: str) -> None:
         """
         Sets the path for logging along with log file name. Each time the
         walker descends to a given path in the remote file system, this method

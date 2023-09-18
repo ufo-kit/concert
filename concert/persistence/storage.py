@@ -11,9 +11,8 @@ from concert.base import AsyncObject
 from concert.coroutines.base import background
 from concert.persistence.writers import TiffWriter
 from concert.persistence.typing import RemoteDirectoryWalkerTangoDevice
-from concert.persistence.typing import RemoteLogDispatcherTangoDevice
 from concert.persistence.typing import StorageError, ArrayLike
-from concert.persistence.logger import LogDispatcher
+from concert.persistence.logger import RemoteLogger
 
 
 LOG = logging.getLogger(__name__)
@@ -488,7 +487,7 @@ class RemoteDirectoryWalker(RemoteWalker):
     """
     
     device: RemoteDirectoryWalkerTangoDevice
-    _log_dsp: Optional[LogDispatcher]
+    _logger: Optional[RemoteLogger]
 
     async def __ainit__(self,
                         device: RemoteDirectoryWalkerTangoDevice,
@@ -497,7 +496,7 @@ class RemoteDirectoryWalker(RemoteWalker):
                         start_index: int = 0,
                         bytes_per_file: int = 0,
                         root: Optional[str] = None,
-                        log_dsp: Optional[LogDispatcher]) -> None:
+                        logger: Optional[RemoteLogger] = None) -> None:
         """
         Initializes a remote directory walker. This walker implementation
         encapsulates a Tango device server and delegates its core utilities
@@ -519,8 +518,8 @@ class RemoteDirectoryWalker(RemoteWalker):
         :param root: file system root for to start traversal, if None current
         directory of the walker is used
         :type root: Optional[str]
-        :param log_dsp: frontend object for remote logging handler
-        :type log_dsp: Optional[LogDispatcher]
+        :param logger: frontend object for remote logging utility
+        :type log_dsp: Optional[RemoteLogger]
         """
         super().__ainit__(root=root, dsetname=dsetname)
         self.device = device
@@ -542,19 +541,19 @@ class RemoteDirectoryWalker(RemoteWalker):
                                           value=start_index)
         await self.device.write_attribute(
                 attr_name="bytes_per_file", value=bytes_per_file)
-        self._log_dsp = log_dsp
+        self._logger = logger
             
     async def _descend(self, name: str) -> None:
         await self.device.descend(name)
         self._current = (await self.device["current"]).value 
-        if self._log_dsp:
-            self._log_dsp.set_log_path(new_path=self._current)
+        if self._logger:
+            self._logger.set_log_path(new_path=self._current)
 
     async def _ascend(self) -> None:
         await self.device.ascend()
         self._current = (await self.device["current"]).value
-        if self._log_dsp:
-            self._log_dsp.set_log_path(new_path=self._current)
+        if self._logger:
+            self._logger.set_log_path(new_path=self._current)
 
     async def exists(self, *paths: str) -> bool:
         """

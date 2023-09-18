@@ -84,7 +84,7 @@ class ImageWriter(TangoMixin, base.ImageWriter):
 
     async def __ainit__(self, 
                         walker: RemoteDirectoryWalker, 
-                        acquisitions: Iterable[Acquisition]=None) -> None:
+                        acquisitions: Iterable[Acquisition] = None) -> None:
         await TangoMixin.__ainit__(self, walker.device)
         await base.ImageWriter.__ainit__(self, walker, 
                                          acquisitions=acquisitions)
