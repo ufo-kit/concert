@@ -11,7 +11,9 @@ from concert.base import AsyncObject
 from concert.coroutines.base import background
 from concert.persistence.writers import TiffWriter
 from concert.persistence.typing import RemoteDirectoryWalkerTangoDevice
+from concert.persistence.typing import RemoteLogDispatcherTangoDevice
 from concert.persistence.typing import StorageError, ArrayLike
+from concert.persistence.logger import LogDispatcher
 
 
 LOG = logging.getLogger(__name__)
@@ -251,15 +253,11 @@ class RemoteWalker(AsyncObject):
     _root: Optional[str]
     _current: Optional[str]
     dsetname: str
-    _log: Optional[logging.Logger]
-    _log_handler: Optional[logging.Handler]
     _lock: asyncio.Lock
 
     async def __ainit__(self,
-                  root: Optional[str],
-                  dsetname: str = "frames",
-                  log: Optional[logging.Logger] = None,
-                  log_handler: logging.Handler = None) -> None:
+                        root: Optional[str], 
+                        dsetname: str = "frames") -> None:
         """
         Initializes a remote walker encapsulating api-layer specifications
         for the same.
@@ -268,32 +266,12 @@ class RemoteWalker(AsyncObject):
         :type root: Optional[str]
         :param dsetname: template or writing files of the dataset
         :type dsetname: str
-        :param log: optional logger instance, typically logging.Logger
-        :type log: Optional[logging.Logger]
-        :param log_handler: optional logging handler instance, typically
-        logging.Handler
-        :type log_handler: Optional[logging.Handler]
         """
         self._root = root
         self._current = self._root
         self.dsetname = dsetname
-        self._log = log
-        self._log_handler = log_handler
         self._lock = asyncio.Lock()
-
-        if self._log:
-            self._log_handler.setLevel(logging.INFO)
-            formatter = Formatter(
-                    "[%(asctime)s] %(levelname)s: %(name)s: %(message)s")
-            self._log_handler.setFormatter(formatter)
-            self._log.addHandler(self._log_handler)
         await super().__ainit__()
-
-    def __del__(self) -> None:
-        """Destructor"""
-        if self._log:
-            self._log_handler.close()
-            self._log.removeHandler(self._log_handler)
 
     async def __aenter__(self) -> RemoteWalker:
         await self._lock.acquire()
@@ -505,20 +483,21 @@ class RemoteDirectoryWalker(RemoteWalker):
     """
     Defines the api layer of a directory walker for a remote file system.
     Encapsulates a Tango device which runs on the remote file system where the
-    data needs to be written.
+    data needs to be written. Also encapsulates the frontend of remote logger
+    to update the context for logging as the walker travseres the file system.
     """
     
     device: RemoteDirectoryWalkerTangoDevice
+    _log_dsp: Optional[LogDispatcher]
 
     async def __ainit__(self,
-                 device: RemoteDirectoryWalkerTangoDevice,
-                 wrt_cls: str = "TiffWriter",
-                 dsetname: str = "frame_{:>06}.tif",
-                 start_index: int = 0,
-                 bytes_per_file: int = 0,
-                 root: Optional[str] = None,
-                 logger_cls: Optional[str] = None,
-                 log_name: str = "experiment.log") -> None:
+                        device: RemoteDirectoryWalkerTangoDevice,
+                        wrt_cls: str = "TiffWriter",
+                        dsetname: str = "frame_{:>06}.tif",
+                        start_index: int = 0,
+                        bytes_per_file: int = 0,
+                        root: Optional[str] = None,
+                        log_dsp: Optional[LogDispatcher]) -> None:
         """
         Initializes a remote directory walker. This walker implementation
         encapsulates a Tango device server and delegates its core utilities
@@ -540,23 +519,22 @@ class RemoteDirectoryWalker(RemoteWalker):
         :param root: file system root for to start traversal, if None current
         directory of the walker is used
         :type root: Optional[str]
-        :param logger_cls: logger instance, usually logging.Logger
-        :type logger_cls: Optional[str]
-        :param log_name: log file name
-        :type log_name: str
+        :param log_dsp: frontend object for remote logging handler
+        :type log_dsp: Optional[LogDispatcher]
         """
-        super().__ainit__(root=root, dsetname=dsetname, log=None,
-                          log_handler=None)
+        super().__ainit__(root=root, dsetname=dsetname)
         self.device = device
         LOG.debug(
                 f"Remote device attributes: {self.device.get_attribute_list()}")
         # If root is None, we initialize internal `root` and `current` values
         # of the api with respective values from the remote device.
         if root:
-            await self.device.write_attribute(attr_name="root", value=root)
+            self._root = root
+            await self.device.write_attribute(attr_name="root",
+                                              value=self._root)
         else:
             self._root = (await self.device["root"]).value
-            self._current = self._root
+        self._current = self._root
         await self.device.write_attribute(attr_name="writer_class", 
                                           value=wrt_cls)
         await self.device.write_attribute(attr_name="dsetname", value=dsetname)
@@ -564,22 +542,19 @@ class RemoteDirectoryWalker(RemoteWalker):
                                           value=start_index)
         await self.device.write_attribute(
                 attr_name="bytes_per_file", value=bytes_per_file)
-        if logger_cls:
-            await self.device.write_attribute(attr_name="logger_class",
-                                        value=logger_cls)
-        else:
-            await self.device.write_attribute(attr_name="logger_class",
-                                              value="Logger")
-        self.device.write_attribute(attr_name="log_name", value=log_name)
-
-
+        self._log_dsp = log_dsp
+            
     async def _descend(self, name: str) -> None:
         await self.device.descend(name)
         self._current = (await self.device["current"]).value 
+        if self._log_dsp:
+            self._log_dsp.set_log_path(new_path=self._current)
 
     async def _ascend(self) -> None:
         await self.device.ascend()
-        self._current = (await self.device["current"]).value 
+        self._current = (await self.device["current"]).value
+        if self._log_dsp:
+            self._log_dsp.set_log_path(new_path=self._current)
 
     async def exists(self, *paths: str) -> bool:
         """

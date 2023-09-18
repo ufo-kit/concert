@@ -27,7 +27,7 @@ class SequenceReaderError(Exception):
 
 
 #####################################################################
-# Abstract Device Types
+# Abstract Tango Device Types
 class AbstractTangoDevice(Protocol):
     """
     Abstract Tango device which let's users to write arbitrary attribute as
@@ -98,6 +98,11 @@ class RemoteDirectoryWalkerTangoDevice(AbstractTangoDevice, Protocol):
         """
         TODO: Understand, what teardown does
         """
+
+class RemoteLogDispatcherTangoDevice(AbstractTangoDevice):
+    """
+    Abstract remote logger device type
+    """
 #####################################################################
 
 
