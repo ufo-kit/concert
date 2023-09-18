@@ -2,6 +2,7 @@
 import glob
 import os
 from concert.coroutines.base import run_in_executor
+from concert.persistence.typing import SequenceReaderError
 
 
 class FileSequenceReader:
@@ -117,5 +118,6 @@ class TiffSequenceReader(FileSequenceReader):
         return self._file.pages[index].asarray()
 
 
-class SequenceReaderError(Exception):
+if __name__ == "__main__":
     pass
+

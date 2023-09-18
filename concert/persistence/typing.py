@@ -14,8 +14,15 @@ else:
 # Error Types
 class StorageError(Exception):
     """
-    Exceptions related to logical issues with storage.
+    Exception related to logical issues with storage.
     """
+
+
+class SequenceReaderError(Exception):
+    """
+    Exception related to reading file sequence from disk storage
+    """
+    pass
 #####################################################################
 
 
@@ -92,4 +99,8 @@ class RemoteDirectoryWalkerTangoDevice(AbstractTangoDevice, Protocol):
         TODO: Understand, what teardown does
         """
 #####################################################################
+
+
+if __name__ == "__main__":
+    pass
 

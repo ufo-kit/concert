@@ -7,8 +7,7 @@ from concert.coroutines.base import run_in_executor
 from concert.quantities import q
 from concert.base import check, transition, Quantity
 from concert.devices.cameras import base
-from concert.readers import TiffSequenceReader
-
+from concert.persistence.readers import TiffSequenceReader
 
 class Base(base.Camera):
 
