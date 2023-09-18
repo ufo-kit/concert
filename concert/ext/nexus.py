@@ -8,7 +8,7 @@ sets. It uses NeXpy_ to interface with NeXus.
 """
 from logging import StreamHandler
 from concert.coroutines.base import background
-from concert.storage import Walker
+from concert.persistence.storage import Walker
 from concert.typing import StorageError
 
 try:

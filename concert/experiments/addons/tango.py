@@ -7,9 +7,9 @@ import numpy as np
 from concert.experiments.addons import base
 from concert.experiments.base import Acquisition
 from concert.quantities import q
-from concert.storage import RemoteDirectoryWalker
-from concert.typing import AbstractTangoDevice
-from concert.typing import RemoteDirectoryWalkerTangoDevice, ArrayLike
+from concert.persistence.storage import RemoteDirectoryWalker
+from concert.persistence.typing import AbstractTangoDevice
+from concert.persistence.typing import RemoteDirectoryWalkerTangoDevice, ArrayLike
 
 LOG = logging.getLogger(__name__)
 

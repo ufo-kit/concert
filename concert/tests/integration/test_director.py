@@ -7,7 +7,7 @@ import logging
 from time import time
 
 import concert
-from concert.storage import DirectoryWalker
+from concert.persistence.storage import DirectoryWalker
 from concert.experiments.base import Experiment as BaseExperiment, Acquisition
 from concert.tests import TestCase as BaseTestCase, slow
 from concert.directors.dummy import Director

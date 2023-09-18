@@ -60,11 +60,11 @@ Base :class:`.base.Experiment` makes sure all acquisitions are executed. It also
 holds :class:`.addons.Addon` instances which provide some extra functionality,
 e.g. live preview, online reconstruction, etc. To make a simple experiment for
 running the acquisition above and storing log with
-:class:`concert.storage.Walker`::
+:class:`concert.persistence.storage.Walker`::
 
     import logging
     from concert.experiments.base import Acquisition, Experiment
-    from concert.storage import DirectoryWalker
+    from concert.persistence.storage import DirectoryWalker
 
     LOG = logging.getLogger(__name__)
 
@@ -80,7 +80,7 @@ running the acquisition above and storing log with
 Experiments also have a :py:attr:`.base.Experiment.log` attribute, which gets a
 new handler on every experiment run and this handler stores the output in the
 current experiment working directory defined by it's
-:class:`concert.storage.Walker`.
+:class:`concert.persistence.storage.Walker`.
 
 Advanced
 --------
@@ -236,7 +236,7 @@ Running an experiment
 
 To demonstrate how a typical experiment can be run in an empty session with dummy devices::
 
-    from concert.storage import DirectoryWalker
+    from concert.persistence.storage import DirectoryWalker
     from concert.ext.viewers import PyplotImageViewer
     from concert.experiments.addons import Consumer, ImageWriter
     from concert.devices.motors.dummy import LinearMotor, ContinuousRotationMotor

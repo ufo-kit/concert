@@ -29,8 +29,7 @@ def imagej(image, path="imagej"):
         Create a tmp file for dumping the *image* and use *program*
         to open that image. Use *writer* for writing the iamge to the disk.
         """
-        from concert.storage import write_tiff
-
+        from concert.persistence.storage import write_tiff
         tmp_file = tempfile.mkstemp()[1]
         try:
             full_path = write_tiff(tmp_file, image)

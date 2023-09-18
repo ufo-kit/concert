@@ -114,5 +114,5 @@ Helpers
 Storage
 =======
 
-.. automodule:: concert.storage
+.. automodule:: concert.persistence.storage
     :members:

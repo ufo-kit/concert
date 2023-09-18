@@ -10,8 +10,8 @@ import tifffile
 from concert.base import AsyncObject
 from concert.coroutines.base import background
 from concert.writers import TiffWriter
-from concert.typing import RemoteDirectoryWalkerTangoDevice
-from concert.typing import StorageError, ArrayLike
+from concert.persistence.typing import RemoteDirectoryWalkerTangoDevice
+from concert.persistence.typing import StorageError, ArrayLike
 
 
 LOG = logging.getLogger(__name__)
