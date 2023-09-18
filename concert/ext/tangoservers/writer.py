@@ -1,7 +1,7 @@
 """
 Tango device for image writing of zmq image stream.
 """
-import concert.writers
+import concert.persistence.writers
 from concert.helpers import PerformanceTracker
 from concert.quantities import q
 from tango import InfoIt, DebugIt
@@ -56,7 +56,7 @@ class TangoWriter(TangoRemoteProcessing):
     @command(dtype_in=str)
     async def write_sequence(self, path):
         walker = DirectoryWalker(
-            writer=getattr(concert.writers, self._writer_class),
+            writer=getattr(concert.persistence.writers, self._writer_class),
             dsetname=self._dsetname,
             bytes_per_file=self._bytes_per_file,
             root=path

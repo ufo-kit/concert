@@ -9,7 +9,7 @@ from logging import FileHandler, Formatter
 import tifffile
 from concert.base import AsyncObject
 from concert.coroutines.base import background
-from concert.writers import TiffWriter
+from concert.persistence.writers import TiffWriter
 from concert.persistence.typing import RemoteDirectoryWalkerTangoDevice
 from concert.persistence.typing import StorageError, ArrayLike
 
