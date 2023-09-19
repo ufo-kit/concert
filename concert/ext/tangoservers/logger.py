@@ -88,33 +88,33 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
     def set_log_name(self, new_name: str) -> None:
         self._log_name = new_name
 
-    @DebugIt()
-    @command()
-    def info(self, msg: str) -> None:
+    @DebugIt(show_args=True)
+    @command(dtype_in=str)
+    def info_log(self, msg: str) -> None:
         self._logger.info(msg)
 
-    @DebugIt()
-    @command()
-    def warning(self, msg: str) -> None:
+    @DebugIt(show_args=True)
+    @command(dtype_in=str)
+    def warning_log(self, msg: str) -> None:
         self._logger.warning(msg)
     
-    @DebugIt()
-    @command()
-    def debug(self, msg: str) -> None:
+    @DebugIt(show_args=True)
+    @command(dtype_in=str)
+    def debug_log(self, msg: str) -> None:
         self._logger.debug(msg)
 
-    @DebugIt()
-    @command()
-    def error(self, msg: str) -> None:
+    @DebugIt(show_args=True)
+    @command(dtype_in=str)
+    def error_log(self, msg: str) -> None:
         self._logger.error(msg)
 
-    @DebugIt()
-    @command()
-    def critical(self, msg: str) -> None:
+    @DebugIt(show_args=True)
+    @command(dtype_in=str)
+    def critical_log(self, msg: str) -> None:
         self._logger.critical(msg)
     
-    @DebugIt()
-    @command()
+    @DebugIt(show_args=True)
+    @command(dtype_in=str)
     def log(self, msg: str) -> None:
         self._logger.log(msg)
 

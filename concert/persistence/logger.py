@@ -20,7 +20,7 @@ class RemoteLogger(AsyncObject):
 
     async def __ainit__(self,
                         device: RemoteLoggerTangoDevice,
-                        path: Optional[str], 
+                        path: Optional[str] = None,
                         log_name: str = "experiment.log") -> None:
         """
         Instantiates LogDispatcher
@@ -62,22 +62,22 @@ class RemoteLogger(AsyncObject):
                 attr_name="path", value=f"{self._path}/{self._log_name}")
      
     async def info(self, msg: str) -> None:
-        await self._device.info(msg)
+        await self._device.info_log(msg)
 
     async def warning(self, msg: str) -> None:
-        await self._device.warning(msg)
+        await self._device.warning_log(msg)
 
     async def debug(self, msg: str) -> None:
-        await self._device.debug(msg)
+        await self._device.debug_log(msg)
 
     async def error(self, msg: str) -> None:
-        await self._device.error(msg)
+        await self._device.error_log(msg)
 
     async def critical(self, msg: str) -> None:
-        await self._device.critical(msg)
+        await self._device.critical_log(msg)
 
     async def log(self, msg: str) -> None:
-        await self._device.log(msg)
+        await self._device.log_log(msg)
 
 
 if __name__ == "__main__":
