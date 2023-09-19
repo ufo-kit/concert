@@ -298,12 +298,12 @@ class RemoteWalker(AsyncObject):
     async def descend(self, name: str) -> RemoteWalker:
         """Descend to *name* and return *self*."""
         await self._descend(name=name)
-        return self;
+        return self
 
     async def ascend(self) -> RemoteWalker:
         """Ascend from current depth and return *self*."""
         await self._ascend()
-        return self;
+        return self
 
     async def _descend(self, name: str) -> None:
         """Descend to *name*."""
@@ -484,10 +484,13 @@ class RemoteDirectoryWalker(RemoteWalker):
     Encapsulates a Tango device which runs on the remote file system where the
     data needs to be written. Also encapsulates the frontend of remote logger
     to update the context for logging as the walker travseres the file system.
+    The logging utility remains disabled per default and needs to be explicitly
+    toggled on or off.
     """
     
     device: RemoteDirectoryWalkerTangoDevice
     _logger: Optional[RemoteLogger]
+    _logging_enabled: bool
 
     async def __ainit__(self,
                         device: RemoteDirectoryWalkerTangoDevice,
@@ -542,11 +545,18 @@ class RemoteDirectoryWalker(RemoteWalker):
         await self.device.write_attribute(
                 attr_name="bytes_per_file", value=bytes_per_file)
         self._logger = logger
+        self._logging_enabled = False
+
+    def toggle_logging() -> None:
+        """Enables or disables the logging utility"""
+        if not self._logger:
+            raise StorageError("logger needs to be set to toggle logging")
+        self._logging_enabled = not self._logging_enabled
             
     async def _descend(self, name: str) -> None:
         await self.device.descend(name)
         self._current = (await self.device["current"]).value 
-        if self._logger:
+        if self._logger and self._logging_enabled:
             await self._logger.set_logging_path(new_path=self._current)
 
     async def _ascend(self) -> None:
@@ -554,7 +564,7 @@ class RemoteDirectoryWalker(RemoteWalker):
             raise StorageError(f"cannot break out of {self._root}.")
         await self.device.ascend()
         self._current = (await self.device["current"]).value
-        if self._logger:
+        if self._logger and self._logging_enabled:
             await self._logger.set_logging_path(new_path=self._current)
 
     async def exists(self, *paths: str) -> bool:
