@@ -85,7 +85,6 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         Initializes the remote walker tango device. Sets the remote server's
         home directory as root as well as the current directory.
         """
-        self.info_stream("%s init_device", self.__class__.__name__)
         await super().init_device()
         self._root = os.environ["HOME"]
         self._current = self._root

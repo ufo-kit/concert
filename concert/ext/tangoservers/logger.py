@@ -61,7 +61,6 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
 
 
     async def init_device(self) -> None:
-        self.info_stream("%s init_device", self.__class__.__name__)
         await super().init_device()
         self._path = os.environ["HOME"]
         self._log_name = "experiment.log"
