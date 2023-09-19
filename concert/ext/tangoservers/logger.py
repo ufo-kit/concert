@@ -63,12 +63,24 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
     def set_path(self, new_path: str) -> None:
         self._path = new_path
         # When remote directory walker descends to or ascends from a file path
-        # we expects this setter to get a callback to update the path for the
-        # logger. Subsequently, we switch the file handler for the logger.
+        # we expect this setter to get a callback to update the path for the
+        # logger. Subsequently, we switch the file handler for the logger after
+        # removing and resetting the internal handler which we maintain.
+        self.info_stream(
+            "%s changing path",
+            self.__class__.__name__
+        )
         if self._logger.hasHandlers():
             self._logger.removeHandler(self._handler)
-            self._init_handler()
-            self._logger.addHandler(self._handler)
+        self._init_handler()
+        self._logger.addHandler(self._handler)
+        self.set_state(DevState.STANDBY)
+        self.info_stream(
+            "%s in state: %s at path: %s",
+            self.__class__.__name__,
+            self.get_state(),
+            self.get_path()
+        )
 
     def get_log_name(self) -> None:
         return self._log_name
