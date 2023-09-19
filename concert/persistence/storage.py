@@ -547,10 +547,19 @@ class RemoteDirectoryWalker(RemoteWalker):
         self._logger = logger
         self._logging_enabled = False
 
-    def toggle_logging() -> None:
-        """Enables or disables the logging utility"""
+    def toggle_logging(self, logger: Optional[RemoteLogger] = None) -> None:
+        """
+        Enables or disables the logging utility. An optional logger can be
+        provided herewith.
+
+        :param logger: remote logger to enable logging
+        :type logger: Optional[RemoteLogger]
+        """
         if not self._logger:
-            raise StorageError("logger needs to be set to toggle logging")
+            if not logger:
+                raise StorageError("logger needs to be set to toggle logging")
+            else:
+                self._logger = logger
         self._logging_enabled = not self._logging_enabled
             
     async def _descend(self, name: str) -> None:
