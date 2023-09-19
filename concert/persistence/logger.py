@@ -21,7 +21,7 @@ class RemoteLogger(AsyncObject):
     async def __ainit__(self,
                         device: RemoteLoggerTangoDevice,
                         path: Optional[str] = None,
-                        log_name: str = "experiment.log") -> None:
+                        log_name: Optional[str] = None) -> None:
         """
         Instantiates LogDispatcher
 
@@ -35,15 +35,18 @@ class RemoteLogger(AsyncObject):
         :type log_name: str
         """
         self._device = device
-        self._log_name = log_name
-        await self._device.write_attribute(attr_name="log_name",
-                                           value=self._log_name)
         if path:
-            self._path = f"{path}/{self._log_name}"
+            self._path = path
             await self._device.write_attribute(
                     attr_name="path", value=self._path)
         else:
             self._path = (await self._device["path"]).value
+        if log_name:
+            self._log_name = log_name
+            await self._device.write_attribute(
+                    attr_name="log_name", value=self._log_name)
+        else:
+            self._log_name = (await self._device["log_name"]).value
         await super().__ainit__()
     
     async def set_log_path(self, new_path: str) -> None:
@@ -52,14 +55,13 @@ class RemoteLogger(AsyncObject):
         walker descends to a given path in the remote file system, this method
         is called with the `current` directory of the walker.
 
-        :param new_path: path for woriting the log file, usually the current
+        :param new_path: path for writing the log file, usually the current
         directory of the remote walker
         :type new_path: str
 
         """
         self._path = new_path
-        await self._device.write_attribute(
-                attr_name="path", value=f"{self._path}/{self._log_name}")
+        await self._device.write_attribute(attr_name="path", value=self._path)
      
     async def info(self, msg: str) -> None:
         await self._device.info_log(msg)
@@ -75,9 +77,6 @@ class RemoteLogger(AsyncObject):
 
     async def critical(self, msg: str) -> None:
         await self._device.critical_log(msg)
-
-    async def log(self, msg: str) -> None:
-        await self._device.log_log(msg)
 
 
 if __name__ == "__main__":

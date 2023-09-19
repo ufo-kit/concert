@@ -4,7 +4,6 @@ walker.py
 Implements device server for remote directory walker
 """
 import os
-import logging
 from typing import Type, Optional, Awaitable, AsyncIterable
 import re
 from tango import DebugIt, DevState
@@ -65,25 +64,9 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         access=AttrWriteType.WRITE,
         fset="set_start_index"
     )
-
-    logger_class = attribute(
-        label="LoggerClass",
-        dtype=str,
-        access=AttrWriteType.WRITE,
-        fset="set_logger_class"
-    )
-
-    log_name = attribute(
-        label="LogName",
-        dtype=str,
-        access=AttrWriteType.WRITE,
-        fset="set_log_name"
-    )
-
+  
     _writer: Type[writers.ImageWriter]
-    _logger: Optional[logging.Logger]
-    _log_handler: Optional[logging.FileHandler]
-    
+        
     @staticmethod
     def _create_dir(directory: str, mode: int = 0o0750) -> None:
         """
@@ -121,11 +104,10 @@ class TangoRemoteWalker(TangoRemoteProcessing):
     def get_root(self) -> str:
         return self._root
 
-    def set_root(self, path: Optional[str] = None) -> None:
-        if path:
-            self._root = path
-            self._current = self._root
-            self._create_dir(directory=self._root)
+    def set_root(self, path: str) -> None:
+        self._root = path
+        self._current = self._root
+        self._create_dir(directory=self._root)
 
     def set_writer_class(self, klass: str) -> None:
         self._writer = getattr(writers, klass)
@@ -139,24 +121,6 @@ class TangoRemoteWalker(TangoRemoteProcessing):
     def set_start_index(self, idx: int) -> None:
         self._start_index = idx
 
-    def set_log_name(self, log_name: str) -> None:
-        self._log_name = log_name
-
-    def set_logger_class(self, klass: Optional[str] = None) -> None:
-        # TODO: Understand the drawback of this approach. We are assuming
-        # that the optional value would be 'Logger' and therefore we can use the
-        # getattr function on the logging module. But what if that's not the
-        # case. We have a similar situation with the set_writer_class method
-        # as well. Need to verify the behavior of the tango attributes in this
-        # regard. How strict it is in terms of defined dtype because options
-        # for dtypes in the documentation are limited.
-        # https://pytango.readthedocs.io/en/stable/data_types.html#pytango-data-types
-        if klass:
-            self._logger = getattr(logging, klass)
-            assert self._root is not None and self._log_name is not None
-            self._log_handler = logging.FileHandler(
-                    os.path.join(self._root, self.bytes_per_file_log_name))
-    
     @DebugIt()
     @command(dtype_in=str)
     def descend(self, name: str) -> None:
