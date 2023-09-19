@@ -10,7 +10,7 @@ from tango import DebugIt, DevState
 from tango.server import attribute, command, AttrWriteType
 from concert.helpers import PerformanceTracker
 from concert.quantities import q
-from concert import writers
+from concert.persistence import writers
 from concert.persistence.typing import StorageError, ArrayLike
 from concert.persistence.storage import write_images, split_dsetformat
 from concert.ext.tangoservers.base import TangoRemoteProcessing
