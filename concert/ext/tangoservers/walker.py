@@ -91,8 +91,8 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         self._current = self._root
         self.set_state(DevState.STANDBY)
         self.info_stream(
-                "%s in state: %s in directory: %s",
-                self.__class__.__name__, self.get_state(), self.get_root()
+                "%s in state: %s at directory: %s",
+                self.__class__.__name__, self.get_state(), self.get_current()
         )
     
     def get_current(self) -> str:
@@ -128,6 +128,10 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         new_path: str = os.path.join(self._current, name)
         self._create_dir(directory=new_path)
         self._current = new_path
+        self.info_stream(
+            "%s in state: %s walked into directory: %s",
+            self.__class__.__name__, self.get_state(), self.get_current()
+        )
 
     @DebugIt()
     @command()
@@ -135,6 +139,10 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         if self._current == self._root:
             raise StorageError(f"Cannot break out of `{self._root}'.")
         self._current = os.path.dirname(self._current)
+        self.info_stream(
+            "%s in state: %s walked into directory: %s",
+            self.__class__.__name__, self.get_state(), self.get_current()
+        )
 
     @DebugIt()
     @command()
