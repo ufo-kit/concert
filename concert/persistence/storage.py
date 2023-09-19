@@ -298,12 +298,12 @@ class RemoteWalker(AsyncObject):
     async def descend(self, name: str) -> RemoteWalker:
         """Descend to *name* and return *self*."""
         await self._descend(name=name)
-        return self
+        return self;
 
     async def ascend(self) -> RemoteWalker:
         """Ascend from current depth and return *self*."""
         await self._ascend()
-        return self
+        return self;
 
     async def _descend(self, name: str) -> None:
         """Descend to *name*."""
@@ -550,6 +550,8 @@ class RemoteDirectoryWalker(RemoteWalker):
             await self._logger.set_logging_path(new_path=self._current)
 
     async def _ascend(self) -> None:
+        if self._current == self._root:
+            raise StorageError(f"cannot break out of {self._root}.")
         await self.device.ascend()
         self._current = (await self.device["current"]).value
         if self._logger:
