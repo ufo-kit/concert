@@ -53,7 +53,7 @@ class RemoteLogger(AsyncObject):
         """Provides an accessor for the current file path for logging"""
         return f"{self._path}/{self._log_name}"
     
-    async def set_log_path(self, new_path: str) -> None:
+    async def set_logging_path(self, new_path: str) -> None:
         """
         Sets the path for logging along with log file name. Each time the
         walker descends to a given path in the remote file system, this method
@@ -66,7 +66,17 @@ class RemoteLogger(AsyncObject):
         """
         self._path = new_path
         await self._device.write_attribute(attr_name="path", value=self._path)
-    
+   
+    async def set_log_name(self, new_name: str) -> None:
+        """
+        Sets the log file name
+        :param new_name: log file name
+        :type new_name: str
+        """
+        self._log_name = new_name
+        await self._device.write_attribute(attr_name="log_name",
+                                           value=self._log_name)
+
     async def debug(self, msg: str) -> None:
         await self._device.debug_log(msg)
 

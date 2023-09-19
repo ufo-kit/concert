@@ -547,13 +547,13 @@ class RemoteDirectoryWalker(RemoteWalker):
         await self.device.descend(name)
         self._current = (await self.device["current"]).value 
         if self._logger:
-            self._logger.set_log_path(new_path=self._current)
+            self._logger.set_logging_path(new_path=self._current)
 
     async def _ascend(self) -> None:
         await self.device.ascend()
         self._current = (await self.device["current"]).value
         if self._logger:
-            self._logger.set_log_path(new_path=self._current)
+            self._logger.set_logging_path(new_path=self._current)
 
     async def exists(self, *paths: str) -> bool:
         """
