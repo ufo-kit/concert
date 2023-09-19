@@ -49,7 +49,7 @@ class RemoteLogger(AsyncObject):
             self._log_name = (await self._device["log_name"]).value
         await super().__ainit__()
 
-    def get_logging_state() -> str:
+    def get_logging_state(self) -> str:
         """Provides an accessor for the current file path for logging"""
         return f"{self._path}/{self._log_name}"
     
