@@ -66,15 +66,15 @@ class RemoteLogger(AsyncObject):
         """
         self._path = new_path
         await self._device.write_attribute(attr_name="path", value=self._path)
-     
+    
+    async def debug(self, msg: str) -> None:
+        await self._device.debug_log(msg)
+
     async def info(self, msg: str) -> None:
         await self._device.info_log(msg)
 
     async def warning(self, msg: str) -> None:
         await self._device.warning_log(msg)
-
-    async def debug(self, msg: str) -> None:
-        await self._device.debug_log(msg)
 
     async def error(self, msg: str) -> None:
         await self._device.error_log(msg)

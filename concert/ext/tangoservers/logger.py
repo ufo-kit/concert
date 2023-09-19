@@ -112,6 +112,11 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
 
     @DebugIt(show_args=True)
     @command(dtype_in=str)
+    def debug_log(self, msg: str) -> None:
+        self._logger.debug(msg)
+
+    @DebugIt(show_args=True)
+    @command(dtype_in=str)
     def info_log(self, msg: str) -> None:
         self._logger.info(msg)
 
@@ -120,11 +125,6 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
     def warning_log(self, msg: str) -> None:
         self._logger.warning(msg)
     
-    @DebugIt(show_args=True)
-    @command(dtype_in=str)
-    def debug_log(self, msg: str) -> None:
-        self._logger.debug(msg)
-
     @DebugIt(show_args=True)
     @command(dtype_in=str)
     def error_log(self, msg: str) -> None:
