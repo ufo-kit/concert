@@ -491,6 +491,7 @@ class RemoteDirectoryWalker(RemoteWalker):
     device: RemoteDirectoryWalkerTangoDevice
     _logger: Optional[RemoteLogger]
     _logging_enabled: bool
+    _exp_root: str
 
     async def __ainit__(self,
                         device: RemoteDirectoryWalkerTangoDevice,
@@ -537,6 +538,7 @@ class RemoteDirectoryWalker(RemoteWalker):
         else:
             self._root = (await self.device["root"]).value
         self._current = self._root
+        self._exp_root = self._root
         await self.device.write_attribute(attr_name="writer_class", 
                                           value=wrt_cls)
         await self.device.write_attribute(attr_name="dsetname", value=dsetname)
@@ -561,20 +563,41 @@ class RemoteDirectoryWalker(RemoteWalker):
             else:
                 self._logger = logger
         self._logging_enabled = not self._logging_enabled
+
+    def set_experiment_root(self) -> None:
+        """
+        Sets the current directory as the root directory of an experiment.
+        
+        NOTE: This utility function is introduced to control logging. Earlier
+        a writer device server used to instantiate a DirectoryWalker for a
+        given location. As a result, DirectoryWalker never had a global view
+        of an experiment. With our proposed approach RemoteDirectoryWalker
+        has global view of the file system and its underlying device server
+        facilitates writing of acquisition data. Hence, we need some way to let
+        it know if some directory that we are currently traversing has a special
+        significance e.g., with our current approach we tend to avoid logging
+        at the root of an experiment. Instead, we prefer logging for individual
+        acquisition. With optional toggle of the logging utility this method
+        designates a given directory as the root of our experiment to let
+        the system know, where not to create log files.
+        """
+        self._exp_root = self._current
             
     async def _descend(self, name: str) -> None:
         await self.device.descend(name)
         self._current = (await self.device["current"]).value 
-        if self._logger and self._logging_enabled:
-            await self._logger.set_logging_path(new_path=self._current)
+        if self._current != self._exp_root:
+            if self._logger and self._logging_enabled:
+                await self._logger.set_logging_path(new_path=self._current)
 
     async def _ascend(self) -> None:
         if self._current == self._root:
             raise StorageError(f"cannot break out of {self._root}.")
         await self.device.ascend()
         self._current = (await self.device["current"]).value
-        if self._logger and self._logging_enabled:
-            await self._logger.set_logging_path(new_path=self._current)
+        if self._current != self._exp_root:
+            if self._logger and self._logging_enabled:
+                await self._logger.set_logging_path(new_path=self._current)
 
     async def exists(self, *paths: str) -> bool:
         """
