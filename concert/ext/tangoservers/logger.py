@@ -4,6 +4,7 @@ logger.py
 Implements a device server for logging in remote server
 """
 import os
+import platform
 import logging
 from tango import DebugIt, DevState
 from tango.server import attribute, command, AttrWriteType, Device, DeviceMeta
@@ -47,7 +48,7 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
         self._log_name = "experiment.log"
         self._path = f"{root}/{self._log_name}"
         self._logger = logging.getLogger(
-                name=f"Logger@{os.environ['HOSTNAME']}")
+                name=f"Logger@{platform.node()}")
         self._init_handler()
         self._logger.addHandler(self._handler)
         self.set_state(DevState.STANDBY)
