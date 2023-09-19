@@ -521,7 +521,7 @@ class RemoteDirectoryWalker(RemoteWalker):
         :param logger: frontend object for remote logging utility
         :type log_dsp: Optional[RemoteLogger]
         """
-        super().__ainit__(root=root, dsetname=dsetname)
+        await super().__ainit__(root=root, dsetname=dsetname)
         self.device = device
         LOG.debug(
                 f"Remote device attributes: {self.device.get_attribute_list()}")
