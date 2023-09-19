@@ -49,6 +49,10 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
         self._path = f"{root}/{self._log_name}"
         self._logger = logging.getLogger(
                 name=f"Logger@{platform.node()}")
+        # Setting log level to debug to ensure that we capture all logs using
+        # the file handler. logging.DEBUG has the lowest severity level after
+        # the logging.NOTSET, which is the default level for the file handler.
+        self._logger.setLevel(logging.DEBUG)
         self._init_handler()
         self._logger.addHandler(self._handler)
         self.set_state(DevState.STANDBY)
