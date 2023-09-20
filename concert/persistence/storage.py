@@ -255,7 +255,7 @@ class RemoteWalker(AsyncObject):
     _lock: asyncio.Lock
 
     async def __ainit__(self,
-                        root: Optional[str], 
+                        root: Optional[str] = None,
                         dsetname: str = "frames") -> None:
         """
         Initializes a remote walker encapsulating api-layer specifications
@@ -491,7 +491,6 @@ class RemoteDirectoryWalker(RemoteWalker):
     device: RemoteDirectoryWalkerTangoDevice
     _logger: Optional[RemoteLogger]
     _logging_enabled: bool
-    _exp_root: str
 
     async def __ainit__(self,
                         device: RemoteDirectoryWalkerTangoDevice,
@@ -525,10 +524,8 @@ class RemoteDirectoryWalker(RemoteWalker):
         :param logger: frontend object for remote logging utility
         :type log_dsp: Optional[RemoteLogger]
         """
-        await super().__ainit__(root=root, dsetname=dsetname)
         self.device = device
-        LOG.debug(
-                f"Remote device attributes: {self.device.get_attribute_list()}")
+        LOG.debug("device attributes: %s", self.device.get_attribute_list())
         # If root is None, we initialize internal `root` and `current` values
         # of the api with respective values from the remote device.
         if root:
@@ -538,16 +535,16 @@ class RemoteDirectoryWalker(RemoteWalker):
         else:
             self._root = (await self.device["root"]).value
         self._current = self._root
-        self._exp_root = self._root
-        await self.device.write_attribute(attr_name="writer_class", 
+        await self.device.write_attribute(attr_name="writer_class",
                                           value=wrt_cls)
         await self.device.write_attribute(attr_name="dsetname", value=dsetname)
-        await self.device.write_attribute(attr_name="start_index", 
+        await self.device.write_attribute(attr_name="start_index",
                                           value=start_index)
         await self.device.write_attribute(
                 attr_name="bytes_per_file", value=bytes_per_file)
         self._logger = logger
         self._logging_enabled = False
+        await super().__ainit__()
 
     def toggle_logging(self, logger: Optional[RemoteLogger] = None) -> None:
         """
@@ -581,12 +578,12 @@ class RemoteDirectoryWalker(RemoteWalker):
         designates a given directory as the root of our experiment to let
         the system know, where not to create log files.
         """
-        self._exp_root = self._current
+        self._root = self._current
             
     async def _descend(self, name: str) -> None:
         await self.device.descend(name)
         self._current = (await self.device["current"]).value 
-        if self._current != self._exp_root:
+        if self._current != self._root:
             if self._logger and self._logging_enabled:
                 await self._logger.set_logging_path(new_path=self._current)
 
@@ -595,7 +592,7 @@ class RemoteDirectoryWalker(RemoteWalker):
             raise StorageError(f"cannot break out of {self._root}.")
         await self.device.ascend()
         self._current = (await self.device["current"]).value
-        if self._current != self._exp_root:
+        if self._current != self._root:
             if self._logger and self._logging_enabled:
                 await self._logger.set_logging_path(new_path=self._current)
 
