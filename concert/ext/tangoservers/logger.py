@@ -86,7 +86,8 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
         self.set_state(DevState.STANDBY)
         self.info_stream(
                 "logger in state: %s at : %s",
-                self.get_state(), f"{self.get_path()}/{self._log_name}"
+                self.get_state(),
+                self.get_path()
         )
 
     def get_path(self) -> str:
