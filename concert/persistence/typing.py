@@ -99,23 +99,23 @@ class RemoteDirectoryWalkerTangoDevice(AbstractTangoDevice, Protocol):
         TODO: Understand, what teardown does
         """
 
-class RemoteLoggerTangoDevice(AbstractTangoDevice):
+class RemoteLoggerTangoDevice(AbstractTangoDevice, Protocol):
     """
     Abstract remote logger device type
     """
-    async def debug(self, msg: str) -> None:
+    async def debug_log(self, msg: str) -> None:
         """Handles debug logging for provided message"""
 
-    async def info(self, msg: str) -> None:
+    async def info_log(self, msg: str) -> None:
         """Handles info logging for provided message"""
 
-    async def warning(self, msg: str) -> None:
+    async def warning_log(self, msg: str) -> None:
         """Handles warning logging for provided message"""
     
-    async def error(self, msg: str) -> None:
+    async def error_log(self, msg: str) -> None:
         """Handles error logging for provided message"""
 
-    async def critical(self, msg: str) -> None:
+    async def critical_log(self, msg: str) -> None:
         """Handles critical logging for provided message"""
 #####################################################################
 

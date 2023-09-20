@@ -1,7 +1,7 @@
 """
 logger.py
 ---------
-Implements a device server for logging in remote server
+Implements a device server for logging at a remote host.
 """
 import os
 import platform
@@ -63,7 +63,6 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
         self._init_handler()
         # Set logging handler
         self._logger.addHandler(self._handler)
-
 
     async def init_device(self) -> None:
         await super().init_device()

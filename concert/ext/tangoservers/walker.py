@@ -1,7 +1,7 @@
 """
 walker.py
 ---------
-Implements device server for remote directory walker
+Implements a device server for file system traversal at remote host.
 """
 import os
 from typing import Type, Optional, Awaitable, AsyncIterable
