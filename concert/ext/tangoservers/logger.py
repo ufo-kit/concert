@@ -33,7 +33,15 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
     _logger: logging.Logger
     
     def _init_handler(self) -> None:
-        """Creates a file handler for the central logger object"""
+        """
+        Creates a file handler for the central logger object.
+
+        NOTE: This method handles the deallocation of the previously allocated
+        file handler pointing to a specific file resource in memory.
+        """
+        if self._handler is not None and isinstance(
+                self._handler, logging.FileHandler):
+            self._handler.close()
         handler = logging.FileHandler(
                 filename=f"{self._path}/{self._log_name}",
                 mode="a",
@@ -42,11 +50,6 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
             logging.Formatter(
                 "[%(asctime)s] %(levelname)s: %(name)s: %(message)s")
         )
-        # Since we are explicitly working with FileHandlers we need to
-        # close the same before allocating a new one so that memory resource
-        # can be released.
-        if self._handler:
-            self._handler.close()
         self._handler = handler
 
     def _prepare_logger(self) -> None:
@@ -59,18 +62,27 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
         # Only viable when we change the logging path
         if self._logger.hasHandlers():
             self._logger.removeHandler(self._handler)
-        # (Re)initialize handler
+        # (Re)initialize handler and set the same to logger
         self._init_handler()
-        # Set logging handler
         self._logger.addHandler(self._handler)
 
     async def init_device(self) -> None:
+        """
+        Asynchronously initializes the device server.
+
+        NOTE: In this implementation we don't instantiate the FileHandler
+        object because the current file system context, namely the HOME
+        directory is not the place where we want to persist the experiment
+        logs. Since, instantiation of FileHandler automatically creates the
+        log file this activity would be deferred until the directory walker
+        walks to a reasonable location for logging.
+        """
         await super().init_device()
         self._path = os.environ["HOME"]
         self._log_name = "experiment.log"
         self._logger = logging.getLogger(
                 name=f"Logger@{platform.node()}")
-        self._prepare_logger() 
+        self._handler = None
         self.set_state(DevState.STANDBY)
         self.info_stream(
                 "logger in state: %s at : %s",
@@ -93,7 +105,7 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
         self._prepare_logger() 
         self.set_state(DevState.STANDBY)
         self.info_stream(
-            "logger in state: %s at : %s",
+            "logger in state: %s ready to log at : %s",
             self.get_state(), f"{self.get_path()}/{self._log_name}"
         )
         
@@ -109,7 +121,7 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
         self._prepare_logger() 
         self.set_state(DevState.STANDBY)
         self.info_stream(
-            "logger in state: %s at : %s",
+            "logger in state: %s ready to log at : %s",
             self.get_state(), f"{self.get_path()}/{self._log_name}"
         )
 

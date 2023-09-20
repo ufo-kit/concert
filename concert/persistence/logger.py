@@ -64,6 +64,7 @@ class RemoteLogger(AsyncObject):
         :type new_path: str
 
         """
+        assert new_path is not None and new_path != ""
         self._path = new_path
         await self._device.write_attribute(attr_name="path", value=self._path)
    

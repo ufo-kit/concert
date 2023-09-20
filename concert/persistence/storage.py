@@ -592,6 +592,9 @@ class RemoteDirectoryWalker(RemoteWalker):
     async def _descend(self, name: str) -> None:
         await self.device.descend(name)
         self._current = (await self.device["current"]).value 
+        # Check that we are not at the root of our experiment where we don't
+        # want logging as well as check that the walker is supposed to
+        # facilitate logging.
         if self._current != self._root:
             if self._logger and self._logging_enabled:
                 await self._logger.set_logging_path(new_path=self._current)
@@ -601,6 +604,9 @@ class RemoteDirectoryWalker(RemoteWalker):
             raise StorageError(f"cannot break out of {self._root}.")
         await self.device.ascend()
         self._current = (await self.device["current"]).value
+        # Check that we are not at the root of our experiment where we don't
+        # want logging as well as check that the walker is supposed to
+        # facilitate logging.
         if self._current != self._root:
             if self._logger and self._logging_enabled:
                 await self._logger.set_logging_path(new_path=self._current)
