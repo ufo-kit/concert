@@ -45,7 +45,7 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
         # Since we are explicitly working with FileHandlers we need to
         # close the same before allocating a new one so that memory resource
         # can be released.
-        if self._handler is not None:
+        if self._handler:
             self._handler.close()
         self._handler = handler
 
