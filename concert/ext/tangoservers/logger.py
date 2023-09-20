@@ -42,6 +42,11 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
             logging.Formatter(
                 "[%(asctime)s] %(levelname)s: %(name)s: %(message)s")
         )
+        # Since we are explicitly working with FileHandlers we need to
+        # close the same before allocating a new one so that memory resource
+        # can be released.
+        if self._handler is not None:
+            self._handler.close()
         self._handler = handler
 
     def _prepare_logger(self) -> None:
