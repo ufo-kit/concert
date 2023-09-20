@@ -561,23 +561,32 @@ class RemoteDirectoryWalker(RemoteWalker):
                 self._logger = logger
         self._logging_enabled = not self._logging_enabled
 
-    def set_experiment_root(self) -> None:
+    def set_experiment_root(self, alternative: Optional[str] = None) -> None:
         """
         Sets the current directory as the root directory of an experiment.
         
         NOTE: This utility function is introduced to control logging. Earlier
         a writer device server used to instantiate a DirectoryWalker for a
-        given location. As a result, DirectoryWalker never had a global view
-        of an experiment. With our proposed approach RemoteDirectoryWalker
-        has global view of the file system and its underlying device server
-        facilitates writing of acquisition data. Hence, we need some way to let
-        it know if some directory that we are currently traversing has a special
+        specified path. As a result, DirectoryWalker never had a global view
+        of the currently traversed state of the file system. 
+
+        With our proposed approach, RemoteDirectoryWalker has a global view and
+        its underlying device server facilitates writing of acquisition data.
+        Hence, we need some way to let it know, if some directory has a special
         significance e.g., with our current approach we tend to avoid logging
         at the root of an experiment. Instead, we prefer logging for individual
         acquisition. With optional toggle of the logging utility this method
-        designates a given directory as the root of our experiment to let
-        the system know, where not to create log files.
+        designates a given directory as the root of our experiment to let the
+        system know, where not to create log files.
+
+        :param alternative: an alternative path to be set as experiment root.
+        Might be useful in rare occasions. Once should consider the currently
+        traversed file system state before using this parameter.
+        :type alternative: Optional[str]
         """
+        if alternative:
+            self._root = alternative
+            return
         self._root = self._current
             
     async def _descend(self, name: str) -> None:
