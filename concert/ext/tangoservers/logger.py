@@ -160,30 +160,45 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
     @DebugIt(show_args=True)
     @command(dtype_in=str)
     def debug_log(self, msg: str) -> None:
+        if isinstance(self._handler, logging.StreamHandler):
+            self._logger.debug(msg)
+            return
         if self._path not in self._exclusions:
             self._logger.debug(msg)
 
     @DebugIt(show_args=True)
     @command(dtype_in=str)
     def info_log(self, msg: str) -> None:
+        if isinstance(self._handler, logging.StreamHandler):
+            self._logger.debug(msg)
+            return
         if self._path not in self._exclusions:
             self._logger.info(msg)
 
     @DebugIt(show_args=True)
     @command(dtype_in=str)
     def warning_log(self, msg: str) -> None:
+        if isinstance(self._handler, logging.StreamHandler):
+            self._logger.debug(msg)
+            return
         if self._path not in self._exclusions:
             self._logger.warning(msg)
     
     @DebugIt(show_args=True)
     @command(dtype_in=str)
     def error_log(self, msg: str) -> None:
+        if isinstance(self._handler, logging.StreamHandler):
+            self._logger.debug(msg)
+            return
         if self._path not in self._exclusions:
            self._logger.error(msg)
 
     @DebugIt(show_args=True)
     @command(dtype_in=str)
     def critical_log(self, msg: str) -> None:
+        if isinstance(self._handler, logging.StreamHandler):
+            self._logger.debug(msg)
+            return
         if self._path not in self._exclusions:
             self._logger.critical(msg)
     
