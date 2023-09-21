@@ -95,7 +95,7 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
         """
         await super().init_device()
         self._path = os.environ["HOME"]
-        self._exclusions.append(self._path)
+        self._exclusions = [self._path]
         self._log_name = "experiment.log"
         self._logger = logging.getLogger(
                 name=f"Logger@{platform.node()}")
