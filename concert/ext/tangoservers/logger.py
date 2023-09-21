@@ -4,6 +4,7 @@ logger.py
 Implements a device server for logging at a remote host.
 """
 import os
+import sys
 import platform
 import logging
 from tango import DebugIt, DevState
@@ -39,26 +40,28 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
         NOTE: This method handles the deallocation of the previously allocated
         file handler pointing to a specific file resource in memory.
         """
-        if self._handler is not None and isinstance(
-                self._handler, logging.FileHandler):
-            self._handler.close()
+        if self._handler is not None:
+            if isinstance(self._handler, logging.FileHandler):
+                self._handler.close()
+            elif isinstance(self._handler, logging.StreamHandler):
+                self._handler.flush()
+            else:
+                raise NotImplementedError("un supported handler")
         handler = logging.FileHandler(
-                filename=f"{self._path}/{self._log_name}",
-                mode="a",
-                encoding="utf-8")
+            filename=f"{self._path}/{self._log_name}",
+            mode="a",
+            encoding="utf-8"
+        )
         handler.setFormatter(
             logging.Formatter(
-                "[%(asctime)s] %(levelname)s: %(name)s: %(message)s")
+                "[%(asctime)s] %(levelname)s: %(name)s: %(message)s"
+            )
         )
         self._handler = handler
 
     def _prepare_logger(self) -> None:
         """Prepares internal logger for upcoming logging tasks"""
         assert self._logger is not None
-        # Setting log level to debug to ensure that we capture all logs using
-        # the file handler. logging.DEBUG has the lowest severity level after
-        # the logging.NOTSET, which is the default level for the file handler.
-        self._logger.setLevel(logging.DEBUG)
         # Only viable when we change the logging path
         if self._logger.hasHandlers():
             self._logger.removeHandler(self._handler)
@@ -82,12 +85,22 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
         self._log_name = "experiment.log"
         self._logger = logging.getLogger(
                 name=f"Logger@{platform.node()}")
-        self._handler = None
+        # Setting log level to debug to ensure that we capture all logs using
+        # the file handler. logging.DEBUG has the lowest severity level after
+        # the logging.NOTSET, which is the default level for the file handler.
+        self._logger.setLevel(logging.DEBUG)
+        self._handler = logging.StreamHandler(stream=sys.stdout)
+        self._handler.setFormatter(
+            logging.Formatter(
+                "[%(asctime)s] %(levelname)s: %(name)s: %(message)s"
+            )
+        )
+        self._logger.addHandler(self._handler)
         self.set_state(DevState.STANDBY)
         self.info_stream(
-                "logger in state: %s at : %s",
-                self.get_state(),
-                self.get_path()
+            "logger in state: %s at : %s",
+            self.get_state(),
+            self.get_path()
         )
 
     def get_path(self) -> str:

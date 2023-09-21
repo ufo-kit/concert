@@ -128,8 +128,8 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         self._create_dir(directory=new_path)
         self._current = new_path
         self.info_stream(
-            "%s in state: %s walked into directory: %s",
-            self.__class__.__name__, self.get_state(), self.get_current()
+            "%s walked into directory: %s, with state: %s",
+            self.__class__.__name__, self.get_current(), self.get_state()
         )
 
     @DebugIt()
@@ -139,10 +139,10 @@ class TangoRemoteWalker(TangoRemoteProcessing):
             raise StorageError(f"Cannot break out of `{self._root}'.")
         self._current = os.path.dirname(self._current)
         self.info_stream(
-            "%s in state: %s walked into directory: %s",
-            self.__class__.__name__, self.get_state(), self.get_current()
+            "%s walked into directory: %s, with state: %s",
+            self.__class__.__name__, self.get_current(), self.get_state()
         )
-
+        
     @DebugIt()
     @command()
     def exists(self, *paths: str) -> bool:
