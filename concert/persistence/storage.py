@@ -491,6 +491,7 @@ class RemoteDirectoryWalker(RemoteWalker):
     device: RemoteDirectoryWalkerTangoDevice
     _logger: Optional[RemoteLogger]
     _logging_enabled: bool
+    _exp_root: Optional[str]
 
     async def __ainit__(self,
                         device: RemoteDirectoryWalkerTangoDevice,
@@ -535,6 +536,7 @@ class RemoteDirectoryWalker(RemoteWalker):
         else:
             self._root = (await self.device["root"]).value
         self._current = self._root
+        self._exp_root = None
         await self.device.write_attribute(attr_name="writer_class",
                                           value=wrt_cls)
         await self.device.write_attribute(attr_name="dsetname", value=dsetname)
@@ -550,6 +552,11 @@ class RemoteDirectoryWalker(RemoteWalker):
         """
         Enables or disables the logging utility. An optional logger can be
         provided herewith.
+
+        NOTE: Toggling of logging utility does not immediately results into
+        creating log files. It will take effect with the next walk of the file
+        system, provided that we are not at a root directory for an experiment,
+        controlled by `_exp_root` attribute.
 
         :param logger: remote logger to enable logging
         :type logger: Optional[RemoteLogger]
@@ -579,15 +586,18 @@ class RemoteDirectoryWalker(RemoteWalker):
         designates a given directory as the root of our experiment to let the
         system know, where not to create log files.
 
+        When `_exp_root` is None, logging will take place in a directory if we
+        have toggled logging already.
+
         :param alternative: an alternative path to be set as experiment root.
         Might be useful in rare occasions. Once should consider the currently
         traversed file system state before using this parameter.
         :type alternative: Optional[str]
         """
         if alternative:
-            self._root = alternative
+            self._exp_root = alternative
             return
-        self._root = self._current
+        self._exp_root = self._current
             
     async def _descend(self, name: str) -> None:
         await self.device.descend(name)
@@ -595,8 +605,8 @@ class RemoteDirectoryWalker(RemoteWalker):
         # Check that we are not at the root of our experiment where we don't
         # want logging as well as check that the walker is supposed to
         # facilitate logging.
-        if self._current != self._root:
-            if self._logger and self._logging_enabled:
+        if self._logger and self._logging_enabled:
+            if self._exp_root is None or self._current != self._exp_root:
                 await self._logger.set_logging_path(new_path=self._current)
 
     async def _ascend(self) -> None:
@@ -607,8 +617,8 @@ class RemoteDirectoryWalker(RemoteWalker):
         # Check that we are not at the root of our experiment where we don't
         # want logging as well as check that the walker is supposed to
         # facilitate logging.
-        if self._current != self._root:
-            if self._logger and self._logging_enabled:
+        if self._logger and self._logging_enabled:
+            if self._exp_root is None or self._current != self._exp_root:
                 await self._logger.set_logging_path(new_path=self._current)
 
     async def exists(self, *paths: str) -> bool:
