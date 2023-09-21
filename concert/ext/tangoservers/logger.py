@@ -5,6 +5,7 @@ Implements a device server for logging at a remote host.
 """
 import os
 import sys
+from typing import List
 import platform
 import logging
 from tango import DebugIt, DevState
@@ -30,8 +31,17 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
         doc="name of the log file"
     )
 
+    exclusion = attribute(
+        label="Exclusion",
+        dtype=str,
+        access=AttrWriteType.WRITE,
+        fset="set_exclusion",
+        doc="a directory path where logging is not supposed to happen"
+    )
+
     _handler: logging.FileHandler
     _logger: logging.Logger
+    _exclusions: List[str]
     
     def _init_handler(self) -> None:
         """
@@ -65,8 +75,11 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
         # Only viable when we change the logging path
         if self._logger.hasHandlers():
             self._logger.removeHandler(self._handler)
-        # (Re)initialize handler and set the same to logger
-        self._init_handler()
+        # (Re)initialize handler and set the same to logger if the current
+        # path in not part of exclusions list where logging is not supposed to
+        # happen
+        if self._path not in self._exclusions:
+            self._init_handler()
         self._logger.addHandler(self._handler)
 
     async def init_device(self) -> None:
@@ -82,6 +95,7 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
         """
         await super().init_device()
         self._path = os.environ["HOME"]
+        self._exclusions.append(self._path)
         self._log_name = "experiment.log"
         self._logger = logging.getLogger(
                 name=f"Logger@{platform.node()}")
@@ -139,30 +153,39 @@ class TangoRemoteLogger(Device, metaclass=DeviceMeta):
             self.get_state(), f"{self.get_path()}/{self._log_name}"
         )
 
+    def set_exclusion(self, exclusion: str) -> None:
+        assert exclusion is not None and exclusion != ""
+        self._exclusions.append(exclusion)
+
     @DebugIt(show_args=True)
     @command(dtype_in=str)
     def debug_log(self, msg: str) -> None:
-        self._logger.debug(msg)
+        if self._path not in self._exclusions:
+            self._logger.debug(msg)
 
     @DebugIt(show_args=True)
     @command(dtype_in=str)
     def info_log(self, msg: str) -> None:
-        self._logger.info(msg)
+        if self._path not in self._exclusions:
+            self._logger.info(msg)
 
     @DebugIt(show_args=True)
     @command(dtype_in=str)
     def warning_log(self, msg: str) -> None:
-        self._logger.warning(msg)
+        if self._path not in self._exclusions:
+            self._logger.warning(msg)
     
     @DebugIt(show_args=True)
     @command(dtype_in=str)
     def error_log(self, msg: str) -> None:
-        self._logger.error(msg)
+        if self._path not in self._exclusions:
+           self._logger.error(msg)
 
     @DebugIt(show_args=True)
     @command(dtype_in=str)
     def critical_log(self, msg: str) -> None:
-        self._logger.critical(msg)
+        if self._path not in self._exclusions:
+            self._logger.critical(msg)
     
 
 if __name__ == "__main__":

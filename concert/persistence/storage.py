@@ -491,7 +491,6 @@ class RemoteDirectoryWalker(RemoteWalker):
     device: RemoteDirectoryWalkerTangoDevice
     _logger: Optional[RemoteLogger]
     _logging_enabled: bool
-    _exp_root: Optional[str]
 
     async def __ainit__(self,
                         device: RemoteDirectoryWalkerTangoDevice,
@@ -536,7 +535,6 @@ class RemoteDirectoryWalker(RemoteWalker):
         else:
             self._root = (await self.device["root"]).value
         self._current = self._root
-        self._exp_root = None
         await self.device.write_attribute(attr_name="writer_class",
                                           value=wrt_cls)
         await self.device.write_attribute(attr_name="dsetname", value=dsetname)
@@ -555,8 +553,7 @@ class RemoteDirectoryWalker(RemoteWalker):
 
         NOTE: Toggling of logging utility does not immediately results into
         creating log files. It will take effect with the next walk of the file
-        system, provided that we are not at a root directory for an experiment,
-        controlled by `_exp_root` attribute.
+        system, provided that we are not at a root directory for an experiment.
 
         :param logger: remote logger to enable logging
         :type logger: Optional[RemoteLogger]
@@ -568,37 +565,6 @@ class RemoteDirectoryWalker(RemoteWalker):
                 self._logger = logger
         self._logging_enabled = not self._logging_enabled
 
-    def set_experiment_root(self, alternative: Optional[str] = None) -> None:
-        """
-        Sets the current directory as the root directory of an experiment.
-        
-        NOTE: This utility function is introduced to control logging. Earlier
-        a writer device server used to instantiate a DirectoryWalker for a
-        specified path. As a result, DirectoryWalker never had a global view
-        of the currently traversed state of the file system. 
-
-        With our proposed approach, RemoteDirectoryWalker has a global view and
-        its underlying device server facilitates writing of acquisition data.
-        Hence, we need some way to let it know, if some directory has a special
-        significance e.g., with our current approach we tend to avoid logging
-        at the root of an experiment. Instead, we prefer logging for individual
-        acquisition. With optional toggle of the logging utility this method
-        designates a given directory as the root of our experiment to let the
-        system know, where not to create log files.
-
-        When `_exp_root` is None, logging will take place in a directory if we
-        have toggled logging already.
-
-        :param alternative: an alternative path to be set as experiment root.
-        Might be useful in rare occasions. Once should consider the currently
-        traversed file system state before using this parameter.
-        :type alternative: Optional[str]
-        """
-        if alternative:
-            self._exp_root = alternative
-            return
-        self._exp_root = self._current
-            
     async def _descend(self, name: str) -> None:
         await self.device.descend(name)
         self._current = (await self.device["current"]).value 
@@ -606,8 +572,7 @@ class RemoteDirectoryWalker(RemoteWalker):
         # want logging as well as check that the walker is supposed to
         # facilitate logging.
         if self._logger and self._logging_enabled:
-            if self._exp_root is None or self._current != self._exp_root:
-                await self._logger.set_logging_path(new_path=self._current)
+            await self._logger.set_logging_path(new_path=self._current)
 
     async def _ascend(self) -> None:
         if self._current == self._root:
@@ -618,8 +583,7 @@ class RemoteDirectoryWalker(RemoteWalker):
         # want logging as well as check that the walker is supposed to
         # facilitate logging.
         if self._logger and self._logging_enabled:
-            if self._exp_root is None or self._current != self._exp_root:
-                await self._logger.set_logging_path(new_path=self._current)
+            await self._logger.set_logging_path(new_path=self._current)
 
     async def exists(self, *paths: str) -> bool:
         """

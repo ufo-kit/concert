@@ -67,6 +67,33 @@ class RemoteLogger(AsyncObject):
         assert new_path is not None and new_path != ""
         self._path = new_path
         await self._device.write_attribute(attr_name="path", value=self._path)
+
+    async def set_experiment_root(self, alternative: Optional[str] = None) -> None:
+        """
+        Sets the current path as the root directory of an experiment.
+        
+        NOTE: This utility function is introduced to control logging. Earlier
+        a writer device server used to instantiate a DirectoryWalker for a
+        specified path. As a result, DirectoryWalker never had a global view
+        of the currently traversed state of the file system. 
+
+        With our proposed approach, RemoteDirectoryWalker has a global view and
+        its underlying device server facilitates writing of acquisition data.
+        Hence, we need some way to let it know, if some directory has a special
+        significance e.g., with our current approach we tend to avoid logging
+        at the root of an experiment. Instead, we prefer logging for individual
+        acquisition. With optional toggle of the logging utility this method
+        designates a given directory as the root of our experiment to let the
+        system know, where not to create log files.
+
+        :param alternative: an alternative path to be set as experiment root.
+        Might be useful in rare occasions. Once should consider the currently
+        traversed file system state before using this parameter.
+        :type alternative: Optional[str]
+        """
+        exclusion: str = alternative if alternative is not None else self._path
+        await self._device.write_attribute(attr_name="exclusion",
+                                           value=exclusion)
    
     async def set_log_name(self, new_name: str) -> None:
         """
