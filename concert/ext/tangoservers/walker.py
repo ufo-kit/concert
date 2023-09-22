@@ -222,7 +222,7 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         dtype_in=CmdArgType.DevVarStringArray,
         doc_in="log payload as a two element list of path and content"
     )
-    async def append_to_file(payload: List[str]) -> None:
+    async def append_to_file(self, payload: List[str]) -> None:
         """
         Appends the content to a file specified by path. The payload is
         a two elements list of strings which is serialized using the tango
