@@ -44,7 +44,7 @@ class RemoteHandler(logging.Handler):
         :type payload: str
         """
         await self._device.append_to_file(
-                [f"{self_path}/{self._fname}", payload])
+                [f"{self._path}/{self._fname}", payload])
 
     def emit(self, record: logging.LogRecord) -> None:
         asyncio.run(self.send(str(record)))
