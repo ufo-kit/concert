@@ -12,7 +12,7 @@ from concert.coroutines.base import background
 from concert.persistence.writers import TiffWriter
 from concert.persistence.typing import RemoteDirectoryWalkerTangoDevice
 from concert.persistence.typing import StorageError, ArrayLike
-from concert.persistence.logger import RemoteLogger
+from concert.persistence.handler import RemoteHandler
 
 
 LOG = logging.getLogger(__name__)
@@ -489,8 +489,6 @@ class RemoteDirectoryWalker(RemoteWalker):
     """
     
     device: RemoteDirectoryWalkerTangoDevice
-    _logger: Optional[RemoteLogger]
-    _logging_enabled: bool
 
     async def __ainit__(self,
                         device: RemoteDirectoryWalkerTangoDevice,
@@ -498,8 +496,7 @@ class RemoteDirectoryWalker(RemoteWalker):
                         dsetname: str = "frame_{:>06}.tif",
                         start_index: int = 0,
                         bytes_per_file: int = 0,
-                        root: Optional[str] = None,
-                        logger: Optional[RemoteLogger] = None) -> None:
+                        root: Optional[str] = None) -> None:
         """
         Initializes a remote directory walker. This walker implementation
         encapsulates a Tango device server and delegates its core utilities
@@ -521,8 +518,6 @@ class RemoteDirectoryWalker(RemoteWalker):
         :param root: file system root for to start traversal, if None current
         directory of the walker is used
         :type root: Optional[str]
-        :param logger: frontend object for remote logging utility
-        :type log_dsp: Optional[RemoteLogger]
         """
         self.device = device
         LOG.debug("device attributes: %s", self.device.get_attribute_list())
@@ -542,28 +537,7 @@ class RemoteDirectoryWalker(RemoteWalker):
                                           value=start_index)
         await self.device.write_attribute(
                 attr_name="bytes_per_file", value=bytes_per_file)
-        self._logger = logger
-        self._logging_enabled = False
         await super().__ainit__()
-
-    def toggle_logging(self, logger: Optional[RemoteLogger] = None) -> None:
-        """
-        Enables or disables the logging utility. An optional logger can be
-        provided herewith.
-
-        NOTE: Toggling of logging utility does not immediately results into
-        creating log files. It will take effect with the next walk of the file
-        system, provided that we are not at a root directory for an experiment.
-
-        :param logger: remote logger to enable logging
-        :type logger: Optional[RemoteLogger]
-        """
-        if not self._logger:
-            if not logger:
-                raise StorageError("logger needs to be set to toggle logging")
-            else:
-                self._logger = logger
-        self._logging_enabled = not self._logging_enabled
 
     async def _descend(self, name: str) -> None:
         await self.device.descend(name)
@@ -628,6 +602,13 @@ class RemoteDirectoryWalker(RemoteWalker):
         # unnecessary. We want to separate that concern from the one of the
         # remote walker.
         await self.device.write_sequence(path)
+
+    def get_log_handler() -> RemoteHandler:
+        """
+        Provides a logging handler, capable to facilitate logging at a
+        remote host.
+        """
+        return RemoteHandler(device=self._device, path=self._current)
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ typing.py
 ---------
 Facilitates type annotations for concert
 """
-from typing import Protocol, Any
+from typing import Protocol, Any, List
 import numpy
 if numpy.__version__ >= "1.20":
     from numpy.typing import ArrayLike
@@ -99,24 +99,16 @@ class RemoteDirectoryWalkerTangoDevice(AbstractTangoDevice, Protocol):
         TODO: Understand, what teardown does
         """
 
-class RemoteLoggerTangoDevice(AbstractTangoDevice, Protocol):
-    """
-    Abstract remote logger device type
-    """
-    async def debug_log(self, msg: str) -> None:
-        """Handles debug logging for provided message"""
+    async def append_to_file(payload: List[str]) -> None:
+        """
+        Writes an arbitrary string content to the specified file located at
+        current directory. If the file is already present at the current
+        directory, content is appended to the file, otherwise the file is
+        created.
 
-    async def info_log(self, msg: str) -> None:
-        """Handles info logging for provided message"""
-
-    async def warning_log(self, msg: str) -> None:
-        """Handles warning logging for provided message"""
-    
-    async def error_log(self, msg: str) -> None:
-        """Handles error logging for provided message"""
-
-    async def critical_log(self, msg: str) -> None:
-        """Handles critical logging for provided message"""
+        :param payload: a string array having two elements [file_name, content]
+        :type content: List[str]
+        """
 #####################################################################
 
 

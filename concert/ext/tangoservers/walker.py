@@ -4,9 +4,9 @@ walker.py
 Implements a device server for file system traversal at remote host.
 """
 import os
-from typing import Type, Optional, Awaitable, AsyncIterable
+from typing import Type, Optional, Awaitable, AsyncIterable, List
 import re
-from tango import DebugIt, DevState
+from tango import DebugIt, DevState, CmdArgType
 from tango.server import attribute, command, AttrWriteType
 from concert.helpers import PerformanceTracker
 from concert.quantities import q
@@ -215,7 +215,23 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         # option. Hence, we need some consideration. For now we stick to
         # the approach taken by current writer device server.
         produced: AsyncIterable[ArrayLike] = await self._receiver.subscribe()
-        await self._process_stream(self._consume(produced))       
+        await self._process_stream(self._consume(produced))
+    
+    @DebugIt()
+    @command(
+        dtype_in=CmdArgType.DevVarStringArray,
+        doc_in="log payload as a two element list of path and content"
+    )
+    async def append_to_file(payload: List[str]) -> None:
+        """
+        Appends the content to a file specified by path. The payload is
+        a two elements list of strings which is serialized using the tango
+        type DevVarStringArray.
+        """
+        path, content = payload
+        with open(file=path, mode='a', encoding="utf-8") as lgf:
+            lgf.write(f"{content}\n")
+
 
 if __name__ == "__main__":
     pass
