@@ -595,7 +595,7 @@ class RemoteDirectoryWalker(RemoteWalker):
         Provides a logging handler, capable to facilitate logging at a
         remote host.
         """
-        return RemoteHandler(device=self._device, path=self._current)
+        return RemoteHandler(device=self.device, path=self._current)
 
 
 if __name__ == "__main__":
