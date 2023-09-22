@@ -482,10 +482,7 @@ class RemoteDirectoryWalker(RemoteWalker):
     """
     Defines the api layer of a directory walker for a remote file system.
     Encapsulates a Tango device which runs on the remote file system where the
-    data needs to be written. Also encapsulates the frontend of remote logger
-    to update the context for logging as the walker travseres the file system.
-    The logging utility remains disabled per default and needs to be explicitly
-    toggled on or off.
+    data needs to be written. Since it has th
     """
     
     device: RemoteDirectoryWalkerTangoDevice
@@ -542,23 +539,13 @@ class RemoteDirectoryWalker(RemoteWalker):
     async def _descend(self, name: str) -> None:
         await self.device.descend(name)
         self._current = (await self.device["current"]).value 
-        # Check that we are not at the root of our experiment where we don't
-        # want logging as well as check that the walker is supposed to
-        # facilitate logging.
-        if self._logger and self._logging_enabled:
-            await self._logger.set_logging_path(new_path=self._current)
-
+        
     async def _ascend(self) -> None:
         if self._current == self._root:
             raise StorageError(f"cannot break out of {self._root}.")
         await self.device.ascend()
         self._current = (await self.device["current"]).value
-        # Check that we are not at the root of our experiment where we don't
-        # want logging as well as check that the walker is supposed to
-        # facilitate logging.
-        if self._logger and self._logging_enabled:
-            await self._logger.set_logging_path(new_path=self._current)
-
+        
     async def exists(self, *paths: str) -> bool:
         """
         Asserts whether the specified paths exists in the file system.
