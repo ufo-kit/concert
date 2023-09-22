@@ -8,6 +8,7 @@ import logging
 from concert.persistence.typing import RemoteDirectoryWalkerTangoDevice
 import asyncio
 
+
 class RemoteHandler(logging.Handler):
 
     _device: RemoteDirectoryWalkerTangoDevice
@@ -49,6 +50,17 @@ class RemoteHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
         asyncio.ensure_future(self.send(str(record)), loop=loop)
+
+def clean_up_logger(logger: logging.Logger) -> logging.Logger:
+    """
+    Cleans up the remote handlers from the logger instance
+    """
+    assert logger is not None
+    if logger.hasHandlers():
+        for handler in logger.handlers:
+            if isinstance(handler, RemoteHandler):
+                logger.removeHandler(handler)
+    return logger
 
 
 if __name__ == "__main__":
