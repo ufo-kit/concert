@@ -17,7 +17,7 @@ class RemoteHandler(logging.Handler):
     def __init__(self, 
                  device: RemoteDirectoryWalkerTangoDevice,
                  path: str,
-                 fname: str = "experiment.log"
+                 fname: str = "experiment.log",
                  fmt: str = "[%(asctime)s] %(levelname)s: %(name)s: %(message)s"
                  ) -> None:
         """
