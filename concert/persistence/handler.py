@@ -42,7 +42,7 @@ class RemoteHandler(logging.Handler):
         :param payload: content to log
         :type payload: str
         """
-        async self._device.append_to_file(
+        await self._device.append_to_file(
                 [f"{self_path}/{self._fname}", payload])
 
     def emit(self, record: logging.LogRecord) -> None:
