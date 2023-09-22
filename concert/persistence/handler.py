@@ -49,7 +49,12 @@ class RemoteHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
-        asyncio.ensure_future(self.send(str(record)), loop=loop)
+        asyncio.ensure_future(
+            self.send(
+                self.format(record)
+            ),
+            loop=loop
+        )
 
 def clean_up_logger(logger: logging.Logger) -> logging.Logger:
     """
