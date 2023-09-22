@@ -30,6 +30,7 @@ class RemoteHandler(logging.Handler):
         :param fname: log file name, defaults to `experiment.log`
         :type fname: str
         """
+        super().__init__()
         self._device = device
         self._path = path
         self._fname = fname
