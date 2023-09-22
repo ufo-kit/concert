@@ -47,7 +47,7 @@ class RemoteHandler(logging.Handler):
                 [f"{self._path}/{self._fname}", payload])
 
     def emit(self, record: logging.LogRecord) -> None:
-        loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
+        loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
         asyncio.ensure_future(self.send(str(record)), loop=loop)
 
 
