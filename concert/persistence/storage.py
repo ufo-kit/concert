@@ -590,7 +590,7 @@ class RemoteDirectoryWalker(RemoteWalker):
         # remote walker.
         await self.device.write_sequence(path)
 
-    def get_log_handler() -> RemoteHandler:
+    def get_log_handler(self) -> RemoteHandler:
         """
         Provides a logging handler, capable to facilitate logging at a
         remote host.
