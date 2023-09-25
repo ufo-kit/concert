@@ -228,9 +228,28 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         a two elements list of strings which is serialized using the tango
         type DevVarStringArray.
         """
+        # TODO: This method no longer needs a list containing the path.
+        # Instead we want to maintain an open file resource where we write
+        # the simplified payload as a string.
         path, content = payload
         with open(file=path, mode='a', encoding="utf-8") as lgf:
             lgf.write(f"{content}\n")
+
+    @DebugIt()
+    @command(
+        dtype_in=str,
+        doc_in="file path (typically for logging) to open as file resource"
+    )
+    async def open_file_resource(self, file_path: str) -> None:
+        # TODO: This can maintain the the file resource internally, which
+        # we eventally close.
+        pass
+    
+    @DebugIt()
+    @command()
+    async def close_file_resource() -> None:
+        # TODO: Close the open file resource
+        pass
 
 
 if __name__ == "__main__":
