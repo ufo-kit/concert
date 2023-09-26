@@ -3,10 +3,11 @@ walker.py
 ---------
 Implements a device server for file system traversal at remote host.
 """
+import io
 import os
 from typing import Type, Optional, Awaitable, AsyncIterable, List
 import re
-from tango import DebugIt, DevState, CmdArgType
+from tango import DebugIt, DevState
 from tango.server import attribute, command, AttrWriteType
 from concert.helpers import PerformanceTracker
 from concert.quantities import q
@@ -66,6 +67,7 @@ class TangoRemoteWalker(TangoRemoteProcessing):
     )
   
     _writer: Type[writers.ImageWriter]
+    _log_file: Optional[io.TextIOWrapper]
         
     @staticmethod
     def _create_dir(directory: str, mode: int = 0o0750) -> None:
@@ -88,6 +90,7 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         await super().init_device()
         self._root = os.environ["HOME"]
         self._current = self._root
+        self._log_file = None
         self.set_state(DevState.STANDBY)
         self.info_stream(
                 "%s in state: %s at directory: %s",
@@ -219,37 +222,51 @@ class TangoRemoteWalker(TangoRemoteProcessing):
     
     @DebugIt()
     @command(
-        dtype_in=CmdArgType.DevVarStringArray,
-        doc_in="log payload as a two element list of path and content"
+        dtype_in=str,
+        doc_in="payload to be appended to log file"
     )
-    async def append_to_file(self, payload: List[str]) -> None:
-        """
-        Appends the content to a file specified by path. The payload is
-        a two elements list of strings which is serialized using the tango
-        type DevVarStringArray.
-        """
-        # TODO: This method no longer needs a list containing the path.
-        # Instead we want to maintain an open file resource where we write
-        # the simplified payload as a string.
-        path, content = payload
-        with open(file=path, mode='a', encoding="utf-8") as lgf:
-            lgf.write(f"{content}\n")
+    async def log(self, payload: str) -> None:
+        """Writes an arbitrary string payload to the _log_file"""
+        try:
+            if self._log_file and self._log_file.writable():
+                self._log_file.write(payload)
+        except ValueError as err:
+            self.error_stream(
+                "%s failed to log %s [%s] - %s",
+                self.__class.__name__,
+                payload,
+                str(err),
+                self.get_state()
+            )
+        self.info_stream(
+            "%s logged to file - %s",
+            self.__class__.__name__,
+            self.get_state()
+        )
 
     @DebugIt()
     @command(
         dtype_in=str,
         doc_in="file path (typically for logging) to open as file resource"
     )
-    async def open_file_resource(self, file_path: str) -> None:
-        # TODO: This can maintain the the file resource internally, which
-        # we eventally close.
-        pass
+    async def open_log_file(self, file_path: str) -> None:
+        """Opens a log file for writing logs asynchronously"""
+        if not self._log_file:
+            self._log_file = open(file=file_path, mode="a", encoding="utf-8")
+        self.info_stream(
+            "%s opened %s for writing - %s",
+            self.__class__.__name__,
+            file_path,
+            self.get_state()
+        )
     
     @DebugIt()
     @command()
-    async def close_file_resource() -> None:
-        # TODO: Close the open file resource
-        pass
+    async def close_log_file(self) -> None:
+        """Closes the log file if is state open""" 
+        if self._log_file and not self._log_file.closed():
+            self._log_file.close()
+            self._log_file = None
 
 
 if __name__ == "__main__":

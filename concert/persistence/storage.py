@@ -486,6 +486,7 @@ class RemoteDirectoryWalker(RemoteWalker):
     """
     
     device: RemoteDirectoryWalkerTangoDevice
+    _log_name: str
 
     async def __ainit__(self,
                         device: RemoteDirectoryWalkerTangoDevice,
@@ -493,7 +494,8 @@ class RemoteDirectoryWalker(RemoteWalker):
                         dsetname: str = "frame_{:>06}.tif",
                         start_index: int = 0,
                         bytes_per_file: int = 0,
-                        root: Optional[str] = None) -> None:
+                        root: Optional[str] = None,
+                        log_name: str = "experiment.log") -> None:
         """
         Initializes a remote directory walker. This walker implementation
         encapsulates a Tango device server and delegates its core utilities
@@ -515,8 +517,12 @@ class RemoteDirectoryWalker(RemoteWalker):
         :param root: file system root for to start traversal, if None current
         directory of the walker is used
         :type root: Optional[str]
+        :param log_name: name of the log file to create, defaults to
+        `experiment.log`
+        :type log_name: str
         """
         self.device = device
+        self._log_name = log_name
         LOG.debug("device attributes: %s", self.device.get_attribute_list())
         # If root is None, we initialize internal `root` and `current` values
         # of the api with respective values from the remote device.
@@ -590,16 +596,17 @@ class RemoteDirectoryWalker(RemoteWalker):
         # remote walker.
         await self.device.write_sequence(path)
 
-    def get_log_handler(self) -> RemoteHandler:
+    async def get_log_handler(self) -> RemoteHandler:
         """
-        Provides a logging handler, capable to facilitate logging at a
-        remote host.
+        Provides a logging handler for the current path, capable to facilitate
+        logging at a remote host. 
         """
         # TODO: We can make this method async. That would help us to communicate
         # with the device and make it open a file resource asynchronously before
         # instantiating the RemoteHandler. After that we would be able to
         # asynchronously log into the file.
-        return RemoteHandler(device=self.device, path=self._current)
+        await self.device.open_log_file(f"{self._current}/{self._log_name}")
+        return RemoteHandler(device=self.device)
 
 
 if __name__ == "__main__":
