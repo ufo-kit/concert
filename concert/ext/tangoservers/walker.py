@@ -267,6 +267,11 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         if self._log_file and not self._log_file.closed():
             self._log_file.close()
             self._log_file = None
+            self.info_stream(
+                "%s closed log file - %s",
+                self.__class__.__name__,
+                self.get_state()
+            )
 
 
 if __name__ == "__main__":
