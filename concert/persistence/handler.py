@@ -71,7 +71,7 @@ class RemoteHandler(logging.Handler):
         close the log file resource. Latter has the to wait on the former,
         hence we can not use asyncio.gather on both futures.
         """
-        asyncio.ensure_future(asyncio.gather(self._futures), loop=self._loop)
+        asyncio.ensure_future(asyncio.gather(*self._futures), loop=self._loop)
         asyncio.ensure_future(self._device.close_log_file(), loop=self._loop)
 
 

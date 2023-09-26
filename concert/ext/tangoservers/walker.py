@@ -226,7 +226,6 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         doc_in="payload to be appended to log file"
     )
     async def log(self, payload: str) -> None:
-        """Writes an arbitrary string payload to the _log_file"""
         try:
             if self._log_file and self._log_file.writable():
                 self._log_file.write(payload)
@@ -250,7 +249,6 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         doc_in="file path (typically for logging) to open as file resource"
     )
     async def open_log_file(self, file_path: str) -> None:
-        """Opens a log file for writing logs asynchronously"""
         if not self._log_file:
             self._log_file = open(file=file_path, mode="a", encoding="utf-8")
         self.info_stream(
@@ -263,7 +261,6 @@ class TangoRemoteWalker(TangoRemoteProcessing):
     @DebugIt()
     @command()
     async def close_log_file(self) -> None:
-        """Closes the log file if is state open""" 
         if self._log_file and not self._log_file.closed():
             self._log_file.close()
             self._log_file = None

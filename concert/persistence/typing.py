@@ -99,15 +99,21 @@ class RemoteDirectoryWalkerTangoDevice(AbstractTangoDevice, Protocol):
         TODO: Understand, what teardown does
         """
 
-    async def append_to_file(payload: List[str]) -> None:
+    async def open_log_file(self, file_path: str) -> None:
         """
-        Writes an arbitrary string content to the specified file located at
-        current directory. If the file is already present at the current
-        directory, content is appended to the file, otherwise the file is
-        created.
+        Opens a log file for writing logs asynchronously.
+        :param file_path: absolute path to the log file
+        :type file_path: str
+        """
 
-        :param payload: a string array having two elements [file_name, content]
-        :type content: List[str]
+    async def close_log_file(self) -> None:
+        """Closes the log file if its open"""
+
+    async def log(self, payload: str) -> None:
+        """
+        Writes log to the log file.
+        :param payload: arbitrary log payload as a string
+        :type payload: str
         """
 #####################################################################
 
