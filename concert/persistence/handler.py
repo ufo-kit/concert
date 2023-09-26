@@ -67,7 +67,7 @@ class RemoteHandler(logging.Handler):
         )
 
     async def aclose(self) -> None:
-        await asyncio.gather(*self._futures)
+        await asyncio.gather(*(self._futures))
         self._closed = True
         await self._device.close_log_file()
 
