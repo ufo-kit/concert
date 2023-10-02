@@ -49,7 +49,8 @@ class RemoteHandler(logging.Handler):
         """
         if self._loop:
             self._tasks.append(
-                self._loop.create_task(self._device.log(self.format(record)))
+                asyncio.ensure_future(self._device.log(self.format(record)),
+                                      loop=self._loop)
             )
         else:
             raise RuntimeError("event loop unavailable")
