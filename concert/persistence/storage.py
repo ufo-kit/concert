@@ -601,10 +601,6 @@ class RemoteDirectoryWalker(RemoteWalker):
         Provides a logging handler for the current path, capable to facilitate
         logging at a remote host. 
         """
-        # TODO: We can make this method async. That would help us to communicate
-        # with the device and make it open a file resource asynchronously before
-        # instantiating the RemoteHandler. After that we would be able to
-        # asynchronously log into the file.
         await self.device.open_log_file(f"{self._current}/{self._log_name}")
         return RemoteHandler(device=self.device)
 
