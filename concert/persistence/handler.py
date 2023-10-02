@@ -18,9 +18,8 @@ class RemoteHandler(logging.Handler):
     """
 
     _device: RemoteDirectoryWalkerTangoDevice
-    _futures: List[asyncio.Future]
+    _tasks: List[asyncio.Task]
     _loop: asyncio.AbstractEventLoop
-    _closed: bool
 
     def __init__(
             self,
@@ -39,19 +38,7 @@ class RemoteHandler(logging.Handler):
         self._device = device
         self.setFormatter(logging.Formatter(fmt))
         self._loop = get_event_loop()
-        self._closed = False
-        self._futures = []
-
-    def _logging_task_cb(self, future: asyncio.Future) -> None:
-        """
-        Defines a callback function to remove the future from the collection
-        of futures that the remote handler maintains. This method is supposed
-        to be called when the provided future has completed. At this point we
-        no longer need to maintain the same in our collection of futures any
-        more.
-        """
-        if future in self._futures:
-            self._futures.remove(future)
+        self._tasks = []
 
     def emit(self, record: logging.LogRecord) -> None:
         """
@@ -60,29 +47,21 @@ class RemoteHandler(logging.Handler):
         collection of future tasks after adding a callback to handle the task
         completion.
         """
-        self._futures.append(
-            asyncio.ensure_future(
-                self._device.log(self.format(record)), loop=self._loop
-            ).add_done_callback(self._logging_task_cb)
-        )
+        if self._loop:
+            self._tasks.append(
+                self._loop.create_task(self._device.log(self.format(record)))
+            )
+        else:
+            raise RuntimeError("event loop unavailable")
 
     async def aclose(self) -> None:
-        await asyncio.gather(*(self._futures))
-        self._closed = True
+        """
+        Defines an asynchronous routine to execute the collected tasks and
+        clean up the resources.
+        """
+        await asyncio.gather(*self._tasks)
         await self._device.close_log_file()
-
-    def close(self) -> None:
-        """
-        Ensures conformance to logging.Handler api. Waits until all the
-        scheduled futures are done and then instructs the remote device to
-        close the log file resource. Latter has the to wait on the former,
-        hence we can not use asyncio.gather on both futures.
-        """
-        #asyncio.ensure_future(asyncio.gather(*self._futures), loop=self._loop)
-        #asyncio.ensure_future(self._device.close_log_file(), loop=self._loop)
-        if not self._closed:
-            raise RuntimeError("explicit cleanup required")
-        self.close()
+        super().close()
 
 
 if __name__ == "__main__":
