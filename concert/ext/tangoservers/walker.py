@@ -261,7 +261,7 @@ class TangoRemoteWalker(TangoRemoteProcessing):
     @DebugIt()
     @command()
     async def close_log_file(self) -> None:
-        if self._log_file and not self._log_file.closed():
+        if self._log_file and not self._log_file.closed:
             self._log_file.close()
             self._log_file = None
             self.info_stream(
