@@ -229,6 +229,7 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         try:
             if self._log_file and self._log_file.writable():
                 self._log_file.write(payload)
+                self._log_file.write("\n")
         except ValueError as err:
             self.error_stream(
                 "%s failed to log %s [%s] - %s",
