@@ -566,35 +566,41 @@ class RemoteDirectoryWalker(RemoteWalker):
     async def _create_writer(self,
                        producer: AsyncIterable[ArrayLike],
                        dsetname: Optional[str] = None) -> Awaitable:
-        return await self.device.create_writer(producer=producer, 
-                                               dsetname=dsetname)
-
-    @background
-    async def write_sequence(self, path: str) -> None:
         """
-        Asynchronously writes a sequence in the provided path
-
-        :param path: path to write to
-        :type path: str
+        Creates a writer asynchronously for the provided image data and
+        optional dataset name
         """
-        # NOTE: This approach fundamentally changes the RemoteWalker api since
-        # we are trying to merge the writer and remote walker device servers.
-        # Earlier writer device server behind the scene used to make a
-        # DirectoryWalker and call its write method with the image data that
-        # was asynchronously received. It worked because writer device server
-        # behind the scene was a TangoRemoteProcessing object and in turn 
-        # encapsulated the ZMQReceiver (in simpler terms data to be written is
-        # available to the device server running at the remote host but not
-        # with the current api layer object which possibly resides elsewhere).
-        # Hence, with this decentralized approach all the methods of the
-        # RemoteWalker class that accepts a `producer: AsyncIterable[ArrayLike]`
-        # are potentially pointless. We therefore consider to make the
-        # RemoteWalker api different from Walker(local) api.
-        # As a side note, when our remote logger api is ready we consider to
-        # remove logging-related components from RemoteWalker because it is
-        # unnecessary. We want to separate that concern from the one of the
-        # remote walker.
-        await self.device.write_sequence(path)
+        if dsetname:
+            await self.device.write_attribute(
+                    attr_name="dsetname", value=dsetname)
+        return await self.device.create_writer(producer)
+
+#    @background
+#    async def write_sequence(self, path: str) -> None:
+#        """
+#        Asynchronously writes a sequence in the provided path
+#
+#        :param path: path to write to
+#        :type path: str
+#        """
+#        # NOTE: This approach fundamentally changes the RemoteWalker api since
+#        # we are trying to merge the writer and remote walker device servers.
+#        # Earlier writer device server behind the scene used to make a
+#        # DirectoryWalker and call its write method with the image data that
+#        # was asynchronously received. It worked because writer device server
+#        # behind the scene was a TangoRemoteProcessing object and in turn 
+#        # encapsulated the ZMQReceiver (in simpler terms data to be written is
+#        # available to the device server running at the remote host but not
+#        # with the current api layer object which possibly resides elsewhere).
+#        # Hence, with this decentralized approach all the methods of the
+#        # RemoteWalker class that accepts a `producer: AsyncIterable[ArrayLike]`
+#        # are potentially pointless. We therefore consider to make the
+#        # RemoteWalker api different from Walker(local) api.
+#        # As a side note, when our remote logger api is ready we consider to
+#        # remove logging-related components from RemoteWalker because it is
+#        # unnecessary. We want to separate that concern from the one of the
+#        # remote walker.
+#        await self.device.write_sequence(path)
 
     async def get_log_handler(self) -> RemoteHandler:
         """

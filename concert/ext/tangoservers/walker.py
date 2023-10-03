@@ -5,12 +5,12 @@ Implements a device server for file system traversal at remote host.
 """
 import io
 import os
-from typing import Type, Optional, Awaitable, AsyncIterable, List
 import re
-from tango import DebugIt, DevState
+from typing import Type, Optional, Awaitable, AsyncIterable
+from tango import DebugIt, DevState, CmdArgType
 from tango.server import attribute, command, AttrWriteType
-from concert.helpers import PerformanceTracker
-from concert.quantities import q
+# from concert.helpers import PerformanceTracker
+# from concert.quantities import q
 from concert.persistence import writers
 from concert.persistence.typing import StorageError, ArrayLike
 from concert.persistence.storage import write_images, split_dsetformat
@@ -66,7 +66,7 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         fset="set_start_index"
     )
   
-    _writer: Type[writers.ImageWriter]
+    _writer: Type[writers.TiffWriter]
     _log_file: Optional[io.TextIOWrapper]
         
     @staticmethod
@@ -112,6 +112,10 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         self._create_dir(directory=self._root)
 
     def set_writer_class(self, klass: str) -> None:
+        # NOTE: With our current implementation we make this strong assertion.
+        # We also take note that this approach is rather rigid and needs to be
+        # reconsidered in future.
+        assert klass == "TiffWriter"
         self._writer = getattr(writers, klass)
 
     def set_dsetname(self, dsetname: str) -> None:
@@ -147,8 +151,14 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         )
         
     @DebugIt()
-    @command()
+    @command(
+        dtype_in=str,
+        doc_in="path(s) to check if they exist"
+    )
     def exists(self, *paths: str) -> bool:
+        # TODO: Confirm on the datatype that this method is supposed to accept.
+        # In normal python sense this is not important but since we implementing
+        # a tango device server we need to specify the input datatype correctly.
         return os.path.exists(os.path.join(self._current, *paths))
 
     def _dset_exists(self, dsetname: str) -> bool:
@@ -163,19 +173,16 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         return False
 
     @DebugIt()
-    @command()
-    def create_writer(self, 
-                      producer: AsyncIterable[ArrayLike],
-                      dsetname: Optional[str] = None) -> Awaitable:
-        if dsetname:
-            dsn = dsetname
-        else:
-            dsn = self._dsetname
-        if self._dset_exists(dsetname=dsn):
-            dset_prefix = split_dsetformat(dsn)
+    @command(
+        dtype_in=CmdArgType.DevVarULongArray,
+        doc_in="asynchronous iterable object of image data as numpy array"
+    )
+    def create_writer(self, producer: AsyncIterable[ArrayLike]) -> Awaitable:
+        if self._dset_exists(dsetname=self._dsetname):
+            dset_prefix = split_dsetformat(self._dsetname)
             dset_path = os.path.join(self._current, dset_prefix)
             raise StorageError(f"{dset_path} is not empty")
-        prefix = os.path.join(self._current, dsn)
+        prefix = os.path.join(self._current, self._dsetname)
         return write_images(
             producer,
             self._writer,
@@ -184,41 +191,43 @@ class TangoRemoteWalker(TangoRemoteProcessing):
             self._bytes_per_file
         )
     
-    async def _consume(self, produced: AsyncIterable[ArrayLike]) -> None:
-        """
-        Defines a wrapper corotuine which would be asynchronously handled
-        by stream processing utility.
+#    async def _consume(self, produced: AsyncIterable[ArrayLike]) -> None:
+#        """
+#        Defines a wrapper corotuine which would be asynchronously handled
+#        by stream processing utility.
+#
+#        :param producer: writable payload received at receiver endpoint
+#        :type producer: AsyncIterable[ArrayLike]
+#        """
+#        with PerformanceTracker() as prt:
+#            bytes_written: int = await self.create_writer(produced)
+#            prt.size = bytes_written * q.B
 
-        :param producer: writable payload received at receiver endpoint
-        :type producer: AsyncIterable[ArrayLike]
-        """
-        with PerformanceTracker() as prt:
-            bytes_written: int = await self.create_writer(produced)
-            prt.size = bytes_written * q.B
-
-    @DebugIt()
-    @command()
-    async def write_sequence(self, path: str) -> None:
-        # NOTE: Current writer device server, upon receiving a command to write
-        # to a specified path, instantiates a local directory walker with the 
-        # path. That essentially means that it sets the said local walker's root
-        # and current directory according to the provided path.
-        #
-        # However, with this revised approach of combined walker and writer we
-        # consider that the root may not need to be changed. Because unlike
-        # before this device server now needs to maintain a global view of the
-        # file system that it has traversed so far which starts at root.
-        # Hence, we consider to set only the current directory according to
-        # path while ensuring that the directory exists before writing to it.
-        # We deal with this by directly descending to `path`.
-        assert path is not None and path != ""
-        self.descend(path)
-        # Q: Apparently the subscribe method of the ZMQReceiver can yield
-        # both metadata and image array if we make use of return_metadata
-        # option. Hence, we need some consideration. For now we stick to
-        # the approach taken by current writer device server.
-        produced: AsyncIterable[ArrayLike] = await self._receiver.subscribe()
-        await self._process_stream(self._consume(produced))
+#    @DebugIt()
+#    @command(
+#        dtype_in=str,
+#        doc_in="path to write the image data"
+#    )
+#    async def write_sequence(self, path: str) -> None:
+#        # NOTE: Current writer device server, upon receiving a command to write
+#        # to a specified path, instantiates a local directory walker with the 
+#        # path. That essentially means that it sets the said local walker's root
+#        # and current directory according to the provided path.
+#        #
+#        # However, with this revised approach of combined walker and writer we
+#        # consider that the root may not need to be changed. Because unlike
+#        # before this device server now needs to maintain a global view of the
+#        # file system that it has traversed so far which starts at root.
+#        # Hence, we consider to set only the current directory according to
+#        # path while ensuring that the directory exists before writing to it.
+#        # We deal with this by directly descending to `path`.
+#        assert path is not None and path != ""
+#        self.descend(path)
+#        # Q: Apparently the subscribe method of the ZMQReceiver can yield
+#        # both metadata and image array if we make use of return_metadata
+#        # option. Hence, we need some consideration. For now we stick to
+#        # the approach taken by current writer device server.
+#        await self._process_stream(self._consume(self._receiver.subscribe()))
     
     @DebugIt()
     @command(

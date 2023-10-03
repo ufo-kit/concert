@@ -3,12 +3,16 @@ typing.py
 ---------
 Facilitates type annotations for concert
 """
-from typing import Protocol, Any, List
+from typing import Protocol, Any, AsyncIterable, NewType, Awaitable
+from collections.abc import Sequence
 import numpy
-if numpy.__version__ >= "1.20":
-    from numpy.typing import ArrayLike
-else:
-    from numpy import ndarray as ArrayLike
+
+# Defines ArrayLike as a new type
+# NOTE: We take this approach because NumPy>=1.20 offers ArrayLike as a
+# concrete type. At this point Tango has some discrepancy when it comes to
+# NumPy versions. In future this can(should) be replaced with
+# from numpy.typing import ArrayLike
+ArrayLike = NewType("ArrayLike", numpy.ndarray)
 
 #####################################################################
 # Error Types
@@ -19,7 +23,7 @@ class StorageError(Exception):
 
 
 class SequenceReaderError(Exception):
-    """
+    """, AsyncIterable
     Exception related to reading file sequence from disk storage
     """
     pass
@@ -34,6 +38,12 @@ class AbstractTangoDevice(Protocol):
     key value pairs. 
     """
 
+    def get_attribute_list(self) -> Sequence[str]:
+        """
+        Returns a list of attributes from the device server.
+        """
+        ...
+
     async def write_attribute(self, attr_name: str, value: Any) -> None:
         """Lets the caller write a device attribute
 
@@ -42,6 +52,7 @@ class AbstractTangoDevice(Protocol):
         :param value: attribute value
         :type value: str
         """
+        ...
 
 
 class RemoteDirectoryWalkerTangoDevice(AbstractTangoDevice, Protocol):
@@ -52,21 +63,23 @@ class RemoteDirectoryWalkerTangoDevice(AbstractTangoDevice, Protocol):
     Tango.
     """
 
-    def descend(self, name: str) -> None:
+    async def descend(self, name: str) -> None:
         """
         Creates and/or enters to a directory specified by name from current
         directory. Eventually, updates the current directory.
         :param name: directory name to create and/or enter
         :type name: str
         """
+        ...
 
-    def ascend(self) -> None:
+    async def ascend(self) -> None:
         """
         Transition to one level up in the file system. Eventually, updates
         the current directory.
         """
+        ...
 
-    def exists(self, *paths: str) -> bool:
+    async def exists(self, *paths: str) -> bool:
         """
         Asserts whether the specified paths exists in the file system.
 
@@ -75,29 +88,43 @@ class RemoteDirectoryWalkerTangoDevice(AbstractTangoDevice, Protocol):
         :return: asserts whether specified path exists
         :rtype: bool
         """
+        ...
 
-    async def write_sequence(self, path: str) -> None:
+    async def create_writer(self, 
+                            producer: AsyncIterable[ArrayLike]) -> Awaitable:
         """
-        Asynchronously writes sequence of images in the provided path.
+        Creates a tiff file writer asynchronously for the provided payload
 
-        :param path: path to write images to
-        :type path: str
+        :param producer: asynchronous iterable collection of images
+        :type producer: AsyncIterable[ArrayLike]
         """
+        ...
+
+#    async def write_sequence(self, path: str) -> None:
+#        """
+#        Asynchronously writes sequence of images in the provided path.
+#
+#        :param path: path to write images to
+#        :type path: str
+#        """
 
     async def cancel(self) -> None:
         """
         TODO: Understand, what cancel does
         """
+        ...
 
     async def reset_connection(self) -> None:
         """
         TODO: Understand, what reset_connection does
         """
+        ...
 
     async def teardown(self) -> None:
         """
         TODO: Understand, what teardown does
         """
+        ...
 
     async def open_log_file(self, file_path: str) -> None:
         """
@@ -105,9 +132,11 @@ class RemoteDirectoryWalkerTangoDevice(AbstractTangoDevice, Protocol):
         :param file_path: absolute path to the log file
         :type file_path: str
         """
+        ...
 
     async def close_log_file(self) -> None:
         """Closes the log file if its open"""
+        ...
 
     async def log(self, payload: str) -> None:
         """
@@ -115,6 +144,7 @@ class RemoteDirectoryWalkerTangoDevice(AbstractTangoDevice, Protocol):
         :param payload: arbitrary log payload as a string
         :type payload: str
         """
+        ...
 #####################################################################
 
 
