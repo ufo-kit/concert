@@ -9,7 +9,7 @@ import logging
 import os
 import time
 import json
-
+from typing import NewType
 import concert.devices.base
 from concert.coroutines.base import background, broadcast, start
 from concert.coroutines.sinks import count
@@ -459,3 +459,11 @@ class ConsumerError(Exception):
 class ExperimentError(Exception):
     """Experiment-related exceptions."""
     pass
+
+# Defines a convenient collection type for acquisitions that can be used for
+# type-hinting while dealing with a collection of acquisitions.
+Acquisitions = NewType("Acquisitions", "list[Acquisition]")
+
+if __name__ == "__main__":
+    pass
+

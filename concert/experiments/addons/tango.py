@@ -2,26 +2,26 @@ import asyncio
 import functools
 import inspect
 import logging
-from typing import Iterable, Awaitable, Optional, AsyncIterable
+from typing import Iterable, Awaitable, AsyncIterable
 import numpy as np
 from concert.experiments.addons import base
 from concert.experiments.base import Acquisition
 from concert.quantities import q
 from concert.storage import RemoteDirectoryWalker
-from concert.typing import AbstractTangoDevice
-from concert.typing import RemoteDirectoryWalkerTangoDevice, ArrayLike
+from concert.typing import AbstractStreamHandler
+from concert.typing import ArrayLike
 
 LOG = logging.getLogger(__name__)
 
 
 class TangoMixin:
-
-    """TangoMixin does not need a producer becuase the backend processes 
+    """
+    TangoMixin does not need a producer becuase the backend processes 
     image streams which do not come via concert.
     """
 
     remote: bool = True
-    _device: AbstractTangoDevice 
+    _device: AbstractStreamHandler
 
     @staticmethod
     def cancel_remote(func: object) -> Awaitable:
@@ -33,18 +33,17 @@ class TangoMixin:
         async def wrapper(self, *args, **kwargs):
             try:
                 await func(self, *args, **kwargs)
-            except BaseException as e:
+            except BaseException as exc:
                 LOG.debug(
                     "`%s' occured in %s, remote cancelled with result: %s",
-                    e.__class__.__name__,
+                    exc.__class__.__name__,
                     func.__qualname__,
                     await asyncio.gather(self.cancel(), return_exceptions=True)
                 )
                 raise
-
         return wrapper
 
-    async def __ainit__(self, device: AbstractTangoDevice) -> None:
+    async def __ainit__(self, device: AbstractStreamHandler) -> None:
         self._device = device
 
     async def cancel(self) -> None:

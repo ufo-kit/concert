@@ -17,6 +17,33 @@ ArrayLike = NewType("ArrayLike", numpy.ndarray)
 
 #####################################################################
 # Abstract Tango Device Types
+class AbstractStreamHandler(Protocol):
+    """
+    Encapsulates specific stream handling utilities provided by the
+    TangoRemoteProcessing base class to control the incoming data streams over
+    the ZmqReceiver socket endpoint.
+    """
+
+    async def cancel(self) -> None:
+        """
+        Cancels any asynchronous task, maintained by the stream handler
+        """
+        ...
+
+    async def reset_connection(self) -> None:
+        """
+        Stops receiving data from the current ZmqReceiver socket connection and
+        reconnects the socket.
+        """
+        ...
+
+    async def teardown(self) -> None:
+        """
+        Stops receiving data from the current ZmqReceiver socket connection
+        without possibility of recovery.
+        """
+        ...
+
 class AbstractTangoDevice(Protocol):
     """
     Abstract Tango device which let's users to write arbitrary attribute as
@@ -39,8 +66,8 @@ class AbstractTangoDevice(Protocol):
         """
         ...
 
-
-class RemoteDirectoryWalkerTangoDevice(AbstractTangoDevice, Protocol):
+class RemoteDirectoryWalkerTangoDevice(
+        AbstractTangoDevice, AbstractStreamHandler, Protocol):
     """
     Abstract remote walker device type. While invoking these methods on a 
     Tango device server object we generally avoid using named arguments e.g., 
@@ -75,7 +102,7 @@ class RemoteDirectoryWalkerTangoDevice(AbstractTangoDevice, Protocol):
         """
         ...
 
-    async def create_writer(self, 
+    async def create_writer(self,
                             producer: AsyncIterable[ArrayLike]) -> Awaitable:
         """
         Creates a tiff file writer asynchronously for the provided payload
@@ -92,24 +119,6 @@ class RemoteDirectoryWalkerTangoDevice(AbstractTangoDevice, Protocol):
 #        :param path: path to write images to
 #        :type path: str
 #        """
-
-    async def cancel(self) -> None:
-        """
-        TODO: Understand, what cancel does
-        """
-        ...
-
-    async def reset_connection(self) -> None:
-        """
-        TODO: Understand, what reset_connection does
-        """
-        ...
-
-    async def teardown(self) -> None:
-        """
-        TODO: Understand, what teardown does
-        """
-        ...
 
     async def open_log_file(self, file_path: str) -> None:
         """
