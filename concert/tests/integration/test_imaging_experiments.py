@@ -12,7 +12,7 @@ from concert.devices.motors.dummy import LinearMotor, RotationMotor, ContinuousR
 from concert.devices.xraytubes.dummy import XRayTube
 from concert.devices.shutters.dummy import Shutter
 from concert.tests import TestCase, slow
-from concert.persistence.storage import DirectoryWalker
+from concert.storage import DirectoryWalker
 
 from concert.experiments.synchrotron import Radiography as SynchrotronRadiography, \
     SteppedTomography as SynchrotronSteppedTomography, \

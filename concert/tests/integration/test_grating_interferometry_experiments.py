@@ -3,7 +3,7 @@ import shutil
 import numpy as np
 from concert.quantities import q
 from concert.tests import TestCase, slow
-from concert.persistence.storage import DirectoryWalker
+from concert.storage import DirectoryWalker
 from concert.experiments.addons.local import (
     ImageWriter,
     Accumulator,

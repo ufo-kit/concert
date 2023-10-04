@@ -97,7 +97,7 @@ class Radiography(Experiment):
                         num_darks, num_projections, separate_scans=True):
         """
         :param walker: Walker for storing experiment data.
-        :type walker: concert.persistence.storage.Walker
+        :type walker: concert.storage.Walker
         :param flat_motor: Motor for moving sample in and out of the beam. Must feature a
             'position' property.
         :param radio_position: Position of *flat_motor* that the sample is positioned in the beam.
@@ -329,7 +329,7 @@ class Tomography(Radiography):
                         angular_range=180 * q.deg, start_angle=0 * q.deg, separate_scans=True):
         """
         :param walker: Walker for storing experiment data.
-        :type walker: concert.persistence.storage.Walker
+        :type walker: concert.storage.Walker
         :param flat_motor: Motor for moving sample in and out of the beam. Must feature a
             'position' property.
         :param tomography_motor: RotationMotor for tomography.
@@ -418,7 +418,7 @@ class SteppedTomography(Tomography):
                         start_angle=0 * q.deg, separate_scans=True):
         """
         :param walker: Walker for storing experiment data.
-        :type walker: concert.persistence.storage.Walker
+        :type walker: concert.storage.Walker
         :param flat_motor: Motor for moving sample in and out of the beam. Must feature a
             'position' property.
         :param radio_position: Position of *flat_motor* that the sample is positioned in the beam.
@@ -500,7 +500,7 @@ class ContinuousTomography(Tomography):
                         angular_range=180 * q.deg, start_angle=0 * q.deg, separate_scans=True):
         """
         :param walker: Walker for storing experiment data.
-        :type walker: concert.persistence.storage.Walker
+        :type walker: concert.storage.Walker
         :param flat_motor: Motor for moving sample in and out of the beam. Must feature a
             'position' property.
         :param radio_position: Position of *flat_motor* that the sample is positioned in the beam.
@@ -667,7 +667,7 @@ class SteppedSpiralTomography(SpiralMixin, SteppedTomography):
                         separate_scans=True):
         """
         :param walker: Walker for storing experiment data.
-        :type walker: concert.persistence.storage.Walker
+        :type walker: concert.storage.Walker
         :param flat_motor: Motor for moving sample in and out of the beam. Must feature a
             'position' property.
         :param tomography_motor: RotationMotor for tomography scan.
@@ -769,7 +769,7 @@ class ContinuousSpiralTomography(SpiralMixin, ContinuousTomography):
                         separate_scans=True):
         """
         :param walker: Walker for storing experiment data.
-        :type walker: concert.persistence.storage.Walker
+        :type walker: concert.storage.Walker
         :param flat_motor: Motor for moving sample in and out of the beam. Must feature a
             'position' property.
         :param tomography_motor: ContinuousRotationMotor for tomography scan.
@@ -984,7 +984,7 @@ class GratingInterferometryStepping(GratingInterferometryMixin, Radiography):
                         separate_scans=False):
         """
         :param walker: Walker for the experiment
-        :type walker: concert.persistence.storage.DirectoryWalker
+        :type walker: concert.storage.DirectoryWalker
         :param camera: Camera to acquire the images
         :type camera: concert.devices.cameras.base.Camera
         :param flat_motor: Motor for moving sample in and out of the beam. Must feature a

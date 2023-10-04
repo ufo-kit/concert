@@ -7,7 +7,7 @@ host at a specified location.
 import logging
 import asyncio
 from typing import List
-from concert.persistence.typing import RemoteDirectoryWalkerTangoDevice
+from concert.typing import RemoteDirectoryWalkerTangoDevice
 from concert.coroutines.base import get_event_loop
 
 

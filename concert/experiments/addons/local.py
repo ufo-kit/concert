@@ -5,7 +5,7 @@ from concert.coroutines.sinks import Accumulate
 from concert.experiments.addons import base
 from concert.helpers import PerformanceTracker
 from concert.quantities import q
-from concert.persistence.storage import DirectoryWalker
+from concert.storage import DirectoryWalker
 
 
 class LocalMixin:

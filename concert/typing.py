@@ -1,10 +1,11 @@
+# pylint: disable=unnecessary-ellipsis
+
 """
 typing.py
 ---------
 Facilitates type annotations for concert
 """
-from typing import Protocol, Any, AsyncIterable, NewType, Awaitable
-from collections.abc import Sequence
+from typing import Protocol, Any, AsyncIterable, NewType, Awaitable, Sequence
 import numpy
 
 # Defines ArrayLike as a new type
@@ -13,22 +14,6 @@ import numpy
 # NumPy versions. In future this can(should) be replaced with
 # from numpy.typing import ArrayLike
 ArrayLike = NewType("ArrayLike", numpy.ndarray)
-
-#####################################################################
-# Error Types
-class StorageError(Exception):
-    """
-    Exception related to logical issues with storage.
-    """
-
-
-class SequenceReaderError(Exception):
-    """, AsyncIterable
-    Exception related to reading file sequence from disk storage
-    """
-    pass
-#####################################################################
-
 
 #####################################################################
 # Abstract Tango Device Types
@@ -150,4 +135,3 @@ class RemoteDirectoryWalkerTangoDevice(AbstractTangoDevice, Protocol):
 
 if __name__ == "__main__":
     pass
-

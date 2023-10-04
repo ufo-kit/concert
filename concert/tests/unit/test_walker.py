@@ -3,8 +3,8 @@ import shutil
 import numpy as np
 import os.path as op
 from concert.coroutines.base import async_generate
-from concert.persistence.storage import DummyWalker, DirectoryWalker
-from concert.persistence.typing import StorageError
+from concert.storage import DummyWalker, DirectoryWalker
+from concert.storage import StorageError
 from concert.tests import TestCase
 
 

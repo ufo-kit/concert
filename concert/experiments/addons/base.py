@@ -113,7 +113,7 @@ class ImageWriter(Addon):
 
     .. py:attribute:: walker
 
-    A :class:`~concert.persistence.storage.Walker` instance
+    A :class:`~concert.storage.Walker` instance
     """
 
     async def __ainit__(self, walker, acquisitions=None):

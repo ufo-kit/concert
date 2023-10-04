@@ -9,10 +9,10 @@ from logging import FileHandler, Formatter
 import tifffile
 from concert.base import AsyncObject
 from concert.coroutines.base import background
-from concert.persistence.writers import TiffWriter
-from concert.persistence.typing import RemoteDirectoryWalkerTangoDevice
-from concert.persistence.typing import StorageError, ArrayLike
-from concert.persistence.handler import RemoteHandler
+from concert.writers import TiffWriter
+from concert.typing import RemoteDirectoryWalkerTangoDevice
+from concert.typing import ArrayLike
+from concert.handler import RemoteHandler
 
 
 LOG = logging.getLogger(__name__)
@@ -609,6 +609,10 @@ class RemoteDirectoryWalker(RemoteWalker):
         """
         await self.device.open_log_file(f"{self._current}/{self._log_name}")
         return RemoteHandler(device=self.device)
+
+class StorageError(Exception):
+    """Exception related to logical issues with storage"""
+    pass
 
 
 if __name__ == "__main__":

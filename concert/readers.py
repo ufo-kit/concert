@@ -2,7 +2,6 @@
 import glob
 import os
 from concert.coroutines.base import run_in_executor
-from concert.persistence.typing import SequenceReaderError
 
 
 class FileSequenceReader:
@@ -116,8 +115,12 @@ class TiffSequenceReader(FileSequenceReader):
 
     def _read_real(self, index):
         return self._file.pages[index].asarray()
+    
+
+class SequenceReaderError(Exception):
+    """Exception related to reading file sequence from disk storage"""
+    pass
 
 
 if __name__ == "__main__":
     pass
-

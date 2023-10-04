@@ -224,7 +224,7 @@ class Experiment(Parameterizable):
 
     .. py:attribute:: walker
 
-       A :class:`concert.persistence.storage.Walker` descends to a data set specific for every run if given
+       A :class:`concert.storage.Walker` descends to a data set specific for every run if given
 
     .. py:attribute:: separate_scans
 
