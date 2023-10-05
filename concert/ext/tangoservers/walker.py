@@ -103,14 +103,21 @@ class TangoRemoteWalker(TangoRemoteProcessing):
 
     def set_current(self, path: str) -> None:
         self._current = path
+        self.info_stream(
+            "%s has set current directory to: %s, with state: %s",
+            self.__class__.__name__, self.get_current(), self.get_state()
+        )
 
     def get_root(self) -> str:
         return self._root
 
     def set_root(self, path: str) -> None:
         self._root = path
-        self._current = self._root
         self._create_dir(directory=self._root)
+        self.info_stream(
+            "%s has set root directory to: %s, with state: %s",
+            self.__class__.__name__, self.get_root(), self.get_state()
+        )
 
     def set_writer_class(self, klass: str) -> None:
         # NOTE: With our current implementation we make this strong assertion.

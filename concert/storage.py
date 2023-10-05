@@ -533,6 +533,8 @@ class RemoteDirectoryWalker(RemoteWalker):
         else:
             self._root = (await self.device["root"]).value
         self._current = self._root
+        await self.device.write_attribute(attr_name="current",
+                                          value=self._current)
         await self.device.write_attribute(attr_name="writer_class",
                                           value=wrt_cls)
         await self.device.write_attribute(attr_name="dsetname", value=dsetname)
