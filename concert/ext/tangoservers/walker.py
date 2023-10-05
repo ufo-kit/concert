@@ -14,7 +14,7 @@ from concert.quantities import q
 from concert import writers
 from concert.storage import StorageError
 from concert.typing import ArrayLike
-from concert.storage import write_images, split_dsetformat
+from concert.storage import write_images, split_dsetformat, DirectoryWalker
 from concert.ext.tangoservers.base import TangoRemoteProcessing
 
 
@@ -161,6 +161,7 @@ class TangoRemoteWalker(TangoRemoteProcessing):
     @DebugIt()
     @command(
         dtype_in=str,
+        dtype_out=bool,
         doc_in="path(s) to check if they exist"
     )
     def exists(self, *paths: str) -> bool:
@@ -180,67 +181,22 @@ class TangoRemoteWalker(TangoRemoteProcessing):
                 return True
         return False
 
-    @DebugIt()
-    @command(
-        dtype_in=CmdArgType.DevVarULongArray,
-        doc_in="asynchronous iterable object of image data as numpy array"
-    )
-    def create_writer(self, producer: AsyncIterable[ArrayLike]) -> Awaitable:
-        if self._dset_exists(dsetname=self._dsetname):
-            dset_prefix = split_dsetformat(self._dsetname)
-            dset_path = os.path.join(self._current, dset_prefix)
-            raise StorageError(f"{dset_path} is not empty")
-        prefix = os.path.join(self._current, self._dsetname)
-        return write_images(
-            producer,
-            self._writer,
-            prefix,
-            self._start_index,
-            self._bytes_per_file
+    @DebugIt(show_args=True)
+    @command(dtype_in=str)
+    async def write_sequence(self, path):
+        walker = DirectoryWalker(
+            writer=self._writer,
+            dsetname=self._dsetname,
+            bytes_per_file=self._bytes_per_file,
+            root=path
         )
-    
-    async def _consume(self, produced: AsyncIterable[ArrayLike]) -> None:
-        """
-        Defines a wrapper corotuine which would be asynchronously handled
-        by stream processing utility.
+        await self._process_stream(self.consume(walker))
 
-        :param producer: writable payload received at receiver endpoint
-        :type producer: AsyncIterable[ArrayLike]
-        """
-        with PerformanceTracker() as prt:
-            bytes_written: int = await self.create_writer(produced)
-            prt.size = bytes_written * q.B
+    async def consume(self, walker):
+        with PerformanceTracker() as pt:
+            total_bytes = await walker.write(self._receiver.subscribe())
+            pt.size = total_bytes * q.B
 
-    @DebugIt()
-    @command(
-        dtype_in=str,
-        doc_in="path to write the image data"
-    )
-    async def write_sequence(self, path: str) -> None:
-        """
-        Facilitates the writing of data streams asynchronously received on
-        ZmqReceiver endpoint to `path`.
-        """
-        # NOTE: Current writer device server, upon receiving a command to write
-        # to a specified path, instantiates a local directory walker with the 
-        # path. That essentially means that it sets the said local walker's root
-        # and current directory according to the provided path.
-        #
-        # However, with this revised approach of combined walker and writer we
-        # consider that the root may not need to be changed. Because unlike
-        # before this device server now needs to maintain a global view of the
-        # file system that it has traversed so far which starts at root.
-        # Hence, we consider to set only the current directory according to
-        # path while ensuring that the directory exists before writing to it.
-        # We deal with this by directly descending to `path`.
-        assert path is not None and path != ""
-        self.descend(path)
-        # Q: Apparently the subscribe method of the ZMQReceiver can yield
-        # both metadata and image array if we make use of return_metadata
-        # option. Hence, we need some consideration. For now we stick to
-        # the approach taken by current writer device server.
-        await self._process_stream(self._consume(self._receiver.subscribe()))
-    
     @DebugIt()
     @command(
         dtype_in=str,
