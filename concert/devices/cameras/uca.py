@@ -216,6 +216,10 @@ class Camera(base.Camera):
 
         return array
 
+    @_translate_gerror
+    async def _grab_live_real(self):
+        return await self._grab_real(index=None)
+
     async def _determine_shape_for_grab(self):
         self._record_shape = ((await self.get_roi_height()).magnitude,
                               (await self.get_roi_width()).magnitude)

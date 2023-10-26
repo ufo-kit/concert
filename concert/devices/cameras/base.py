@@ -149,6 +149,13 @@ class Camera(Device):
         img = self.convert(await self._grab_real())
         return img.view(ImageWithMetadata)
 
+    @background
+    async def grab_live(self) -> ImageWithMetadata:
+        """Return a concert.storage.ImageWithMetadata (subclass of np.ndarray) with data of the
+        current frame."""
+        img = self.convert(await self._grab_live_real())
+        return img.view(ImageWithMetadata)
+
     async def stream(self):
         """
         stream()
@@ -159,7 +166,7 @@ class Camera(Device):
         await self.start_recording()
 
         while await self.get_state() == 'recording':
-            yield await self.grab()
+            yield await self.grab_live()
 
     async def _get_trigger_source(self):
         raise AccessorNotImplementedError
@@ -177,6 +184,9 @@ class Camera(Device):
         raise AccessorNotImplementedError
 
     async def _grab_real(self):
+        raise AccessorNotImplementedError
+
+    async def _grab_live_real(self):
         raise AccessorNotImplementedError
 
 
