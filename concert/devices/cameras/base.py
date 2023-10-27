@@ -166,6 +166,18 @@ class Camera(Device):
         await self.start_recording()
 
         while await self.get_state() == 'recording':
+            yield await self.grab()
+
+    async def stream_live(self):
+        """
+        stream_live()
+
+        Grab live frames and continuously yield them. This is an async generator.
+        """
+        await self.set_trigger_source(self.trigger_sources.AUTO)
+        await self.start_recording()
+
+        while await self.get_state() == 'recording':
             yield await self.grab_live()
 
     async def _get_trigger_source(self):
