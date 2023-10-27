@@ -184,7 +184,7 @@ class TangoRemoteWalker(TangoRemoteProcessing):
     @DebugIt(show_args=True)
     @command(dtype_in=str)
     async def write_sequence(self, path):
-        walker = DirectoryWalker(
+        walker = await DirectoryWalker(
             writer=self._writer,
             dsetname=self._dsetname,
             bytes_per_file=self._bytes_per_file,
@@ -192,7 +192,7 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         )
         await self._process_stream(self.consume(walker))
 
-    async def consume(self, walker):
+    async def consume(self, walker: DirectoryWalker) -> None:
         with PerformanceTracker() as pt:
             total_bytes = await walker.write(self._receiver.subscribe())
             pt.size = total_bytes * q.B

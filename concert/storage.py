@@ -4,7 +4,7 @@ import asyncio
 import os
 import logging
 import re
-from typing import Optional, AsyncIterable, Awaitable, Type
+from typing import Optional, AsyncIterable, Awaitable, Type, Iterable
 from logging import FileHandler, Formatter
 import tifffile
 from concert.base import AsyncObject
@@ -21,6 +21,9 @@ def split_dsetformat(dsetname):
     """
     Strip *dsetname* off the formatting part wihch leaves us with the data 
     set name.
+
+    :param dsetname: dataset name
+    :type dsetname: str
     """
     return dsetname.split('{')[0]
 
@@ -145,108 +148,12 @@ async def write_images(producer: AsyncIterable[ArrayLike],
             LOG.debug('Writer "{}" closed'.format(prefix.format(start_index + file_index - 1)))
 
 
-class Walker(object):
-
+class Walker(AsyncObject):
     """
-    A Walker moves through an abstract hierarchy and allows to write data
-    at a specific location.
-    """
-
-    def __init__(self, root, dsetname='frames', log=None, log_handler=None):
-        """Constructor. *root* is the topmost level of the data structure."""
-        self._root = root
-        self._current = self._root
-        self.dsetname = dsetname
-        self._log = log
-        self._log_handler = log_handler
-        self._lock = asyncio.Lock()
-
-        if self._log:
-            self._log_handler.setLevel(logging.INFO)
-            formatter = Formatter("[%(asctime)s] %(levelname)s: %(name)s: %(message)s")
-            self._log_handler.setFormatter(formatter)
-            self._log.addHandler(self._log_handler)
-
-    def __del__(self):
-        """Destructor."""
-        if self._log:
-            self._log_handler.close()
-            self._log.removeHandler(self._log_handler)
-
-    async def __aenter__(self):
-        await self._lock.acquire()
-
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb):
-        self._lock.release()
-
-    def home(self):
-        """Return to root."""
-        self._current = self._root
-
-    @property
-    def current(self):
-        """Return current position."""
-        return self._current
-
-    def exists(self, *paths):
-        """Return True if path from current position specified by a list of *paths* exists."""
-        raise NotImplementedError
-
-    def descend(self, name):
-        """Descend to *name* and return *self*."""
-        self._descend(name)
-
-        return self
-
-    def ascend(self):
-        """Ascend from current depth and return *self*."""
-        self._ascend()
-
-        return self
-
-    def _descend(self, name):
-        """Descend to *name*."""
-        raise NotImplementedError
-
-    def _ascend(self):
-        """Ascend from current depth."""
-        raise NotImplementedError
-
-    def create_writer(self, producer, name=None, dsetname=None):
-        """
-        Create a writer coroutine for writing data set *dsetname* with images from *producer*
-        inside. If *name* is given, descend to it first and once the writer is created ascend back.
-        This way, the writer can operate in *name* and the walker can be safely used to move around
-        and create other writers elsewhere while the created writer is working. The returned
-        coroutine is not guaranteed to be wrapped into a :class:`.asyncio.Task`, hence to be started
-        immediately.  This function also does not block after creating the writer. This is useful
-        for splitting the preparation of writing (creating directories, ...) and the I/O itself.
-        """
-        if name:
-            self.descend(name)
-
-        try:
-            return self._create_writer(producer, dsetname=dsetname)
-        finally:
-            if name:
-                self.ascend()
-
-    @background
-    async def write(self, producer, dsetname=None):
-        """
-        Create a coroutine for writing data set *dsetname* with images from *producer*. The
-        execution starts immediately in the background and await will block until the images are
-        written.
-        """
-        return await self._create_writer(producer, dsetname=dsetname)
-
-
-class RemoteWalker(AsyncObject):
-    """
-    A RemoteWalker moves through an abstract hierarchy and allows to
-    asynchronously write data at a specific location.
+    A Walker moves through an abstract hierarchy and allows to asynchronously
+    write data at a specific location. It is the api layer object for file
+    system traversal and writing of asynchronously received sequence of image
+    data and associated metadata.
     """
 
     _root: Optional[str]
@@ -255,11 +162,10 @@ class RemoteWalker(AsyncObject):
     _lock: asyncio.Lock
 
     async def __ainit__(self,
-                        root: Optional[str] = None,
-                        dsetname: str = "frames") -> None:
+                        root: Optional[str] = None, 
+                        dsetname: str="frames") -> None:
         """
-        Initializes a remote walker encapsulating api-layer specifications
-        for the same.
+        Initializes Walker.
 
         :param root: optional file system root to start traversal
         :type root: Optional[str]
@@ -270,9 +176,8 @@ class RemoteWalker(AsyncObject):
         self._current = self._root
         self.dsetname = dsetname
         self._lock = asyncio.Lock()
-        await super().__ainit__()
 
-    async def __aenter__(self) -> RemoteWalker:
+    async def __aenter__(self) -> Walker:
         await self._lock.acquire()
         return self
 
@@ -280,7 +185,9 @@ class RemoteWalker(AsyncObject):
         self._lock.release()
 
     def home(self) -> None:
-        """Return to root."""
+        """Return to the root directory with which the walker is
+        initialized.
+        """
         self._current = self._root
 
     @property
@@ -288,21 +195,21 @@ class RemoteWalker(AsyncObject):
         """Return current position."""
         return self._current
 
-    async def exists(self, *paths: str) -> bool:
+    async def exists(self, *paths) -> bool:
         """
-        Return True if path from current position specified by a list of 
+        Returns True if path from current position specified by a list of
         *paths* exists.
         """
         raise NotImplementedError
 
-    async def descend(self, name: str) -> RemoteWalker:
+    async def descend(self, name: str) -> Walker:
         """Descend to *name* and return *self*."""
-        await self._descend(name=name)
+        self._descend(name)
         return self
 
-    async def ascend(self) -> RemoteWalker:
+    async def ascend(self) -> Walker:
         """Ascend from current depth and return *self*."""
-        await self._ascend()
+        self._ascend()
         return self
 
     async def _descend(self, name: str) -> None:
@@ -314,86 +221,91 @@ class RemoteWalker(AsyncObject):
         raise NotImplementedError
 
     async def _create_writer(self,
-                             producer: AsyncIterable[ArrayLike],
-                             dsetname: Optional[str] = None) -> Awaitable:
-        """Creates a writer coroutine to write images to disk"""
+                       producer: AsyncIterable[ArrayLike],
+                       dsetname: Optional[str] = None) -> Awaitable:
+        """
+        Subclass should provide the implementation for, how the writer should
+        be created for data received asynchronously.
+        """
         raise NotImplementedError
-
 
     async def create_writer(self,
                             producer: AsyncIterable[ArrayLike],
                             name: Optional[str] = None,
                             dsetname: Optional[str] = None) -> Awaitable:
         """
-        Create a writer coroutine for writing data set *dsetname* with images 
-        from *producer* inside. If *name* is given, descend to it first and 
-        once the writer is created ascend back. This way, the writer can 
-        operate in *name* and the walker can be safely used to move around and 
-        create other writers elsewhere while the created writer is working. 
-
+        Create a writer coroutine for writing data set *dsetname* with images
+        from *producer* inside. If *name* is given, descend to it first and
+        once the writer is created ascend back. This way, the writer can
+        operate in *name* and the walker can be safely used to move around
+        and create other writers elsewhere while the created writer is working.
         The returned coroutine is not guaranteed to be wrapped into a
-        :class:`.asyncio.Task`, hence to be started immediately.  This function
-        also does not block after creating the writer. This is useful for
-        splitting the preparation of writing (creating directories, ...) and
-        the I/O itself.
+        :class:`.asyncio.Task`, hence to be started immediately.
+        This function also does not block after creating the writer. This is
+        useful for splitting the preparation of writing (creating directories,
+        ...) and the I/O itself.
         """
         if name:
-            await self.descend(name)
+            self.descend(name)
         try:
-            return await self._create_writer(producer=producer,
-                                             dsetname=dsetname)
+            return self._create_writer(producer, dsetname=dsetname)
         finally:
             if name:
-                await self.ascend()
+                self.ascend()
 
     @background
     async def write(self,
                     producer: AsyncIterable[ArrayLike],
                     dsetname: Optional[str] = None) -> int:
         """
-        Creates a coroutine for writing data set *dsetname* with images from
+        Create a coroutine for writing data set *dsetname* with images from
         *producer*. The execution starts immediately in the background and
-        await will block until the images are written. If successful, it
-        returns the number of bytes written.
+        await will block until the images are written.
         """
         return await self._create_writer(producer, dsetname=dsetname)
-    
+
     @background
     async def write_sequence(self, path: str) -> None:
         """
-        Asynchronously writes a sequence in the provided path
-
-        :param path: path to write to
-        :type path: str
+        Writes a sequence of asynchronously received images in the specified
+        *path*.
         """
         raise NotImplementedError
 
-
 class DummyWalker(Walker):
-    def __init__(self, root=''):
-        super(DummyWalker, self).__init__(root)
+
+    _paths: Iterable[str]
+
+    async def __ainit__(self, root: str = "") -> None:
+        super().__ainit__(root)
         self._paths = set([])
 
     @property
-    def paths(self):
+    def paths(self) -> Iterable[str]:
         return self._paths
 
-    def exists(self, *paths):
+    async def exists(self, *paths) -> bool:
+        # NOTE: This method has no reason to be async. We still marked it as
+        # a coroutine in conformance with the base Walker api. This highlights
+        # itself as a reason to rethink the approach to have a common walker
+        # api for local and remote file system traversal.
         return os.path.join(*paths) in self._paths
 
-    def _descend(self, name):
+    async def _descend(self, name) -> None:
         self._current = os.path.join(self._current, name)
         self._paths.add(self._current)
 
-    def _ascend(self):
+    async def _ascend(self) -> None:
         if self._current != self._root:
             self._current = os.path.dirname(self._current)
 
-    def _create_writer(self, producer, dsetname=None):
+    async def _create_writer(self,
+                             producer: AsyncIterable[ArrayLike],
+                             dsetname: Optional[str] = None) -> Awaitable:
         dsetname = dsetname or self.dsetname
         path = os.path.join(self._current, dsetname)
 
-        async def _append_paths():
+        async def _append_paths() -> None:
             i = 0
             async for item in producer:
                 self._paths.add(os.path.join(path, str(i)))
@@ -403,61 +315,74 @@ class DummyWalker(Walker):
 
 
 class DirectoryWalker(Walker):
-
     """
     A DirectoryWalker moves through a file system and writes flat files using a
     specific filename template.
     """
 
-    def __init__(self, writer=TiffWriter, dsetname='frame_{:>06}.tif', start_index=0,
-                 bytes_per_file=0, root=None, log=None, log_name='experiment.log'):
+    _log: logging.Logger
+    _log_handler: logging.FileHandler
+
+    def __ainit__(self,
+                  writer: Type[TiffWriter] = TiffWriter,
+                  dsetname: str = "frame_{:>06}.tif",
+                  start_index: int = 0,
+                  bytes_per_file: int = 0,
+                  root: Optional[str] = None,
+                  log: Optional[logging.Logger] = None,
+                  log_name: str = "experiment.log") -> None:
         """
-        Use *writer* to write data to files with filenames with a template from *dsetname*.
-        *start_index* specifies the number in the first file name, e.g. for the default *dsetname*
-        and *start_index* 100, the first file name will be frame_000100.tif.
+        Use *writer* to write data to files with filenames with a template
+        from *dsetname*. *start_index* specifies the number in the first file
+        name, e.g. for the default *dsetname* and *start_index* 100, the first
+        file name will be frame_000100.tif.
         """
         if not root:
             root = os.getcwd()
         root = os.path.abspath(root)
-
         log_handler = None
-
         if log:
             create_directory(root)
+            self._log = log
             log_path = os.path.join(root, log_name)
-            log_handler = FileHandler(log_path)
-
-        super(DirectoryWalker, self).__init__(root, dsetname=dsetname,
-                                              log=log, log_handler=log_handler)
+            self._log_handler = FileHandler(log_path)
+            self._log_handler.setLevel(logging.DEBUG)
+            fmt = Formatter("[%(asctime)s] %(levelname)s: %(name)s: %(message)s")
+            self._log_handler.setFormatter(fmt)
+            self._log.addHandler(self._log_handler)        
+        super().__ainit__(root, dsetname)
         self.writer = writer
         self._bytes_per_file = bytes_per_file
         self._start_index = start_index
 
-    def _descend(self, name):
+    def __del__(self) -> None:
+        if self._log:
+            self._log_handler.close()
+            self._log.removeHandler(self._log_handler)
+
+    async def _descend(self, name: str) -> None:
         new = os.path.join(self._current, name)
         create_directory(new)
         self._current = new
 
-    def _ascend(self):
+    async def _ascend(self) -> None:
         if self._current == self._root:
             raise StorageError("Cannot break out of `{}'.".format(self._root))
-
         self._current = os.path.dirname(self._current)
 
-    def exists(self, *paths):
+    async def exists(self, *paths: str) -> bool:
         """Check if *paths* exist."""
         return os.path.exists(os.path.join(self.current, *paths))
 
-    def _create_writer(self, producer, dsetname=None):
+    async def _create_writer(self,
+                             producer: AsyncIterable[ArrayLike],
+                             dsetname: Optional[str] = None) -> Awaitable:
         dsetname = dsetname or self.dsetname
-
         if self._dset_exists(dsetname):
             dset_prefix = split_dsetformat(dsetname)
             dset_path = os.path.join(self.current, dset_prefix)
             raise StorageError("`{}' is not empty".format(dset_path))
-
         prefix = os.path.join(self._current, dsetname)
-
         return write_images(
             producer,
             self.writer,
@@ -466,11 +391,10 @@ class DirectoryWalker(Walker):
             self._bytes_per_file
         )
 
-    def _dset_exists(self, dsetname):
+    def _dset_exists(self, dsetname: str) -> bool:
         """Check if *dsetname* exists on the current level."""
         if not re.match('.*{.*}.*', dsetname):
             raise ValueError('dsetname `{}\' has wrong format'.format(dsetname))
-
         filenames = os.listdir(self._current)
         for name in filenames:
             if name.startswith(split_dsetformat(dsetname)):
@@ -478,7 +402,7 @@ class DirectoryWalker(Walker):
         return False
 
 
-class RemoteDirectoryWalker(RemoteWalker):
+class RemoteDirectoryWalker(Walker):
     """
     Defines the api layer of a directory walker for a remote file system.
     Encapsulates a Tango device which runs on the remote file system where the
