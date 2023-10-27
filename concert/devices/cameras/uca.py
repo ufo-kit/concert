@@ -7,7 +7,7 @@ import numpy as np
 from concert.coroutines.base import background, run_in_executor
 from concert.quantities import q
 from concert.base import Parameter, Quantity
-from concert.helpers import Bunch
+from concert.helpers import Bunch, ImageWithMetadata
 from concert.devices.cameras import base
 
 
@@ -167,8 +167,10 @@ class Camera(base.Camera):
         self.uca.stop_readout()
 
     @background
-    async def grab(self, index=None):
-        return self.convert(await self._grab_real(index))
+    async def grab(self, index=None) -> ImageWithMetadata:
+        img = self.convert(await self._grab_real(index))
+
+        return img.view(ImageWithMetadata)
 
     def write(self, name, data):
         """Write NumPy array *data* for *name*."""
