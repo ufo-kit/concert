@@ -66,6 +66,10 @@ class AbstractTangoDevice(Protocol):
         """
         ...
 
+    async def __getitem__(self, key: Any) -> Any:
+        """Exposes a dictionary-like interface for abstract tango device"""
+        ...
+
 class RemoteDirectoryWalkerTangoDevice(
         AbstractTangoDevice, AbstractStreamHandler, Protocol):
     """
@@ -112,13 +116,13 @@ class RemoteDirectoryWalkerTangoDevice(
         """
         ...
 
-#    async def write_sequence(self, path: str) -> None:
-#        """
-#        Asynchronously writes sequence of images in the provided path.
-#
-#        :param path: path to write images to
-#        :type path: str
-#        """
+    async def write_sequence(self, path: str) -> None:
+        """
+        Asynchronously writes sequence of images in the provided path.
+
+        :param path: path to write images to
+        :type path: str
+        """
 
     async def open_log_file(self, file_path: str) -> None:
         """
