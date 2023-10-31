@@ -399,7 +399,6 @@ class PCOTimestampCheck(Addon):
                                                "Works only with pco cameras.")
                     self.timestamp_missing = True
                     return
-            if i == 0:
                 first_frame = img.metadata['frame_number']
             if img.metadata['frame_number'] != i + first_frame:
                 self._experiment.log.error(
