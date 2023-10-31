@@ -412,7 +412,6 @@ class PCOTimestampCheck(Addon):
             raise PCOTimestampCheckError("Not all images contained timestamps.")
 
 
-
 class AddonError(Exception):
     """Addon errors."""
 
