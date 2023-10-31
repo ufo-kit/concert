@@ -247,7 +247,7 @@ def transition(immediate=None, target=None):
     return wrapped
 
 
-def check(source='*', target='*'):
+def check(source='*', target='*', device_state='state'):
     """
     Decorates a method for checking the device state.
 
@@ -255,9 +255,11 @@ def check(source='*', target='*'):
     invoking the decorated method. *target* is the state that the state object
     will be after successful completion of the method or a list of possible
     target states.
+
+    By setting *device_state* you can specify which state object to use for.
     """
     async def check_now(instance, allowed_states, state_str):
-        state = await instance['state'].get()
+        state = await instance[device_state].get()
         if state not in allowed_states and '*' not in allowed_states:
             raise TransitionNotAllowed(f"{state_str} state `{state}' not in `{allowed_states}'")
 
