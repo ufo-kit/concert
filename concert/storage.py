@@ -263,6 +263,33 @@ class Walker(object):
         await will block until the images are written.
         """
         return await self._create_writer(producer, dsetname=dsetname)
+    
+    @background
+    async def log_to_json(self, payload: str) -> None:
+        """
+        Provides local counterpart of the remote logging of experiment
+        metadata. Writes the provided payload to a static file called
+        experiment.json.
+
+        :param payload: content to write
+        :type payload: str
+        """
+        # TODO: This is a temporary note for troubleshooting. This method was
+        # added as an effort not to break the existing unit and integration
+        # tests for all classes which uses an experiment with DirectoryWalker.
+        # However, that did not solve the problem that the director tests
+        # indefinitely stalls. The traceback indicates that its a coroutine
+        # related issues. This might be mitigated when we plug in a remote
+        # walker for experiment but that needs to be tested. For now it has to
+        # be investigated why our tests stall because of refactoring of logging
+        # functionality.
+        # NOTE: We have verified that only the integration tests are affected.
+        # Unit tests execute without any issues.
+        with open(
+                file=os.path.join(self._current, "experiment.json"),
+                mode="w",
+                encoding="utf-8") as lgf:
+            lgf.write(payload)
 
 
 class RemoteWalker(AsyncObject):
@@ -509,6 +536,15 @@ class DirectoryWalker(Walker):
                 return True
         return False
 
+    async def log_to_json(self, payload: str) -> None:
+        """
+        Logs experiment metadata as *payload* to a file called experiment.json
+
+        :param payload: content to write
+        :type payload: str
+        """
+        raise NotImplementedError
+
 
 class RemoteDirectoryWalker(RemoteWalker):
     """
@@ -627,9 +663,14 @@ class RemoteDirectoryWalker(RemoteWalker):
         await self.device.open_log_file(f"{self._current}/{self._log_name}")
         return RemoteHandler(device=self.device)
 
+    async def log_to_json(self, payload: str) -> None:
+        """Implements api layer for writing experiment metadata"""
+        await self.device.log_to_json(payload)
+
+
 class StorageError(Exception):
     """Exception related to logical issues with storage"""
-    pass
+    ...
 
 
 if __name__ == "__main__":

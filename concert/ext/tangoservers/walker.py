@@ -248,6 +248,24 @@ class TangoRemoteWalker(TangoRemoteProcessing):
                 self.get_state()
             )
 
+    @DebugIt()
+    @command(
+        dtype_in=str,
+        doc_in="metadata for an experiment as a serialized dictionary"
+    )
+    async def log_to_json(self, payload: str) -> None:
+        with open(
+                file=os.path.join(self._current, "experiment.json"),
+                mode="w",
+                encoding="utf-8") as lgf:
+            lgf.write(payload)
+        self.info_stream(
+            "%s wrote experiment metadata to file %s - %s",
+            self.__class__.__name__,
+            f"{os.path.join(self._current, 'experiment.json')}",
+            self.get_state()
+        )
+
 
 if __name__ == "__main__":
     pass
