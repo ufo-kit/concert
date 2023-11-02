@@ -274,23 +274,7 @@ class Walker(object):
         :param payload: content to write
         :type payload: str
         """
-        # TODO: This is a temporary note for troubleshooting. This method was
-        # added as an effort not to break the existing unit and integration
-        # tests for all classes which uses an experiment with DirectoryWalker.
-        # However, that did not solve the problem that the director tests
-        # indefinitely stalls. The traceback indicates that its a coroutine
-        # related issues. This might be mitigated when we plug in a remote
-        # walker for experiment but that needs to be tested. For now it has to
-        # be investigated why our tests stall because of refactoring of logging
-        # functionality.
-        # NOTE: We have verified that only the integration tests are affected.
-        # Unit tests execute without any issues.
-        with open(
-                file=os.path.join(self._current, "experiment.json"),
-                mode="w",
-                encoding="utf-8") as lgf:
-            lgf.write(payload)
-
+        raise NotImplementedError
 
 class RemoteWalker(AsyncObject):
     """
@@ -540,10 +524,18 @@ class DirectoryWalker(Walker):
         """
         Logs experiment metadata as *payload* to a file called experiment.json
 
+        NOTE: This method does not have to be a coroutine. We still made it so
+        to maintain coherence at the api level. With the unification of the
+        top layer walker api this concern would be addressed.
+
         :param payload: content to write
         :type payload: str
         """
-        raise NotImplementedError
+        with open(
+                file=os.path.join(self._current, "experiment.json"),
+                mode="w",
+                encoding="utf-8") as lgf:
+            lgf.write(payload)
 
 
 class RemoteDirectoryWalker(RemoteWalker):
