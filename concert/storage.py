@@ -302,8 +302,6 @@ class RemoteWalker(AsyncObject):
         """
         if root is not None:
             self._root = root
-        if self._root is not None:
-            self._current = self._root
         self.dsetname = dsetname
         self._lock = asyncio.Lock()
 
@@ -314,16 +312,14 @@ class RemoteWalker(AsyncObject):
     async def __aexit__(self, exc_type, exc, tb) -> None:
         self._lock.release()
 
-    def home(self) -> None:
-        """Return to the root directory with which the walker is
-        initialized.
-        """
-        self._current = self._root
+    async def home(self) -> None:
+        """Return to the root directory with which the walker is initialized."""
+        raise NotImplementedError
 
     @property
     async def current(self) -> str:
         """Return current position."""
-        return self._current
+        return await self._get_current()
 
     async def exists(self, *paths) -> bool:
         """
@@ -348,6 +344,9 @@ class RemoteWalker(AsyncObject):
 
     async def _ascend(self) -> None:
         """Ascend from current depth."""
+        raise NotImplementedError
+
+    async def _get_current(self) -> str:
         raise NotImplementedError
 
     async def _create_writer(self,
@@ -592,9 +591,7 @@ class RemoteDirectoryWalker(RemoteWalker):
                                               value=self._root)
         else:
             self._root = (await self.device["root"]).value
-        self._current = self._root
-        await self.device.write_attribute(attr_name="current",
-                                          value=self._current)
+        await self.home()
         await self.device.write_attribute(attr_name="writer_class",
                                           value=wrt_cls)
         await self.device.write_attribute(attr_name="dsetname", value=dsetname)
@@ -606,14 +603,18 @@ class RemoteDirectoryWalker(RemoteWalker):
 
     async def _descend(self, name: str) -> None:
         await self.device.descend(name)
-        self._current = (await self.device["current"]).value 
         
     async def _ascend(self) -> None:
-        if self._current == self._root:
+        if self._root == (await self.device["current"]).value:
             raise StorageError(f"cannot break out of {self._root}.")
         await self.device.ascend()
-        self._current = (await self.device["current"]).value
-        
+
+    async def _get_current(self):
+        return (await self.device["current"]).value
+
+    async def home(self) -> None:
+        await self.device.write_attribute(attr_name="current", value=self._root)
+
     async def exists(self, *paths: str) -> bool:
         """
         Asserts whether the specified paths exists in the file system.
@@ -652,7 +653,7 @@ class RemoteDirectoryWalker(RemoteWalker):
         Provides a logging handler for the current path, capable to facilitate
         logging at a remote host. 
         """
-        await self.device.open_log_file(f"{self._current}/{self._log_name}")
+        await self.device.open_log_file(f"{await self.current}/{self._log_name}")
         return RemoteHandler(device=self.device)
 
     async def log_to_json(self, payload: str) -> None:
