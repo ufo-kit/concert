@@ -78,17 +78,17 @@ def create_directory(directory, rights=0o0750):
 
 
 def write_images(pqueue, writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0,
-                 bytes_per_file=0):
+                 bytes_per_file=0, rights=0o0750):
     """
     write_images(pqueue, writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0,
-                 bytes_per_file=0)
+                 bytes_per_file=0, rights=0o0750)
 
     Write images on disk with specified *writer* and file name *prefix*. Write to one file until the
     *bytes_per_file* bytes has been written. If it is 0, then one file per image is created.
     *writer* is a subclass of :class:`.writers.ImageWriter`. *start_index* specifies the number in
     the first file name, e.g. for the default *prefix* and *start_index* 100, the first file name
     will be image_00100.tif. If *prefix* is not formattable images are appended to the filename
-    specified by *prefix*.
+    specified by *prefix*. *rights* are used for directory creation in case it does not exist.
     """
     im_writer = None
     file_index = 0
@@ -100,7 +100,7 @@ def write_images(pqueue, writer=TiffWriter, prefix="image_{:>05}.tif", start_ind
         im_writer = writer(prefix, bytes_per_file, append=True)
 
     if dir_name and not os.path.exists(dir_name):
-        create_directory(dir_name)
+        create_directory(dir_name, rights=rights)
 
     i = 0
 
@@ -268,11 +268,12 @@ class DirectoryWalker(Walker):
     """
 
     def __init__(self, writer=TiffWriter, dsetname='frame_{:>06}.tif', start_index=0,
-                 bytes_per_file=0, root=None, log=None, log_name='experiment.log'):
+                 bytes_per_file=0, root=None, log=None, log_name='experiment.log', rights=0o0750):
         """
         Use *writer* to write data to files with filenames with a template from *dsetname*.
         *start_index* specifies the number in the first file name, e.g. for the default *dsetname*
-        and *start_index* 100, the first file name will be frame_000100.tif.
+        and *start_index* 100, the first file name will be frame_000100.tif. *rights* are used for
+        directory creation in case it does not exist.
         """
         if not root:
             root = os.getcwd()
@@ -281,7 +282,7 @@ class DirectoryWalker(Walker):
         log_handler = None
 
         if log:
-            create_directory(root)
+            create_directory(root, rights=rights)
             log_path = os.path.join(root, log_name)
             log_handler = FileHandler(log_path)
 
@@ -290,10 +291,11 @@ class DirectoryWalker(Walker):
         self.writer = writer
         self._bytes_per_file = bytes_per_file
         self._start_index = start_index
+        self._rights = rights
 
     def _descend(self, name):
         new = os.path.join(self._current, name)
-        create_directory(new)
+        create_directory(new, rights=self._rights)
         self._current = new
 
     def _ascend(self):
