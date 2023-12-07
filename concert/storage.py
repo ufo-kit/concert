@@ -70,18 +70,20 @@ def write_libtiff(file_name, data):
     return file_name
 
 
-def create_directory(directory, rights=0o0750):
-    """Create *directory* and all paths along the way if necessary."""
+def create_directory(directory, rights="750"):
+    """Create *directory* and all paths along the way if necessary. *rights* are a string
+    representing a combination for user, group, others.
+    """
     if not os.path.exists(directory):
         LOG.debug("Creating directory {}".format(directory))
-        os.makedirs(directory, rights)
+        os.makedirs(directory, int(rights, base=8))
 
 
 def write_images(pqueue, writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0,
-                 bytes_per_file=0, rights=0o0750):
+                 bytes_per_file=0, rights="750"):
     """
     write_images(pqueue, writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0,
-                 bytes_per_file=0, rights=0o0750)
+                 bytes_per_file=0, rights="750")
 
     Write images on disk with specified *writer* and file name *prefix*. Write to one file until the
     *bytes_per_file* bytes has been written. If it is 0, then one file per image is created.
@@ -268,7 +270,7 @@ class DirectoryWalker(Walker):
     """
 
     def __init__(self, writer=TiffWriter, dsetname='frame_{:>06}.tif', start_index=0,
-                 bytes_per_file=0, root=None, log=None, log_name='experiment.log', rights=0o0750):
+                 bytes_per_file=0, root=None, log=None, log_name='experiment.log', rights="750"):
         """
         Use *writer* to write data to files with filenames with a template from *dsetname*.
         *start_index* specifies the number in the first file name, e.g. for the default *dsetname*
