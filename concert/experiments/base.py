@@ -150,7 +150,7 @@ class Experiment(Parameterizable):
         else:
             self._devices_to_log[name] = device
 
-    async def log_to_json(self, directory: str):
+    async def log_to_json(self, directory: str, postfix: str = ''):
         data = {}
         experiment_parameters = {}
         for param in self:
@@ -171,7 +171,7 @@ class Experiment(Parameterizable):
                     device_data[param.name] = 'Error: Unable to read parameter.'
             data[name] = device_data
 
-        with open(os.path.join(directory, 'experiment.json'), 'w') as outfile:
+        with open(os.path.join(directory, f'experiment{postfix}.json'), 'w') as outfile:
             json.dump(data, outfile, indent=4)
 
     async def _get_iteration(self):
@@ -303,7 +303,7 @@ class Experiment(Parameterizable):
                                               '- %(message)s')
                 handler.setFormatter(formatter)
                 self.log.addHandler(handler)
-                await self.log_to_json(self.walker.current)
+                await self.log_to_json(self.walker.current, '_start')
         self.log.info(await self.info_table)
         for name, device in self._devices_to_log.items():
             self.log.info(f"Device {name}:")
@@ -320,6 +320,9 @@ class Experiment(Parameterizable):
         finally:
             try:
                 await self.finish()
+                if self.walker:
+                    if os.path.exists(self.walker.current):
+                        await self.log_to_json(self.walker.current, '_end')
             except Exception as e:
                 LOG.warning(f"Error `{e}' while finalizing experiment")
                 raise StateError('error', msg=str(e))
