@@ -151,6 +151,7 @@ class Experiment(Parameterizable):
             self._devices_to_log[name] = device
 
     async def log_to_json(self, directory: str, postfix: str = ''):
+        await self.prepare_logging()
         data = {}
         experiment_parameters = {}
         for param in self:
@@ -173,6 +174,7 @@ class Experiment(Parameterizable):
 
         with open(os.path.join(directory, f'experiment{postfix}.json'), 'w') as outfile:
             json.dump(data, outfile, indent=4)
+        await self.finish_logging()
 
     async def _get_iteration(self):
         return self._iteration
@@ -205,6 +207,15 @@ class Experiment(Parameterizable):
     async def finish(self):
         """Gets executed after every experiment run."""
         pass
+
+    async def prepare_logging(self):
+        """Function for preparing the device logging."""
+        pass
+
+    async def finish_logging(self):
+        """Function called after logging."""
+        pass
+
 
     @property
     def acquisitions(self):
