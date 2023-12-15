@@ -133,6 +133,7 @@ class Experiment(Parameterizable):
         self._iteration = 0
         self.log = LOG
         self._devices_to_log = {}
+        self._devices_to_log_optional = {}
         self.ready_to_prepare_next_sample = asyncio.Event()
         self._run_awaitable = None
         await Parameterizable.__ainit__(self)
@@ -143,8 +144,11 @@ class Experiment(Parameterizable):
             while self.walker.exists(self._name_fmt.format(self._iteration)):
                 self._iteration += 1
 
-    def add_device_to_log(self, name: str, device: concert.devices.base.Device):
-        self._devices_to_log[name] = device
+    def add_device_to_log(self, name: str, device: concert.devices.base.Device, optional=False):
+        if optional:
+            self._devices_to_log_optional[name] = device
+        else:
+            self._devices_to_log[name] = device
 
     async def log_to_json(self, directory: str):
         data = {}
@@ -157,6 +161,14 @@ class Experiment(Parameterizable):
             device_data = {}
             for param in device:
                 device_data[param.name] = str(await param.get())
+            data[name] = device_data
+        for name, device in self._devices_to_log_optional.items():
+            device_data = {}
+            for param in device:
+                try:
+                    device_data[param.name] = str(await param.get())
+                except Exception as e:
+                    device_data[param.name] = 'Error: Unable to read parameter.'
             data[name] = device_data
 
         with open(os.path.join(directory, 'experiment.json'), 'w') as outfile:
