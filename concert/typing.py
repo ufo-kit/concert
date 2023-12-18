@@ -106,16 +106,6 @@ class RemoteDirectoryWalkerTangoDevice(
         """
         ...
 
-    async def create_writer(self,
-                            producer: AsyncIterable[ArrayLike]) -> Awaitable:
-        """
-        Creates a tiff file writer asynchronously for the provided payload
-
-        :param producer: asynchronous iterable collection of images
-        :type producer: AsyncIterable[ArrayLike]
-        """
-        ...
-
     async def write_sequence(self, path: str) -> None:
         """
         Asynchronously writes sequence of images in the provided path.

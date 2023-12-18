@@ -99,7 +99,7 @@ class Director(Parameterizable):
         handler = None
         try:
             if self._experiment.walker:
-                handler = logging.FileHandler(os.path.join(self._experiment.walker.current,
+                handler = logging.FileHandler(os.path.join(await self._experiment.walker.current,
                                                            'director.log'))
                 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s '
                                               '- %(message)s')
@@ -116,7 +116,7 @@ class Director(Parameterizable):
                 self._iteration = iteration
                 await self._run_event.wait()
 
-                self._experiment.walker.descend(await self._get_iteration_name(iteration))
+                await self._experiment.walker.descend(await self._get_iteration_name(iteration))
                 exp_run = self._experiment.run()
                 sample_name = await self._get_iteration_name(iteration)
                 self._experiment.log.info(f"Sample name: {sample_name}")
@@ -134,7 +134,7 @@ class Director(Parameterizable):
                     self.log.error(e)
                     raise e
                 finally:
-                    self._experiment.walker.ascend()
+                    await self._experiment.walker.ascend()
 
         except asyncio.CancelledError:
             # This is normal, no special state needed -> standby
