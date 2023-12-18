@@ -268,7 +268,7 @@ class Experiment(Parameterizable):
         if separate_scans and walker:
             # The data is not supposed to be overwritten, so find an iteration which
             # hasn't been used yet
-            while self.walker.exists(self._name_fmt.format(self._iteration)):
+            while await self.walker.exists(self._name_fmt.format(self._iteration)):
                 self._iteration += 1
 
     def add_device_to_log(self, name: str, device: concert.devices.base.Device):
@@ -419,10 +419,10 @@ class Experiment(Parameterizable):
 
         if self.walker:
             if separate_scans:
-                self.walker.descend((await self.get_name_fmt()).format(iteration))
-            if os.path.exists(self.walker.current):
+                await self.walker.descend((await self.get_name_fmt()).format(iteration))
+            if os.path.exists(await self.walker.current):
                 # We might have a dummy walker which doesn't create the directory
-                handler = logging.FileHandler(os.path.join(self.walker.current,
+                handler = logging.FileHandler(os.path.join(await self.walker.current,
                                                            'experiment.log'))
                 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s '
                                               '- %(message)s')
@@ -448,7 +448,7 @@ class Experiment(Parameterizable):
             finally:
                 self.ready_to_prepare_next_sample.set()
                 if separate_scans and self.walker:
-                    self.walker.ascend()
+                    await self.walker.ascend()
                 LOG.debug('Experiment iteration %d duration: %.2f s',
                           iteration, time.time() - start_time)
                 if handler:

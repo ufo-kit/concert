@@ -170,21 +170,10 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         # a tango device server we need to specify the input datatype correctly.
         return os.path.exists(os.path.join(self._current, *paths))
 
-    def _dset_exists(self, dsetname: str) -> bool:
-        """
-        Checks if the dataset exists at the current lavel of file system
-        """
-        if not re.match('.*{.*}.*', dsetname):
-            raise ValueError(f"dataset name {dsetname} has wrong format")
-        for f_name in os.listdir(self._current):
-            if f_name.startswith(split_dsetformat(dsetname)):
-                return True
-        return False
-
     @DebugIt(show_args=True)
     @command(dtype_in=str)
     async def write_sequence(self, path):
-        walker = DirectoryWalker(
+        walker = await DirectoryWalker(
             writer=self._writer,
             dsetname=self._dsetname,
             bytes_per_file=self._bytes_per_file,
