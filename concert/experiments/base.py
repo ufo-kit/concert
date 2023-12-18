@@ -14,7 +14,7 @@ from concert.coroutines.base import background, broadcast
 from concert.coroutines.sinks import null
 from concert.progressbar import wrap_iterable
 from concert.base import check, Parameterizable, Parameter, Selection, State, StateError, transition
-from concert.helpers import get_state_from_awaitable
+from concert.helpers import get_state_from_awaitable, Logger
 
 LOG = logging.getLogger(__name__)
 
@@ -136,6 +136,7 @@ class Experiment(Parameterizable):
         self._devices_to_log_optional = {}
         self.ready_to_prepare_next_sample = asyncio.Event()
         self._run_awaitable = None
+        self.timed_logger = None
         await Parameterizable.__ainit__(self)
 
         if separate_scans and walker:
@@ -315,6 +316,7 @@ class Experiment(Parameterizable):
                 handler.setFormatter(formatter)
                 self.log.addHandler(handler)
                 await self.log_to_json(self.walker.current, '_start')
+                self.timed_logger = Logger(os.path.join(self.walker.current, 'timed.log'))
         self.log.info(await self.info_table)
         for name, device in self._devices_to_log.items():
             self.log.info(f"Device {name}:")
@@ -346,6 +348,8 @@ class Experiment(Parameterizable):
                 if handler:
                     handler.close()
                     self.log.removeHandler(handler)
+                if self.timed_logger:
+                    self.timed_logger.save()
                 await self.set_iteration(iteration + 1)
 
 

@@ -324,3 +324,31 @@ class ImageWithMetadata(np.ndarray):
         if obj is None:
             return
         self.metadata = getattr(obj, 'metadata', {})
+
+
+class Logger:
+    """
+    Logs devices and parameters to a json file. Each entry has the time (as utc string) as key.
+    """
+    def __init__(self, filename: str):
+        self._filename = filename
+        self._data = {}
+        self._saved = False
+
+    async def log(self, things_to_log: dict):
+        """
+            Dictionary with the things to log.
+        """
+        self._data[time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())] = things_to_log
+
+    def save(self):
+        if self._data == {}:
+            return
+        import json
+        with open(self._filename, 'w') as f:
+            json.dump(self._data, f, indent=4)
+        self._saved = True
+
+    def __del__(self):
+        if not self._saved:
+            self.save()
