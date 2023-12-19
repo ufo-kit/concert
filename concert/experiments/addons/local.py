@@ -41,7 +41,7 @@ class ImageWriter(LocalMixin, base.ImageWriter):
 
     async def write_sequence(self, path, producer=None):
         """Wrap the walker and write data."""
-        walker = DirectoryWalker(
+        walker = await DirectoryWalker(
             writer=self.walker.writer,
             dsetname=self.walker.dsetname,
             bytes_per_file=self.walker._bytes_per_file,
@@ -271,7 +271,7 @@ class PhaseGratingSteppingFourierProcessing(LocalMixin, base.PhaseGratingSteppin
 
     async def _write_single_image(self, name, image):
         async with self._experiment.walker:
-            file_name = os.path.join(self._experiment.walker.current, name)
+            file_name = os.path.join(await self._experiment.walker.current, name)
 
         im_writer = self._experiment.walker.writer(file_name, bytes_per_file=0)
         im_writer.write(image)
