@@ -139,7 +139,7 @@ class Radiography:
         await self.flatfield_axis.set_motion_velocity(10000 * q.mm / q.s)
         self.camera = await LoggingCamera(flat_axis=self.flatfield_axis)
         self._data_dir = tempfile.mkdtemp()
-        self.walker = DirectoryWalker(root=self._data_dir)
+        self.walker = await DirectoryWalker(root=self._data_dir)
         self._flat_axis_unit = q.mm
 
     def tearDown(self):
@@ -580,7 +580,7 @@ class TestSynchrotronContinuousSpiralTomographyTomography(ContinuousSpiralTomogr
 class TestFlatfieldMotorTypes(TestCase):
     async def asyncSetUp(self) -> None:
         self._data_dir = tempfile.mkdtemp()
-        self.walker = DirectoryWalker(root=self._data_dir)
+        self.walker = await DirectoryWalker(root=self._data_dir)
         self.linear_motor = await LinearMotor()
         self.rotation_motor = await RotationMotor()
         self.tomo_motor = await ContinuousRotationMotor()
