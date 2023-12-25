@@ -16,7 +16,7 @@ dist:
 	$(SETUP) sdist
 
 check:
-	$(RUNTEST) --full-trace
+	$(RUNTEST)
 
 check-fast:
 	$(RUNTEST) -m 'not slow'
