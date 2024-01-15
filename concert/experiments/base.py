@@ -412,12 +412,7 @@ class Experiment(Parameterizable):
             if separate_scans:
                 await self.walker.descend((await self.get_name_fmt()).format(iteration))
             if os.path.exists(await self.walker.current):
-                # We might have a dummy walker which doesn't create the directory
-                handler = logging.FileHandler(os.path.join(await self.walker.current,
-                                                           'experiment.log'))
-                formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s '
-                                              '- %(message)s')
-                handler.setFormatter(formatter)
+                handler: RemoteHandler = await self.walker.get_log_handler()
                 self.log.addHandler(handler)
                 exp_metadata: str = await self._prepare_metadata_str()
                 await self.walker.log_to_json(payload=exp_metadata)
@@ -443,7 +438,7 @@ class Experiment(Parameterizable):
                 LOG.debug('Experiment iteration %d duration: %.2f s',
                           iteration, time.time() - start_time)
                 if handler:
-                    handler.close()
+                    await handler.aclose()
                     self.log.removeHandler(handler)
                 await self.set_iteration(iteration + 1)
 
