@@ -6,9 +6,27 @@ host at a specified location.
 """
 import logging
 import asyncio
-from typing import List
+from typing import List, Protocol
 from concert.typing import RemoteDirectoryWalkerTangoDevice
 from concert.coroutines.base import get_event_loop
+
+
+##############################################################################
+class AsyncHandlerCloser(Protocol):
+    """Abstarct logging handler, which can be closed asynchronously"""
+
+    async def aclose(self) -> None:
+        """Defines an asynchronous closing routine for logging handler"""
+        ...
+##############################################################################
+
+class NoOpHandler:
+    """Defines place holder handler closer which can be used for dummy
+    implementations"""
+
+    async def aclose(self) -> None:
+        """Defines a no-op close method"""
+        ...
 
 
 class RemoteHandler(logging.Handler):
