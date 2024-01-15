@@ -12,7 +12,7 @@ from concert.coroutines.base import background
 from concert.writers import TiffWriter
 from concert.typing import RemoteDirectoryWalkerTangoDevice
 from concert.typing import ArrayLike
-from concert.handler import RemoteHandler
+from concert.handler import AsyncHandlerCloser, RemoteHandler, NoOpHandler
 
 
 LOG = logging.getLogger(__name__)
@@ -256,6 +256,10 @@ class Walker(AsyncObject):
         await will block until the images are written.
         """
         return await self._create_writer(producer, dsetname=dsetname)
+
+    async def get_log_handler(self) -> AsyncHandlerCloser:
+        """Provides a log handler featuring an asynchronous closing routine"""
+        raise NotImplementedError
     
     @background
     async def log_to_json(self, payload: str) -> None:
@@ -309,6 +313,10 @@ class DummyWalker(Walker):
                 self._paths.add(os.path.join(path, str(i)))
                 i += 1
         return _append_paths()
+
+    async def get_log_handler(self) -> AsyncHandlerCloser:
+        """Provides a log handler featuring an asynchronous closing routine"""
+        return NoOpHandler()
 
 
 class DirectoryWalker(Walker):
@@ -410,6 +418,9 @@ class DirectoryWalker(Walker):
     async def exists(self, *paths: str) -> bool:
         """Check if *paths* exist."""
         return os.path.exists(os.path.join(await self.current, *paths))
+
+    async def get_log_handler(self) -> AsyncHandlerCloser:
+        return NoOpHandler()
 
     async def log_to_json(self, payload: str) -> None:
         """
@@ -546,7 +557,7 @@ class RemoteDirectoryWalker(Walker):
         """
         await self.device.write_sequence(name)
 
-    async def get_log_handler(self) -> RemoteHandler:
+    async def get_log_handler(self) -> AsyncHandlerCloser:
         """
         Provides a logging handler for the current path, capable to facilitate
         logging at a remote host. 
