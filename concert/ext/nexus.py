@@ -8,8 +8,7 @@ sets. It uses NeXpy_ to interface with NeXus.
 """
 from logging import StreamHandler
 from concert.coroutines.base import background
-from concert.storage import Walker
-from concert.storage import StorageError
+from concert.storage import Walker, StorageError
 
 try:
     import h5py

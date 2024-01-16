@@ -4,11 +4,12 @@ Tango device for image writing of zmq image stream.
 import concert.writers
 from concert.helpers import PerformanceTracker
 from concert.quantities import q
+from concert.storage import DirectoryWalker
 from tango import InfoIt, DebugIt
 from PyTango.server import attribute
 from PyTango.server import AttrWriteType, command
 from .base import TangoRemoteProcessing
-from concert.storage import DirectoryWalker
+
 
 class TangoWriter(TangoRemoteProcessing):
     """
