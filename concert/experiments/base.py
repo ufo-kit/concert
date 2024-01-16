@@ -7,9 +7,9 @@ import asyncio
 import inspect
 import logging
 import os
-import json
 import time
-from typing import NewType, Dict, Any
+import json
+
 import concert.devices.base
 from concert.coroutines.base import background, broadcast, start
 from concert.coroutines.sinks import count
@@ -279,13 +279,13 @@ class Experiment(Parameterizable):
         a dictionary which potentially encapsulates one or more dictionary
         objects.
         """
-        metadata: Dict[str, Dict[str, Any]] = {}
-        exp_params: Dict[str, Any] = {}
+        metadata = {}
+        exp_params = {}
         for param in self:
             exp_params[param.name] = str(await param.get())
         metadata["experiment"] = exp_params
         for name, device in self._devices_to_log.items():
-            device_data: Dict[str, Any] = {}
+            device_data = {}
             for param in device:
                 device_data[param.name] = str(await param.get())
             metadata[name] = device_data
@@ -421,7 +421,7 @@ class Experiment(Parameterizable):
             if separate_scans:
                 await self.walker.descend((await self.get_name_fmt()).format(iteration))
             if os.path.exists(await self.walker.current):
-                handler: RemoteHandler = await self.walker.get_log_handler()
+                handler = await self.walker.get_log_handler()
                 self.log.addHandler(handler)
                 exp_metadata: str = await self._prepare_metadata_str()
                 await self.walker.log_to_json(payload=exp_metadata)
@@ -465,11 +465,3 @@ class ConsumerError(Exception):
 class ExperimentError(Exception):
     """Experiment-related exceptions."""
     pass
-
-# Defines a convenient collection type for acquisitions that can be used for
-# type-hinting while dealing with a collection of acquisitions.
-Acquisitions = NewType("Acquisitions", "list[Acquisition]")
-
-if __name__ == "__main__":
-    pass
-

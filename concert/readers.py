@@ -138,9 +138,4 @@ class TiffSequenceReader(FileSequenceReader):
 
 
 class SequenceReaderError(Exception):
-    """Exception related to reading file sequence from disk storage"""
-    pass
-
-
-if __name__ == "__main__":
     pass

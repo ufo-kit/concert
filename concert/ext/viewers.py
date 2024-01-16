@@ -46,6 +46,7 @@ def imagej(image, path="imagej"):
         to open that image. Use *writer* for writing the iamge to the disk.
         """
         from concert.storage import write_tiff
+
         tmp_file = tempfile.mkstemp()[1]
         try:
             full_path = write_tiff(tmp_file, image)

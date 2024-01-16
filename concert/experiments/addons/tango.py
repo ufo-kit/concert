@@ -2,57 +2,52 @@ import asyncio
 import functools
 import inspect
 import logging
-from typing import Iterable, Awaitable, AsyncIterable
 import numpy as np
 from concert.experiments.addons import base
-from concert.experiments.base import Acquisition
 from concert.quantities import q
-from concert.storage import RemoteDirectoryWalker
-from concert.typing import AbstractStreamHandler
-from concert.typing import ArrayLike
+
 
 LOG = logging.getLogger(__name__)
 
 
 class TangoMixin:
-    """
-    TangoMixin does not need a producer becuase the backend processes 
-    image streams which do not come via concert.
+
+    """TangoMixin does not need a producer becuase the backend processes image streams which do not
+    come via concert.
     """
 
-    remote: bool = True
-    _device: AbstractStreamHandler
+    remote = True
 
     @staticmethod
-    def cancel_remote(func: object) -> Awaitable:
+    def cancel_remote(func):
         if not inspect.iscoroutinefunction(func):
-            raise base.AddonError(
-                    f"`{func.__qualname__}' is not a coroutine function")
+            raise base.AddonError(f"`{func.__qualname__}' is not a coroutine function")
 
         @functools.wraps(func)
         async def wrapper(self, *args, **kwargs):
             try:
                 await func(self, *args, **kwargs)
-            except BaseException as exc:
+            except BaseException as e:
                 LOG.debug(
                     "`%s' occured in %s, remote cancelled with result: %s",
-                    exc.__class__.__name__,
+                    e.__class__.__name__,
                     func.__qualname__,
                     await asyncio.gather(self.cancel(), return_exceptions=True)
                 )
                 raise
+
         return wrapper
 
-    async def __ainit__(self, device: AbstractStreamHandler) -> None:
+    async def __ainit__(self, device):
         self._device = device
 
-    async def cancel(self) -> None:
+    async def cancel(self):
         await self._device.cancel()
 
-    async def _setup(self) -> None:
+    async def _setup(self):
         await self._device.reset_connection()
 
-    async def _teardown(self) -> None:
+    async def _teardown(self):
         await self._device.teardown()
 
 
@@ -75,27 +70,13 @@ class Benchmarker(TangoMixin, base.Benchmarker):
 
 
 class ImageWriter(TangoMixin, base.ImageWriter):
-    """
-    Implements an image writer addon which makes use of Tango device server to
-    write images on remote host. The implementation of walking the filepath
-    is encapsulated in the RemoteDirectoryWalker class.
-    """
 
-    async def __ainit__(self, 
-                        walker: RemoteDirectoryWalker, 
-                        acquisitions: Iterable[Acquisition] = None) -> None:
+    async def __ainit__(self, walker, acquisitions=None):
         await TangoMixin.__ainit__(self, walker.device)
-        await base.ImageWriter.__ainit__(self, walker, 
-                                         acquisitions=acquisitions)
+        await base.ImageWriter.__ainit__(self, walker, acquisitions=acquisitions)
 
     @TangoMixin.cancel_remote
-    async def write_sequence(self, 
-                             path: str, 
-                             producer: AsyncIterable[ArrayLike] = None) -> None:
-        # TODO: Understand the reason behind this assert statement. It could
-        # be because of the wrapping of the function that cancel_remote does to
-        # eventually call the function with *args and **kwargs. Need to make
-        # sure the semantic behind TangoMixin class as well.
+    async def write_sequence(self, path, producer=None):
         assert producer is None
         await self.walker.write_sequence(path=path)
 
