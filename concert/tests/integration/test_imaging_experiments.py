@@ -5,7 +5,7 @@ import shutil
 import tempfile
 import numpy as np
 from concert.quantities import q
-from concert.experiments.addons import ImageWriter, Accumulator
+from concert.experiments.addons.local import ImageWriter, Accumulator
 from concert.devices.cameras.dummy import Camera
 from concert.devices.motors.dummy import LinearMotor, RotationMotor, ContinuousRotationMotor, \
     ContinuousLinearMotor
@@ -139,7 +139,7 @@ class Radiography:
         await self.flatfield_axis.set_motion_velocity(10000 * q.mm / q.s)
         self.camera = await LoggingCamera(flat_axis=self.flatfield_axis)
         self._data_dir = tempfile.mkdtemp()
-        self.walker = DirectoryWalker(root=self._data_dir)
+        self.walker = await DirectoryWalker(root=self._data_dir)
         self._flat_axis_unit = q.mm
 
     def tearDown(self):
@@ -147,8 +147,8 @@ class Radiography:
 
     async def run_experiment(self) -> None:
         self.camera.source = self.source
-        self.acc = Accumulator(self.exp.acquisitions)
-        self.writer = ImageWriter(walker=self.walker, acquisitions=self.exp.acquisitions)
+        self.acc = await Accumulator(acquisitions=self.exp.acquisitions)
+        self.writer = await ImageWriter(self.walker, acquisitions=self.exp.acquisitions)
         await self.exp.run()
 
     async def test_flats(self):
@@ -160,9 +160,9 @@ class Radiography:
         - Correct position of flatfield motor for all frames
         - Correct exposure for all frames
         """
-        self.assertEqual(len(self.acc.items[self.exp.get_acquisition("flats")]),
-                         await self.exp.get_num_flats())
-        for flat in self.acc.items[self.exp.get_acquisition("flats")]:
+        items = (await self.acc.get_items(self.exp.get_acquisition("flats")))
+        self.assertEqual(len(items), await self.exp.get_num_flats())
+        for flat in items:
             self.assertEqual(flat[0, 1], (await self.exp.get_flat_position()).to(
                 self._flat_axis_unit).magnitude)
             self.assertEqual(flat[0, 3], 1.0)
@@ -175,9 +175,9 @@ class Radiography:
         - Correct number of frames recorded
         - Correct exposure for all frames
         """
-        self.assertEqual(len(self.acc.items[self.exp.get_acquisition("darks")]),
-                         await self.exp.get_num_darks())
-        for dark in self.acc.items[self.exp.get_acquisition("darks")]:
+        items = (await self.acc.get_items(self.exp.get_acquisition("darks")))
+        self.assertEqual(len(items), await self.exp.get_num_darks())
+        for dark in items:
             self.assertEqual(dark[0, 3], 0.0)
 
     async def test_radios(self):
@@ -189,9 +189,9 @@ class Radiography:
         - Correct position of flatfield motor for all frames
         - Correct exposure for all frames
         """
-        self.assertEqual(len(self.acc.items[self.exp.get_acquisition("radios")]),
-                         await self.exp.get_num_projections())
-        for flat in self.acc.items[self.exp.get_acquisition("radios")]:
+        items = (await self.acc.get_items(self.exp.get_acquisition("radios")))
+        self.assertEqual(len(items), await self.exp.get_num_projections())
+        for flat in items:
             self.assertEqual(flat[0, 1], (await self.exp.get_radio_position()).to(
                 self._flat_axis_unit).magnitude)
             self.assertEqual(flat[0, 3], 1.0)
@@ -221,10 +221,11 @@ class SteppedTomography(Radiography):
         - correct angular position for all frames
         """
         await Radiography.test_radios(self)
+        items = (await self.acc.get_items(self.exp.get_acquisition("radios")))
 
         steps_per_tomogram = await self.exp.get_num_projections()
-        for i in range(len(self.acc.items[self.exp.get_acquisition("radios")])):
-            radio = self.acc.items[self.exp.get_acquisition("radios")][i]
+        for i in range(len(items)):
+            radio = items[i]
             tomo_position = i * (await self.exp.get_angular_range()) / steps_per_tomogram
             self.assertAlmostEqual(radio[0, 0], tomo_position.to(q.deg).magnitude, delta=1e-4)
 
@@ -248,9 +249,10 @@ class ContinuousTomography(Radiography):
         - correct angular velocity for all frames
         """
         await Radiography.test_radios(self)
+        items = (await self.acc.get_items(self.exp.get_acquisition("radios")))
 
-        for i in range(len(self.acc.items[self.exp.get_acquisition("radios")])):
-            radio = self.acc.items[self.exp.get_acquisition("radios")][i]
+        for i in range(len(items)):
+            radio = items[i]
             self.assertAlmostEqual(radio[1, 0],
                                    (await self.exp.get_velocity()).to(q.deg / q.s).magnitude,
                                    delta=1e-4)
@@ -278,17 +280,20 @@ class SteppedSpiralTomography(Radiography):
         - source state for all frames
         - correct angular position for all frames
         """
-        self.assertEqual(len(self.acc.items[self.exp.get_acquisition("radios")]),
-                         await self.exp.get_num_projections() * await self.exp.get_num_tomograms())
-        for radio in self.acc.items[self.exp.get_acquisition("radios")]:
+        items = (await self.acc.get_items(self.exp.get_acquisition("radios")))
+        self.assertEqual(
+            len(items),
+            await self.exp.get_num_projections() * await self.exp.get_num_tomograms()
+        )
+        for radio in items:
             self.assertEqual(radio[0, 1], (await self.exp.get_radio_position()).to(q.mm).magnitude)
             self.assertEqual(radio[0, 3], 1.0)
 
         steps_per_tomogram = await self.exp.get_num_projections()
         vertical_shift_per_tomogram = await self.exp.get_vertical_shift_per_tomogram()
 
-        for i in range(len(self.acc.items[self.exp.get_acquisition("radios")])):
-            radio = self.acc.items[self.exp.get_acquisition("radios")][i]
+        for i in range(len(items)):
+            radio = items[i]
             tomo_position = i * (await self.exp.get_angular_range()) / steps_per_tomogram
             vertical_position = i * vertical_shift_per_tomogram / steps_per_tomogram
             self.assertAlmostEqual(radio[0, 0], tomo_position.to(q.deg).magnitude, delta=1e-4)
@@ -317,17 +322,18 @@ class ContinuousSpiralTomography(Radiography):
         - source state for all frames
         - correct angular position for all frames
         """
-        self.assertEqual(len(self.acc.items[self.exp.get_acquisition("radios")]),
+        items = (await self.acc.get_items(self.exp.get_acquisition("radios")))
+        self.assertEqual(len(items),
                          await self.exp.get_num_projections() * await self.exp.get_num_tomograms())
         time_per_tomogram = await self.exp.get_angular_range() / await self.exp.get_velocity()
         vertical_velocity = await self.exp.get_vertical_shift_per_tomogram() / time_per_tomogram
 
-        for radio in self.acc.items[self.exp.get_acquisition("radios")]:
+        for radio in items:
             self.assertEqual(radio[0, 1], (await self.exp.get_radio_position()).to(q.mm).magnitude)
             self.assertEqual(radio[0, 3], 1.0)
 
-        for i in range(len(self.acc.items[self.exp.get_acquisition("radios")])):
-            radio = self.acc.items[self.exp.get_acquisition("radios")][i]
+        for i in range(len(items)):
+            radio = items[i]
             self.assertAlmostEqual(radio[1, 0],
                                    (await self.exp.get_velocity()).to(q.deg / q.s).magnitude,
                                    delta=1e-4)
@@ -574,7 +580,7 @@ class TestSynchrotronContinuousSpiralTomographyTomography(ContinuousSpiralTomogr
 class TestFlatfieldMotorTypes(TestCase):
     async def asyncSetUp(self) -> None:
         self._data_dir = tempfile.mkdtemp()
-        self.walker = DirectoryWalker(root=self._data_dir)
+        self.walker = await DirectoryWalker(root=self._data_dir)
         self.linear_motor = await LinearMotor()
         self.rotation_motor = await RotationMotor()
         self.tomo_motor = await ContinuousRotationMotor()

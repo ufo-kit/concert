@@ -10,11 +10,12 @@ logging output.
 Acquisition
 -----------
 
-Experiments consist of :class:`.Acquisition` objects which encapsulate data generator
-and consumers for a particular experiment part (dark fields, radiographs, ...). This
-way the experiments can be broken up into smaller logical pieces. A single acquisition
-object needs to be reproducible in order to repeat an experiment more times, thus we
-specify its generator and consumers as callables which return the actual generator or
+Experiments consist of :class:`.LocalAcquisition` or :class:`.RemoteAcquisition`
+objects which encapsulate data generator and consumers for a particular
+experiment part (dark fields, radiographs, ...). This way the experiments can be
+broken up into smaller logical pieces. A single acquisition object needs to be
+reproducible in order to repeat an experiment more times, thus we specify its
+generator and consumers as callables which return the actual generator or
 consumer. We need to do this because generators cannot be "restarted".
 
 It is very important that you enclose the executive part of the production and
@@ -24,7 +25,7 @@ starts rotating a motor, then in the `finally` clause there should be the call
 
 An example of an acquisition could look like this::
 
-    from concert.experiments.base import Acquisition
+    from concert.experiments.base import LocalAcquisition, LocalConsumer
 
     # This is a real generator, num_items is provided somewhere in our session
     async def produce():
@@ -49,9 +50,17 @@ An example of an acquisition could look like this::
     await acquisition()
 
 
-.. autoclass:: concert.experiments.base.Acquisition
+.. autoclass:: concert.experiments.base.LocalAcquisition
     :members:
 
+.. autoclass:: concert.experiments.base.RemoteAcquisition
+    :members:
+
+.. autoclass:: concert.experiments.base.LocalConsumer
+    :members:
+
+.. autoclass:: concert.experiments.base.RemoteConsumer
+    :members:
 
 Base
 ----
@@ -63,7 +72,7 @@ running the acquisition above and storing log with
 :class:`concert.storage.Walker`::
 
     import logging
-    from concert.experiments.base import Acquisition, Experiment
+    from concert.experiments.base import LocalAcquisition, Experiment
     from concert.storage import DirectoryWalker
 
     LOG = logging.getLogger(__name__)
@@ -86,10 +95,10 @@ Advanced
 --------
 
 Sometimes we need finer control over when exactly is the data acquired and worry
-about the download later. We can use the *acquire* argument to
-:class:`~.base.Acquisition`. This means that the data acquisition can be invoked
-before data download. :class:`~.base.Acquisition` calls its *acquire* first and
-only when it is finished connects producer with consumers.
+about the download later. We can use the *acquire* argument to acquisition
+class. This means that the data acquisition can be invoked before data download.
+Acquisition calls its *acquire* first and only when it is finished connects
+producer with consumers.
 
 The Experiment class has the attribute :py:attr:`.base.Experiment.ready_to_prepare_next_sample` which is an instance of an :class:`asyncio.Event`. This can be used to tell that most of the experiment is finished and a new iteration of
 this experiment can be prepared (e.g. by the :class:`concert.directors.base.Director`.

@@ -4,7 +4,7 @@ on:
   push:
     branches: [ master ]
   pull_request:
-    branches: [ master ]
+    branches: [ master, decentralize]
 
 permissions:
   contents: read
@@ -31,9 +31,8 @@ jobs:
         sudo apt-get update
         sudo apt-get install -qq libtiff5-dev
         python -m pip install --upgrade pip
-        pip install flake8 pytest coverage
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        pip install scikit-image
+        pip install flake8 pytest coverage scikit-image
+        pip install .
     - name: Test with pytest
       run: |
         coverage run --source=concert -m pytest -m "not skip_ci"
