@@ -91,27 +91,37 @@ def write_libtiff(file_name, data):
     return file_name
 
 
-def create_directory(directory, rights="750"):
-    """Create *directory* and all paths along the way if necessary. *rights* are a string
-    representing a combination for user, group, others.
+def create_directory(directory: str, rights: int = 0o0750) -> None:
+    """
+    Create *directory* and all paths along the way if necessary
+
+    :param directory: directory to be created
+    :type directory: str
+    :param rights: access rights for the directory, defaults rwx for
+        user and rx for the group
+    :type rights: int
     """
     if not os.path.exists(directory):
         LOG.debug("Creating directory {}".format(directory))
-        os.makedirs(directory, int(rights, base=8))
+        os.makedirs(name=directory, mode=rights)
 
 
-def write_images(pqueue, writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0,
-                 bytes_per_file=0, rights="750"):
+async def write_images(producer: AsyncIterable[ArrayLike],
+                       writer: Type[TiffWriter] = TiffWriter,
+                       prefix: str = "image_{:>05}.tif",
+                       start_index: int = 0,
+                       bytes_per_file=0) -> int:
     """
-    write_images(pqueue, writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0,
-                 bytes_per_file=0, rights="750")
+    write_images(producer, writer=TiffWriter, prefix="image_{:>05}.tif", start_index=0,
+                 bytes_per_file=0)
 
-    Write images on disk with specified *writer* and file name *prefix*. Write to one file until the
-    *bytes_per_file* bytes has been written. If it is 0, then one file per image is created.
-    *writer* is a subclass of :class:`.writers.ImageWriter`. *start_index* specifies the number in
-    the first file name, e.g. for the default *prefix* and *start_index* 100, the first file name
-    will be image_00100.tif. If *prefix* is not formattable images are appended to the filename
-    specified by *prefix*. *rights* are used for directory creation in case it does not exist.
+    Write images on disk with specified *writer* and file name *prefix*. Write
+    to one file until the *bytes_per_file* bytes has been written. If it is 0,
+    then one file per image is created. *writer* is a subclass of
+    :class:`.writers.ImageWriter`. *start_index* specifies the number in the
+    first file name, e.g. for the default *prefix* and *start_index* 100, the
+    first file name will be image_00100.tif. If *prefix* is not formattable
+    images are appended to the filename specified by *prefix*.
     """
     im_writer: Optional[TiffWriter] = None
     file_index = 0
@@ -125,7 +135,7 @@ def write_images(pqueue, writer=TiffWriter, prefix="image_{:>05}.tif", start_ind
         im_writer = writer(prefix, bytes_per_file, append=True)
 
     if dir_name and not os.path.exists(dir_name):
-        create_directory(dir_name, rights=rights)
+        create_directory(dir_name)
 
     i = 0
     try:
