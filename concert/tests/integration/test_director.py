@@ -173,12 +173,12 @@ class XYScanDirectorTest(TestCase):
         self.director = await XYScan(experiment=self.experiment,
                                      x_motor=self.x_motor,
                                      y_motor=self.y_motor,
-                                     x_min=0 * q.mm,
-                                     x_max=10 * q.mm,
-                                     x_step=2.5 * q.mm,
-                                     y_min=0 * q.mm,
-                                     y_max=10 * q.mm,
-                                     y_step=2.5 * q.mm)
+                                     x_min=0*q.mm,
+                                     x_max=10*q.mm,
+                                     x_step=2.5*q.mm,
+                                     y_min=0*q.mm,
+                                     y_max=10*q.mm,
+                                     y_step=2.5*q.mm)
         await self.director.run()
 
     async def test_final_state(self):
