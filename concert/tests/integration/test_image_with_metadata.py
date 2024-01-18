@@ -45,7 +45,7 @@ class TestMetadataExperiment(TestCase):
     async def asyncSetUp(self):
         self.camera = await Camera()
         self._data_dir = tempfile.mkdtemp()
-        self.walker = DirectoryWalker(root=self._data_dir, bytes_per_file=1E12)
+        self.walker = await DirectoryWalker(root=self._data_dir, bytes_per_file=1E12)
         flat_motor = await LinearMotor()
         shutter = await Shutter()
         self.exp = await Radiography(walker=self.walker,
@@ -58,7 +58,7 @@ class TestMetadataExperiment(TestCase):
                                      num_flats=5,
                                      num_darks=5,
                                      separate_scans=False)
-        self.writer = ImageWriter(self.exp.acquisitions, self.walker)
+        self.writer = await ImageWriter(self.walker, self.exp.acquisitions)
 
     def tearDown(self) -> None:
         shutil.rmtree(self._data_dir)
@@ -68,10 +68,10 @@ class TestMetadataExperiment(TestCase):
         Runs a radiography. After wards the 'radios' are read and the tiff-files metadata is
         checked.
         """
-        self.walker.descend("metadata")
+        await self.walker.descend("metadata")
         await self.exp.run()
         radio_images = tifffile.TiffReader(
-            os.path.join(self.walker.current, "radios", "frame_000000.tif"))
+            os.path.join(await self.walker.current, "radios", "frame_000000.tif"))
         for i in range(await self.exp.get_num_projections()):
             self.assertEqual(ast.literal_eval(radio_images.pages[i].description)['index_int'],
                              int(i))
