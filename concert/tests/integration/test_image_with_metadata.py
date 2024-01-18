@@ -7,7 +7,7 @@ import numpy as np
 from concert.coroutines.base import background
 from concert.base import check
 from concert.quantities import q
-from concert.experiments.addons import ImageWriter
+from concert.experiments.addons.local import ImageWriter
 from concert.experiments.synchrotron import Radiography
 from concert.devices.shutters.dummy import Shutter
 from concert.devices.motors.dummy import LinearMotor
