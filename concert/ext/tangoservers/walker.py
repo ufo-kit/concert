@@ -185,9 +185,12 @@ class TangoRemoteWalker(TangoRemoteProcessing):
             pt.size = total_bytes * q.B
 
     @DebugIt()
-    @command()
-    async def open_log_handler(self) -> None:
-        self._log_handler = logging.FileHandler(os.path.join(self._current, "experiment.log"))
+    @command(
+        dtype_in=str,
+        doc_in="file name for the log file"
+    )
+    async def open_log_handler(self, file_name: str) -> None:
+        self._log_handler = logging.FileHandler(os.path.join(self._current, file_name))
         self._logger.addHandler(self._log_handler)
 
     @DebugIt()
