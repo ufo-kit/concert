@@ -379,7 +379,7 @@ class DirectoryWalker(Walker):
 
     async def _descend(self, name: str) -> None:
         new = os.path.join(self._current, name)
-        create_directory(new, rights=self._rights)
+        create_directory(new)
         self._current = new
 
     async def _ascend(self) -> None:
