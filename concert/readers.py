@@ -115,7 +115,7 @@ class TiffSequenceReader(FileSequenceReader):
 
     def _read_real(self, index):
         return self._file.pages[index].asarray()
- 
+
 
 class SequenceReaderError(Exception):
     pass
