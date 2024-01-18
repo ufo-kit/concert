@@ -4,7 +4,7 @@ on:
   push:
     branches: [ master ]
   pull_request:
-    branches: [ master, decentralize]
+    branches: [ master, decentralize, master-with-decentralized]
 
 permissions:
   contents: read

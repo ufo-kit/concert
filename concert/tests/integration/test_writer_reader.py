@@ -38,7 +38,7 @@ class TestReaderWriter(TestCase):
         run_file_name = datetime.now().strftime("%y%m%d_%H%M%S.%f")
         folder = os.path.join(self._data_dir, run_file_name)
         os.mkdir(folder)
-        walker = DirectoryWalker(root=folder,
+        walker = await DirectoryWalker(root=folder,
                                  writer=TiffWriter,
                                  dsetname="frame_{:>06}.tif",
                                  bytes_per_file=bytes_per_file)
