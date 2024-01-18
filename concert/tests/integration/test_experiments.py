@@ -22,6 +22,7 @@ from concert.devices.cameras.dummy import Camera
 from concert.tests import TestCase, suppressed_logging, assert_almost_equal
 from concert.storage import DirectoryWalker, DummyWalker
 
+
 class VisitChecker(object):
 
     """Use this to check that a callback was called."""

@@ -3,24 +3,22 @@ walker.py
 ---------
 Implements a device server for file system traversal at remote host.
 """
-import io
+import logging
 import os
-import re
-from typing import Type, Optional, Awaitable, AsyncIterable
+from typing import Type, List
 from tango import DebugIt, DevState, CmdArgType
 from tango.server import attribute, command, AttrWriteType
 from concert.helpers import PerformanceTracker
 from concert.quantities import q
 from concert import writers
 from concert.storage import StorageError
-from concert.typing import ArrayLike
-from concert.storage import write_images, split_dsetformat, DirectoryWalker
+from concert.storage import DirectoryWalker
 from concert.ext.tangoservers.base import TangoRemoteProcessing
 
 
 class TangoRemoteWalker(TangoRemoteProcessing):
     """Tango device for filesystem walker in a remote server"""
-    
+
     current = attribute(
         label="Current",
         dtype=str,
@@ -66,10 +64,10 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         access=AttrWriteType.WRITE,
         fset="set_start_index"
     )
-  
+
     _writer: Type[writers.TiffWriter]
-    _log_file: Optional[io.TextIOWrapper]
-        
+    _logger: logging.Logger
+
     @staticmethod
     def _create_dir(directory: str, mode: int = 0o0750) -> None:
         """
@@ -91,13 +89,12 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         await super().init_device()
         self._root = os.environ["HOME"]
         self._current = self._root
-        self._log_file = None
+        self._logger = logging.getLogger(self.__class__.__name__)
         self.set_state(DevState.STANDBY)
         self.info_stream(
-                "%s in state: %s at directory: %s",
-                self.__class__.__name__, self.get_state(), self.get_current()
-        )
-    
+            "%s in state: %s at directory: %s",
+            self.__class__.__name__, self.get_state(), self.get_current())
+
     def get_current(self) -> str:
         return self._current
 
@@ -157,7 +154,7 @@ class TangoRemoteWalker(TangoRemoteProcessing):
             "%s walked into directory: %s, with state: %s",
             self.__class__.__name__, self.get_current(), self.get_state()
         )
-        
+
     @DebugIt()
     @command(
         dtype_in=str,
@@ -188,54 +185,19 @@ class TangoRemoteWalker(TangoRemoteProcessing):
 
     @DebugIt()
     @command(
-        dtype_in=str,
-        doc_in="payload to be appended to log file"
+        dtype_in=CmdArgType.DevVarStringArray,
+        doc_in="payload for logging. In this implementation payload is a two \
+        element array of strings, where first element denotes the log level and \
+        the second element is the content to log"
     )
-    async def log(self, payload: str) -> None:
-        try:
-            if self._log_file and self._log_file.writable():
-                self._log_file.write(payload)
-                self._log_file.write("\n")
-        except ValueError as err:
-            self.error_stream(
-                "%s failed to log %s [%s] - %s",
-                self.__class.__name__,
-                payload,
-                str(err),
-                self.get_state()
-            )
-        self.info_stream(
-            "%s logged to file - %s",
-            self.__class__.__name__,
-            self.get_state()
-        )
-
-    @DebugIt()
-    @command(
-        dtype_in=str,
-        doc_in="file path (typically for logging) to open as file resource"
-    )
-    async def open_log_file(self, file_path: str) -> None:
-        if not self._log_file:
-            self._log_file = open(file=file_path, mode="a", encoding="utf-8")
-        self.info_stream(
-            "%s opened %s for writing - %s",
-            self.__class__.__name__,
-            file_path,
-            self.get_state()
-        )
-    
-    @DebugIt()
-    @command()
-    async def close_log_file(self) -> None:
-        if self._log_file and not self._log_file.closed:
-            self._log_file.close()
-            self._log_file = None
-            self.info_stream(
-                "%s closed log file - %s",
-                self.__class__.__name__,
-                self.get_state()
-            )
+    async def log(self, payload: List[str]) -> None:
+        hdl = logging.FileHandler(os.path.join(self._current, "experiment.log"))
+        self._logger.addHandler(hdl)
+        self._logger.log(int(payload[0]), payload[1])
+        hdl.close()
+        self._logger.removeHandler(hdl)
+        self.info_stream("%s logged to file - %s",
+                         self.__class__.__name__, self.get_state())
 
     @DebugIt()
     @command(
@@ -258,4 +220,3 @@ class TangoRemoteWalker(TangoRemoteProcessing):
 
 if __name__ == "__main__":
     pass
- 

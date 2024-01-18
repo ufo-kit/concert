@@ -5,7 +5,7 @@ typing.py
 ---------
 Facilitates type annotations for concert
 """
-from typing import Protocol, Any, AsyncIterable, NewType, Awaitable, Sequence
+from typing import Protocol, Any, NewType, Sequence
 import numpy
 
 # Defines ArrayLike as a new type
@@ -14,6 +14,7 @@ import numpy
 # NumPy versions. In future this can(should) be replaced with
 # from numpy.typing import ArrayLike
 ArrayLike = NewType("ArrayLike", numpy.ndarray)
+
 
 #####################################################################
 # Abstract Tango Device Types
@@ -44,10 +45,11 @@ class AbstractStreamHandler(Protocol):
         """
         ...
 
+
 class AbstractTangoDevice(Protocol):
     """
     Abstract Tango device which let's users to write arbitrary attribute as
-    key value pairs. 
+    key value pairs.
     """
 
     def get_attribute_list(self) -> Sequence[str]:
@@ -70,11 +72,12 @@ class AbstractTangoDevice(Protocol):
         """Exposes a dictionary-like interface for abstract tango device"""
         ...
 
+
 class RemoteDirectoryWalkerTangoDevice(
         AbstractTangoDevice, AbstractStreamHandler, Protocol):
     """
-    Abstract remote walker device type. While invoking these methods on a 
-    Tango device server object we generally avoid using named arguments e.g., 
+    Abstract remote walker device type. While invoking these methods on a
+    Tango device server object we generally avoid using named arguments e.g.,
     descend(name="dir"). It was observed that this does not work well with
     Tango.
     """

@@ -9,7 +9,7 @@ from concert.tests import TestCase
 
 
 class TestWalker(TestCase):
-    
+
     async def asyncSetUp(self) -> None:
         await super().asyncSetUp()
         self.walker = await DummyWalker()
