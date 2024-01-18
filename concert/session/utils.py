@@ -4,6 +4,7 @@ import math
 import os
 import inspect
 import subprocess
+import sys
 import prettytable
 from concert.config import AIODEBUG
 from concert.coroutines.base import background, get_event_loop, run_in_loop
@@ -12,6 +13,43 @@ from concert.quantities import q
 
 
 LOG = logging.getLogger(__name__)
+
+
+class SubCommand(object):
+
+    """Base sub-command class (concert [subcommand])."""
+
+    def __init__(self, name, opts):
+        """
+        SubCommand objects are loaded at run-time and injected into Concert's
+        command parser.
+
+        *name* denotes the name of the sub-command parser, e.g. "mv" for the
+        MoveCommand. *opts* must be an argparse-compatible dictionary
+        of command options.
+        """
+        self.name = name
+        self.opts = opts
+
+    def run(self, *args, **kwargs):
+        """Run the command"""
+        raise NotImplementedError
+
+
+def setup_logging(name, to_stream=False, filename=None, loglevel=None):
+    logformat = '[%(asctime)s] %(levelname)s: %(name)s: {}: %(message)s'
+    formatter = logging.Formatter(logformat.format(name))
+    logger = logging.getLogger()
+    logger.setLevel(loglevel.upper())
+
+    if to_stream:
+        stream_handler = logging.StreamHandler(sys.stderr)
+        stream_handler.setFormatter(formatter)
+        logger.addHandler(stream_handler)
+    if filename:
+        file_handler = logging.FileHandler(filename)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
 
 
 def _get_param_description_table(device, max_width):
@@ -142,11 +180,8 @@ def code_of(func):
         print(source)
 
 
-def abort_awaiting(background=False, skip=None):
-    """Abort task currently being awaited in the session. Return True if there is a task being
-    awaited, otherwise False. This function does not touch tasks running in the background unless
-    *background* is True, in which case it cancels all awaitables.
-    """
+def abort_awaiting(skip=None):
+    """Cancel background tasks. *skip* are coroutine names which are not cancelled."""
     # Figure out if we are in a callback (ctrl-c or ctrl-k) or check_emergency_stop
     try:
         asyncio.get_running_loop()
@@ -166,10 +201,9 @@ def abort_awaiting(background=False, skip=None):
 
     loop = get_event_loop()
     try:
-        LOG.debug('Global abort called, loop: %d, IPython loop: %d', id(loop),
-                  id(get_ipython().pt_loop))
-    except NameError:
-        LOG.debug('NameError in pid: %d', os.getpid())
+        LOG.debug('Global abort called, loop: %d', id(loop))
+    except NameError as e:
+        LOG.debug("NameError `%s' in pid: %d", e, os.getpid())
 
     tasks = asyncio.all_tasks(loop=loop)
     LOG.log(AIODEBUG, 'Running %d tasks:\n%s', len(tasks),
@@ -180,42 +214,9 @@ def abort_awaiting(background=False, skip=None):
         if skip and name in skip:
             LOG.log(AIODEBUG, 'Skipping task %s', name)
             continue
-        abortable = False
-        if background and hasattr(task, '_is_concert_task'):
-            # ctrl-k, cancel everything from us
-            abortable = True
-        elif 'run_cell_async' in name:
-            # ctrl-c
-            # TODO: make this cleaner and robust (run_cell_async may change its name and so on)
-            abortable = True
-        if abortable:
-            # We either abort everything which is enabled for aborting or the current coroutine
-            # which is being awaited in the session
+        if hasattr(task, '_is_concert_task'):
             cancelled_result = task.cancel()
             LOG.log(AIODEBUG, "Cancelling task `%s' with result %s", name, cancelled_result)
-            if not background:
-                return True
-
-    if background:
-        # Either ctrl-k or ctrl-c in a non-async function
-        # Use ipython magic because _current_instances won't work here (different stack)
-        try:
-            uns = get_ipython().user_ns
-        except NameError:
-            # Invoked from tests
-            return False
-        devices = [(name, value) for name, value in uns.items() if isinstance(value, Device)]
-        emergency_stops = []
-        emergency_device_names = []
-        for name, value in uns.items():
-            if not name.startswith('_') and isinstance(value, Device):
-                # ipython adds _1, _2, ... variables to user_ns when people type variable names in
-                # the shell
-                LOG.info("Emergency stop on `%s'", name)
-                emergency_stops.append(value.emergency_stop())
-                emergency_device_names.append(name)
-
-    return False
 
 
 @background
@@ -229,7 +230,7 @@ async def check_emergency_stop(check, poll_interval=0.1 * q.s, exit_session=Fals
     while True:
         if check():
             LOG.error('Emergency stop')
-            abort_awaiting(background=True, skip='check_emergency_stop')
+            abort_awaiting(skip='check_emergency_stop')
             if exit_session:
                 os.abort()
             while check():

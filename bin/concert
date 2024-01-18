@@ -8,17 +8,19 @@ import os
 import re
 import sys
 import shutil
-import signal
 import subprocess
 import tempfile
 import zipfile
 import concert
 import concert.config
 import concert.session.management as cs
+from concert.session.utils import SubCommand, setup_logging
 from concert._aimport import eval_source, register
 from concert.ext.cmd import plugins
 
 
+logging.addLevelName(concert.config.PERFDEBUG, 'PERFDEBUG')
+logging.addLevelName(concert.config.AIODEBUG, 'AIODEBUG')
 LOG = logging.getLogger(__name__)
 
 
@@ -52,27 +54,6 @@ def get_prompt_config(path):
             return []
 
     return MyPrompt
-
-
-class SubCommand(object):
-
-    """Base sub-command class (concert [subcommand])."""
-
-    def __init__(self, name, opts):
-        """
-        SubCommand objects are loaded at run-time and injected into Concert's
-        command parser.
-
-        *name* denotes the name of the sub-command parser, e.g. "mv" for the
-        MoveCommand. *opts* must be an argparse-compatible dictionary
-        of command options.
-        """
-        self.name = name
-        self.opts = opts
-
-    def run(self, *args, **kwargs):
-        """Run the command"""
-        raise NotImplementedError
 
 
 class InitCommand(SubCommand):
@@ -381,23 +362,8 @@ class StartCommand(SubCommand):
         if session:
             cs.exit_if_not_exists(session)
 
-        if logto == 'file':
-            logfilename = logfile if logfile else cs.logfile_path()
-            handler = logging.FileHandler(logfilename)
-        else:
-            handler = logging.StreamHandler(sys.stderr)
-
-        logging.addLevelName(concert.config.PERFDEBUG, 'PERFDEBUG')
-        logging.addLevelName(concert.config.AIODEBUG, 'AIODEBUG')
-        handler.setLevel(loglevel.upper())
-        logformat = '[%(asctime)s] %(levelname)s: %(name)s: {}: %(message)s'
-        formatter = logging.Formatter(logformat.format(session))
-        handler.setFormatter(formatter)
-
-        self.logger = logging.getLogger()
-        self.logger.addHandler(handler)
-        self.logger.setLevel(loglevel.upper())
-
+        logfilename = (logfile if logfile else cs.logfile_path()) if logto == 'file' else None
+        setup_logging(session, to_stream=logto == 'stderr', filename=logfilename, loglevel=loglevel)
         # Add session path, so that sessions can import other sessions
         sys.path.append(cs.path())
         path = filename or cs.path(session)
@@ -411,24 +377,6 @@ class StartCommand(SubCommand):
     def run_shell(self, path=None, session=None):
         import IPython
         import traitlets.config
-        from concert.session.utils import abort_awaiting
-
-        # ctrl-c handling (abort whatever what is running in the foreground (blocks))
-        orig_sigint_handler = signal.getsignal(signal.SIGINT)
-
-        # Cancel running tasks in IPython's asyncio event loop
-        def concert_sigint_handler(sig, frame):
-            LOG.info('KeyboardInterrupt in awaiting mode')
-            aborted = abort_awaiting()
-            LOG.debug('Aborted: %s', aborted)
-            if not aborted:
-                # If there is a task being awaited cancel it and swallow the exception so that we
-                # don't flood the terminal with the stack trace, otherwise do the usual business
-                # TODO: we may still keep hanging if the task being cancelled calls a blocking
-                # function not in executor.
-                orig_sigint_handler(sig, frame)
-
-        signal.signal(signal.SIGINT, concert_sigint_handler)
 
         print("Welcome to Concert {0}".format(concert.__version__))
 
@@ -492,6 +440,131 @@ class DocsCommand(SubCommand):
         pandoc.communicate(docstring.encode('utf-8'))
 
 
+class BroadcastCommand(SubCommand):
+
+    """Broadcast images from one source to multiple endpoints over zmq sockets either set up on the
+    command line or via a yaml file.
+    """
+
+    def __init__(self):
+        opts = {
+            '--source': {
+                'type': str,
+                'help': 'Data source endpoint in form transport://address'
+            },
+            '--destinations': {
+                'type': str,
+                'nargs': '+',
+                'help': "A sequence of endpoint,reliable,sndhwm string triplets "
+                "(e.g. tcp://*:5555,True,1). "
+                "Endpoint is in form transport://address, if *reliable* is True use PUSH, "
+                "otherwise PUB socket type; *sndhwm* is the high water mark (use 1 for "
+                "always getting the newest image, only applicable for non-reliable case)"
+            },
+            '--config': {
+                'type': str,
+                'help': 'Read routing information from a yaml config file (takes precedence '
+                'over --source and --destinations)'
+            },
+            '--start-consumers': {
+                'action': 'store_true',
+                'help': 'For local destination endpoints, if the destination name is a valid '
+                'concert tango server, start it (applicable only when --config is specified)'
+            },
+            '--logfile': {
+                'type': str
+            },
+            '--loglevel': {
+                'choices': ['perfdebug', 'aiodebug', 'debug', 'info',
+                            'warning', 'error', 'critical'],
+                'default': 'info'
+            },
+        }
+        super().__init__('broadcast', opts)
+
+    def run(self, source=None, destinations=None, config=None, start_consumers=False,
+            logfile=None, loglevel=None):
+        from concert.networking.base import BroadcastServer
+
+        setup_logging('broadcast', to_stream=True, filename=logfile, loglevel=loglevel)
+
+        endpoints = []
+        consumer_commands = []
+        consumers = {}
+        if config:
+            import yaml
+            from concert.ext.cmd.tango import SERVER_NAMES
+            from concert.networking.base import is_zmq_endpoint_local
+
+            with open(config) as f:
+                cfg = yaml.load(f, yaml.SafeLoader)
+
+            source = cfg['server']
+            for dest, values in cfg['destinations'].items():
+                endpoints.append((values['address'], values['reliable'], values.get('sndhwm', 0)))
+                if endpoints[-1][-1] < 0:
+                    # sndhwm check
+                    raise ValueError('sndhwm must be a positive integer')
+                if start_consumers and dest in SERVER_NAMES and is_zmq_endpoint_local(values['address']):
+                    cmd = f'concert tango {dest} --loglevel {loglevel}'
+                    if 'tango-port' in values:
+                        cmd += f' --port {values["tango-port"]}'
+                    if logfile:
+                        # Put the logs to the directory of *logfile* and use modified endpoint names
+                        # for identification
+                        dest_logfile = os.path.join(
+                            os.path.dirname(logfile),
+                            f"{dest}{values['address'].split('//')[1].replace('/', '_')}.log"
+                        )
+                        cmd += f' --logfile {dest_logfile}'
+                    consumer_commands.append(cmd)
+        else:
+            for destination in destinations:
+                endpoint, reliable, sndhwm = destination.split(',')
+                if reliable.lower() == 'true':
+                    reliable = True
+                elif reliable.lower() == 'false':
+                    reliable = False
+                else:
+                    print("Reliable must be one of `True' or `False'")
+                    return
+
+                try:
+                    sndhwm = int(sndhwm)
+                    if sndhwm < 0:
+                        raise ValueError('sndhwm must be a positive integer')
+                except Exception:
+                    print('sndhwm must be a positive integer')
+                    return
+
+                endpoints.append((endpoint, reliable, sndhwm))
+
+        LOG.info("Listening on `%s' and forwarding to `%s'", source, endpoints)
+        server = BroadcastServer(source, endpoints)
+
+        if start_consumers:
+            for cmd in consumer_commands:
+                LOG.info("Starting consumer `%s'", cmd)
+                # Consider using asyncio.create_subprocess_exec in case we need to wait for
+                # processes or communicate with them
+                consumers[cmd] = subprocess.Popen(cmd.split())
+
+        async def amain():
+            try:
+                await server.serve()
+            except BaseException as e:
+                await server.shutdown()
+                raise
+
+        try:
+            asyncio.run(amain())
+        except KeyboardInterrupt:
+            for cmd, proc in consumers.items():
+                if not proc.returncode:
+                    LOG.info("Terminating consumer `%s'", cmd)
+                    proc.terminate()
+
+
 def main():
     parser = argparse.ArgumentParser()
 
@@ -512,7 +585,8 @@ def main():
                 ImportCommand(),
                 ExportCommand(),
                 StartCommand(),
-                DocsCommand()]
+                DocsCommand(),
+                BroadcastCommand()]
 
     commands.extend(plugins)
 

@@ -1,12 +1,14 @@
 """
 Cameras supported by the libuca library.
 """
+import asyncio
 import functools
 import logging
 import numpy as np
+import struct
 from concert.coroutines.base import background, run_in_executor
 from concert.quantities import q
-from concert.base import Parameter, Quantity
+from concert.base import check, Parameter, Quantity
 from concert.helpers import Bunch
 from concert.devices.cameras import base
 
@@ -20,21 +22,16 @@ def _new_setter_wrapper(name, unit=None):
             raise base.CameraError('Changing parameters is not allowed while recording')
 
         if unit:
-            value = value.to(unit)
+            value = value.to(unit).magnitude
 
-        try:
-            dic = {name: value.magnitude}
-        except AttributeError:
-            dic = {name: value}
-
-        instance.uca.set_properties(**dic)
+        await run_in_executor(instance.uca.set_property, name, value)
 
     return _wrapper
 
 
 def _new_getter_wrapper(name, unit=None):
     async def _wrapper(instance):
-        value = instance.uca.get_property(name)
+        value = await run_in_executor(instance.uca.get_property, name)
 
         if unit:
             return q.Quantity(value, unit)
@@ -46,12 +43,12 @@ def _new_getter_wrapper(name, unit=None):
 
 def _translate_gerror(func):
     @functools.wraps(func)
-    def _wrapper(*args, **kwargs):
+    async def _wrapper(*args, **kwargs):
         from gi.repository import GLib
         try:
-            return func(*args, **kwargs)
+            return await func(*args, **kwargs)
         except GLib.GError as ge:
-            raise base.CameraError(str(ge))
+            raise base.CameraError(str(ge)) from ge
 
     return _wrapper
 
@@ -62,6 +59,10 @@ class Camera(base.Camera):
 
     All properties that are exported by the underlying camera are also visible.
     """
+
+    concert_cached_recording_state = Parameter(
+        help="If True, concert caches `recording' state to speed up grab()"
+    )
 
     async def __ainit__(self, name, params=None):
         """
@@ -157,23 +158,25 @@ class Camera(base.Camera):
 
         self._record_shape = None
         self._record_dtype = None
+        self._cached_state = None
+        self._concert_cached_recording_state = True
+
+    async def _start_readout_real(self):
+        await run_in_executor(self.uca.start_readout)
+
+    async def _stop_readout_real(self):
+        await run_in_executor(self.uca.stop_readout)
 
     @background
-    async def start_readout(self):
-        self.uca.start_readout()
-
-    @background
-    async def stop_readout(self):
-        self.uca.stop_readout()
-
-    @background
+    @check(source=['recording', 'readout'])
     async def grab(self, index=None):
-        return self.convert(await self._grab_real(index))
+        async with self._grab_lock:
+            return self.convert(await self._grab_real(index))
 
-    def write(self, name, data):
+    async def write(self, name, data):
         """Write NumPy array *data* for *name*."""
         raw = data.__array_interface__['data'][0]
-        self.uca.write(name, raw, data.nbytes)
+        await run_in_executor(self.uca.write, name, raw, data.nbytes)
 
     async def _get_frame_rate(self):
         return await self._uca_get_frame_rate(self) / q.s
@@ -192,15 +195,16 @@ class Camera(base.Camera):
     @_translate_gerror
     async def _record_real(self):
         await self._determine_shape_for_grab()
-        self.uca.start_recording()
+        await run_in_executor(self.uca.start_recording)
 
     @_translate_gerror
     async def _stop_real(self):
-        self.uca.stop_recording()
+        self._cached_state = None
+        await run_in_executor(self.uca.stop_recording)
 
     @_translate_gerror
     async def _trigger_real(self):
-        self.uca.trigger()
+        await run_in_executor(self.uca.trigger)
 
     @_translate_gerror
     async def _grab_real(self, index=None):
@@ -222,10 +226,82 @@ class Camera(base.Camera):
         self._record_dtype = (np.uint16 if (await self.get_sensor_bitdepth()).magnitude > 8 else
                               np.uint8)
 
+    async def _get_concert_cached_recording_state(self):
+        return self._concert_cached_recording_state
+
+    async def _set_concert_cached_recording_state(self, value):
+        self._concert_cached_recording_state = value
+
     async def _get_state(self):
+        if not self._concert_cached_recording_state:
+            return await self._get_real_state()
+
+        if self._cached_state:
+            current_state = self._cached_state
+        else:
+            current_state = await self._get_real_state()
+            if current_state == 'recording':
+                # Do not cache anything else than recording state for performance
+                self._cached_state = current_state
+
+        return current_state
+
+    async def _get_real_state(self):
         if self.uca.props.is_recording:
             return 'recording'
         elif self.uca.props.is_readout:
             return 'readout'
         else:
             return 'standby'
+
+
+class RemoteNetCamera(base.RemoteMixin, Camera):
+
+    """
+    The "net" plugin implementation which forwards images over zmq streams.
+    """
+
+    async def __ainit__(self, params=None):
+        await Camera.__ainit__(self, 'net', params=params)
+        self._ucad_host = self.uca.props.host
+        self._ucad_port = self.uca.props.port
+
+    async def _communicate(self, request):
+        reader, writer = await asyncio.open_connection(self._ucad_host, self._ucad_port)
+        try:
+            writer.write(request)
+            await writer.drain()
+            _construct_ucad_error(await reader.read())
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
+    async def _send_grab_push_command(self, num_images=1):
+        """Grab images in ucad and push them over network to another receiver than us."""
+        # UCA_NET_MESSAGE_PUSH = 10
+        await self._communicate(struct.pack('Iq', 10, num_images))
+
+    async def _stop_streaming(self):
+        await self._communicate(struct.pack('I', 11))
+
+    async def _grab_many_real(self, num):
+        await self._send_grab_push_command(num_images=num)
+
+    async def register_endpoint(self, endpoint, socket_type, sndhwm=-1):
+        await self._communicate(
+            struct.pack("I128sii", 12, bytes(endpoint, 'ascii'), socket_type, sndhwm)
+        )
+
+    async def unregister_endpoint(self, endpoint):
+        await self._communicate(struct.pack("I128s", 13, bytes(endpoint, 'ascii')))
+
+
+def _construct_ucad_error(message):
+    # struct UcaNetDefaultReply of uca-net-protocol.h
+    msg_type, occured, domain, code, message = struct.unpack("I?64si512s", message)
+    if occured:
+        raise UcaNetError(message.decode().strip('\x00'))
+
+
+class UcaNetError(base.CameraError):
+    """uca-net errors which may come from the camera or from ucad."""

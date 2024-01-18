@@ -8,7 +8,8 @@ from concert.helpers import (
     measure,
     memoize,
     arange,
-    linspace
+    linspace,
+    PerformanceTracker
 )
 from concert.processes.common import focus, align_rotation_axis, ProcessError
 from concert.devices.motors.dummy import LinearMotor, RotationMotor
@@ -93,6 +94,18 @@ def test_is_iterable():
 
     for item in noniterables:
         assert not is_iterable(item)
+
+
+def test_performance_tracker(caplog):
+    import logging
+    from concert.helpers import LOG as helperlog
+
+    with caplog.at_level(logging.DEBUG, logger=helperlog.name):
+        with PerformanceTracker(loglevel=logging.DEBUG) as pt:
+            time.sleep(.01)
+            pt.size = 1 * q.GB
+        assert pt.duration >= .01 * q.s
+    assert 'size' in caplog.text
 
 
 class TestMemoize(TestCase):

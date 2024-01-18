@@ -88,10 +88,11 @@ class TestSphereSegmentation(TestCase):
         images = []
         centers = []
 
-        for i in range(10):
-            await self.y_motor.move(da)
-            images.append(await self.camera.grab())
-            centers.append(self.camera.ellipsoid_center)
+        async with self.camera.recording():
+            for i in range(10):
+                await self.y_motor.move(da)
+                images.append(await self.camera.grab())
+                centers.append(self.camera.ellipsoid_center)
 
         return (images, centers)
 

@@ -14,7 +14,8 @@ class TestDummyCamera(TestCase):
         self.camera = await Camera(background=self.background)
 
     async def test_grab(self):
-        frame = await self.camera.grab()
+        async with self.camera.recording():
+            frame = await self.camera.grab()
         self.assertIsNotNone(frame)
 
     def test_trigger_source(self):
@@ -35,8 +36,16 @@ class TestDummyCamera(TestCase):
     async def test_buffered_camera(self):
         camera = await BufferedCamera()
         i = 0
-        async for item in camera.readout_buffer():
-            i += 1
+
+        await camera.start_readout()
+        try:
+            producer = camera.readout_buffer()
+            print(producer)
+            async for item in producer:
+                i += 1
+        finally:
+            await camera.stop_readout()
+
         self.assertEqual(i, 3)
 
     async def test_context_manager(self):
@@ -65,13 +74,17 @@ class TestDummyCamera(TestCase):
 
         self.camera._grab_real = grab
         self.camera.convert = np.fliplr
-        image = await self.camera.grab()
+        async with self.camera.recording():
+            image = await self.camera.grab()
         np.testing.assert_equal(image, (await grab())[:, ::-1])
 
     async def test_simulate(self):
-        self.assertTrue(np.any(self.background - await self.camera.grab()))
+        async with self.camera.recording():
+            self.assertTrue(np.any(self.background - await self.camera.grab()))
+
         camera = await Camera(background=self.background, simulate=False)
-        np.testing.assert_equal(self.background, await camera.grab())
+        async with camera.recording():
+            np.testing.assert_equal(self.background, await camera.grab())
 
 
 class TestPCOTimeStamp(TestCase):

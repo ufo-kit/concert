@@ -4,36 +4,70 @@ care of proper logging structure.
 """
 
 import asyncio
+import inspect
 import logging
 import os
 import time
 import json
 
 import concert.devices.base
-from concert.coroutines.base import background, broadcast
-from concert.coroutines.sinks import null
+from concert.coroutines.base import background, broadcast, start
+from concert.coroutines.sinks import count
 from concert.progressbar import wrap_iterable
-from concert.base import check, Parameterizable, Parameter, Selection, State, StateError, transition
+from concert.base import check, Parameterizable, Parameter, Selection, State, StateError
 from concert.helpers import get_state_from_awaitable
+from functools import partial
+
 
 LOG = logging.getLogger(__name__)
 
 _runnable_state = ['standby', 'error', 'cancelled']
 
 
-class Acquisition(Parameterizable):
-
+class Consumer:
     """
-    An acquisition acquires data, gets it and sends it to consumers.
+    A wrapper for turning coroutine functions into coroutines.
 
-    .. py:attribute:: producer
+    :param corofunc: a consumer coroutine function
+    :param corofunc_args: a list or tuple of *corofunc* arguemnts
+    :param corofunc_kwargs: a list or tuple of *corofunc* keyword arguemnts
+    """
+    def __init__(self, corofunc, corofunc_args=(), corofunc_kwargs=None):
+        self._corofunc = corofunc
+        self.args = corofunc_args
+        self.kwargs = {} if corofunc_kwargs is None else corofunc_kwargs
+
+    @property
+    def corofunc(self):
+        return self._corofunc
+
+    async def __call__(self, producer):
+        corofunc = self._corofunc
+        if producer:
+            corofunc = partial(self._corofunc, producer)
+
+        st = time.perf_counter()
+        await corofunc(*self.args, **self.kwargs)
+        LOG.debug('%s finished in %.3f s', self._corofunc.__qualname__, time.perf_counter() - st)
+
+
+class Acquisition(Parameterizable):
+    """
+    An acquisition acquires data, gets it and sends it to consumers. This is a base class for local
+    and remote acquisitions and must not be used directly.
+
+    .. py:attribute:: name
+
+        name of this acquisition
+
+    .. py:attribute:: data_source
+
+        object which actually generates data, if it has an attribute *remote* it means it does
+        not actually yield data but rather sends it over network.
+
+    .. py:attribute:: producer_corofunc
 
         a callable with no arguments which returns a generator yielding data items once called.
-
-    .. py:attribute:: consumers
-
-        a list of callables with no arguments which return a coroutine consuming the data once
-        started, can be empty.
 
     .. py:attribute:: acquire
 
@@ -42,10 +76,17 @@ class Acquisition(Parameterizable):
     """
     state = State(default='standby')
 
-    async def __ainit__(self, name, producer, consumers=None, acquire=None):
+    async def __ainit__(self, name, data_source, producer_corofunc, acquire=None):
         self.name = name
-        self.producer = producer
-        self.consumers = [] if consumers is None else consumers
+        if hasattr(data_source, 'remote'):
+            self._connect = self._connect_remote
+            self.remote = True
+        else:
+            self.remote = False
+            self._connect = self._connect_local
+        self.producer = producer_corofunc
+        self._consumers = []
+        self._workers = []
         # Don't bother with checking this for None later
         if acquire and not asyncio.iscoroutinefunction(acquire):
             raise TypeError('acquire must be a coroutine function')
@@ -60,16 +101,103 @@ class Acquisition(Parameterizable):
     async def _run(self):
         """Run the acquisition, i.e. acquire the data and connect the producer and consumers."""
         LOG.debug(f"Running acquisition '{self.name}'")
-        consumers = self.consumers
-        if not consumers:
-            LOG.debug(f"`{self.name}' has no consumers, using null")
-            consumers = [null]
-
         if self.acquire:
             await self.acquire()
 
+        await self._connect()
+
+    def contains(self, consumer):
+        return consumer in self._consumers
+
+    def add_consumer(self, consumer, remote):
+        """Add *consumer*, *remote* must match this acquisition mode."""
+        if self.remote ^ remote:
+            raise ConsumerError("Cannot attach local consumers to remote producers and vice versa")
+        self._consumers.append(consumer)
+        LOG.debug('Adding %s to acquisition %s', consumer.__class__.__name__, self.name)
+
+    def remove_consumer(self, consumer):
+        """Remove *addon*'s consumer."""
+        self._consumers.remove(consumer)
+        LOG.debug('Removing %s from acquisition %s', consumer.__class__.__name__, self.name)
+
+    async def _connect_local(self):
+        """
+        The implementation of feeding data to consumers, i.e. broadcast data from producer to all
+        consumers.
+        """
+        consumers = self._consumers + [count]
         coros = broadcast(self.producer(), *consumers)
-        await asyncio.gather(*coros, return_exceptions=False)
+        num = (await asyncio.gather(*coros, return_exceptions=False))[-1]
+        # await asyncio.gather(*(consumer.proxy.wait(num) for consumer in self._consumers))
+
+    async def _connect_remote(self):
+        """
+        The implementation of feeding data to consumers, i.e. start remote consumers and once the
+        data is acquired, notify them and wait for them to finish.
+        """
+        async def producer_coro():
+            st = time.perf_counter()
+            producer = self.producer()
+
+            # There are two scenarios:
+            # 1. async generator inside which every image is sent explicitly (for fine-level
+            # control)
+            # 2. coroutine which just sends a bulk of images, which reduces the overhead of
+            # constantly sending grab commands to the camera server.
+            if inspect.isasyncgen(producer):
+                i = 0
+                async for nothing in producer:
+                    i += 1
+            else:
+                i = await producer
+            LOG.debug("`%s': producer finished in %.3f s", self.name, time.perf_counter() - st)
+
+        async def cancel_and_wait(tasks):
+            for task in tasks:
+                task.cancel()
+            return await asyncio.gather(*tasks, return_exceptions=True)
+
+        tasks = [start(producer_coro())]
+        self._producer_task = tasks[0]
+        tasks += [start(consumer(None)) for consumer in self._consumers]
+        LOG.debug(
+            "`%s': starting producer `%s' and consumers %s",
+            self.name,
+            self.producer.__qualname__,
+            [consumer.corofunc.__qualname__ for consumer in self._consumers])
+
+        try:
+            # What can happen while awaiting *task*:
+            # 1. all tasks finish
+            # 2. Someone is cancelled
+            # 3. We are cancelled
+            # 4. Someone raises exception
+            while True:
+                done, tasks = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                self._pending_tasks = tasks
+
+                if not tasks:
+                    break
+
+                completed = done.pop()
+                if completed.cancelled() or completed.exception():
+                    await cancel_and_wait(tasks)
+                    if completed.exception():
+                        raise completed.exception()
+        except BaseException as exception:
+            # If something went wrong we cannot leave the running tasks haning, otherwise the
+            # remotes might still be waiting for data, so cancel processing. Processing is
+            # responsible for stopping the remote processing as well (e.g. call cancel_remote() on
+            # a Tango addon)!
+            pending_result = await cancel_and_wait(tasks)
+            LOG.debug(
+                "`%s': `%s' during remote processing, results: `%s'",
+                self.name,
+                exception.__class__.__name__,
+                pending_result
+            )
+            raise
 
     @background
     @check(source=['standby', 'error', 'cancelled'], target=['standby', 'cancelled'])
@@ -140,27 +268,28 @@ class Experiment(Parameterizable):
         if separate_scans and walker:
             # The data is not supposed to be overwritten, so find an iteration which
             # hasn't been used yet
-            while self.walker.exists(self._name_fmt.format(self._iteration)):
+            while await self.walker.exists(self._name_fmt.format(self._iteration)):
                 self._iteration += 1
 
     def add_device_to_log(self, name: str, device: concert.devices.base.Device):
         self._devices_to_log[name] = device
 
-    async def log_to_json(self, directory: str):
-        data = {}
-        experiment_parameters = {}
+    async def _prepare_metadata_str(self) -> str:
+        """Prepares the experiment metadata to be written to file. It is
+        a dictionary which potentially encapsulates one or more dictionary
+        objects.
+        """
+        metadata = {}
+        exp_params = {}
         for param in self:
-            experiment_parameters[param.name] = str(await param.get())
-
-        data['experiment'] = experiment_parameters
+            exp_params[param.name] = str(await param.get())
+        metadata["experiment"] = exp_params
         for name, device in self._devices_to_log.items():
             device_data = {}
             for param in device:
                 device_data[param.name] = str(await param.get())
-            data[name] = device_data
-
-        with open(os.path.join(directory, 'experiment.json'), 'w') as outfile:
-            json.dump(data, outfile, indent=4)
+            metadata[name] = device_data
+        return json.dumps(metadata, indent=4)
 
     async def _get_iteration(self):
         return self._iteration
@@ -193,6 +322,14 @@ class Experiment(Parameterizable):
     async def finish(self):
         """Gets executed after every experiment run."""
         pass
+
+    async def attach(self, addon):
+        """Attach *addon* to all acquisitions."""
+        await addon.attach(self.acquisitions)
+
+    async def detach(self, addon):
+        """Detach *addon* from all acquisitions."""
+        await addon.detach(self.acquisitions)
 
     @property
     def acquisitions(self):
@@ -282,16 +419,12 @@ class Experiment(Parameterizable):
 
         if self.walker:
             if separate_scans:
-                self.walker.descend((await self.get_name_fmt()).format(iteration))
-            if os.path.exists(self.walker.current):
-                # We might have a dummy walker which doesn't create the directory
-                handler = logging.FileHandler(os.path.join(self.walker.current,
-                                                           'experiment.log'))
-                formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s '
-                                              '- %(message)s')
-                handler.setFormatter(formatter)
+                await self.walker.descend((await self.get_name_fmt()).format(iteration))
+            if os.path.exists(await self.walker.current):
+                handler = await self.walker.get_log_handler()
                 self.log.addHandler(handler)
-                await self.log_to_json(self.walker.current)
+                exp_metadata: str = await self._prepare_metadata_str()
+                await self.walker.log_to_json(payload=exp_metadata)
         self.log.info(await self.info_table)
         for name, device in self._devices_to_log.items():
             self.log.info(f"Device {name}:")
@@ -301,10 +434,6 @@ class Experiment(Parameterizable):
         try:
             await self.prepare()
             await self.acquire()
-        except Exception as e:
-            # Something bad happened, and we can't know what, so set the state to error
-            LOG.warning(f"Error `{e}' while running experiment")
-            raise e
         finally:
             try:
                 await self.finish()
@@ -314,17 +443,22 @@ class Experiment(Parameterizable):
             finally:
                 self.ready_to_prepare_next_sample.set()
                 if separate_scans and self.walker:
-                    self.walker.ascend()
+                    await self.walker.ascend()
                 LOG.debug('Experiment iteration %d duration: %.2f s',
                           iteration, time.time() - start_time)
                 if handler:
-                    handler.close()
+                    await handler.aclose()
                     self.log.removeHandler(handler)
                 await self.set_iteration(iteration + 1)
 
 
 class AcquisitionError(Exception):
     """Acquisition-related exceptions."""
+    pass
+
+
+class ConsumerError(Exception):
+    """Consumer-related exceptions."""
     pass
 
 
