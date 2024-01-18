@@ -1,4 +1,8 @@
-"""Storage implementations."""
+"""
+storage.py
+----------
+Storage implementations.
+"""
 from __future__ import annotations
 import asyncio
 import os
@@ -351,7 +355,8 @@ class DirectoryWalker(Walker):
                         writer: Type[TiffWriter] = TiffWriter,
                         start_index: int = 0,
                         bytes_per_file: int = 0,
-                        rights: str = "750") -> None:
+                        rights: str = "750",
+                        log_name: str = "experiment.log") -> None:
         """
         Use *writer* to write data to files with filenames with a template
         from *dsetname*. *start_index* specifies the number in the first file
@@ -366,7 +371,7 @@ class DirectoryWalker(Walker):
         self.writer = writer
         self._bytes_per_file = bytes_per_file
         self._start_index = start_index
-        await super().__ainit__(root, dsetname)
+        await super().__ainit__(root, dsetname, log_name=log_name)
 
     async def _descend(self, name: str) -> None:
         new = os.path.join(self._current, name)
@@ -414,7 +419,7 @@ class DirectoryWalker(Walker):
         return os.path.exists(os.path.join(await self.current, *paths))
 
     async def get_log_handler(self) -> AsyncLoggingHandlerCloser:
-        return LoggingHandler(f"{await self.current}/{self._log_name}")
+        return LoggingHandler(os.path.join(await self.current, self._log_name))
 
     async def log_to_json(self, payload: str) -> None:
         """
@@ -449,7 +454,8 @@ class RemoteDirectoryWalker(Walker):
                         dsetname: str = "frame_{:>06}.tif",
                         wrt_cls: str = "TiffWriter",
                         start_index: int = 0,
-                        bytes_per_file: int = 0) -> None:
+                        bytes_per_file: int = 0,
+                        log_name: str = "experiment.log") -> None:
         """
         Initializes a remote directory walker. This walker implementation
         encapsulates a Tango device server and delegates its core utilities
@@ -489,7 +495,7 @@ class RemoteDirectoryWalker(Walker):
         await self.device.write_attribute(attr_name="start_index",
                                           value=start_index)
         await self.device.write_attribute(attr_name="bytes_per_file", value=bytes_per_file)
-        await super().__ainit__(root=self._root, dsetname=dsetname)
+        await super().__ainit__(root=self._root, dsetname=dsetname, log_name=log_name)
 
     async def _descend(self, name: str) -> None:
         await self.device.descend(name)
@@ -547,7 +553,7 @@ class RemoteDirectoryWalker(Walker):
         Provides a logging handler for the current path, capable to facilitate
         logging at a remote host.
         """
-        await self.device.open_log_handler()
+        await self.device.open_log_handler(self._log_name)
         return RemoteLoggingHandler(device=self.device)
 
     async def log_to_json(self, payload: str) -> None:
