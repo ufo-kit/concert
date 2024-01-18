@@ -67,6 +67,7 @@ class TangoRemoteWalker(TangoRemoteProcessing):
 
     _writer: Type[writers.TiffWriter]
     _logger: logging.Logger
+    _log_handler: logging.FileHandler
 
     @staticmethod
     def _create_dir(directory: str, mode: int = 0o0750) -> None:
@@ -184,6 +185,18 @@ class TangoRemoteWalker(TangoRemoteProcessing):
             pt.size = total_bytes * q.B
 
     @DebugIt()
+    @command()
+    async def open_log_handler(self) -> None:
+        self._log_handler = logging.FileHandler(os.path.join(self._current, "experiment.log"))
+        self._logger.addHandler(self._log_handler)
+
+    @DebugIt()
+    @command()
+    async def close_log_handler(self) -> None:
+        self._logger.removeHandler(self._log_handler)
+        self._log_handler.close()
+
+    @DebugIt()
     @command(
         dtype_in=CmdArgType.DevVarStringArray,
         doc_in="payload for logging. In this implementation payload is a two \
@@ -191,11 +204,7 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         the second element is the content to log"
     )
     async def log(self, payload: List[str]) -> None:
-        hdl = logging.FileHandler(os.path.join(self._current, "experiment.log"))
-        self._logger.addHandler(hdl)
         self._logger.log(int(payload[0]), payload[1])
-        hdl.close()
-        self._logger.removeHandler(hdl)
         self.info_stream("%s logged to file - %s",
                          self.__class__.__name__, self.get_state())
 

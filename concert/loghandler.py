@@ -109,6 +109,7 @@ class RemoteLoggingHandler(logging.Handler):
 
     async def aclose(self) -> None:
         await self.aflush()
+        await self._device.close_log_handler()
         super().close()
 
 
