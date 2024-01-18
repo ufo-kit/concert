@@ -4,22 +4,23 @@ import asyncio
 import os
 import logging
 import re
-from typing import Optional, AsyncIterable, Awaitable, Type, Iterable, Any, Set
-from logging import FileHandler, Formatter
+from typing import Optional, AsyncIterable, Awaitable, Type, Iterable, Set
 import tifffile
 from concert.base import AsyncObject
 from concert.coroutines.base import background
 from concert.writers import TiffWriter
 from concert.typing import RemoteDirectoryWalkerTangoDevice
 from concert.typing import ArrayLike
-from concert.handler import AsyncHandlerCloser, RemoteHandler, NoOpHandler
+from concert.loghandler import AsyncLoggingHandlerCloser, NoOpLoggingHandler
+from concert.loghandler import LoggingHandler, RemoteLoggingHandler
 
 
 LOG = logging.getLogger(__name__)
 
+
 def split_dsetformat(dsetname):
     """
-    Strip *dsetname* off the formatting part wihch leaves us with the data 
+    Strip *dsetname* off the formatting part wihch leaves us with the data
     set name.
 
     :param dsetname: dataset name
@@ -161,16 +162,30 @@ class Walker(AsyncObject):
 
     _root: str
     _current: str
+    _log_name: str
     _lock: asyncio.Lock
     dsetname: str
 
-    async def __ainit__(self, root: str, dsetname: str = "frames") -> None:
-        """Constructor. *root* is the topmost level of the data structure."""
+    async def __ainit__(self,
+                        root: str,
+                        dsetname: str = "frames",
+                        log_name: str = "experiment.log") -> None:
+        """
+        Constructor. *root* is the topmost level of the data structure
+
+        :param root: topmost level of the data structure
+        :type root: str
+        :param dsetname: dataset name
+        :type dsetname: str
+        :param log_name: default log file name
+        :type log_name: str
+        """
         self._root = root
+        self._log_name = log_name
         self._lock = asyncio.Lock()
         self.dsetname = dsetname
         await self.home()
-        
+
     async def __aenter__(self) -> Walker:
         await self._lock.acquire()
         return self
@@ -187,8 +202,8 @@ class Walker(AsyncObject):
         raise NotImplementedError
 
     def _create_writer(self,
-                             producer: AsyncIterable[ArrayLike],
-                             dsetname: Optional[str] = None) -> Awaitable:
+                       producer: AsyncIterable[ArrayLike],
+                       dsetname: Optional[str] = None) -> Awaitable:
         """
         Subclass should provide the implementation for, how the writer should
         be created for asynchronously received data"""
@@ -257,10 +272,11 @@ class Walker(AsyncObject):
         """
         return await self._create_writer(producer, dsetname=dsetname)
 
-    async def get_log_handler(self) -> AsyncHandlerCloser:
-        """Provides a log handler featuring an asynchronous closing routine"""
+    async def get_log_handler(self) -> AsyncLoggingHandlerCloser:
+        """Provides a log handler featuring an asynchronous flush and closure
+        utility"""
         raise NotImplementedError
-    
+
     @background
     async def log_to_json(self, payload: str) -> None:
         """
@@ -302,8 +318,8 @@ class DummyWalker(Walker):
             self._current = os.path.dirname(self._current)
 
     def _create_writer(self,
-                             producer: AsyncIterable[ArrayLike],
-                             dsetname: Optional[str] = None) -> Awaitable:
+                       producer: AsyncIterable[ArrayLike],
+                       dsetname: Optional[str] = None) -> Awaitable:
         dsetname = dsetname or self.dsetname
         path = os.path.join(self._current, dsetname)
 
@@ -314,9 +330,9 @@ class DummyWalker(Walker):
                 i += 1
         return _append_paths()
 
-    async def get_log_handler(self) -> AsyncHandlerCloser:
-        """Provides a log handler featuring an asynchronous closing routine"""
-        return NoOpHandler()
+    async def get_log_handler(self) -> AsyncLoggingHandlerCloser:
+        """Provides a no-op logging handler as a placeholder"""
+        return NoOpLoggingHandler()
 
 
 class DirectoryWalker(Walker):
@@ -327,19 +343,15 @@ class DirectoryWalker(Walker):
 
     _bytes_per_file: int
     _start_index: int
-    _log: Optional[logging.Logger]
-    _log_handler: Optional[logging.FileHandler]
     writer: Type[TiffWriter]
 
     async def __ainit__(self,
-                  root: Optional[str] = None,
-                  dsetname: str = "frame_{:>06}.tif",
-                  writer: Type[TiffWriter] = TiffWriter,
-                  start_index: int = 0,
-                  bytes_per_file: int = 0,
-                  log: Optional[logging.Logger] = None,
-                  log_name: str = "experiment.log",
-                  rights: str = "750") -> None:
+                        root: Optional[str] = None,
+                        dsetname: str = "frame_{:>06}.tif",
+                        writer: Type[TiffWriter] = TiffWriter,
+                        start_index: int = 0,
+                        bytes_per_file: int = 0,
+                        rights: str = "750") -> None:
         """
         Use *writer* to write data to files with filenames with a template
         from *dsetname*. *start_index* specifies the number in the first file
@@ -354,25 +366,7 @@ class DirectoryWalker(Walker):
         self.writer = writer
         self._bytes_per_file = bytes_per_file
         self._start_index = start_index
-        # Handling optional logging
-        if log:
-            self._log = log
-            log_path = os.path.join(root, log_name)
-            log_handler = FileHandler(log_path)
-            self._log_handler = log_handler
-            self._log_handler.setLevel(logging.INFO)
-            formatter = Formatter(
-                    "[%(asctime)s] %(levelname)s: %(name)s: %(message)s")
-            self._log_handler.setFormatter(formatter)
-            self._log.addHandler(self._log_handler)
         await super().__ainit__(root, dsetname)
-
-    def __del__(self) -> None:
-        """Cleans up logging-related references"""
-        # TODO: Need to find out better cleanup strategy
-        if hasattr(self, "_log") and hasattr(self, "_log_handler"): 
-            self._log_handler.close()
-            self._log.removeHandler(self._log_handler)
 
     async def _descend(self, name: str) -> None:
         new = os.path.join(self._current, name)
@@ -383,14 +377,14 @@ class DirectoryWalker(Walker):
         if self._current == self._root:
             raise StorageError("Cannot break out of `{}'.".format(self._root))
         self._current = os.path.dirname(self._current)
-    
+
     async def _get_current(self) -> str:
         """Provides current from local context"""
         return self._current
 
     def _create_writer(self,
-                             producer: AsyncIterable[ArrayLike],
-                             dsetname: Optional[str] = None) -> Awaitable:
+                       producer: AsyncIterable[ArrayLike],
+                       dsetname: Optional[str] = None) -> Awaitable:
         dsetname = dsetname or self.dsetname
         if self._dset_exists(dsetname):
             dset_prefix = split_dsetformat(dsetname)
@@ -419,8 +413,8 @@ class DirectoryWalker(Walker):
         """Check if *paths* exist."""
         return os.path.exists(os.path.join(await self.current, *paths))
 
-    async def get_log_handler(self) -> AsyncHandlerCloser:
-        return NoOpHandler()
+    async def get_log_handler(self) -> AsyncLoggingHandlerCloser:
+        return LoggingHandler(f"{await self.current}/{self._log_name}")
 
     async def log_to_json(self, payload: str) -> None:
         """
@@ -446,8 +440,7 @@ class RemoteDirectoryWalker(Walker):
     Encapsulates a Tango device which runs on the remote file system where the
     data needs to be written.
     """
-    
-    _log_name: str
+
     device: RemoteDirectoryWalkerTangoDevice
 
     async def __ainit__(self,
@@ -456,20 +449,19 @@ class RemoteDirectoryWalker(Walker):
                         dsetname: str = "frame_{:>06}.tif",
                         wrt_cls: str = "TiffWriter",
                         start_index: int = 0,
-                        bytes_per_file: int = 0,
-                        log_name: str = "experiment.log") -> None:
+                        bytes_per_file: int = 0) -> None:
         """
         Initializes a remote directory walker. This walker implementation
         encapsulates a Tango device server and delegates its core utilities
         to the same.
+        :param device: an abstract tango device conforming to remote tango
+        walker specification
+        :type device: RemoteDirectoryWalkerTangoDevice
         :param root: file system root for to start traversal, if None current
         directory of the walker is used
         :type root: Optional[str]
         :param dsetname: template for writing files of the dataset
         :type dsetname: str
-        :param device: an abstract tango device conforming to remote tango
-        walker specification
-        :type device: RemoteDirectoryWalkerTangoDevice
         :param wrt_cls: specific writer class which the device should use
         to write files
         :type wrt_cls: str
@@ -478,11 +470,7 @@ class RemoteDirectoryWalker(Walker):
         :param bytes_per_file: size limit for a file, `0` denotes 1 file per
         image
         :type bytes_per_file: int
-            :param log_name: name of the log file to create, defaults to
-        `experiment.log`
-        :type log_name: str
         """
-        self._log_name = log_name
         self.device = device
         LOG.debug("device attributes: %s", self.device.get_attribute_list())
         # The 'root' is either explicitly specified or initialized using the
@@ -500,13 +488,12 @@ class RemoteDirectoryWalker(Walker):
         await self.device.write_attribute(attr_name="dsetname", value=dsetname)
         await self.device.write_attribute(attr_name="start_index",
                                           value=start_index)
-        await self.device.write_attribute(
-                attr_name="bytes_per_file", value=bytes_per_file)
+        await self.device.write_attribute(attr_name="bytes_per_file", value=bytes_per_file)
         await super().__ainit__(root=self._root, dsetname=dsetname)
 
     async def _descend(self, name: str) -> None:
         await self.device.descend(name)
-        
+
     async def _ascend(self) -> None:
         if self._root == (await self.device["current"]).value:
             raise StorageError(f"cannot break out of {self._root}.")
@@ -519,8 +506,7 @@ class RemoteDirectoryWalker(Walker):
     async def home(self) -> None:
         """Return to root remotely and inside its own context (which is
         implemented in the super class)"""
-        await self.device.write_attribute(
-                attr_name="current", value=self._root)
+        await self.device.write_attribute(attr_name="current", value=self._root)
         await super().home()
 
     async def exists(self, *paths: str) -> bool:
@@ -544,8 +530,7 @@ class RemoteDirectoryWalker(Walker):
         corresponding device server uses the DirectoryWalker class to create
         the writer for incoming data.
         """
-        raise NotImplementedError(
-                "delegates writing utility to remote tango server")
+        raise NotImplementedError("delegates writing utility to remote tango server")
 
     @background
     async def write_sequence(self, name: Optional[str] = "") -> None:
@@ -557,14 +542,12 @@ class RemoteDirectoryWalker(Walker):
         """
         await self.device.write_sequence(name)
 
-    async def get_log_handler(self) -> AsyncHandlerCloser:
+    async def get_log_handler(self) -> AsyncLoggingHandlerCloser:
         """
         Provides a logging handler for the current path, capable to facilitate
-        logging at a remote host. 
+        logging at a remote host.
         """
-        await self.device.open_log_file(
-                f"{await self.current}/{self._log_name}")
-        return RemoteHandler(device=self.device)
+        return RemoteLoggingHandler(device=self.device)
 
     async def log_to_json(self, payload: str) -> None:
         """Implements api layer for writing experiment metadata"""
@@ -578,4 +561,3 @@ class StorageError(Exception):
 
 if __name__ == "__main__":
     pass
-

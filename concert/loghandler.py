@@ -1,8 +1,7 @@
 """
-handler.py
-----------
-Defines a remote logging handler which should facilitate logging at the remote
-host at a specified location.
+loghandler.py
+-------------
+Encapsulates the log handling utilities for the walker APIs.
 """
 import logging
 import asyncio
@@ -10,29 +9,61 @@ from typing import List, Protocol
 from concert.typing import RemoteDirectoryWalkerTangoDevice
 from concert.coroutines.base import get_event_loop
 
+LOG = logging.getLogger(__name__)
 
+
+#############
+# Protocols #
 ##############################################################################
-class AsyncHandlerCloser(Protocol):
+class AsyncLoggingHandlerCloser(Protocol):
     """Abstarct logging handler, which can be closed asynchronously"""
+
+    async def aflush(self) -> None:
+        """Defines an asynchronous flushing routine for log entries"""
+        ...
 
     async def aclose(self) -> None:
         """Defines an asynchronous closing routine for logging handler"""
         ...
 ##############################################################################
 
-class NoOpHandler:
-    """Defines place holder handler closer which can be used for dummy
-    implementations"""
+
+class NoOpLoggingHandler:
+    """Defines placeholder handler closer which can be used for dummy
+    implementation."""
+
+    async def aflush(self) -> None:
+        """Defines a no-op asynchronous flush method"""
+        ...
 
     async def aclose(self) -> None:
-        """Defines a no-op close method"""
+        """Defines a no-op asynchronous close method"""
         ...
 
 
-class RemoteHandler(logging.Handler):
+class LoggingHandler(logging.FileHandler):
+    """Facilitates the logging utility for local directory traversal by
+    extending builtin logging.Handler object."""
+
+    def __init__(
+            self,
+            *args,
+            fmt: str = "[%(asctime)s] %(levelname)s: %(name)s: %(message)s") -> None:
+        super().__init__(*args)
+        self.setFormatter(logging.Formatter(fmt))
+
+    async def aflush(self) -> None:
+        super().flush()
+
+    async def aclose(self) -> None:
+        super().close()
+
+
+class RemoteLoggingHandler(logging.Handler):
     """
-    Facilitates a custom handler for remote logging by extending the
-    logger.Handler api and encapsulating a Tango device.
+    Facilitates logging to file at a remote server in the network by extending
+    the builtin logging.Handler object and encapsulating a Tango device server
+    running in the background.
     """
 
     _device: RemoteDirectoryWalkerTangoDevice
@@ -42,8 +73,7 @@ class RemoteHandler(logging.Handler):
     def __init__(
             self,
             device: RemoteDirectoryWalkerTangoDevice,
-            fmt: str = "[%(asctime)s] %(levelname)s: %(name)s: %(message)s"
-            ) -> None:
+            fmt: str = "[%(asctime)s] %(levelname)s: %(name)s: %(message)s") -> None:
         """
         Instantiates a remote handler for logging in remote host.
 
@@ -67,22 +97,20 @@ class RemoteHandler(logging.Handler):
         """
         if self._loop:
             self._tasks.append(
-                asyncio.ensure_future(self._device.log(self.format(record)),
-                                      loop=self._loop)
-            )
+                asyncio.ensure_future(self._device.log([str(record.levelno),
+                                                       self.format(record)]),
+                                      loop=self._loop))
         else:
             raise RuntimeError("event loop unavailable")
 
-    async def aclose(self) -> None:
-        """
-        Defines an asynchronous routine to execute the collected tasks and
-        clean up the resources.
-        """
+    async def aflush(self) -> None:
         await asyncio.gather(*self._tasks)
-        await self._device.close_log_file()
+        super().flush()
+
+    async def aclose(self) -> None:
+        await self.aflush()
         super().close()
 
 
 if __name__ == "__main__":
     pass
-
