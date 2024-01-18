@@ -550,6 +550,7 @@ class RemoteDirectoryWalker(Walker):
         Provides a logging handler for the current path, capable to facilitate
         logging at a remote host.
         """
+        await self.device.open_log_handler()
         return RemoteLoggingHandler(device=self.device)
 
     async def log_to_json(self, payload: str) -> None:
