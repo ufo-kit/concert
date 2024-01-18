@@ -56,7 +56,7 @@ class TangoWriter(TangoRemoteProcessing):
     @DebugIt(show_args=True)
     @command(dtype_in=str)
     async def write_sequence(self, path):
-        walker = DirectoryWalker(
+        walker = await DirectoryWalker(
             writer=getattr(concert.writers, self._writer_class),
             dsetname=self._dsetname,
             bytes_per_file=self._bytes_per_file,

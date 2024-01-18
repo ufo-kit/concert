@@ -1,7 +1,7 @@
 from concert.session.utils import setup_logging, SubCommand
 
 
-SERVER_NAMES = ['benchmarker', 'dummycamera', 'filecamera', 'reco', 'writer']
+SERVER_NAMES = ['benchmarker', 'dummycamera', 'filecamera', 'reco', 'writer', 'walker']
 
 
 class TangoCommand(SubCommand):
@@ -47,6 +47,9 @@ class TangoCommand(SubCommand):
         if server == "writer":
             from concert.ext.tangoservers import writer
             server_class = {'class': writer.TangoWriter}
+        if server == "walker":
+            from concert.ext.tangoservers import walker
+            server_class = {'class': walker.TangoRemoteWalker}
 
         setup_logging(server, to_stream=True, filename=logfile, loglevel=loglevel)
 

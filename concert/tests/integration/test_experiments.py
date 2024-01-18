@@ -20,7 +20,7 @@ from concert.experiments.addons.local import (Accumulator as LocalAccumulator,
                                               ImageWriter as LocalImageWriter)
 from concert.devices.cameras.dummy import Camera
 from concert.tests import TestCase, suppressed_logging, assert_almost_equal
-from concert.storage import DummyWalker, DirectoryWalker
+from concert.storage import DirectoryWalker, DummyWalker
 
 
 class VisitChecker(object):
@@ -135,7 +135,7 @@ class TestExperimentBase(TestCase):
         await super(TestExperimentBase, self).asyncSetUp()
         self.acquired = 0
         self.root = ''
-        self.walker = DummyWalker(root=self.root)
+        self.walker = await DummyWalker(root=self.root)
         self.name_fmt = 'scan_{:>04}'
         self.visited = 0
         self.foo = await Acquisition("foo", int, self.produce, acquire=self.acquire)
@@ -174,7 +174,7 @@ class TestExperiment(TestExperimentBase):
         self.assertEqual(self.visited, 2 * len(self.experiment.acquisitions))
 
         truth = set([op.join(self.root, self.name_fmt.format(i)) for i in range(2)])
-        self.assertEqual(truth, self.walker.paths)
+        self.assertEqual(truth, await self.walker.paths)
 
         # Consumers must be called
         self.assertTrue(self.item is not None)
@@ -220,7 +220,7 @@ class TestExperiment(TestExperimentBase):
     async def test_image_writing(self):
         data_dir = tempfile.mkdtemp()
         try:
-            walker = DirectoryWalker(root=data_dir, bytes_per_file=0)
+            walker = await DirectoryWalker(root=data_dir, bytes_per_file=0)
             writer = await LocalImageWriter(walker, acquisitions=self.acquisitions)
             await self.experiment.run()
 
@@ -229,8 +229,8 @@ class TestExperiment(TestExperimentBase):
                 foo = op.join(data_dir, 'foo', walker.dsetname.format(i))
                 bar = op.join(data_dir, 'bar', walker.dsetname.format(i))
 
-                self.assertTrue(walker.exists(foo))
-                self.assertTrue(walker.exists(bar))
+                self.assertTrue(await walker.exists(foo))
+                self.assertTrue(await walker.exists(bar))
         finally:
             shutil.rmtree(data_dir)
 
@@ -268,10 +268,10 @@ class TestExperimentStates(TestCase):
     def tearDown(self):
         shutil.rmtree(self.data_dir)
 
-    def setUp(self):
-        super(TestExperimentStates, self).setUp()
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
         self.data_dir = tempfile.mkdtemp()
-        self.walker = DirectoryWalker(root=self.data_dir)
+        self.walker = await DirectoryWalker(root=self.data_dir)
 
     async def test_experiment_state_normal(self):
         exp = await ExperimentSimple(self.walker)

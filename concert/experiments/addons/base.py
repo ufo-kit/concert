@@ -129,13 +129,13 @@ class ImageWriter(Addon):
                 # Make sure the directory exists
                 async with self.walker:
                     try:
-                        self.walker.descend(acquisition.name)
+                        await self.walker.descend(acquisition.name)
                         # Even though acquisition name is fixed, we don't know where in the file
                         # system we are, so this must be determined dynamically when the writing
                         # is about to start
-                        path = self.walker.current
+                        path = await self.walker.current
                     finally:
-                        self.walker.ascend()
+                        await self.walker.ascend()
 
                 await self.write_sequence(path, producer=None if self.remote else args[0])
 
@@ -146,7 +146,7 @@ class ImageWriter(Addon):
 
         return consumers
 
-    async def _write_sequence(self, path, producer=None):
+    async def write_sequence(self, path, producer=None):
         raise NotImplementedError
 
 

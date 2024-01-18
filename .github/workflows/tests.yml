@@ -4,7 +4,7 @@ on:
   push:
     branches: [ master ]
   pull_request:
-    branches: [ master ]
+    branches: [ master, decentralize]
 
 permissions:
   contents: read
@@ -34,9 +34,14 @@ jobs:
     - name: Test with pytest
       run: |
         coverage run --source=concert -m pytest -m "not skip_ci"
+    - name: Convert coverage to xml
+      if: matrix.python-version == '3.8'
+      run: |
+        coverage xml --omit="concert/tests/util/_package/_module.py"
     - name: Upload coverage to Codecov
       if: matrix.python-version == 3.8
       uses: codecov/codecov-action@v2
       with:
         fail_ci_if_error: true
+        files: ./coverage.xml
         verbose: true
