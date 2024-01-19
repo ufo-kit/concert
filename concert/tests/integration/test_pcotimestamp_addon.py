@@ -96,7 +96,7 @@ class TestPCOTimestampAddon(TestCase):
                                      num_projections=10,
                                      num_flats=5,
                                      num_darks=5)
-        self.addon = PCOTimestampCheck(self.exp)
+        self.addon = PCOTimestampCheck(self.exp.acquisitions, raise_exception=True)
         self.writer = ImageWriter(self.exp.acquisitions, self.walker)
 
     def tearDown(self) -> None:
@@ -134,13 +134,10 @@ class TestPCOTimestampAddon(TestCase):
         """
         await self.camera.set_random_timestamp_numbers(False)
         await self.exp.run()
-        self.assertFalse(self.addon.timestamp_incorrect)
 
         await self.camera.set_random_timestamp_numbers(True)
         with self.assertRaises(PCOTimestampCheckError):
             await self.exp.run()
-
-        self.assertTrue(self.addon.timestamp_incorrect)
 
     async def test_addon_without_camera_convert(self):
         """
