@@ -383,6 +383,8 @@ class PCOTimestampCheck(Addon):
 
     async def _check_timestamp(self, producer):
         i = 0
+        reported = False
+
         async for img in producer:
             if not isinstance(img, ImageWithMetadata) or (
                     isinstance(img, ImageWithMetadata) and 'frame_number' not in img.metadata):
@@ -394,7 +396,9 @@ class PCOTimestampCheck(Addon):
                     raise PCOTimestampCheckError("Not all images contained timestamps.")
                 return
             if img.metadata['frame_number'] != i + 1:
-                LOG.error(f"Frame {i + 1} had wrong frame number {img.metadata['frame_number']}.")
+                if not reported:
+                    LOG.error(f"Frame {i + 1} had wrong frame number {img.metadata['frame_number']}.")
+                    reported = True
                 if self.raise_exception:
                     raise PCOTimestampCheckError("Not all 'frame_numbers' where correct.")
             i += 1
