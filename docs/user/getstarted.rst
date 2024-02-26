@@ -212,7 +212,8 @@ features. You can download the scan_ example or just copy this::
         """Our feedback just returns image mean."""
         # Let's pretend this is a serious operation which takes a while
         await asyncio.sleep(1)
-        image = await camera.grab()
+        async with camera.recording():
+            image = await camera.grab()
         # Also show the current image
         await viewer.show(image)
 
@@ -228,7 +229,7 @@ features. You can download the scan_ example or just copy this::
 
     viewer = await PyQtGraphViewer()
     # The last image will be quite bright
-    viewer.limits = 0, 10000
+    await viewer.set_limits((0, 10000))
     # Plot image mean
     line = await PyplotViewer(style='-o')
     # Dummy camera
