@@ -10,6 +10,8 @@ from concert.base import AsyncObject
 from concert.coroutines.base import async_generate
 from concert.coroutines.sinks import Accumulate
 from concert.experiments.imaging import GratingInterferometryStepping
+from scipy.optimize import curve_fit
+
 
 LOG = logging.getLogger(__name__)
 
@@ -229,9 +231,11 @@ class PhaseGratingSteppingFourierProcessing(Addon):
         self.object_intensity = None
         self.object_phase = None
         self.object_visibility = None
+        self.object_period = None
         self.reference_intensity = None
         self.reference_phase = None
         self.reference_visibility = None
+        self.reference_period = None
         self.intensity = None
         self.diff_phase = None
         self.visibility_contrast = None
@@ -292,20 +296,23 @@ class PhaseGratingSteppingFourierProcessing(Addon):
         :param name: Name of the stepping. If set to 'object' or 'reference', the resulting data is
             stored in the corresponding class variables.
         """
-        intensity, phase, visibility = await self._process_data(stepping,
-                                                                dark_image)
+        intensity, phase, visibility, period = await self._process_data(stepping,
+                                                                        dark_image)
         if name == "object":
             self.object_intensity = intensity
             self.object_phase = phase
             self.object_visibility = visibility
+            self.object_period = period
         elif name == "reference":
             self.reference_intensity = intensity
             self.reference_phase = phase
             self.reference_visibility = visibility
+            self.reference_period = period
 
         await self._write_single_image(f"{name}_intensity.tif", intensity)
         await self._write_single_image(f"{name}_phase.tif", phase)
         await self._write_single_image(f"{name}_visibility.tif", visibility)
+        await self._write_single_image(f"{name}_period.tif", period)
 
     async def _compare_and_write(self):
         """
@@ -354,7 +361,7 @@ class PhaseGratingSteppingFourierProcessing(Addon):
             phase = np.angle(fft_object[:, :, 1])
             visibility = (2. * np.absolute(fft_object[:, :, 1])) / np.real(fft_object[:, :, 0])
             intensity = np.abs(np.real(fft_object[:, :, 0]))
-        return intensity, phase, visibility
+        return intensity, phase, visibility, np.ones_like(intensity)
 
     async def _write_single_image(self, name, image):
         async with self._experiment.walker:
@@ -362,6 +369,52 @@ class PhaseGratingSteppingFourierProcessing(Addon):
 
         im_writer = self._experiment.walker.writer(file_name, bytes_per_file=0)
         im_writer.write(image)
+
+
+class PhaseGratingSteppingSinFit(PhaseGratingSteppingFourierProcessing):
+    async def _process_data(self, stepping, dark):
+        stepping_curve = np.zeros(
+            (
+                stepping[0].shape[0],
+                stepping[0].shape[1],
+                len(stepping)
+            ),
+            dtype=np.float32
+        )
+        for i, step in enumerate(stepping):
+            if dark is not None:
+                stepping_curve[:, :, i] = step - dark
+            else:
+                stepping_curve[:, :, i] = step
+
+        def cos_fit(x, a, b, c, d):
+            return a * np.cos(b * x + c) + d
+        x_data = np.arange(
+            start=0,
+            stop=await self._experiment.get_num_periods() * 2 * np.pi,
+            step=2 * np.pi / await self._experiment.get_num_steps_per_period()
+        )
+
+        def fit(y_measured):
+            try:
+                popt, pcov = curve_fit(
+                    cos_fit,
+                    x_data,
+                    y_measured,
+                    p0=[np.abs(0.1 * np.mean(y_measured)), 1, 1e-9, np.abs(np.mean(y_measured))],
+                    bounds=[0, np.inf]
+                )
+            except ValueError:
+                popt = [-1, -1, -1, -1]
+            return popt
+
+        fit_values = np.apply_along_axis(fit, 2, stepping_curve)
+        return (
+            fit_values[:, :, 3],
+            fit_values[:, :, 2],
+            fit_values[:, :, 0] / fit_values[:, :, 3],
+            fit_values[:, :, 1]
+        )
 
 
 class PCOTimestampCheck(Addon):
