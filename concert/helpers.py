@@ -8,6 +8,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 from pint.errors import DimensionalityError
+from concert.quantities import q
 
 import numpy as np
 
@@ -237,6 +238,13 @@ def is_iterable(item):
         return False
 
 
+def apply_unit_to_array(array: np.array, unit: q.Quantity) -> np.array:
+    converted_array = array.as_type(q.Quantity)
+    for i, val in enumerate(array):
+        converted_array[i] = val * unit
+    return converted_array
+
+
 def arange(start, stop, step):
     """
     This function wraps numpy.arange but strips the units before and adds the unit later at the
@@ -261,7 +269,7 @@ def arange(start, stop, step):
         raise Exception("start, stop and step units are not convertable into each other.")
     except Exception as e:
         raise e
-    return np.arange(start=start, stop=stop, step=step) * unit
+    return apply_unit_to_array(np.arange(start=start, stop=stop, step=step), unit)
 
 
 def linspace(start, stop, num, endpoint=True):
@@ -290,7 +298,7 @@ def linspace(start, stop, num, endpoint=True):
         raise Exception("start and stop units are not convertable into each other.")
     except Exception as e:
         raise e
-    return np.linspace(start, stop, num, endpoint=endpoint) * unit
+    return apply_unit_to_array(np.linspace(start, stop, num, endpoint=endpoint), unit)
 
 
 async def get_state_from_awaitable(awaitable) -> str:
