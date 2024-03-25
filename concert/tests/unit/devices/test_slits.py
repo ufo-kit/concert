@@ -5,6 +5,14 @@ from concert.tests import TestCase
 from concert.quantities import q
 
 
+async def wait_for_state(device, state, state_name='state',  timeout=1.0*q.s):
+    start = asyncio.get_event_loop().time()
+    while await device[state_name].get() != state:
+        await asyncio.sleep(0.001)
+        if asyncio.get_event_loop().time() - start > timeout.to(q.s).magnitude:
+            raise TimeoutError()
+
+
 class TestBladeSlits(TestCase):
 
     async def asyncSetUp(self):
@@ -61,25 +69,25 @@ class TestBladeSlits(TestCase):
         self.assertEqual('standby', await self.slits.get_horizontal_state())
 
         f = self.slits.set_top(0.1 * q.mm)
-        await asyncio.sleep(0.01)
+        await wait_for_state(self.slits, 'moving', 'vertical_state')
         self.assertEqual('moving', await self.slits.get_vertical_state())
         self.assertEqual('standby', await self.slits.get_horizontal_state())
         await f
 
         f = self.slits.set_bottom(0.1 * q.mm)
-        await asyncio.sleep(0.01)
+        await wait_for_state(self.slits, 'moving', 'vertical_state')
         self.assertEqual('moving', await self.slits.get_vertical_state())
         self.assertEqual('standby', await self.slits.get_horizontal_state())
         await f
 
         f = self.slits.set_left(0.1 * q.mm)
-        await asyncio.sleep(0.01)
+        await wait_for_state(self.slits, 'moving', 'horizontal_state')
         self.assertEqual('moving', await self.slits.get_horizontal_state())
         self.assertEqual('standby', await self.slits.get_vertical_state())
         await f
 
         f = self.slits.set_right(0.1 * q.mm)
-        await asyncio.sleep(0.01)
+        await wait_for_state(self.slits, 'moving', 'horizontal_state')
         self.assertEqual('moving', await self.slits.get_horizontal_state())
         self.assertEqual('standby', await self.slits.get_vertical_state())
         await f
