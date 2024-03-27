@@ -3,6 +3,9 @@ Test experiments. Logging is disabled, so just check the directory and log
 files creation.
 """
 import asyncio
+import json
+import os
+
 import numpy as np
 import os.path as op
 import tempfile
@@ -17,6 +20,8 @@ from concert.experiments.addons import Addon, Consumer, ImageWriter, Accumulator
 from concert.devices.cameras.dummy import Camera
 from concert.tests import TestCase, suppressed_logging, assert_almost_equal
 from concert.storage import DummyWalker, DirectoryWalker
+from concert.experiments.dummy import ImagingExperiment
+from concert.devices.motors.dummy import LinearMotor
 
 
 class VisitChecker(object):
@@ -281,3 +286,62 @@ class TestExperimentStates(TestCase):
         with self.assertRaises(Exception):
             await exp.run()
         self.assertEqual(await exp.get_state(), "error")
+
+
+class MotorException(Exception):
+    pass
+
+
+class BrokenMotor(LinearMotor):
+    async def _get_position(self):
+        raise MotorException("Broken")
+
+
+class TestExperimentDeviceLogging(TestCase):
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.data_dir = tempfile.mkdtemp()
+        self.walker = DirectoryWalker(root=self.data_dir)
+        self.experiment = await ImagingExperiment(walker=self.walker, num_flats=2, num_darks=2, num_radios=5,
+                                                  random='off')
+        self.device = await LinearMotor()
+        self.experiment.add_device_to_log('motor', self.device)
+        self.device2 = await BrokenMotor()
+        self.experiment.add_device_to_log('motor2', self.device2, optional=True)
+
+    def tearDown(self):
+        shutil.rmtree(self.data_dir)
+
+    async def test_device_logging(self):
+        device_data = {}
+        for param in self.device:
+            device_data[param.name] = str(await param.get())
+        device_data2 = {}
+        for param in self.device2:
+            try:
+                device_data2[param.name] = str(await param.get())
+            except MotorException:
+                device_data2[param.name] = 'Error: Unable to read parameter.'
+        exp_data = {}
+        for param in self.experiment:
+            exp_data[param.name] = str(await param.get())
+
+        await self.experiment.run()
+
+        with open(os.path.join(self.walker.current, 'scan_0000', 'experiment_start.json'), 'r') as f:
+            device_log_start = json.load(f)
+
+        with open(os.path.join(self.walker.current, 'scan_0000', 'experiment_start.json'), 'r') as f:
+            device_log_stop = json.load(f)
+
+        for key in device_data:
+            self.assertEqual(device_data[key], device_log_start['motor'][key])
+            self.assertEqual(device_data[key], device_log_stop['motor'][key])
+        for key in device_data2:
+            self.assertEqual(device_data2[key], device_log_start['motor2'][key])
+            self.assertEqual(device_data2[key], device_log_stop['motor2'][key])
+        for key in exp_data:
+            if key == 'state':
+                continue
+            self.assertEqual(exp_data[key], device_log_start['experiment'][key])
+            self.assertEqual(exp_data[key], device_log_stop['experiment'][key])
