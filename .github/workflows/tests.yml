@@ -38,13 +38,14 @@ jobs:
       run: |
         coverage run --source=concert -m pytest -m "not skip_ci"
     - name: Convert coverage to xml
-      if: matrix.python-version == '3.8'
+      if: matrix.python-version == '3.12'
       run: |
         coverage xml --omit="concert/tests/util/_package/_module.py"
     - name: Upload coverage to Codecov
-      if: matrix.python-version == 3.8
+      if: matrix.python-version == '3.12'
       uses: codecov/codecov-action@v2
       with:
-        fail_ci_if_error: true
+        fail_ci_if_error: false
         files: ./coverage.xml
+        token: ${{ secrets.CODECOV_TOKEN }}
         verbose: true
