@@ -97,7 +97,8 @@ def get_tango_device(uri, peer=None, timeout=10 * q.s):
     if IPython.version_info >= (8, 0):
         from IPython.core.async_helpers import get_asyncio_loop
         ipython_loop = get_asyncio_loop()
-        executor = tango.asyncio_executor.AsyncioExecutor(loop=ipython_loop)
+        from tango import asyncio_executor
+        executor = asyncio_executor.AsyncioExecutor(loop=ipython_loop)
 
     device = tango.DeviceProxy(
         uri, green_mode=tango.GreenMode.Asyncio, asyncio_executor=executor
