@@ -273,28 +273,19 @@ class RemoteMixin:
     remote = True
 
     @background
-    async def grab_many(self, num):
+    @check(source=['recording', 'readout'])
+    async def grab_send(self, num):
         async with self._grab_lock:
             try:
-                await self._grab_many_real(num)
+                await self._grab_send_real(num)
             except asyncio.CancelledError:
-                await self._stop_streaming()
+                await self._stop_sending()
                 raise
 
-    @background
-    @check(source=['recording', 'readout'])
-    async def grab(self):
-        """Grab a frame remotely, no conversion happens as opposed to local cameras."""
-        async with self._grab_lock:
-            await self._grab_real()
-
-    async def _grab_real(self):
-        await self._grab_many_real(1)
-
-    async def _grab_many_real(self, num):
+    async def _grab_send_real(self, num):
         raise NotImplementedError
 
-    async def _stop_streaming(self):
+    async def _stop_sending(self):
         """
         Stop sending images. The server must send a poison pill which serves as an end-of-stream
         indicator to consumers.
