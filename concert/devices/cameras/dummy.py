@@ -269,13 +269,13 @@ class TangoCameraBase(base.RemoteMixin):
     async def _set_roi_height(self, value):
         await self._device.write_attribute('roi_height', value.magnitude)
 
-    async def _stop_streaming(self):
+    async def _stop_sending(self):
         await self._device.grab(0)
 
     async def _cancel_streaming(self):
         await self._device.cancel_grabbing()
 
-    async def _grab_many_real(self, num):
+    async def _grab_send_real(self, num):
         await self._device.grab(num)
 
 
