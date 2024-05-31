@@ -244,7 +244,7 @@ class RemoteImagingExperiment(Experiment):
 
     async def _produce_bulk(self, num):
         async with self.camera.recording():
-            await self.camera.grab_many(num)
+            await self.camera.grab_send(num)
 
         return num
 
