@@ -3,6 +3,7 @@ import numpy as np
 from concert.coroutines.base import async_generate
 from concert.coroutines.sinks import Accumulate
 from concert.experiments.addons import base
+from concert.experiments.imaging import LocalGratingInterferometryStepping
 from concert.helpers import PerformanceTracker
 from concert.quantities import q
 from concert.storage import DirectoryWalker
@@ -144,6 +145,9 @@ class OnlineReconstruction(LocalMixin, base.OnlineReconstruction):
 
 class PhaseGratingSteppingFourierProcessing(LocalMixin, base.PhaseGratingSteppingFourierProcessing):
     async def __ainit__(self, experiment, output_directory="contrasts"):
+        if not isinstance(experiment, LocalGratingInterferometryStepping):
+            raise Exception("This addon can only be used with "
+                            "concert.experiments.imaging.GratingInterferometryStepping.")
         self._output_directory = output_directory
         self._experiment = experiment
         self._dark_image = None

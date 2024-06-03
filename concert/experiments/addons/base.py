@@ -4,7 +4,6 @@ the acquired data, e.g. write images to disk, do tomographic reconstruction etc.
 import logging
 from concert.base import AsyncObject
 from concert.experiments.base import Consumer as AcquisitionConsumer
-from concert.experiments.imaging import GratingInterferometryStepping
 
 
 LOG = logging.getLogger(__name__)
@@ -311,14 +310,11 @@ class OnlineReconstruction(Addon):
 
 class PhaseGratingSteppingFourierProcessing(Addon):
     """
-    Addon for concert.experiments.imaging.GratingInterferometryStepping to process the raw data.
-    The order of the acquisitions can be changed.
+    Addon for a grating interferometry stepping experiment to process the raw data. The order of the
+    acquisitions can be changed.
     """
 
     async def __ainit__(self, experiment, output_directory="contrasts"):
-        if not isinstance(experiment, GratingInterferometryStepping):
-            raise Exception("This addon can only be used with "
-                            "concert.experiments.imaging.GratingInterferometryStepping.")
         self._output_directory = output_directory
         self._dark_image = None
         self._reference_stepping = []
