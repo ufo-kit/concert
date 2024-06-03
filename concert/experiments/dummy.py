@@ -5,7 +5,6 @@ import os
 import numpy as np
 from concert.coroutines.base import run_in_executor
 from concert.experiments.base import Acquisition, Experiment
-from concert.devices.cameras.base import RemoteMixin
 from concert.devices.cameras.dummy import FileCamera
 from concert.progressbar import wrap_iterable
 
@@ -207,96 +206,7 @@ class ImagingFileExperiment(Experiment):
         return self._produce_images(self.radios_pattern, self.num_radios)
 
 
-class RemoteImagingExperiment(Experiment):
-
-    """
-    Uses a client camera and instead of yielding frames just tells the remote camera to send them
-    via network.
-    """
-
-    async def __ainit__(self, camera, num_darks, num_flats, num_radios, bulk=True,
-                        walker=None, separate_scans=True, name_fmt='scan_{:>04}'):
-        if not isinstance(camera, RemoteMixin):
-            raise ValueError('camera must be an instance of RemoteMixin')
-        self.camera = camera
-        self.bulk = bulk
-        self.num_darks = num_darks
-        self.num_flats = num_flats
-        self.num_radios = num_radios
-        darks = await Acquisition(
-            'darks',
-            self.camera,
-            self.take_darks_bulk if bulk else self.take_darks
-        )
-        flats = await Acquisition(
-            'flats',
-            self.camera,
-            self.take_flats_bulk if bulk else self.take_flats
-        )
-        radios = await Acquisition(
-            'radios',
-            self.camera,
-            self.take_radios_bulk if bulk else self.take_radios
-        )
-        await super().__ainit__(
-            [darks, flats, radios], walker=walker, separate_scans=separate_scans, name_fmt=name_fmt
-        )
-
-    async def _produce_bulk(self, num):
-        async with self.camera.recording():
-            await self.camera.grab_send(num)
-
-        return num
-
-    async def _produce_individually(self, num):
-        async with self.camera.recording():
-            for i in wrap_iterable(list(range(num))):
-                yield await self.camera.grab()
-
-    async def _produce_images(self, num):
-        if self.bulk:
-            return self._produce_bulk(num)
-        else:
-            return self._produce_individually(num)
-
-    async def _prepare_darks(self):
-        pass
-
-    async def _prepare_flats(self):
-        pass
-
-    async def _prepare_radios(self):
-        pass
-
-    async def take_darks_bulk(self):
-        await self._prepare_darks()
-        return await self._produce_bulk(self.num_darks)
-
-    async def take_darks(self):
-        await self._prepare_darks()
-        async for image in self._produce_individually(self.num_darks):
-            yield image
-
-    async def take_flats_bulk(self):
-        await self._prepare_flats()
-        return await self._produce_bulk(self.num_flats)
-
-    async def take_flats(self):
-        await self._prepare_flats()
-        async for image in self._produce_individually(self.num_flats):
-            yield image
-
-    async def take_radios_bulk(self):
-        await self._prepare_radios()
-        return await self._produce_bulk(self.num_radios)
-
-    async def take_radios(self):
-        await self._prepare_radios()
-        async for image in self._produce_individually(self.num_radios):
-            yield image
-
-
-class RemoteFileImagingExperiment(RemoteImagingExperiment):
+class RemoteFileImagingExperiment(Experiment):
 
     """
     Uses a client camera and instead of yielding frames just tells the remote file camera to send
@@ -304,22 +214,37 @@ class RemoteFileImagingExperiment(RemoteImagingExperiment):
     """
 
     async def __ainit__(self, camera, num_darks, num_flats, num_radios, darks_pattern='darks',
-                        flats_pattern='flats', radios_pattern='projections', bulk=True,
-                        walker=None, separate_scans=True, name_fmt='scan_{:>04}'):
-        await super().__ainit__(camera, num_darks, num_flats, num_radios, bulk=bulk,
-                                walker=walker, separate_scans=separate_scans, name_fmt=name_fmt)
+                        flats_pattern='flats', radios_pattern='projections', walker=None,
+                        separate_scans=True, name_fmt='scan_{:>04}'):
         self.darks_pattern = darks_pattern
         self.flats_pattern = flats_pattern
         self.radios_pattern = radios_pattern
+        self.num_darks = num_darks
+        self.num_flats = num_flats
+        self.num_radios = num_radios
+        self._camera = camera
+        darks = await Acquisition('darks', camera, self.take_darks)
+        flats = await Acquisition('flats', camera, self.take_flats)
+        radios = await Acquisition('radios', camera, self.take_radios)
+        await super().__ainit__(
+            [darks, flats, radios],
+            walker=walker,
+            separate_scans=separate_scans,
+            name_fmt=name_fmt
+        )
 
-    async def _prepare_type(self, pattern):
-        await self.camera.set_pattern(pattern)
+    async def _produce_frames(self, pattern, number):
+        await self._camera.set_pattern(pattern)
+        async with self._camera.recording():
+            await self._camera.grab_send(number)
 
-    async def _prepare_darks(self):
-        await self._prepare_type(self.darks_pattern)
+        return number
 
-    async def _prepare_flats(self):
-        await self._prepare_type(self.flats_pattern)
+    def take_darks(self):
+        return self._produce_frames(self.darks_pattern, self.num_darks)
 
-    async def _prepare_radios(self):
-        await self._prepare_type(self.radios_pattern)
+    def take_flats(self):
+        return self._produce_frames(self.flats_pattern, self.num_flats)
+
+    def take_radios(self):
+        return self._produce_frames(self.radios_pattern, self.num_radios)
