@@ -2,6 +2,7 @@ import asyncio
 import functools
 import inspect
 import logging
+import os
 import numpy as np
 from concert.experiments.addons import base
 from concert.quantities import q
@@ -143,7 +144,11 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
 
     @TangoMixin.cancel_remote
     async def reconstruct(self):
-        await self._device.reconstruct()
+        path = ""
+        if self.walker:
+            async with self.walker:
+                path = os.path.join(await self.walker.current, self.slice_directory)
+        await self._device.reconstruct(path)
 
     async def get_volume(self):
         volume = np.empty(await self._device.get_volume_shape(), dtype=np.float32)
