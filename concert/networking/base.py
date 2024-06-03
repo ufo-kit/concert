@@ -158,10 +158,13 @@ class ZmqBase:
     Base for sending/receiving zmq image streams.
 
     :param endpoint: endpoint in form transport://address
+    :param reliable: if True, all images will reach their destination, otherwise zmq.PUB/zmq.SUB
+    will be used and some images might be skipped
     """
 
-    def __init__(self, endpoint=None):
+    def __init__(self, endpoint=None, reliable=True):
         self._endpoint = endpoint
+        self._reliable = reliable
         self._context = zmq.asyncio.Context()
         self._socket = None
         if endpoint:
@@ -206,16 +209,18 @@ class ZmqSender(ZmqBase):
     """
     Sender of zmq image streams.
     :param endpoint: endpoint in form transport://address
+    :param reliable: if True, all images will reach their destination, otherwise zmq.PUB/zmq.SUB
+    will be used and some images might be skipped
     :param sndhwm: high send water mark
     """
 
-    def __init__(self, endpoint=None, sndhwm=None):
+    def __init__(self, endpoint=None, reliable=True, sndhwm=None):
         self._sndhwm = sndhwm
-        super().__init__(endpoint=endpoint)
+        super().__init__(endpoint=endpoint, reliable=reliable)
 
     def _setup_socket(self):
         """Create and connect a PUSH socket."""
-        self._socket = self._context.socket(zmq.PUSH)
+        self._socket = self._context.socket(zmq.PUSH if self._reliable else zmq.PUB)
         # Do not keep old images
         self._socket.setsockopt(zmq.LINGER, 0)
         if self._sndhwm:
@@ -234,6 +239,8 @@ class ZmqReceiver(ZmqBase):
     """
     Receiver of zmq image streams.
     :param endpoint: endpoint in form transport://address
+    :param reliable: if True, all images will reach their destination, otherwise zmq.PUB/zmq.SUB
+    will be used and some images might be skipped
     :param timeout: wait this many milliseconds between checking for the finished state and trying
     to get the next image
     :param topic: topic filter for image subscription, works only in combination with
@@ -242,13 +249,12 @@ class ZmqReceiver(ZmqBase):
     """
 
     def __init__(self, endpoint=None, reliable=True, rcvhwm=1, topic='', polling_timeout=100):
-        self._reliable = reliable
         self._rcvhwm = rcvhwm
         self._topic = topic
         self._poller = zmq.asyncio.Poller()
         self._polling_timeout = polling_timeout
         self._request_stop = False
-        super().__init__(endpoint=endpoint)
+        super().__init__(endpoint=endpoint, reliable=reliable)
 
     def _setup_socket(self):
         """Create and connect a PULL socket."""
