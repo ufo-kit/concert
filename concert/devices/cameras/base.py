@@ -274,18 +274,21 @@ class RemoteMixin:
 
     @background
     @check(source=['recording', 'readout'])
-    async def grab_send(self, num):
+    async def grab_send(self, num, end=True):
+        """Grab and send over a zmq socket. If *end* is True, end-of-stream indicator is sent to all
+        consumers when the desired number of images is sent.
+        """
         async with self._grab_lock:
             try:
-                await self._grab_send_real(num)
+                await self._grab_send_real(num, end=end)
             except asyncio.CancelledError:
-                await self._stop_sending()
+                await self.stop_sending()
                 raise
 
-    async def _grab_send_real(self, num):
+    async def _grab_send_real(self, num, end=True):
         raise NotImplementedError
 
-    async def _stop_sending(self):
+    async def stop_sending(self):
         """
         Stop sending images. The server must send a poison pill which serves as an end-of-stream
         indicator to consumers.
