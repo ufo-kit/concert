@@ -34,8 +34,17 @@ class TangoCamera(Device, metaclass=DeviceMeta):
         fset="set_endpoint"
     )
 
+    send_poison_pill = attribute(
+        label="send_poison_pill",
+        dtype=bool,
+        access=AttrWriteType.READ_WRITE,
+        fget="get_send_poison_pill",
+        fset="set_send_poison_pill"
+    )
+
     def __init__(self, cl, name):
         self._endpoint = None
+        self._send_poison_pill = True
         self._sender = ZmqSender()
         self._params_initialized = False
         super().__init__(cl, name)
@@ -118,6 +127,14 @@ class TangoCamera(Device, metaclass=DeviceMeta):
         self._sender.connect(endpoint)
         self._endpoint = endpoint
 
+    @DebugIt(show_ret=True)
+    async def get_send_poison_pill(self):
+        return self._send_poison_pill
+
+    @DebugIt(show_args=True)
+    async def set_send_poison_pill(self, value):
+        self._send_poison_pill = value
+
     async def _start_recording(self):
         if not self._camera:
             raise RuntimeError('Camera has not been initialized')
@@ -139,9 +156,11 @@ class TangoCamera(Device, metaclass=DeviceMeta):
 
     @command(dtype_in=int)
     async def grab(self, num):
+        send_poison_pill = self._send_poison_pill
         for i in range(num):
             if self._stop_streaming_requested:
                 # Immediately reset
+                send_poison_pill = True
                 self._stop_streaming_requested = False
                 self.debug_stream('Stop stream upon request')
                 break
@@ -156,8 +175,9 @@ class TangoCamera(Device, metaclass=DeviceMeta):
             await self._sender.send_image(np.copy(await self._camera.grab()))
             self._index += 1
 
-        self.debug_stream('Sending poisson pill')
-        await self._sender.send_image(None)
+        if send_poison_pill:
+            self.debug_stream('Sending poisson pill')
+            await self._sender.send_image(None)
 
 
 class TangoDummyCamera(TangoCamera):
