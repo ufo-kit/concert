@@ -371,6 +371,7 @@ class DirectoryWalker(Walker):
         self.writer = writer
         self._bytes_per_file = bytes_per_file
         self._start_index = start_index
+        self._rights = rights
         await super().__ainit__(root, dsetname, log_name=log_name)
 
     async def _descend(self, name: str) -> None:
