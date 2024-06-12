@@ -136,6 +136,16 @@ class OnlineReconstruction(LocalMixin, base.OnlineReconstruction):
     async def rereconstruct(self, slice_directory=None):
         await self._reconstruct(producer=None, slice_directory=slice_directory)
 
+    async def find_axis(self, region, z=0, store=False):
+        return (
+            await self._manager.find_parameters(
+                ["center-position-x"],
+                regions=[region],
+                store=store,
+                z=z
+            )
+        )[0]
+
     async def get_volume(self):
         return self._manager.volume
 

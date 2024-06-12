@@ -309,6 +309,10 @@ class OnlineReconstruction(Addon):
         """
         raise NotImplementedError
 
+    async def find_axis(self, region, z=0, store=False):
+        """Find the rotation axis in the *region* as [from, to, step] and return it."""
+        raise NotImplementedError
+
     async def get_volume(self):
         raise NotImplementedError
 

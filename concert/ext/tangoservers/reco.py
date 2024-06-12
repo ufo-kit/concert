@@ -170,6 +170,30 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     async def rereconstruct(self, slice_directory):
         await self._reconstruct(cached=True, slice_directory=slice_directory)
 
+    @DebugIt(show_args=True, show_ret=True)
+    @command(
+        dtype_in=(float,),
+        doc_in="1. region start (float), "
+               "2. region end (float), "
+               "3. region step (float), "
+               "4. z position (int), "
+               "5. store (bool) ",
+        dtype_out=float,
+        doc_out="Found rotation axis"
+    )
+    async def find_axis(self, args):
+        region = [float(args[i]) for i in range(3)]
+        z = int(args[3])
+        store = bool(args[4])
+        return (
+            await self._manager.find_parameters(
+                ["center-position-x"],
+                regions=[region],
+                z=z,
+                store=store
+            )
+        )[0]
+
     @DebugIt(show_ret=True)
     @command(dtype_out=(int,))
     def get_volume_shape(self):

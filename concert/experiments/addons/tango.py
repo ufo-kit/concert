@@ -168,6 +168,9 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
     async def rereconstruct(self, slice_directory=None):
         await self._reconstruct(cached=True, slice_directory=slice_directory)
 
+    async def find_axis(self, region, z=0, store=False):
+        return await self._device.find_axis([region[0], region[1], region[2], z, float(store)])
+
     async def get_volume(self):
         volume = np.empty(await self._device.get_volume_shape(), dtype=np.float32)
         for i in range(volume.shape[0]):
