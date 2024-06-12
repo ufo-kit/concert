@@ -303,6 +303,12 @@ class OnlineReconstruction(Addon):
     async def reconstruct(self, *args, **kwargs):
         raise NotImplementedError
 
+    async def rereconstruct(self, slice_directory=None):
+        """Rereconstruct cached projections and saved them to *slice_directory*, which is a full
+        path.
+        """
+        raise NotImplementedError
+
     async def get_volume(self):
         raise NotImplementedError
 

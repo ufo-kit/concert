@@ -110,17 +110,31 @@ class OnlineReconstruction(LocalMixin, base.OnlineReconstruction):
     async def update_flats(self, producer):
         return await self._manager.update_flats(producer)
 
-    async def reconstruct(self, producer):
-        await self._manager.backproject(producer)
+    async def _reconstruct(self, producer=None, slice_directory=None):
+        if producer is None:
+            await self._manager.backproject(async_generate(self._manager.projections))
+        else:
+            await self._manager.backproject(producer)
+
         if self.walker:
-            async with self.walker:
-                producer = async_generate(self._manager.volume)
-                writer = self.walker.create_writer(
-                    producer,
-                    name=self.slice_directory,
-                    dsetname='slice_{:>04}.tif'
-                )
-            await writer
+            if (
+                producer is not None and self.slice_directory
+                or producer is None and slice_directory
+            ):
+                async with self.walker:
+                    producer = async_generate(self._manager.volume)
+                    writer = self.walker.create_writer(
+                        producer,
+                        name=self.slice_directory if slice_directory is None else slice_directory,
+                        dsetname='slice_{:>04}.tif'
+                    )
+                await writer
+
+    async def reconstruct(self, producer):
+        await self._reconstruct(producer=producer)
+
+    async def rereconstruct(self, slice_directory=None):
+        await self._reconstruct(producer=None, slice_directory=slice_directory)
 
     async def get_volume(self):
         return self._manager.volume

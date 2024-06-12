@@ -3,6 +3,7 @@ import numpy as np
 from tango import DebugIt, CmdArgType
 from tango.server import command
 from .base import TangoRemoteProcessing
+from concert.coroutines.base import async_generate
 from concert.ext.ufo import GeneralBackprojectManager, GeneralBackprojectArgs
 from concert.quantities import q
 from concert.networking.base import get_tango_device, ZmqSender
@@ -147,16 +148,27 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
             self._sender.close()
         self._sender = ZmqSender(endpoint=f"{protocol}://*:{port}", reliable=True)
 
-    @DebugIt(show_args=True)
-    @command(dtype_in=str)
-    async def reconstruct(self, slice_directory):
-        await self._process_stream(self._manager.backproject(self._receiver.subscribe()))
+    async def _reconstruct(self, cached=False, slice_directory=""):
+        if cached:
+            await self._manager.backproject(async_generate(self._manager.projections))
+        else:
+            await self._process_stream(self._manager.backproject(self._receiver.subscribe()))
         if slice_directory:
             f = self._walker.write_sequence(name=slice_directory)
             for image in self._manager.volume:
                 await self._sender.send_image(image)
             # Poison pill
             await self._sender.send_image(None)
+
+    @DebugIt(show_args=True)
+    @command(dtype_in=str)
+    async def reconstruct(self, slice_directory):
+        await self._reconstruct(cached=False, slice_directory=slice_directory)
+
+    @DebugIt(show_args=True)
+    @command(dtype_in=str)
+    async def rereconstruct(self, slice_directory):
+        await self._reconstruct(cached=True, slice_directory=slice_directory)
 
     @DebugIt(show_ret=True)
     @command(dtype_out=(int,))

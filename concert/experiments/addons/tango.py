@@ -145,12 +145,28 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
         await self._device.update_flats()
 
     @TangoMixin.cancel_remote
-    async def reconstruct(self):
+    async def _reconstruct(self, cached=False, slice_directory=None):
         path = ""
         if self.walker:
-            async with self.walker:
-                path = os.path.join(await self.walker.current, self.slice_directory)
-        await self._device.reconstruct(path)
+            if (
+                cached is False and self.slice_directory
+                or cached is True and slice_directory
+            ):
+                async with self.walker:
+                    path = os.path.join(
+                        await self.walker.current,
+                        self.slice_directory if slice_directory is None else slice_directory
+                    )
+        if cached:
+            await self._device.rereconstruct(path)
+        else:
+            await self._device.reconstruct(path)
+
+    async def reconstruct(self):
+        await self._reconstruct()
+
+    async def rereconstruct(self, slice_directory=None):
+        await self._reconstruct(cached=True, slice_directory=slice_directory)
 
     async def get_volume(self):
         volume = np.empty(await self._device.get_volume_shape(), dtype=np.float32)
