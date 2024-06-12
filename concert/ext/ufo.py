@@ -26,7 +26,7 @@ except ImportError:
 
 from concert.base import Parameterizable, Parameter, Quantity, State
 from concert.config import PERFDEBUG
-from concert.coroutines.base import background, async_generate, run_in_executor, run_in_loop, start
+from concert.coroutines.base import background, async_generate, run_in_executor, start
 from concert.imageprocessing import filter_low_frequencies
 from concert.quantities import q
 
@@ -742,9 +742,8 @@ class GeneralBackprojectManager(Parameterizable):
             i += 1
         LOG.debug("Consuming slices at offset %d finished", offset)
 
-    def find_parameters(self, parameters, projections=None, metrics=('sag',), regions=None,
-                        iterations=1, fwhm=0, minimize=(True,), z=None, method='powell',
-                        method_options=None, guesses=None, bounds=None, store=True):
+    async def find_parameters(self, parameters, projections=None, metrics=('sag',), regions=None,
+                              iterations=1, fwhm=0, minimize=(True,), z=None, store=True):
         """Find reconstruction parameters. *parameters* (see
         :attr:`.GeneralBackprojectArgs.z_parameters`) are the names of the parameters which should
         be found, *projections* are the input data and if not specified, the ones from last
@@ -753,29 +752,18 @@ class GeneralBackprojectManager(Parameterizable):
         Optimization is done either brute-force if *regions* are not specified or one of the scipy
         minimization methods is used, see below.
 
-        If *regions* are specified, they are reconstructed for the corresponding parameters and a
-        metric from *metrics* list is applied. Thus, first parameter in *parameters* is
-        reconstructed within the first region in *regions* and the first metric (see
-        :attr:`.GeneralBackprojectArgs.slice_metrics`) in *metrics* is applied and so on. If
-        *metrics* is of length 1 then it is applied to all parameters. *minimize* is a tuple
-        specifying whether each parameter in the list should be minimized (True) or maximized
-        (False). After every parameter is processed, the parameter optimization result is stored and
-        the next parameter is optimized in such a way, that the result of the optimization of the
-        previous parameter already takes place. *iterations* specifies how many times are all the
-        parameters reconstructed. *fwhm* specifies the full width half maximum of the gaussian
-        window used to filter out the low frequencies in the metric, which is useful when the region
-        for a metric is large. If the *fwhm* is specified, the region must be at least 4 * fwhm
-        large. If *fwhm* is 0 no filtering is done.
-
-        If *regions* is not specified, :func:`scipy.minimize` is used to find the parameter, where
-        the optimization method is given by the *method* parameter, *method_options* are passed as
-        *options* to the minimize function and *guesses* are initial guesses in the order of the
-        *parameters* list. If *bounds* are given, they represent the domains where to look for
-        parameters, they are (min, max) tuples, also in the order of the *parameters* list. See
-        documentation of :func:`scipy.minimize` for the list of minimization methods which support
-        bounds specification. In this approach only the first in *metrics* is taken into account
-        because the optimization happens on all parameters simultaneously, the same holds for
-        *minimize*.
+        *regions* are reconstructed for the corresponding parameters and a metric from *metrics*
+        list is applied. Thus, first parameter in *parameters* is reconstructed within the first
+        region in *regions* and the first metric (see :attr:`.GeneralBackprojectArgs.slice_metrics`)
+        in *metrics* is applied and so on. If *metrics* is of length 1 then it is applied to all
+        parameters. *minimize* is a tuple specifying whether each parameter in the list should be
+        minimized (True) or maximized (False). After every parameter is processed, the parameter
+        optimization result is stored and the next parameter is optimized in such a way, that the
+        result of the optimization of the previous parameter already takes place. *iterations*
+        specifies how many times are all the parameters reconstructed. *fwhm* specifies the full
+        width half maximum of the gaussian window used to filter out the low frequencies in the
+        metric, which is useful when the region for a metric is large. If the *fwhm* is specified,
+        the region must be at least 4 * fwhm large. If *fwhm* is 0 no filtering is done.
         """
         if projections is None:
             if self.projections is None:
@@ -785,68 +773,35 @@ class GeneralBackprojectManager(Parameterizable):
         orig_args = self.args
         self.args = copy.deepcopy(self.args)
 
-        if regions is None:
-            # No region specified, do a real optimization on the parameters vector
-            from scipy import optimize
-
-            def score(vector):
-                for (parameter, value) in zip(parameters, vector):
-                    setattr(self.args, parameter.replace('-', '_'), [value])
-                run_in_loop(self.backproject(async_generate(projections)))
-                result = sgn * self.volume[0]
-                LOG.info('Optimization vector: %s, result: %g', vector, result)
-
-                return result
-
-            self.args.z_parameter = 'z'
-            z = z or 0
-            self.args.region = [z, z + 1, 1.]
-            self.args.slice_metric = metrics[0]
-            sgn = 1 if minimize[0] else -1
-            if guesses is None:
-                guesses = []
-                for parameter in parameters:
-                    if parameter == 'center-position-x':
-                        guesses.append(self.args.width / 2)
-                    else:
-                        guesses.append(0.)
-            LOG.info('Guesses: %s', guesses)
-            result = optimize.minimize(score, guesses, method=method, bounds=bounds,
-                                       options=method_options)
-            LOG.info('%s', result.message)
-            result = result.x
-        else:
-            # Regions specified, reconstruct given regions for given parameters and simply search
-            # for extrema of the given metrics
-            self.args.z = z or 0
-            if fwhm:
-                for region in regions:
-                    if len(np.arange(*region)) < 4 * fwhm:
-                        raise ValueError('All regions must be at least 4 * fwhm large '
-                                         'when fwhm is specified')
-            result = []
-            if len(metrics) == 1:
-                metrics = metrics * len(parameters)
-            if len(minimize) == 1:
-                minimize = minimize * len(parameters)
-            for i in range(iterations):
-                for (parameter, region, metric, minim) in zip(parameters, regions,
-                                                              metrics, minimize):
-                    self.args.slice_metric = metric
-                    self.args.z_parameter = parameter
-                    self.args.region = region
-                    run_in_loop(self.backproject(async_generate(projections)))
-                    sgn = 1 if minim else -1
-                    values = self.volume
-                    if fwhm:
-                        values = filter_low_frequencies(values, fwhm=fwhm)[2 * int(fwhm):
-                                                                           -2 * int(fwhm)]
-                    param_result = (np.argmin(sgn * values) + 2 * fwhm) * region[2] + region[0]
-                    setattr(self.args, parameter.replace('-', '_'), [param_result])
-                    if i == iterations - 1:
-                        result.append(float(param_result))
-                    LOG.info('Optimizing %s, region: %s, metric: %s, minimize: %s, result: %g',
-                             parameter, region, metric, minim, param_result)
+        self.args.z = z or 0
+        if fwhm:
+            for region in regions:
+                if len(np.arange(*region)) < 4 * fwhm:
+                    raise ValueError('All regions must be at least 4 * fwhm large '
+                                     'when fwhm is specified')
+        result = []
+        if len(metrics) == 1:
+            metrics = metrics * len(parameters)
+        if len(minimize) == 1:
+            minimize = minimize * len(parameters)
+        for i in range(iterations):
+            for (parameter, region, metric, minim) in zip(parameters, regions,
+                                                          metrics, minimize):
+                self.args.slice_metric = metric
+                self.args.z_parameter = parameter
+                self.args.region = region
+                await self.backproject(async_generate(projections))
+                sgn = 1 if minim else -1
+                values = self.volume
+                if fwhm:
+                    values = filter_low_frequencies(values, fwhm=fwhm)[2 * int(fwhm):
+                                                                       -2 * int(fwhm)]
+                param_result = (np.argmin(sgn * values) + 2 * fwhm) * region[2] + region[0]
+                setattr(self.args, parameter.replace('-', '_'), [param_result])
+                if i == iterations - 1:
+                    result.append(float(param_result))
+                LOG.info('Optimizing %s, region: %s, metric: %s, minimize: %s, result: %g',
+                         parameter, region, metric, minim, param_result)
 
         LOG.info('Optimization result: %s', result)
 
