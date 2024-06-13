@@ -7,24 +7,18 @@ import numpy as np
 from concert.quantities import q
 from concert.experiments.addons.local import ImageWriter, Accumulator
 from concert.devices.cameras.dummy import Camera
-from concert.devices.motors.dummy import LinearMotor, RotationMotor, ContinuousRotationMotor, \
-    ContinuousLinearMotor
-from concert.devices.xraytubes.dummy import XRayTube
+from concert.devices.motors.dummy import (
+    LinearMotor,
+    RotationMotor,
+    ContinuousRotationMotor,
+    ContinuousLinearMotor,
+)
 from concert.devices.shutters.dummy import Shutter
+from concert.devices.xraytubes.dummy import XRayTube
+from concert.experiments import synchrotron
+from concert.experiments import xraytube
 from concert.tests import TestCase, slow
 from concert.storage import DirectoryWalker
-
-from concert.experiments.synchrotron import Radiography as SynchrotronRadiography, \
-    SteppedTomography as SynchrotronSteppedTomography, \
-    ContinuousTomography as SynchrotronContinuousTomography, \
-    SteppedSpiralTomography as SynchrotronSteppedSpiralTomography, \
-    ContinuousSpiralTomography as SynchrotronContinuousSpiralTomography
-
-from concert.experiments.xraytube import Radiography as XRayTubeRadiography, \
-    SteppedTomography as XRayTubeSteppedTomography, \
-    ContinuousTomography as XRayTubeContinuousTomography, \
-    SteppedSpiralTomography as XRayTubeSteppedSpiralTomography, \
-    ContinuousSpiralTomography as XRayTubeContinuousSpiralTomography
 
 
 class LoggingCamera(Camera):
@@ -347,15 +341,17 @@ class TestXRayTubeRadiography(Radiography, TestCase):
     async def asyncSetUp(self):
         await Radiography.asyncSetUp(self)
         self.source = await XRayTube()
-        self.exp = await XRayTubeRadiography(walker=self.walker,
-                                             flat_motor=self.flatfield_axis,
-                                             radio_position=0 * q.mm,
-                                             flat_position=10 * q.mm,
-                                             camera=self.camera,
-                                             xray_tube=self.source,
-                                             num_flats=5,
-                                             num_darks=5,
-                                             num_projections=10)
+        self.exp = await xraytube.LocalRadiography(
+            walker=self.walker,
+            flat_motor=self.flatfield_axis,
+            radio_position=0 * q.mm,
+            flat_position=10 * q.mm,
+            camera=self.camera,
+            xray_tube=self.source,
+            num_flats=5,
+            num_darks=5,
+            num_projections=10
+        )
         await self.run_experiment()
 
 
@@ -365,15 +361,17 @@ class TestSynchrotronRadiography(Radiography, TestCase):
     async def asyncSetUp(self):
         await Radiography.asyncSetUp(self)
         self.source = await Shutter()
-        self.exp = await SynchrotronRadiography(walker=self.walker,
-                                                flat_motor=self.flatfield_axis,
-                                                radio_position=0 * q.mm,
-                                                flat_position=10 * q.mm,
-                                                camera=self.camera,
-                                                shutter=self.source,
-                                                num_flats=5,
-                                                num_darks=5,
-                                                num_projections=10)
+        self.exp = await synchrotron.LocalRadiography(
+            walker=self.walker,
+            flat_motor=self.flatfield_axis,
+            radio_position=0 * q.mm,
+            flat_position=10 * q.mm,
+            camera=self.camera,
+            shutter=self.source,
+            num_flats=5,
+            num_darks=5,
+            num_projections=10
+        )
         await self.run_experiment()
 
 
@@ -383,7 +381,7 @@ class TestXRayTubeSteppedTomography(SteppedTomography, TestCase):
     async def asyncSetUp(self):
         await SteppedTomography.asyncSetUp(self)
         self.source = await XRayTube()
-        self.exp = await XRayTubeSteppedTomography(
+        self.exp = await xraytube.LocalSteppedTomography(
             walker=self.walker,
             flat_motor=self.flatfield_axis,
             tomography_motor=self.tomo_motor,
@@ -406,7 +404,7 @@ class TestSynchrotronSteppedTomography(SteppedTomography, TestCase):
     async def asyncSetUp(self):
         await SteppedTomography.asyncSetUp(self)
         self.source = await Shutter()
-        self.exp = await SynchrotronSteppedTomography(
+        self.exp = await synchrotron.LocalSteppedTomography(
             walker=self.walker,
             flat_motor=self.flatfield_axis,
             tomography_motor=self.tomo_motor,
@@ -429,7 +427,7 @@ class TestXRayTubeContinuousTomography(ContinuousTomography, TestCase):
     async def asyncSetUp(self):
         await ContinuousTomography.asyncSetUp(self)
         self.source = await XRayTube()
-        self.exp = await XRayTubeContinuousTomography(
+        self.exp = await xraytube.LocalContinuousTomography(
             walker=self.walker,
             flat_motor=self.flatfield_axis,
             tomography_motor=self.tomo_motor,
@@ -452,7 +450,7 @@ class TestSynchrotronContinuousTomography(ContinuousTomography, TestCase):
     async def asyncSetUp(self):
         await ContinuousTomography.asyncSetUp(self)
         self.source = await Shutter()
-        self.exp = await SynchrotronContinuousTomography(
+        self.exp = await synchrotron.LocalContinuousTomography(
             walker=self.walker,
             flat_motor=self.flatfield_axis,
             tomography_motor=self.tomo_motor,
@@ -475,7 +473,7 @@ class TestXRayTubeSteppedSpiralTomographyTomography(SteppedSpiralTomography, Tes
     async def asyncSetUp(self):
         await SteppedSpiralTomography.asyncSetUp(self)
         self.source = await XRayTube()
-        self.exp = await XRayTubeSteppedSpiralTomography(
+        self.exp = await xraytube.LocalSteppedSpiralTomography(
             walker=self.walker,
             flat_motor=self.flatfield_axis,
             tomography_motor=self.tomo_motor,
@@ -502,7 +500,7 @@ class TestSynchrotronSteppedSpiralTomographyTomography(SteppedSpiralTomography, 
     async def asyncSetUp(self):
         await SteppedSpiralTomography.asyncSetUp(self)
         self.source = await Shutter()
-        self.exp = await SynchrotronSteppedSpiralTomography(
+        self.exp = await synchrotron.LocalSteppedSpiralTomography(
             walker=self.walker,
             flat_motor=self.flatfield_axis,
             tomography_motor=self.tomo_motor,
@@ -529,7 +527,7 @@ class TestXRayTubeContinuousSpiralTomographyTomography(ContinuousSpiralTomograph
     async def asyncSetUp(self):
         await ContinuousSpiralTomography.asyncSetUp(self)
         self.source = await XRayTube()
-        self.exp = await XRayTubeContinuousSpiralTomography(
+        self.exp = await xraytube.LocalContinuousSpiralTomography(
             walker=self.walker,
             flat_motor=self.flatfield_axis,
             tomography_motor=self.tomo_motor,
@@ -556,7 +554,7 @@ class TestSynchrotronContinuousSpiralTomographyTomography(ContinuousSpiralTomogr
     async def asyncSetUp(self):
         await ContinuousSpiralTomography.asyncSetUp(self)
         self.source = await Shutter()
-        self.exp = await SynchrotronContinuousSpiralTomography(
+        self.exp = await synchrotron.LocalContinuousSpiralTomography(
             walker=self.walker,
             flat_motor=self.flatfield_axis,
             tomography_motor=self.tomo_motor,
@@ -593,7 +591,7 @@ class TestFlatfieldMotorTypes(TestCase):
         shutil.rmtree(self._data_dir)
 
     async def test_radiography(self):
-        xray_linear = await XRayTubeRadiography(
+        xray_linear = await xraytube.LocalRadiography(
             walker=self.walker,
             flat_motor=self.linear_motor,
             radio_position=0 * q.mm,
@@ -601,7 +599,7 @@ class TestFlatfieldMotorTypes(TestCase):
             camera=self.camera,
             xray_tube=self.xray_tube)
 
-        xray_rotation = await XRayTubeRadiography(
+        xray_rotation = await xraytube.LocalRadiography(
             walker=self.walker,
             flat_motor=self.rotation_motor,
             radio_position=0 * q.deg,
@@ -609,7 +607,7 @@ class TestFlatfieldMotorTypes(TestCase):
             camera=self.camera,
             xray_tube=self.xray_tube)
 
-        synchrotron_linear = await SynchrotronRadiography(
+        synchrotron_linear = await synchrotron.LocalRadiography(
             walker=self.walker,
             flat_motor=self.linear_motor,
             radio_position=0 * q.mm,
@@ -617,7 +615,7 @@ class TestFlatfieldMotorTypes(TestCase):
             camera=self.camera,
             shutter=self.shutter)
 
-        synchrotron_rotation = await SynchrotronRadiography(
+        synchrotron_rotation = await synchrotron.LocalRadiography(
             walker=self.walker,
             flat_motor=self.rotation_motor,
             radio_position=0 * q.deg,
@@ -626,7 +624,7 @@ class TestFlatfieldMotorTypes(TestCase):
             shutter=self.shutter)
 
     async def test_stepped_tomography(self):
-        xray_linear = await XRayTubeSteppedTomography(
+        xray_linear = await xraytube.LocalSteppedTomography(
             walker=self.walker,
             flat_motor=self.linear_motor,
             radio_position=0 * q.mm,
@@ -635,7 +633,7 @@ class TestFlatfieldMotorTypes(TestCase):
             xray_tube=self.xray_tube,
             tomography_motor=self.tomo_motor)
 
-        xray_rotation = await XRayTubeSteppedTomography(
+        xray_rotation = await xraytube.LocalSteppedTomography(
             walker=self.walker,
             flat_motor=self.rotation_motor,
             radio_position=0 * q.deg,
@@ -644,7 +642,7 @@ class TestFlatfieldMotorTypes(TestCase):
             xray_tube=self.xray_tube,
             tomography_motor=self.tomo_motor)
 
-        synchrotron_linear = await SynchrotronSteppedTomography(
+        synchrotron_linear = await synchrotron.LocalSteppedTomography(
             walker=self.walker,
             flat_motor=self.linear_motor,
             radio_position=0 * q.mm,
@@ -653,7 +651,7 @@ class TestFlatfieldMotorTypes(TestCase):
             shutter=self.shutter,
             tomography_motor=self.tomo_motor)
 
-        synchrotron_rotation = await SynchrotronSteppedTomography(
+        synchrotron_rotation = await synchrotron.LocalSteppedTomography(
             walker=self.walker,
             flat_motor=self.rotation_motor,
             radio_position=0 * q.deg,
@@ -663,7 +661,7 @@ class TestFlatfieldMotorTypes(TestCase):
             tomography_motor=self.tomo_motor)
 
     async def test_continuous_tomography(self):
-        xray_linear = await XRayTubeContinuousTomography(
+        xray_linear = await xraytube.LocalContinuousTomography(
             walker=self.walker,
             flat_motor=self.linear_motor,
             radio_position=0 * q.mm,
@@ -672,7 +670,7 @@ class TestFlatfieldMotorTypes(TestCase):
             xray_tube=self.xray_tube,
             tomography_motor=self.tomo_motor)
 
-        xray_rotation = await XRayTubeContinuousTomography(
+        xray_rotation = await xraytube.LocalContinuousTomography(
             walker=self.walker,
             flat_motor=self.rotation_motor,
             radio_position=0 * q.deg,
@@ -681,7 +679,7 @@ class TestFlatfieldMotorTypes(TestCase):
             xray_tube=self.xray_tube,
             tomography_motor=self.tomo_motor)
 
-        synchrotron_linear = await SynchrotronContinuousTomography(
+        synchrotron_linear = await synchrotron.LocalContinuousTomography(
             walker=self.walker,
             flat_motor=self.linear_motor,
             radio_position=0 * q.mm,
@@ -690,7 +688,7 @@ class TestFlatfieldMotorTypes(TestCase):
             shutter=self.shutter,
             tomography_motor=self.tomo_motor)
 
-        synchrotron_rotation = await SynchrotronContinuousTomography(
+        synchrotron_rotation = await synchrotron.LocalContinuousTomography(
             walker=self.walker,
             flat_motor=self.rotation_motor,
             radio_position=0 * q.deg,
@@ -700,7 +698,7 @@ class TestFlatfieldMotorTypes(TestCase):
             tomography_motor=self.tomo_motor)
 
     async def test_stepped_spiral(self):
-        xray_linear = await XRayTubeSteppedSpiralTomography(
+        xray_linear = await xraytube.LocalSteppedSpiralTomography(
             walker=self.walker,
             flat_motor=self.linear_motor,
             radio_position=0 * q.mm,
@@ -713,7 +711,7 @@ class TestFlatfieldMotorTypes(TestCase):
             vertical_shift_per_tomogram=2 * q.mm,
             start_position_vertical=0 * q.mm)
 
-        xray_rotation = await XRayTubeSteppedSpiralTomography(
+        xray_rotation = await xraytube.LocalSteppedSpiralTomography(
             walker=self.walker,
             flat_motor=self.rotation_motor,
             radio_position=0 * q.deg,
@@ -726,7 +724,7 @@ class TestFlatfieldMotorTypes(TestCase):
             vertical_shift_per_tomogram=2 * q.mm,
             start_position_vertical=0 * q.mm)
 
-        synchrotron_linear = await SynchrotronSteppedSpiralTomography(
+        synchrotron_linear = await synchrotron.LocalSteppedSpiralTomography(
             walker=self.walker,
             flat_motor=self.linear_motor,
             radio_position=0 * q.mm,
@@ -739,7 +737,7 @@ class TestFlatfieldMotorTypes(TestCase):
             vertical_shift_per_tomogram=2 * q.mm,
             start_position_vertical=0 * q.mm)
 
-        synchrotron_rotation = await SynchrotronSteppedSpiralTomography(
+        synchrotron_rotation = await synchrotron.LocalSteppedSpiralTomography(
             walker=self.walker,
             flat_motor=self.rotation_motor,
             radio_position=0 * q.deg,
@@ -753,7 +751,7 @@ class TestFlatfieldMotorTypes(TestCase):
             start_position_vertical=0 * q.mm)
 
     async def test_continuous_spiral(self):
-        xray_linear = await XRayTubeContinuousSpiralTomography(
+        xray_linear = await xraytube.LocalContinuousSpiralTomography(
             walker=self.walker,
             flat_motor=self.linear_motor,
             radio_position=0 * q.mm,
@@ -766,7 +764,7 @@ class TestFlatfieldMotorTypes(TestCase):
             vertical_shift_per_tomogram=2 * q.mm,
             start_position_vertical=0 * q.mm)
 
-        xray_rotation = await XRayTubeContinuousSpiralTomography(
+        xray_rotation = await xraytube.LocalContinuousSpiralTomography(
             walker=self.walker,
             flat_motor=self.rotation_motor,
             radio_position=0 * q.deg,
@@ -779,7 +777,7 @@ class TestFlatfieldMotorTypes(TestCase):
             vertical_shift_per_tomogram=2 * q.mm,
             start_position_vertical=0 * q.mm)
 
-        synchrotron_linear = await SynchrotronContinuousSpiralTomography(
+        synchrotron_linear = await synchrotron.LocalContinuousSpiralTomography(
             walker=self.walker,
             flat_motor=self.linear_motor,
             radio_position=0 * q.mm,
@@ -792,7 +790,7 @@ class TestFlatfieldMotorTypes(TestCase):
             vertical_shift_per_tomogram=2 * q.mm,
             start_position_vertical=0 * q.mm)
 
-        synchrotron_rotation = await SynchrotronContinuousSpiralTomography(
+        synchrotron_rotation = await synchrotron.LocalContinuousSpiralTomography(
             walker=self.walker,
             flat_motor=self.rotation_motor,
             radio_position=0 * q.deg,

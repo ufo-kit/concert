@@ -13,12 +13,9 @@ from concert.devices.cameras.dummy import Camera
 from concert.devices.motors.dummy import LinearMotor
 from concert.devices.xraytubes.dummy import XRayTube
 from concert.devices.shutters.dummy import Shutter
-from concert.experiments.synchrotron import \
-    GratingInterferometryStepping as SynchrotronPhaseStepping
-from concert.experiments.xraytube import GratingInterferometryStepping as XRayTubePhaseStepping
-from concert.experiments.xraytube import XrayTubeMixin
-from concert.experiments.synchrotron import SynchrotronMixin
-from concert.experiments.imaging import Tomography, ContinuousTomography
+from concert.experiments import synchrotron
+from concert.experiments import xraytube
+from concert.experiments import imaging
 
 
 class LoggingCamera(Camera):
@@ -33,9 +30,9 @@ class LoggingCamera(Camera):
         await self.set_exposure_time(0.001 * q.s)
 
     async def _trigger_real(self):
-        if isinstance(self.experiment, SynchrotronMixin):
+        if isinstance(self.experiment, synchrotron.SynchrotronMixin):
             source = self.experiment._shutter
-        elif isinstance(self.experiment, XrayTubeMixin):
+        elif isinstance(self.experiment, xraytube.XrayTubeMixin):
             source = self.experiment._xray_tube
         else:
             raise Exception("Experiment must implement a source.")
@@ -48,9 +45,9 @@ class LoggingCamera(Camera):
         self._last_flat_axis_position = await self.experiment._flat_motor.get_position()
         self._last_stepping_position = await self.experiment._stepping_motor.get_position()
 
-        if isinstance(self.experiment, Tomography):
+        if isinstance(self.experiment, imaging.SteppedTomographyLogic):
             self._last_tomo_position = await self.experiment._tomograpy_motor.get_position()
-        if isinstance(self.experiment, ContinuousTomography):
+        if isinstance(self.experiment, imaging.ContinuousTomographyLogic):
             self._last_tomo_velocity = await self.experiment._tomography_motor.get_velocity()
 
     async def _grab_real(self):
@@ -214,20 +211,22 @@ class TestSynchrotronGratingInterferometryStepping(GratingInterferometryStepping
     async def asyncSetUp(self):
         await GratingInterferometryStepping.asyncSetUp(self)
         self.source = await Shutter()
-        self.exp = await SynchrotronPhaseStepping(walker=self.walker,
-                                                  camera=self.camera,
-                                                  shutter=self.source,
-                                                  flat_motor=self.flatfield_axis,
-                                                  stepping_motor=self.stepping_axis,
-                                                  flat_position=-10 * q.cm,
-                                                  radio_position=0 * q.mm,
-                                                  grating_period=2.4 * q.um,
-                                                  num_darks=10,
-                                                  stepping_start_position=0 * q.um,
-                                                  num_periods=4,
-                                                  num_steps_per_period=8,
-                                                  propagation_distance=20 * q.cm,
-                                                  separate_scans=True)
+        self.exp = await synchrotron.LocalGratingInterferometryStepping(
+            walker=self.walker,
+            camera=self.camera,
+            shutter=self.source,
+            flat_motor=self.flatfield_axis,
+            stepping_motor=self.stepping_axis,
+            flat_position=-10 * q.cm,
+            radio_position=0 * q.mm,
+            grating_period=2.4 * q.um,
+            num_darks=10,
+            stepping_start_position=0 * q.um,
+            num_periods=4,
+            num_steps_per_period=8,
+            propagation_distance=20 * q.cm,
+            separate_scans=True
+        )
         await self.run_experiment()
 
 
@@ -236,18 +235,20 @@ class TestXRayTubeGratingInterferometryStepping(GratingInterferometryStepping, T
     async def asyncSetUp(self):
         await GratingInterferometryStepping.asyncSetUp(self)
         self.source = await XRayTube()
-        self.exp = await XRayTubePhaseStepping(walker=self.walker,
-                                               camera=self.camera,
-                                               xray_tube=self.source,
-                                               flat_motor=self.flatfield_axis,
-                                               stepping_motor=self.stepping_axis,
-                                               flat_position=-10 * q.cm,
-                                               radio_position=0 * q.mm,
-                                               grating_period=2.4 * q.um,
-                                               num_darks=10,
-                                               stepping_start_position=0 * q.um,
-                                               num_periods=4,
-                                               num_steps_per_period=8,
-                                               propagation_distance=20 * q.cm,
-                                               separate_scans=True)
+        self.exp = await xraytube.LocalGratingInterferometryStepping(
+            walker=self.walker,
+            camera=self.camera,
+            xray_tube=self.source,
+            flat_motor=self.flatfield_axis,
+            stepping_motor=self.stepping_axis,
+            flat_position=-10 * q.cm,
+            radio_position=0 * q.mm,
+            grating_period=2.4 * q.um,
+            num_darks=10,
+            stepping_start_position=0 * q.um,
+            num_periods=4,
+            num_steps_per_period=8,
+            propagation_distance=20 * q.cm,
+            separate_scans=True
+        )
         await self.run_experiment()

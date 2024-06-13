@@ -38,10 +38,12 @@ class TestReaderWriter(TestCase):
         run_file_name = datetime.now().strftime("%y%m%d_%H%M%S.%f")
         folder = os.path.join(self._data_dir, run_file_name)
         os.mkdir(folder)
-        walker = DirectoryWalker(root=folder,
-                                 writer=TiffWriter,
-                                 dsetname="frame_{:>06}.tif",
-                                 bytes_per_file=bytes_per_file)
+        walker = await DirectoryWalker(
+            root=folder,
+            writer=TiffWriter,
+            dsetname="frame_{:>06}.tif",
+            bytes_per_file=bytes_per_file
+        )
         await walker.write(async_generate(self.data))
         reader = TiffSequenceReader(os.path.join(folder))
         data2 = []

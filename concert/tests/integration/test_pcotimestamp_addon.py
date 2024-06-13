@@ -10,10 +10,10 @@ from concert.devices.cameras.pco import Timestamp
 from concert.devices.cameras.pco import Camera as PCOCamera
 from concert.devices.cameras.dummy import Camera as DummyCamera
 from concert.helpers import ImageWithMetadata
-from concert.experiments.synchrotron import Radiography
+from concert.experiments.synchrotron import LocalRadiography
 from concert.devices.motors.dummy import LinearMotor
 from concert.devices.shutters.dummy import Shutter
-from concert.experiments.addons import PCOTimestampCheck, ImageWriter, PCOTimestampCheckError
+from concert.experiments.addons.local import PCOTimestampCheck, ImageWriter, PCOTimestampCheckError
 from concert.base import transition, Parameter, identity
 
 
@@ -84,10 +84,10 @@ class TestPCOTimestampAddon(TestCase):
     async def asyncSetUp(self) -> None:
         self.camera = await Camera()
         self._data_dir = tempfile.mkdtemp()
-        self.walker = DirectoryWalker(root=self._data_dir)
+        self.walker = await DirectoryWalker(root=self._data_dir)
         flat_motor = await LinearMotor()
         shutter = await Shutter()
-        self.exp = await Radiography(walker=self.walker,
+        self.exp = await LocalRadiography(walker=self.walker,
                                      camera=self.camera,
                                      flat_motor=flat_motor,
                                      shutter=shutter,
@@ -96,8 +96,8 @@ class TestPCOTimestampAddon(TestCase):
                                      num_projections=10,
                                      num_flats=5,
                                      num_darks=5)
-        self.addon = PCOTimestampCheck(self.exp)
-        self.writer = ImageWriter(self.exp.acquisitions, self.walker)
+        self.addon = await PCOTimestampCheck(self.exp)
+        self.writer = await ImageWriter(self.walker, acquisitions=self.exp.acquisitions)
 
     def tearDown(self) -> None:
         shutil.rmtree(self._data_dir)
