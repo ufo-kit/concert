@@ -5,6 +5,7 @@ import time
 import inspect
 import functools
 import logging
+import zmq
 import concert.config
 from dataclasses import dataclass, field
 from typing import Any
@@ -378,3 +379,32 @@ class PerformanceTracker:
         if self.summary is not None:
             for record in self.summary:
                 LOG.log(self.loglevel, record)
+
+
+@dataclass
+class CommData:
+    """Encapsulates communication metadata."""
+
+    host: str
+    port: int = None
+    protocol: str = "tcp"
+    socket_type: zmq.SocketType = zmq.PUSH
+    sndhwm: int = -1
+
+    def __post_init__(self):
+        if self.protocol not in ["tcp", "ipc"]:
+            raise ValueError("protocol must be one of `tcp', `ipc'")
+
+    @property
+    def server_endpoint(self) -> str:
+        if self.protocol == "ipc":
+            return f"{self.protocol}://{self.host}"
+        else:
+            return f"{self.protocol}://*:{self.port}"
+
+    @property
+    def client_endpoint(self) -> str:
+        if self.protocol == "ipc":
+            return f"{self.protocol}://{self.host}"
+        else:
+            return f"{self.protocol}://{self.host}:{self.port}"
