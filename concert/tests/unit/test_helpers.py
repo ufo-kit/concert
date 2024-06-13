@@ -1,5 +1,6 @@
 import inspect
 import time
+import zmq
 from concert.tests import TestCase, suppressed_logging
 from concert.quantities import q
 from concert.helpers import (
@@ -9,7 +10,8 @@ from concert.helpers import (
     memoize,
     arange,
     linspace,
-    PerformanceTracker
+    PerformanceTracker,
+    CommData
 )
 from concert.processes.common import focus, align_rotation_axis, ProcessError
 from concert.devices.motors.dummy import LinearMotor, RotationMotor
@@ -209,3 +211,24 @@ class TestVarious(TestCase):
             await asyncio.sleep(100)
 
         await _test_error(cancelled_error_coro(), asyncio.CancelledError, cancel=True)
+
+
+class TestCommData(TestCase):
+    def test_tcp(self):
+        comms = CommData("localhost", port=1234, protocol="tcp", socket_type=zmq.PUSH, sndhwm=1234)
+        self.assertEqual(comms.server_endpoint, "tcp://*:1234")
+        self.assertEqual(comms.client_endpoint, "tcp://localhost:1234")
+        self.assertEqual(comms.sndhwm, 1234)
+        self.assertEqual(comms.socket_type, zmq.PUSH)
+
+    def test_ipc(self):
+        endpoint = "/tmp/concert/foo"
+        comms = CommData(endpoint, protocol="ipc", socket_type=zmq.PUSH, sndhwm=1234)
+        self.assertEqual(comms.server_endpoint, "ipc://" + endpoint)
+        self.assertEqual(comms.client_endpoint, "ipc://" + endpoint)
+        self.assertEqual(comms.sndhwm, 1234)
+        self.assertEqual(comms.socket_type, zmq.PUSH)
+
+    def test_wrong_protocols(self):
+        with self.assertRaises(ValueError):
+            comms = CommData("localhost", protocol="foo")
