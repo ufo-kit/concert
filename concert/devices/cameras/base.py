@@ -59,6 +59,12 @@ frame. The callable is applied to the frame and the converted one is returned by
     camera.convert = np.fliplr
     # The frame is left-right flipped
     grab(camera)
+
+Remote cameras implement a :meth:`RemoteMixin.grab_send` method, which instead of giving the frames
+to concert sends the frames via a ZMQ stream. It is possible to use these camera also as local ones
+with the :meth:`Camera.grab` and :meth:`Camera.stream` methods. Of course not at the same time, for
+which there is a grab :class:`asyncio.Lock` which prevents the frames to be grabbed at the same time
+from competing methods like :meth:`Camera.grab` and :meth:`RemoteMixin.grab_send`.
 """
 import asyncio
 import contextlib
@@ -116,7 +122,7 @@ class Camera(Device):
         """
         stop_recording()
 
-        Stop recording frames.
+        Stop recording frames, acquires the grab lock before the actual implementation is called.
         """
         async with self._grab_lock:
             await self._stop_real()
@@ -150,7 +156,7 @@ class Camera(Device):
     @check(source=['recording', 'readout'])
     async def grab(self) -> ImageWithMetadata:
         """Return a concert.storage.ImageWithMetadata (subclass of np.ndarray) with data of the
-        current frame."""
+        current frame. Acquires grab lock."""
         async with self._grab_lock:
             img = self.convert(await self._grab_real())
             return img.view(ImageWithMetadata)
@@ -162,7 +168,9 @@ class Camera(Device):
         """
         stream()
 
-        Grab frames continuously yield them. This is an async generator.
+        Grab frames continuously yield them. This is an async generator. Acquires grab lock in every
+        iteration separately, i.e. you can e.g. call :meth:`.stop_recording` while :meth:`.stream`
+        runs in the background.
         """
         await self['trigger_source'].stash()
         await self.set_trigger_source(self.trigger_sources.AUTO)
@@ -276,7 +284,8 @@ class RemoteMixin:
     @check(source=['recording', 'readout'])
     async def grab_send(self, num, end=True):
         """Grab and send over a zmq socket. If *end* is True, end-of-stream indicator is sent to all
-        consumers when the desired number of images is sent.
+        consumers when the desired number of images is sent. Acquires grab lock for the whole time
+        *num* frames are being sent.
         """
         async with self._grab_lock:
             try:
