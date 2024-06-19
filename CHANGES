@@ -27,6 +27,7 @@ Notes
 ~~~~~
 
 - camera.stream stashes the trigger_source and restores it 
+- uca camera caches state to speed up recording
 
 
 Version 0.31
