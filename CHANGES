@@ -18,6 +18,17 @@ Features
 - added ImageWithMetadata for camera frames and store the metadata in tiff files
 
 
+Version 0.33
+------------
+
+First decentralized release.
+
+Notes
+~~~~~
+
+- camera.stream stashes the trigger_source and restores it 
+
+
 Version 0.31
 ------------
 
