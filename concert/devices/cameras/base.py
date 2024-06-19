@@ -183,6 +183,7 @@ class Camera(Device):
                 async with self._grab_lock:
                     if await self.get_state() == 'recording':
                         image = self.convert(await self._grab_real())
+                        image = image.view(ImageWithMetadata)
                     else:
                         break
                 yield image
