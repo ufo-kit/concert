@@ -5,7 +5,7 @@ from concert.quantities import q
 from concert.tests import TestCase, slow
 from concert.storage import DirectoryWalker
 from concert.experiments.addons import ImageWriter, Accumulator, \
-    PhaseGratingSteppingFourierProcessing
+    PhaseGratingSteppingFourierProcessing, PhaseGratingSteppingSinFit
 from concert.devices.cameras.dummy import Camera
 from concert.devices.motors.dummy import LinearMotor
 from concert.devices.xraytubes.dummy import XRayTube
@@ -59,6 +59,9 @@ class LoggingCamera(Camera):
         1,0: Position of the stepping_motor in um.
         1,1: Ideal stepping curve. dark=0.0, reference=cos(2 pi * motor_pos/period) * 1.0 + 1,
             object=cos(2 pi * motor_pos/period + pi/2) * 0.25 + 0.5 .
+        2,2 Stepping curve with a 10% scaling factor
+            dark=0.0, reference=cos(2 pi * motor_pos/period * 1.1) * 1.0 + 1,
+            object=cos(2 pi * motor_pos/period * 1.1 + pi/2) * 0.25 + 0.5 .
         0,2: Position of the tomography_motor in deg.
         1,2: Velocity of the tomography_motor in deg/s.
         """
@@ -70,14 +73,17 @@ class LoggingCamera(Camera):
         frame[1, 0] = self._last_stepping_position.to(q.um).magnitude
         if await self.experiment.get_acquisition("darks").get_state() == "running":
             frame[1, 1] = 0.0
+            frame[2, 2] = 0.0
         if await self.experiment.get_acquisition("reference_stepping").get_state() == "running":
             pos = self._last_stepping_position.to(q.um).magnitude / (
                 await self.experiment.get_grating_period()).to(q.um).magnitude
             frame[1, 1] = 1.0 * np.cos(np.pi * 2.0 * pos) + 1.0
+            frame[2, 2] = 1.0 * np.cos(np.pi * 2.0 * pos * 1.1) + 1.0
         if await self.experiment.get_acquisition("object_stepping").get_state() == "running":
             pos = self._last_stepping_position.to(q.um).magnitude / (
                 await self.experiment.get_grating_period()).to(q.um).magnitude
             frame[1, 1] = 0.25 * np.cos(np.pi * 2.0 * pos + np.pi / 2.) + 0.5
+            frame[2, 2] = 0.25 * np.cos(np.pi * 2.0 * pos * 1.1 + np.pi / 2.) + 0.5
         if self._last_tomo_position is not None:
             frame[0, 2] = self._last_tomo_position.to(q.deg).magnitude
         if self._last_tomo_velocity is not None:
@@ -108,6 +114,7 @@ class GratingInterferometryStepping:
         await self.exp.run()
 
     def tearDown(self):
+        return
         shutil.rmtree(self._data_dir)
 
     async def test_darks(self):
@@ -220,3 +227,23 @@ class TestXRayTubeGratingInterferometryStepping(GratingInterferometryStepping, T
                                                propagation_distance=20 * q.cm,
                                                separate_scans=True)
         await self.run_experiment()
+
+
+@slow
+class TestSinFitAddon(TestSynchrotronGratingInterferometryStepping):
+    async def run_experiment(self):
+        self.camera.experiment = self.exp
+        self.acc = Accumulator(self.exp.acquisitions)
+        self.writer = ImageWriter(walker=self.walker, acquisitions=self.exp.acquisitions)
+        self.phase_stepping_addon = PhaseGratingSteppingSinFit(experiment=self.exp)
+        await self.exp.run()
+
+    async def test_period_scaling(self):
+        self.assertAlmostEqual(self.phase_stepping_addon.object_period[1, 1], 1.0, places=3,
+                               msg="object period 1.0")
+        self.assertAlmostEqual(self.phase_stepping_addon.reference_period[1, 1], 1.0, places=3,
+                               msg="reference period 1.0")
+        self.assertAlmostEqual(self.phase_stepping_addon.object_period[2, 2], 1.1, places=3,
+                               msg="object period 1.1")
+        self.assertAlmostEqual(self.phase_stepping_addon.reference_period[2, 2], 1.1, places=3,
+                               msg="reference period 1.1")
