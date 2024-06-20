@@ -12,6 +12,8 @@ import signal
 import subprocess
 import tempfile
 import zipfile
+from logging.handlers import TimedRotatingFileHandler
+
 import concert
 import concert.config
 import concert.session.management as cs
@@ -383,7 +385,7 @@ class StartCommand(SubCommand):
 
         if logto == 'file':
             logfilename = logfile if logfile else cs.logfile_path()
-            handler = logging.FileHandler(logfilename)
+            handler = TimedRotatingFileHandler(logfilename, when='W6')
         else:
             handler = logging.StreamHandler(sys.stderr)
 
