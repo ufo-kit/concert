@@ -154,7 +154,7 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
             ):
                 async with self.walker:
                     path = os.path.join(
-                        await self.walker.current,
+                        await self.walker.get_current(),
                         self.slice_directory if slice_directory is None else slice_directory
                     )
         if cached:
