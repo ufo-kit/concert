@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+
+from concert.ext.tangoservers.camera import TangoFileCamera
+
+if __name__ == '__main__':
+    TangoFileCamera.run_server()

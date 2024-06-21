@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+
+from concert.ext.tangoservers.benchmarking import TangoBenchmarker
+
+if __name__ == '__main__':
+    TangoBenchmarker.run_server()

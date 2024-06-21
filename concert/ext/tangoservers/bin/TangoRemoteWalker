@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+
+from concert.ext.tangoservers.walker import TangoRemoteWalker
+
+if __name__ == '__main__':
+    TangoRemoteWalker.run_server()
