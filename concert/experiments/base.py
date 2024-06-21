@@ -420,7 +420,7 @@ class Experiment(Parameterizable):
         if self.walker:
             if separate_scans:
                 await self.walker.descend((await self.get_name_fmt()).format(iteration))
-            if os.path.exists(await self.walker.current):
+            if os.path.exists(await self.walker.get_current()):
                 handler = await self.walker.get_log_handler()
                 self.log.addHandler(handler)
                 exp_metadata: str = await self._prepare_metadata_str()

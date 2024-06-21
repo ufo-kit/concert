@@ -99,7 +99,7 @@ class Director(Parameterizable):
         handler = None
         try:
             if self._experiment.walker:
-                handler = logging.FileHandler(os.path.join(await self._experiment.walker.current,
+                handler = logging.FileHandler(os.path.join(await self._experiment.walker.get_current(),
                                                            'director.log'))
                 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s '
                                               '- %(message)s')

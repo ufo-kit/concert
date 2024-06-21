@@ -73,7 +73,7 @@ class TestMetadataExperiment(TestCase):
         await self.walker.descend("metadata")
         await self.exp.run()
         radio_images = tifffile.TiffReader(
-            os.path.join(await self.walker.current, "radios", "frame_000000.tif"))
+            os.path.join(await self.walker.get_current(), "radios", "frame_000000.tif"))
         for i in range(await self.exp.get_num_projections()):
             self.assertEqual(ast.literal_eval(radio_images.pages[i].description)['index_int'],
                              int(i))

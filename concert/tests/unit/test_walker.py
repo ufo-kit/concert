@@ -22,12 +22,12 @@ class TestWalker(TestCase):
     async def test_create_writer_no_subdir(self):
         await self.walker.create_writer(async_generate(self.data), dsetname='foo')
         await self.check()
-        self.assertEqual(await self.walker.current, '')
+        self.assertEqual(await self.walker.get_current(), '')
 
     async def test_create_writer_with_subdir(self):
         await self.walker.create_writer(async_generate(self.data), name='inside', dsetname='foo')
         await self.check(subdir='inside')
-        self.assertEqual(await self.walker.current, '')
+        self.assertEqual(await self.walker.get_current(), '')
 
     async def test_coroutine(self):
         print(f"Self Data: {self.data}")

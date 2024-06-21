@@ -226,8 +226,8 @@ class TestExperiment(TestExperimentBase):
 
             # Check if the writing coroutine has been attached
             for i in range(self.num_produce):
-                foo = op.join(data_dir, 'foo', walker.dsetname.format(i))
-                bar = op.join(data_dir, 'bar', walker.dsetname.format(i))
+                foo = op.join(data_dir, 'foo', (await walker.get_dsetname()).format(i))
+                bar = op.join(data_dir, 'bar', (await walker.get_dsetname()).format(i))
 
                 self.assertTrue(await walker.exists(foo))
                 self.assertTrue(await walker.exists(bar))

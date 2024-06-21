@@ -10,7 +10,7 @@ import logging
 import re
 from typing import Optional, AsyncIterable, Awaitable, Type, Iterable, Set
 import tifffile
-from concert.base import AsyncObject
+from concert.base import AsyncObject, Parameterizable, Parameter
 from concert.coroutines.base import background
 from concert.writers import TiffWriter
 from concert.typing import RemoteDirectoryWalkerTangoDevice
@@ -158,7 +158,7 @@ async def write_images(producer: AsyncIterable[ArrayLike],
                 prefix.format(start_index + file_index - 1)))
 
 
-class Walker(AsyncObject):
+class Walker(Parameterizable):
     """
     A Walker moves through an abstract hierarchy and allows to write data
     at a specific location.
@@ -168,7 +168,12 @@ class Walker(AsyncObject):
     _current: str
     _log_name: str
     _lock: asyncio.Lock
-    dsetname: str
+    _dsetname: str
+
+    root = Parameter()
+    current = Parameter()
+    log_name = Parameter()
+    dsetname = Parameter()
 
     async def __ainit__(self,
                         root: str,
@@ -187,7 +192,8 @@ class Walker(AsyncObject):
         self._root = root
         self._log_name = log_name
         self._lock = asyncio.Lock()
-        self.dsetname = dsetname
+        self._dsetname = dsetname
+        await super().__ainit__()
         await self.home()
 
     async def __aenter__(self) -> Walker:
@@ -205,7 +211,7 @@ class Walker(AsyncObject):
         """Ascend from current depth."""
         raise NotImplementedError
 
-    def _create_writer(self,
+    async def _create_writer(self,
                        producer: AsyncIterable[ArrayLike],
                        dsetname: Optional[str] = None) -> Awaitable:
         """
@@ -217,14 +223,22 @@ class Walker(AsyncObject):
         """Fetches the current from internal contex"""
         raise NotImplementedError
 
+    async def _get_root(self) -> str:
+        """Fetches the root from internal context"""
+        return self._root
+
+    async def _get_log_name(self) -> str:
+        """Fetches the log name from internal context"""
+        return self._log_name
+
+    async def _get_dsetname(self) -> str:
+        """Fetches the dataset name from internal context"""
+        return self._dsetname
+
     async def home(self) -> None:
         """Return to root"""
         self._current = self._root
 
-    @property
-    async def current(self) -> str:
-        """Return current position."""
-        return await self._get_current()
 
     async def exists(self, *paths) -> bool:
         """Return True if path from current position specified by a list of
@@ -260,7 +274,7 @@ class Walker(AsyncObject):
         if name:
             await self.descend(name)
         try:
-            return await self._create_writer(producer, dsetname=dsetname)
+            return await (await self._create_writer(producer, dsetname=dsetname))
         finally:
             if name:
                 await self.ascend()
@@ -274,7 +288,7 @@ class Walker(AsyncObject):
         *producer*. The execution starts immediately in the background and
         await will block until the images are written.
         """
-        return await self._create_writer(producer, dsetname=dsetname)
+        return await (await self._create_writer(producer, dsetname=dsetname))
 
     async def get_log_handler(self) -> AsyncLoggingHandlerCloser:
         """Provides a log handler featuring an asynchronous flush and closure
@@ -321,7 +335,7 @@ class DummyWalker(Walker):
         if self._current != self._root:
             self._current = os.path.dirname(self._current)
 
-    def _create_writer(self,
+    async def _create_writer(self,
                        producer: AsyncIterable[ArrayLike],
                        dsetname: Optional[str] = None) -> Awaitable:
         dsetname = dsetname or self.dsetname
@@ -348,6 +362,9 @@ class DirectoryWalker(Walker):
     _bytes_per_file: int
     _start_index: int
     writer: Type[TiffWriter]
+
+    bytes_per_file = Parameter()
+    start_index = Parameter()
 
     async def __ainit__(self,
                         root: Optional[str] = None,
@@ -388,10 +405,18 @@ class DirectoryWalker(Walker):
         """Provides current from local context"""
         return self._current
 
-    def _create_writer(self,
+    async def _get_bytes_per_file(self) -> int:
+        """Provides bytes per file from local context"""
+        return self._bytes_per_file
+
+    async def _get_start_index(self) -> int:
+        """Provides start index from local context"""
+        return self._start_index
+
+    async def _create_writer(self,
                        producer: AsyncIterable[ArrayLike],
                        dsetname: Optional[str] = None) -> Awaitable:
-        dsetname = dsetname or self.dsetname
+        dsetname = dsetname or await self.get_dsetname()
         if self._dset_exists(dsetname):
             dset_prefix = split_dsetformat(dsetname)
             dset_path = os.path.join(self._current, dset_prefix)
@@ -417,10 +442,10 @@ class DirectoryWalker(Walker):
 
     async def exists(self, *paths: str) -> bool:
         """Check if *paths* exist."""
-        return os.path.exists(os.path.join(await self.current, *paths))
+        return os.path.exists(os.path.join(await self.get_current(), *paths))
 
     async def get_log_handler(self) -> AsyncLoggingHandlerCloser:
-        return LoggingHandler(os.path.join(await self.current, self._log_name))
+        return LoggingHandler(os.path.join(await self.get_current(), self._log_name))
 
     async def log_to_json(self, payload: str) -> None:
         """
@@ -434,7 +459,7 @@ class DirectoryWalker(Walker):
         :type payload: str
         """
         with open(
-                file=os.path.join(self._current, "experiment.json"),
+                file=os.path.join(await self.get_current(), "experiment.json"),
                 mode="w",
                 encoding="utf-8") as lgf:
             lgf.write(payload)
