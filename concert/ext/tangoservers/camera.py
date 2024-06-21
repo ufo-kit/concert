@@ -22,6 +22,7 @@ def _run_asyncio(func, *args, **kwargs):
 
 
 class TangoCamera(Device, metaclass=DeviceMeta):
+    green_mode = tango.GreenMode.Asyncio
     """
     Tango device for the dummy concert camera sending images over a zmq socket.
     """

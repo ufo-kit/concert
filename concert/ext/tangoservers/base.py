@@ -9,7 +9,7 @@ from tango.server import AttrWriteType, command
 
 
 class TangoRemoteProcessing(Device, metaclass=DeviceMeta):
-
+    green_mode = tango.GreenMode.Asyncio
     """Base Tango device for processing zmq streams."""
 
     endpoint = attribute(
