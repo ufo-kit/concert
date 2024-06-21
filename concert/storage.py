@@ -473,6 +473,7 @@ class RemoteDirectoryWalker(Walker):
     """
 
     device: RemoteDirectoryWalkerTangoDevice
+    endpoint = Parameter()
 
     async def __ainit__(self,
                         device: RemoteDirectoryWalkerTangoDevice,
@@ -530,6 +531,14 @@ class RemoteDirectoryWalker(Walker):
         if self._root == (await self.device["current"]).value:
             raise StorageError(f"cannot break out of {self._root}.")
         await self.device.ascend()
+
+    async def _get_endpoint(self) -> str:
+        """Provides endpoint from remote context"""
+        return (await self.device["endpoint"]).value
+
+    async def _set_endpoint(self, value: str) -> None:
+        """Sets endpoint in remote context"""
+        await self.device.write_attribute(attr_name="endpoint", value=value)
 
     async def _get_current(self):
         """Provides current from remote context"""
