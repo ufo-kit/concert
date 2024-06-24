@@ -29,7 +29,7 @@ class TangoCommand(SubCommand):
         super(TangoCommand, self).__init__('tango', opts)
 
     def run(self, server: str, port: int, database: bool = False, device: [str, None] = None, instancelogfile=None,
-            loglevel=None):
+            loglevel=None, logfile=None):
         """
         Run a Tango server
 
@@ -68,7 +68,7 @@ class TangoCommand(SubCommand):
             from concert.ext.tangoservers import walker
             server_class = {'class': walker.TangoRemoteWalker}
 
-        #setup_logging(server, to_stream=True, filename=logfile, loglevel=loglevel)
+        setup_logging(server, to_stream=True, filename=logfile, loglevel=loglevel)
 
         if database:
             run([server_class['class']], device)
