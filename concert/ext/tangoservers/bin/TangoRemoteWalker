@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from concert.ext.tangoservers.walker import TangoRemoteWalker
+from tango import GreenMode
 
 if __name__ == '__main__':
-    TangoRemoteWalker.run_server()
+    TangoRemoteWalker.run_server(green_mode=GreenMode.Asyncio)
