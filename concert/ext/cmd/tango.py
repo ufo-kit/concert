@@ -75,5 +75,17 @@ class TangoCommand(SubCommand):
         else:
             if device is None:
                 device = f'concert/tango/{server}'
-            run([server_class['class']],
-                args=[server, 'name', '-ORBendPoint', f'giop:tcp::{port}', '-v4', '-nodb', '-dlist', device])
+            run(
+                [server_class['class']],
+                args=[
+                    server,
+                    'name',
+                    '-ORBendPoint',
+                    f'giop:tcp::{port}',
+                    '-v4',
+                    '-nodb',
+                    '-dlist',
+                    device
+                ],
+                green_mode=tango.GreenMode.Asyncio
+            )
