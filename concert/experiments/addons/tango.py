@@ -5,6 +5,7 @@ import logging
 import os
 import numpy as np
 from concert.experiments.addons import base
+from concert.experiments.base import remote
 from concert.quantities import q
 
 
@@ -16,8 +17,6 @@ class TangoMixin:
     """TangoMixin does not need a producer becuase the backend processes image streams which do not
     come via concert.
     """
-
-    remote = True
 
     @staticmethod
     def cancel_remote(func):
@@ -59,6 +58,7 @@ class Benchmarker(TangoMixin, base.Benchmarker):
         await base.Benchmarker.__ainit__(self, acquisitions=acquisitions)
 
     @TangoMixin.cancel_remote
+    @remote
     async def start_timer(self, acquisition_name):
         await self._device.start_timer(acquisition_name)
 
@@ -77,22 +77,19 @@ class ImageWriter(TangoMixin, base.ImageWriter):
         await base.ImageWriter.__ainit__(self, walker, acquisitions=acquisitions)
 
     @TangoMixin.cancel_remote
-    async def _write_sequence(self, name):
-        await self.walker.write_sequence(name=name)
-
-    def write_sequence(self, name):
-        return self._write_sequence(name)
+    @remote
+    async def write_sequence(self, name):
+        return await self.walker.write_sequence(name=name)
 
 
 class LiveView(base.LiveView):
-
-    remote = True
 
     async def __ainit__(self, viewer, endpoint, acquisitions=None):
         await base.LiveView.__ainit__(self, viewer, acquisitions=acquisitions)
         self._endpoint = endpoint
         self._orig_limits = await viewer.get_limits()
 
+    @remote
     async def consume(self):
         try:
             if await self._viewer.get_limits() == 'stream':
@@ -137,10 +134,12 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
         self._args = await QuantifiedProxyArgs(_TangoProxyArgs(self._device))
 
     @TangoMixin.cancel_remote
+    @remote
     async def update_darks(self):
         await self._device.update_darks()
 
     @TangoMixin.cancel_remote
+    @remote
     async def update_flats(self):
         await self._device.update_flats()
 
@@ -162,6 +161,7 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
         else:
             await self._device.reconstruct(path)
 
+    @remote
     async def reconstruct(self):
         await self._reconstruct()
 

@@ -5,7 +5,7 @@ For all classes the abstract functions *start_sample_exposure* and *stop_sample_
 import asyncio
 import numpy as np
 from concert.quantities import q
-from concert.experiments.base import Experiment, Acquisition
+from concert.experiments.base import Experiment, Acquisition, local, remote
 from concert.base import background, Parameter, Quantity, Parameterizable, \
     AccessorNotImplementedError
 from concert.base import check
@@ -92,6 +92,7 @@ class LocalAutoDAQMixin:
             for i in range(int(number)):
                 yield await self._camera.grab()
 
+    @local
     async def _take_radios(self):
         """
         Generator for projection images.
@@ -107,6 +108,7 @@ class LocalAutoDAQMixin:
         finally:
             await self._finish_radios()
 
+    @local
     async def _take_flats(self):
         """
         Generator for taking flatfield images
@@ -122,6 +124,7 @@ class LocalAutoDAQMixin:
         finally:
             await self._finish_flats()
 
+    @local
     async def _take_darks(self):
         """
         Generator for taking dark images
@@ -156,6 +159,7 @@ class RemoteAutoDAQMixin:
 
         return number
 
+    @remote
     async def _take_radios(self):
         """
         Generator for projection images.
@@ -170,6 +174,7 @@ class RemoteAutoDAQMixin:
         finally:
             await self._finish_radios()
 
+    @remote
     async def _take_flats(self):
         """
         Generator for taking flatfield images
@@ -184,6 +189,7 @@ class RemoteAutoDAQMixin:
         finally:
             await self._finish_flats()
 
+    @remote
     async def _take_darks(self):
         """
         Generator for taking dark images
@@ -204,6 +210,7 @@ class LocalTriggerDAQMixin(LocalAutoDAQMixin):
     Local triggered DAQ mixin. Every frame is triggered separately as opposed to
     :py:class:`.LocalAutoDAQMixin`.
     """
+    @local
     async def _take_radios(self):
         """
         Local generator for stepped projection images.
@@ -231,6 +238,7 @@ class RemoteTriggerDAQMixin(RemoteAutoDAQMixin):
     Remote triggered DAQ mixin. Every frame is triggered separately as opposed to
     :py:class:`.RemoteAutoDAQMixin`.
     """
+    @remote
     async def _take_radios(self):
         """
         Remote generator for stepped projection images.
@@ -440,9 +448,9 @@ class RadiographyLogic(Experiment):
         self._camera = camera
         flat_motor_unit = self._flat_motor['position'].unit
 
-        darks_acq = await Acquisition("darks", camera, self._take_darks)
-        flats_acq = await Acquisition("flats", camera, self._take_flats)
-        radios_acq = await Acquisition("radios", camera, self._take_radios)
+        darks_acq = await Acquisition("darks", self._take_darks)
+        flats_acq = await Acquisition("flats", self._take_flats)
+        radios_acq = await Acquisition("radios", self._take_radios)
         await super().__ainit__([darks_acq, flats_acq, radios_acq], walker,
                                 separate_scans=separate_scans)
         self.install_parameters(
@@ -1092,13 +1100,12 @@ class LocalGratingInterferometryStepping(
 
         reference_stepping = await Acquisition(
             "reference_stepping",
-            camera,
             self._take_reference_scan
         )
         self.remove(self.get_acquisition("flats"))  # No flats required due to ref. stepping
         self.add(reference_stepping)
 
-        object_stepping = await Acquisition("object_stepping", camera, self._take_object_scan)
+        object_stepping = await Acquisition("object_stepping", self._take_object_scan)
         self.remove(self.get_acquisition("radios"))  # No radios required due to obj. stepping
         self.add(object_stepping)
 
@@ -1116,6 +1123,7 @@ class LocalGratingInterferometryStepping(
         if n != 1:
             raise AccessorNotImplementedError
 
+    @local
     async def _take_reference_scan(self):
         """
         Starts the sample exposure, moves the flat_motor in the *reference_position* and runs
@@ -1126,6 +1134,7 @@ class LocalGratingInterferometryStepping(
         async for image in self._take_scan():
             yield image
 
+    @local
     async def _take_object_scan(self):
         """
         Starts the sample exposure, moves the flat_motor in the *radio_position* and runs

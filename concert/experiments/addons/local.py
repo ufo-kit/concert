@@ -3,24 +3,19 @@ import numpy as np
 from concert.coroutines.base import async_generate
 from concert.coroutines.sinks import Accumulate
 from concert.experiments.addons import base
-from concert.experiments.base import Consumer as AcquisitionConsumer
+from concert.experiments.base import Consumer as AcquisitionConsumer, local
 from concert.experiments.imaging import LocalGratingInterferometryStepping
 from concert.helpers import PerformanceTracker, ImageWithMetadata
 from concert.quantities import q
 
 
-class LocalMixin:
-    """LocalMixin needs a producer becuase the backend processes image streams from concer."""
-
-    remote = False
-
-
-class Benchmarker(LocalMixin, base.Benchmarker):
+class Benchmarker(base.Benchmarker):
 
     async def __ainit__(self, acquisitions=None):
         await base.Benchmarker.__ainit__(self, acquisitions=acquisitions)
         self._durations = {}
 
+    @local
     async def start_timer(self, producer, acquisition_name):
         total_bytes = 0
         with PerformanceTracker() as pt:
@@ -36,32 +31,35 @@ class Benchmarker(LocalMixin, base.Benchmarker):
         self._durations = {}
 
 
-class ImageWriter(LocalMixin, base.ImageWriter):
+class ImageWriter(base.ImageWriter):
     async def __ainit__(self, walker, acquisitions=None):
         await base.ImageWriter.__ainit__(self, walker, acquisitions=acquisitions)
 
-    def write_sequence(self, name, producer=None):
+    @local
+    async def write_sequence(self, name, producer=None):
         """Wrap the walker and write data to subdirectory *name*."""
-        return self.walker.create_writer(producer, name=name)
+        return await self.walker.create_writer(producer, name=name)
 
 
-class Consumer(LocalMixin, base.Consumer):
+class Consumer(base.Consumer):
     async def __ainit__(self, consumer, acquisitions=None):
         await base.Consumer.__ainit__(self, consumer, acquisitions=acquisitions)
 
+    @local
     async def consume(self, producer):
         await self._consumer(producer)
 
 
-class LiveView(LocalMixin, base.LiveView):
+class LiveView(base.LiveView):
     async def __ainit__(self, viewer, acquisitions=None):
         await base.LiveView.__ainit__(self, viewer, acquisitions=acquisitions)
 
+    @local
     async def consume(self, producer):
         await self._viewer(producer)
 
 
-class Accumulator(LocalMixin, base.Accumulator):
+class Accumulator(base.Accumulator):
     async def __ainit__(self, acquisitions=None, shapes=None, dtype=None):
         await base.Accumulator.__ainit__(
             self,
@@ -71,6 +69,7 @@ class Accumulator(LocalMixin, base.Accumulator):
         )
         self._accumulators = {}
 
+    @local
     def accumulate(self, producer, acquisition_name, shape=None, dtype=None):
         if acquisition_name not in self._accumulators:
             self._accumulators[acquisition_name] = Accumulate(shape=shape, dtype=dtype)
@@ -86,7 +85,7 @@ class Accumulator(LocalMixin, base.Accumulator):
         self._accumulators = {}
 
 
-class OnlineReconstruction(LocalMixin, base.OnlineReconstruction):
+class OnlineReconstruction(base.OnlineReconstruction):
     async def __ainit__(self, acquisitions=None, do_normalization=True,
                         average_normalization=True, walker=None, slice_directory='online-slices'):
         await base.OnlineReconstruction.__ainit__(
@@ -105,9 +104,11 @@ class OnlineReconstruction(LocalMixin, base.OnlineReconstruction):
             average_normalization=average_normalization
         )
 
+    @local
     async def update_darks(self, producer):
         return await self._manager.update_darks(producer)
 
+    @local
     async def update_flats(self, producer):
         return await self._manager.update_flats(producer)
 
@@ -131,6 +132,7 @@ class OnlineReconstruction(LocalMixin, base.OnlineReconstruction):
                     )
                 await writer
 
+    @local
     async def reconstruct(self, producer):
         await self._reconstruct(producer=producer)
 
@@ -160,7 +162,7 @@ class OnlineReconstruction(LocalMixin, base.OnlineReconstruction):
         return self._manager.volume[index]
 
 
-class PhaseGratingSteppingFourierProcessing(LocalMixin, base.PhaseGratingSteppingFourierProcessing):
+class PhaseGratingSteppingFourierProcessing(base.PhaseGratingSteppingFourierProcessing):
     async def __ainit__(self, experiment, output_directory="contrasts"):
         if not isinstance(experiment, LocalGratingInterferometryStepping):
             raise Exception("This addon can only be used with "
@@ -186,6 +188,7 @@ class PhaseGratingSteppingFourierProcessing(LocalMixin, base.PhaseGratingSteppin
             output_directory=output_directory
         )
 
+    @local
     async def process_darks(self, producer):
         """
         Processes dark images. All dark images are averaged.
@@ -201,6 +204,7 @@ class PhaseGratingSteppingFourierProcessing(LocalMixin, base.PhaseGratingSteppin
                 self._dark_image += item
         self._dark_image /= await self._experiment.get_num_darks()
 
+    @local
     async def process_stepping(self, producer):
         if await self._experiment.get_acquisition("reference_stepping").get_state() == "running":
             current_stepping = "reference"
@@ -328,7 +332,7 @@ class PhaseGratingSteppingFourierProcessing(LocalMixin, base.PhaseGratingSteppin
         return self.diff_phase_in_rad
 
 
-class PCOTimestampCheck(LocalMixin, base.Addon):
+class PCOTimestampCheck(base.Addon):
 
     async def __ainit__(self, experiment):
         self._timestamp_checks = {}
@@ -346,6 +350,7 @@ class PCOTimestampCheck(LocalMixin, base.Addon):
 
         return consumers
 
+    @local
     async def _check_timestamp(self, producer):
         self.timestamp_incorrect = False
         self.timestamp_missing = False

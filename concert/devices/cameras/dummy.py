@@ -217,7 +217,7 @@ class BufferedCamera(Camera, base.BufferedMixin):
             yield await self.grab()
 
 
-class TangoCameraBase(base.RemoteMixin):
+class TangoCameraBase:
 
     """Tango remote camera base."""
 

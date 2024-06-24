@@ -11,7 +11,7 @@ from concert.quantities import q
 from concert.coroutines.base import start
 from concert.coroutines.sinks import Accumulate, null
 from concert.experiments.base import (Acquisition, Consumer as AcquisitionConsumer, Experiment,
-                                      ExperimentError)
+                                      ExperimentError, local)
 from concert.experiments.imaging import (tomo_angular_step, tomo_max_speed,
                                          tomo_projections_number, frames)
 from concert.experiments.addons.base import Addon
@@ -42,7 +42,7 @@ class DummyAddon(Addon):
         await super(DummyAddon, self).__ainit__()
 
     def _make_consumers(self, acquisitions):
-        return dict((acq, AcquisitionConsumer(null)) for acq in acquisitions)
+        return dict((acq, AcquisitionConsumer(local(null))) for acq in acquisitions)
 
     def is_attached(self, acquisitions):
         for acq in acquisitions:
@@ -55,9 +55,10 @@ class DummyAddon(Addon):
 
 class ExperimentSimple(Experiment):
     async def __ainit__(self, walker):
-        acq = await Acquisition("test", np.ndarray, self._run_test_acq)
+        acq = await Acquisition("test", self._run_test_acq)
         await super(ExperimentSimple, self).__ainit__([acq], walker)
 
+    @local
     async def _run_test_acq(self):
         for i in range(10):
             await asyncio.sleep(0.1)
@@ -66,9 +67,10 @@ class ExperimentSimple(Experiment):
 
 class ExperimentException(Experiment):
     async def __ainit__(self, walker):
-        acq = await Acquisition("test", np.ndarray, self._run_test_acq)
+        acq = await Acquisition("test", self._run_test_acq)
         await super(ExperimentException, self).__ainit__([acq], walker)
 
+    @local
     async def _run_test_acq(self):
         for i in range(2):
             yield i
@@ -110,8 +112,8 @@ class TestAcquisition(TestCase):
         await super().asyncSetUp()
         self.acquired = False
         self.item = None
-        self.acquisition = await Acquisition('foo', int, self.produce, acquire=self.acquire)
-        self.acquisition.add_consumer(AcquisitionConsumer(self.consume), False)
+        self.acquisition = await Acquisition('foo', self.produce, acquire=self.acquire)
+        self.acquisition.add_consumer(AcquisitionConsumer(self.consume))
 
     async def test_run(self):
         await self.acquisition()
@@ -121,9 +123,11 @@ class TestAcquisition(TestCase):
     async def acquire(self):
         self.acquired = True
 
+    @local
     async def produce(self):
         yield 1
 
+    @local
     async def consume(self, producer):
         async for item in producer:
             self.item = item
@@ -138,9 +142,9 @@ class TestExperimentBase(TestCase):
         self.walker = await DummyWalker(root=self.root)
         self.name_fmt = 'scan_{:>04}'
         self.visited = 0
-        self.foo = await Acquisition("foo", int, self.produce, acquire=self.acquire)
-        self.foo.add_consumer(AcquisitionConsumer(self.consume), False)
-        self.bar = await Acquisition("bar", int, self.produce, acquire=self.acquire)
+        self.foo = await Acquisition("foo", self.produce, acquire=self.acquire)
+        self.foo.add_consumer(AcquisitionConsumer(self.consume))
+        self.bar = await Acquisition("bar", self.produce, acquire=self.acquire)
         self.acquisitions = [self.foo, self.bar]
         self.num_produce = 2
         self.item = None
@@ -148,11 +152,13 @@ class TestExperimentBase(TestCase):
     async def acquire(self):
         self.acquired += 1
 
+    @local
     async def produce(self):
         self.visited += 1
         for i in range(self.num_produce):
             yield np.ones((1,)) * i
 
+    @local
     async def consume(self, producer):
         async for item in producer:
             self.item = item

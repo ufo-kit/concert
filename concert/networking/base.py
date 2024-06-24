@@ -7,6 +7,7 @@ import zmq
 import zmq.asyncio
 from concert.quantities import q
 from concert.config import AIODEBUG, PERFDEBUG
+from concert.helpers import ImageWithMetadata
 
 
 LOG = logging.getLogger(__name__)
@@ -117,10 +118,14 @@ def zmq_create_image_metadata(image):
     if image is None:
         return {'end': True}
     else:
-        return {
+        result = {
             'dtype': str(image.dtype),
             'shape': image.shape,
         }
+        if isinstance(image, ImageWithMetadata):
+            result.update(image.metadata)
+
+        return result
 
 
 async def zmq_receive_image(socket):

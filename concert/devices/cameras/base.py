@@ -60,21 +60,23 @@ frame. The callable is applied to the frame and the converted one is returned by
     # The frame is left-right flipped
     grab(camera)
 
-Remote cameras implement a :meth:`RemoteMixin.grab_send` method, which instead of giving the frames
-to concert sends the frames via a ZMQ stream. It is possible to use these camera also as local ones
-with the :meth:`Camera.grab` and :meth:`Camera.stream` methods. Of course not at the same time, for
-which there is a grab :class:`asyncio.Lock` which prevents the frames to be grabbed at the same time
-from competing methods like :meth:`Camera.grab` and :meth:`RemoteMixin.grab_send`.
+Cameras can send images over a ZMQ stream by the :meth:`Camera.grab_send` method. Instead of giving
+the frames to the user, it sends the frames via the ZMQ stream.
+
+There is a grab :class:`asyncio.Lock` which prevents the frames to be grabbed at the same time from
+competing methods like :meth:`Camera.grab` and :meth:`RemoteMixin.grab_send`.
 """
 import asyncio
 import contextlib
 import logging
+import zmq
 from concert.base import AccessorNotImplementedError, Parameter, Quantity, State, check, identity
 from concert.config import AIODEBUG
 from concert.coroutines.base import background
 from concert.quantities import q
-from concert.helpers import Bunch, ImageWithMetadata
+from concert.helpers import Bunch, CommData, ImageWithMetadata
 from concert.devices.base import Device
+from concert.networking.base import ZmqSender
 
 
 LOG = logging.getLogger(__name__)
@@ -100,11 +102,14 @@ class Camera(Device):
     state = State(default='standby')
     frame_rate = Quantity(1 / q.second, help="Frame frequency")
     trigger_source = Parameter(help="Trigger source")
+    zmq_options = Parameter(help="ZMQ streaming options")
 
     async def __ainit__(self):
         await super(Camera, self).__ainit__()
         self.convert = identity
         self._grab_lock = asyncio.Lock()
+        self._commdata = None
+        self._sender = None
 
     @background
     @check(source='standby', target='recording')
@@ -193,6 +198,51 @@ class Camera(Device):
         finally:
             await self['trigger_source'].restore()
 
+    @background
+    @check(source=['recording', 'readout'])
+    async def grab_send(self, num, end=True):
+        """Grab and send over a zmq socket. If *end* is True, end-of-stream indicator is sent to all
+        consumers when the desired number of images is sent. Acquires grab lock for the whole time
+        *num* frames are being sent.
+        """
+        async with self._grab_lock:
+            try:
+                await self._grab_send_real(num, end=end)
+            except asyncio.CancelledError:
+                await self.stop_sending()
+                raise
+
+    @background
+    @check(source='recording')
+    async def stop_sending(self):
+        """
+        Stop sending images. The server must send a poison pill which serves as an end-of-stream
+        indicator to consumers.
+        """
+        await self._stop_sending()
+
+    async def _grab_send_real(self, num, end=True):
+        for i in range(num):
+            img = self.convert(await self._grab_real())
+            await self._sender.send_image(img.view(ImageWithMetadata))
+        if end:
+            await self._sender.send_image(None)
+
+    async def _stop_sending(self):
+        raise AccessorNotImplementedError
+
+    async def _get_zmq_options(self):
+        return self._commdata
+
+    async def _set_zmq_options(self, value):
+
+        self._commdata = value
+        self._sender = ZmqSender(
+            self._commdata.server_endpoint,
+            reliable=self._commdata.socket_type == zmq.PUSH,
+            sndhwm=self._commdata.sndhwm
+        )
+
     async def _get_trigger_source(self):
         raise AccessorNotImplementedError
 
@@ -270,37 +320,3 @@ class BufferedMixin(Device):
 
     async def _readout_real(self, *args, **kwargs):
         raise AccessorNotImplementedError
-
-
-class RemoteMixin:
-
-    """
-    A remote camera which can grab more frames at once and instead of returning them to concert they
-    are processed otherwise, e.g. sent over network to some consumer.
-    """
-
-    remote = True
-
-    @background
-    @check(source=['recording', 'readout'])
-    async def grab_send(self, num, end=True):
-        """Grab and send over a zmq socket. If *end* is True, end-of-stream indicator is sent to all
-        consumers when the desired number of images is sent. Acquires grab lock for the whole time
-        *num* frames are being sent.
-        """
-        async with self._grab_lock:
-            try:
-                await self._grab_send_real(num, end=end)
-            except asyncio.CancelledError:
-                await self.stop_sending()
-                raise
-
-    async def _grab_send_real(self, num, end=True):
-        raise NotImplementedError
-
-    async def stop_sending(self):
-        """
-        Stop sending images. The server must send a poison pill which serves as an end-of-stream
-        indicator to consumers.
-        """
-        raise NotImplementedError

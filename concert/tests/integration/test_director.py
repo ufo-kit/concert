@@ -8,7 +8,7 @@ from time import time
 
 import concert
 from concert.storage import DirectoryWalker
-from concert.experiments.base import Experiment as BaseExperiment, Acquisition
+from concert.experiments.base import Experiment as BaseExperiment, Acquisition, local
 from concert.tests import TestCase as BaseTestCase, slow
 from concert.directors.dummy import Director
 from concert.directors.base import Director as BaseDirector
@@ -27,10 +27,11 @@ class Experiment(BaseExperiment):
     *test*.
     """
     async def __ainit__(self, walker, separate_scans):
-        acquisition = await Acquisition("test", self._frame_producer, self._frame_producer)
+        acquisition = await Acquisition("test", self._frame_producer)
         await super().__ainit__(acquisitions=[acquisition], walker=walker,
                                 separate_scans=separate_scans)
 
+    @local
     async def _frame_producer(self):
         yield np.random.random((100, 100))
 
@@ -39,6 +40,7 @@ class BrokenExperiment(Experiment):
     """
     Experiment, that causes an exception within the acquisition call.
     """
+    @local
     async def _frame_producer(self):
         yield None
         raise Exception("Experiment broken")
@@ -55,6 +57,7 @@ class EarlyReadyExperiment(Experiment):
         self.ready_time = {}
         self.acq_finished_time = {}
 
+    @local
     async def _frame_producer(self):
         yield np.random.random((100, 100))
         if self._set_ready:

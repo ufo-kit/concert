@@ -4,6 +4,7 @@ care of proper logging structure.
 """
 
 import asyncio
+import functools
 import inspect
 import logging
 import os
@@ -60,11 +61,6 @@ class Acquisition(Parameterizable):
 
         name of this acquisition
 
-    .. py:attribute:: data_source
-
-        object which actually generates data, if it has an attribute *remote* it means it does
-        not actually yield data but rather sends it over network.
-
     .. py:attribute:: producer_corofunc
 
         a callable with no arguments which returns a generator yielding data items once called.
@@ -76,9 +72,9 @@ class Acquisition(Parameterizable):
     """
     state = State(default='standby')
 
-    async def __ainit__(self, name, data_source, producer_corofunc, acquire=None):
+    async def __ainit__(self, name, producer_corofunc, acquire=None):
         self.name = name
-        if hasattr(data_source, 'remote'):
+        if producer_corofunc.remote:
             self._connect = self._connect_remote
             self.remote = True
         else:
@@ -109,9 +105,9 @@ class Acquisition(Parameterizable):
     def contains(self, consumer):
         return consumer in self._consumers
 
-    def add_consumer(self, consumer, remote):
+    def add_consumer(self, consumer):
         """Add *consumer*, *remote* must match this acquisition mode."""
-        if self.remote ^ remote:
+        if self.remote ^ consumer.corofunc.remote:
             raise ConsumerError("Cannot attach local consumers to remote producers and vice versa")
         self._consumers.append(consumer)
         LOG.debug('Adding %s to acquisition %s', consumer.__class__.__name__, self.name)
@@ -465,3 +461,41 @@ class ConsumerError(Exception):
 class ExperimentError(Exception):
     """Experiment-related exceptions."""
     pass
+
+
+def remote(func):
+    """Decorator which marks *func* as remote."""
+    @functools.wraps(func)
+    async def wrapped(*args, **kwargs):
+        return await func(*args, **kwargs)
+
+    wrapped.remote = True
+
+    return wrapped
+
+
+def local(func):
+    """Decorator which marks *func* as local. If *func* is an async generator function, then it must
+    yield values itself, it cannot just return a generator, otherwise it would not be recognized by
+    inspect.isasyncgenfunction.
+    """
+    import inspect
+
+    @functools.wraps(func)
+    async def wrapped_asyncgen(*args, **kwargs):
+        if inspect.isasyncgenfunction(func):
+            # We need to re-yield, otherwise this would not be an asyncgenfunction
+            async for item in func(*args, **kwargs):
+                yield item
+
+    @functools.wraps(func)
+    async def wrapped(*args, **kwargs):
+        return await func(*args, **kwargs)
+
+    wrapped.remote = False
+    wrapped_asyncgen.remote = False
+
+    if inspect.isasyncgenfunction(func):
+        return wrapped_asyncgen
+    else:
+        return wrapped

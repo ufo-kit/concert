@@ -4,8 +4,7 @@ import logging
 import os
 import numpy as np
 from concert.coroutines.base import run_in_executor
-from concert.experiments.base import Acquisition, Experiment
-from concert.devices.cameras.base import RemoteMixin
+from concert.experiments.base import Acquisition, Experiment, local, remote
 from concert.devices.cameras.dummy import FileCamera
 from concert.progressbar import wrap_iterable
 
@@ -62,9 +61,9 @@ class ImagingExperiment(Experiment):
             raise ValueError("random must be one of 'off', 'single', 'multi'")
         self.random = random
         self.dtype = dtype
-        darks = await Acquisition('darks', np.ndarray, self.take_darks)
-        flats = await Acquisition('flats', np.ndarray, self.take_flats)
-        radios = await Acquisition('radios', np.ndarray, self.take_radios)
+        darks = await Acquisition('darks', self.take_darks)
+        flats = await Acquisition('flats', self.take_flats)
+        radios = await Acquisition('radios', self.take_radios)
         await super().__ainit__(
             [darks, flats, radios],
             walker=walker,
@@ -95,14 +94,20 @@ class ImagingExperiment(Experiment):
                     image = await run_in_executor(make_random_image)
                 yield image
 
-    def take_darks(self):
-        return self._produce_images(self.num_darks)
+    @local
+    async def take_darks(self):
+        async for image in self._produce_images(self.num_darks):
+            yield image
 
-    def take_flats(self):
-        return self._produce_images(self.num_flats)
+    @local
+    async def take_flats(self):
+        async for image in self._produce_images(self.num_flats):
+            yield image
 
-    def take_radios(self):
-        return self._produce_images(self.num_radios)
+    @local
+    async def take_radios(self):
+        async for image in self._produce_images(self.num_radios):
+            yield image
 
 
 class ImagingFileExperiment(Experiment):
@@ -172,9 +177,9 @@ class ImagingFileExperiment(Experiment):
         self.roi_y0 = roi_y0
         self.roi_height = roi_height
         self._camera_class = camera_class
-        darks = await Acquisition('darks', self._camera_class, self.take_darks)
-        flats = await Acquisition('flats', self._camera_class, self.take_flats)
-        radios = await Acquisition('radios', self._camera_class, self.take_radios)
+        darks = await Acquisition('darks', self.take_darks)
+        flats = await Acquisition('flats', self.take_flats)
+        radios = await Acquisition('radios', self.take_radios)
         await super().__ainit__(
             [darks, flats, radios],
             walker=walker,
@@ -197,14 +202,20 @@ class ImagingFileExperiment(Experiment):
             for i in wrap_iterable(list(range(num))):
                 yield await camera.grab()
 
-    def take_darks(self):
-        return self._produce_images(self.darks_pattern, self.num_darks)
+    @local
+    async def take_darks(self):
+        async for image in self._produce_images(self.darks_pattern, self.num_darks):
+            yield image
 
-    def take_flats(self):
-        return self._produce_images(self.flats_pattern, self.num_flats)
+    @local
+    async def take_flats(self):
+        async for image in self._produce_images(self.flats_pattern, self.num_flats):
+            yield image
 
-    def take_radios(self):
-        return self._produce_images(self.radios_pattern, self.num_radios)
+    @local
+    async def take_radios(self):
+        async for image in self._produce_images(self.radios_pattern, self.num_radios):
+            yield image
 
 
 class RemoteFileImagingExperiment(Experiment):
@@ -224,9 +235,9 @@ class RemoteFileImagingExperiment(Experiment):
         self.num_flats = num_flats
         self.num_radios = num_radios
         self._camera = camera
-        darks = await Acquisition('darks', camera, self.take_darks)
-        flats = await Acquisition('flats', camera, self.take_flats)
-        radios = await Acquisition('radios', camera, self.take_radios)
+        darks = await Acquisition('darks', self.take_darks)
+        flats = await Acquisition('flats', self.take_flats)
+        radios = await Acquisition('radios', self.take_radios)
         await super().__ainit__(
             [darks, flats, radios],
             walker=walker,
@@ -241,11 +252,14 @@ class RemoteFileImagingExperiment(Experiment):
 
         return number
 
+    @remote
     def take_darks(self):
         return self._produce_frames(self.darks_pattern, self.num_darks)
 
+    @remote
     def take_flats(self):
         return self._produce_frames(self.flats_pattern, self.num_flats)
 
+    @remote
     def take_radios(self):
         return self._produce_frames(self.radios_pattern, self.num_radios)

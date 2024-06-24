@@ -255,7 +255,7 @@ class Camera(base.Camera):
             return 'standby'
 
 
-class RemoteNetCamera(base.RemoteMixin, Camera):
+class RemoteNetCamera(Camera):
 
     """
     The "net" plugin implementation which forwards images over zmq streams.

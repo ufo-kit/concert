@@ -37,7 +37,7 @@ class Addon(AsyncObject):
         consumers = self._make_consumers(unattached)
 
         for acq, consumer in consumers.items():
-            acq.add_consumer(consumer, self.remote)
+            acq.add_consumer(consumer)
             self._consumers.add(consumer)
 
         await self._setup()
@@ -132,7 +132,7 @@ class ImageWriter(Addon):
                         # Even though acquisition name is fixed, we don't know where in the file
                         # system we are, so this must be determined dynamically when the writing
                         # is about to start
-                        if self.remote:
+                        if self.write_sequence.remote:
                             coro = self.write_sequence(acquisition.name)
                         else:
                             coro = self.write_sequence(acquisition.name, producer=args[0])
@@ -145,6 +145,7 @@ class ImageWriter(Addon):
 
         for acq in acquisitions:
             consumers[acq] = AcquisitionConsumer(prepare_wrapper(acq))
+            consumers[acq].corofunc.remote = self.write_sequence.remote
 
         return consumers
 
