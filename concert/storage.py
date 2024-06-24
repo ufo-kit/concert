@@ -581,7 +581,13 @@ class RemoteDirectoryWalker(Walker):
         :param path: path to write to
         :type path: str
         """
-        await self.device.write_sequence(name)
+        import tango
+        self.device.command_inout_asynch("write_sequence", name, True)
+        while await self.device.state() == tango.DevState.RUNNING:
+            await asyncio.sleep(0.1)
+        if await self.device.state() != tango.DevState.STANDBY:
+            raise StorageError("Error within TangoRemoteWriter")
+
 
     async def get_log_handler(self) -> AsyncLoggingHandlerCloser:
         """
