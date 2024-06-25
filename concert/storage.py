@@ -235,6 +235,10 @@ class Walker(Parameterizable):
         """Fetches the dataset name from internal context"""
         return self._dsetname
 
+    async def _set_dsetname(self, value: str) -> None:
+        """Sets dataset name in internal context"""
+        self._dsetname = value
+
     async def home(self) -> None:
         """Return to root"""
         self._current = self._root
@@ -271,10 +275,12 @@ class Walker(Parameterizable):
         splitting the preparation of writing (creating directories, ...)
         and the I/O itself.
         """
+        if dsetname is not None:
+            await self.set_dsetname(dsetname)
         if name:
             await self.descend(name)
         try:
-            return await (await self._create_writer(producer, dsetname=dsetname))
+            return await (await self._create_writer(producer, dsetname=await self.get_dsetname()))
         finally:
             if name:
                 await self.ascend()
@@ -338,7 +344,7 @@ class DummyWalker(Walker):
     async def _create_writer(self,
                        producer: AsyncIterable[ArrayLike],
                        dsetname: Optional[str] = None) -> Awaitable:
-        dsetname = dsetname or self.dsetname
+        dsetname = dsetname or await self.get_dsetname()
         path = os.path.join(self._current, dsetname)
 
         async def _append_paths() -> None:
