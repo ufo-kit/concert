@@ -2,14 +2,18 @@
 the acquired data, e.g. write images to disk, do tomographic reconstruction etc.
 """
 import logging
-from concert.base import AsyncObject
-from concert.experiments.base import Consumer as AcquisitionConsumer
 
+import numpy as np
+
+from concert.base import AsyncObject, Parameterizable, Parameter, Quantity
+from concert.experiments.base import Consumer as AcquisitionConsumer
+from concert.ext.ufo import GeneralBackprojectArgs
+from concert.quantities import q
 
 LOG = logging.getLogger(__name__)
 
 
-class Addon(AsyncObject):
+class Addon(Parameterizable):
 
     """A base addon class. An addon can be attached, i.e. its functionality is applied to the
     specified *acquisitions* and detached.
@@ -28,6 +32,7 @@ class Addon(AsyncObject):
             await self.attach(acquisitions)
         else:
             await self.attach(experiment.acquisitions)
+        await super().__ainit__()
 
     async def attach(self, acquisitions):
         """Attach the addon to *acquisitions*."""
@@ -259,13 +264,53 @@ class Accumulator(Addon):
 
 
 class OnlineReconstruction(Addon):
+    UNITS = {
+        'source_position_y': q.px,
+        'detector_position_y': q.px,
+        'center_position_x': q.px,
+        'center_position_z': q.px,
+        'axis_angle_x': q.rad,
+        'energy': q.keV,
+        'propagation_distance': q.m,
+        'pixel_size': q.m,
+        'retrieval_padded_width': q.px,
+        'retrieval_padded_height': q.px,
+        'projection_margin': q.px,
+        'x_region': q.px,
+        'y_region': q.px,
+        'z': q.px,
+        'source_position_x': q.px,
+        'source_position_z': q.px,
+        'detector_position_x': q.px,
+        'detector_position_z': q.px,
+        'detector_angle_x': q.rad,
+        'detector_angle_y': q.rad,
+        'detector_angle_z': q.rad,
+        'axis_angle_y': q.rad,
+        'axis_angle_z': q.rad,
+        'volume_angle_x': q.rad,
+        'volume_angle_y': q.rad,
+        'volume_angle_z': q.rad,
+        'overall_angle': q.rad,
+        'y': q.px,
+        'height': q.px,
+        'width': q.px,
+    }
+
+    slice_directory = Parameter()
+    z_parameters = Parameter()
+    slice_metrics = Parameter()
+    slice_metric = Parameter()
+    z_parameter = Parameter()
+
     async def __ainit__(self, experiment, acquisitions=None, do_normalization=True,
                         average_normalization=True, slice_directory='online-slices'):
-        self._args = None
         self._do_normalization = do_normalization
-        self.walker = self.experiment.walker
-        self.slice_directory = slice_directory
+        self.walker = experiment.walker
+        self._slice_directory = None
         await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
+        await self.set_slice_directory(slice_directory)
+        await self.register_args()
 
     def _make_consumers(self, acquisitions):
         consumers = {}
@@ -296,7 +341,76 @@ class OnlineReconstruction(Addon):
 
     @property
     def args(self):
-        return self._args
+        return self._proxy
+
+    async def register_args(self, **kwargs):
+        params = {}
+
+        for arg, settings in GeneralBackprojectArgs.parameters.items():
+
+            if arg in self.UNITS:
+                unit = self.UNITS[arg]
+                params[arg] = Quantity(
+                    unit,
+                    fget=self._make_getter(arg, unit=unit),
+                    fset=self._make_setter(arg, unit=unit),
+                    help=settings['help']
+                )
+            else:
+                params[arg] = Parameter(
+                    fget=self._make_getter(arg),
+                    fset=self._make_setter(arg),
+                    help=settings['help']
+                )
+
+        self.install_parameters(params)
+        await self._set_args(**kwargs)
+    def _make_getter(self, arg, unit=None):
+        async def getter(instance):
+            value = await self._proxy.get_reco_arg(arg)
+            if value is not None and unit is not None:
+                value *= unit
+
+            return value
+
+        return getter
+
+    def _make_setter(self, arg, unit=None):
+        async def setter(instance, value):
+            if unit is not None:
+                value = value.to(unit).magnitude
+                if isinstance(value, np.ndarray):
+                    value = value.tolist()
+
+            await self._proxy.set_reco_arg(arg, value)
+
+        return setter
+
+    async def _set_args(self, **kwargs):
+        for arg in kwargs:
+            if arg not in self._params:
+                raise AttributeError(
+                    f"QuantifiedGeneralBackprojectArgs do not have attribute `{arg}'"
+                )
+            await self._params[arg].set(kwargs[arg])
+
+    async def _get_z_parameters(self):
+        return self._proxy.z_parameters
+
+    async def _get_slice_metrics(self):
+        return self._proxy.slice_metrics
+
+    async def _get_slice_metric(self):
+        return self._proxy.slice_metric
+
+    async def _set_slice_metric(self, metric):
+        self._proxy.slice_metric = metric
+
+    async def _get_z_parameter(self):
+        return self._proxy.z_parameter
+
+    async def _set_z_parameter(self, name):
+        self._proxy.z_parameter = name
 
     async def update_darks(self, *args, **kwargs):
         raise NotImplementedError
@@ -329,6 +443,11 @@ class OnlineReconstruction(Addon):
     async def _get_slice_z(self, index):
         raise NotImplementedError
 
+    async def _get_slice_directory(self):
+        return self._slice_directory
+
+    async def _set_slice_directory(self, slice_directory):
+        self._slice_directory = str(slice_directory)
 
 class PhaseGratingSteppingFourierProcessing(Addon):
     """

@@ -121,6 +121,7 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
     async def __ainit__(self, device, experiment, acquisitions=None, do_normalization=True,
                         average_normalization=True, slice_directory='online-slices'):
         await TangoMixin.__ainit__(self, device)
+        self._proxy = _TangoProxyArgs(self._device)
         await base.OnlineReconstruction.__ainit__(
             self,
             experiment=experiment,
@@ -129,9 +130,7 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
             average_normalization=average_normalization,
             slice_directory=slice_directory
         )
-        from concert.ext.ufo import QuantifiedProxyArgs
 
-        self._args = await QuantifiedProxyArgs(_TangoProxyArgs(self._device))
 
     @TangoMixin.cancel_remote
     @remote
