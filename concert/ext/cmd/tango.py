@@ -78,7 +78,7 @@ class TangoCommand(SubCommand):
             if tango.Release.version_info < (9, 4, 1):
                 port_def = f"-ORBendPoint giop:tcp::{port}"
             else:
-                port_def = f"--port {port}"
+                port_def = f"-port {port}"
             run(
                 [server_class['class']],
 
