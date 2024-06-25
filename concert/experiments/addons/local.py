@@ -11,8 +11,8 @@ from concert.quantities import q
 
 class Benchmarker(base.Benchmarker):
 
-    async def __ainit__(self, acquisitions=None):
-        await base.Benchmarker.__ainit__(self, acquisitions=acquisitions)
+    async def __ainit__(self, experiment, acquisitions=None):
+        await base.Benchmarker.__ainit__(self, experiment=experiment, acquisitions=acquisitions)
         self._durations = {}
 
     @local
@@ -32,8 +32,8 @@ class Benchmarker(base.Benchmarker):
 
 
 class ImageWriter(base.ImageWriter):
-    async def __ainit__(self, walker, acquisitions=None):
-        await base.ImageWriter.__ainit__(self, walker, acquisitions=acquisitions)
+    async def __ainit__(self, experiment, acquisitions=None):
+        await base.ImageWriter.__ainit__(self, experiment=experiment, acquisitions=acquisitions)
 
     @local
     async def write_sequence(self, name, producer=None):
@@ -42,8 +42,8 @@ class ImageWriter(base.ImageWriter):
 
 
 class Consumer(base.Consumer):
-    async def __ainit__(self, consumer, acquisitions=None):
-        await base.Consumer.__ainit__(self, consumer, acquisitions=acquisitions)
+    async def __ainit__(self, consumer, experiment, acquisitions=None):
+        await base.Consumer.__ainit__(self, consumer=consumer, experiment=experiment, acquisitions=acquisitions)
 
     @local
     async def consume(self, producer):
@@ -51,8 +51,8 @@ class Consumer(base.Consumer):
 
 
 class LiveView(base.LiveView):
-    async def __ainit__(self, viewer, acquisitions=None):
-        await base.LiveView.__ainit__(self, viewer, acquisitions=acquisitions)
+    async def __ainit__(self, viewer, experiment, acquisitions=None):
+        await base.LiveView.__ainit__(self, viewer, experiment=experiment, acquisitions=acquisitions)
 
     @local
     async def consume(self, producer):
@@ -60,9 +60,10 @@ class LiveView(base.LiveView):
 
 
 class Accumulator(base.Accumulator):
-    async def __ainit__(self, acquisitions=None, shapes=None, dtype=None):
+    async def __ainit__(self, experiment, acquisitions=None, shapes=None, dtype=None):
         await base.Accumulator.__ainit__(
             self,
+            experiment=experiment,
             acquisitions=acquisitions,
             shapes=shapes,
             dtype=dtype
@@ -86,10 +87,11 @@ class Accumulator(base.Accumulator):
 
 
 class OnlineReconstruction(base.OnlineReconstruction):
-    async def __ainit__(self, acquisitions=None, do_normalization=True,
+    async def __ainit__(self, experiment, acquisitions=None, do_normalization=True,
                         average_normalization=True, walker=None, slice_directory='online-slices'):
         await base.OnlineReconstruction.__ainit__(
             self,
+            experiment=experiment,
             acquisitions=acquisitions,
             do_normalization=do_normalization,
             average_normalization=average_normalization,
@@ -334,12 +336,12 @@ class PhaseGratingSteppingFourierProcessing(base.PhaseGratingSteppingFourierProc
 
 class PCOTimestampCheck(base.Addon):
 
-    async def __ainit__(self, experiment):
+    async def __ainit__(self, experiment, acquisitions=None):
         self._timestamp_checks = {}
         self._experiment = experiment
         self.timestamp_incorrect = False
         self.timestamp_missing = False
-        await super().__ainit__(experiment.acquisitions)
+        await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
 
     def _make_consumers(self, acquisitions):
         """Attach all acquisitions."""

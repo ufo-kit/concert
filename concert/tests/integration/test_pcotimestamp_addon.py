@@ -97,7 +97,7 @@ class TestPCOTimestampAddon(TestCase):
                                      num_flats=5,
                                      num_darks=5)
         self.addon = await PCOTimestampCheck(self.exp)
-        self.writer = await ImageWriter(self.walker, acquisitions=self.exp.acquisitions)
+        self.writer = await ImageWriter(experiment=self.exp)
 
     def tearDown(self) -> None:
         shutil.rmtree(self._data_dir)

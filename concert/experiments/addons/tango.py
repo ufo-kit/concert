@@ -53,9 +53,9 @@ class TangoMixin:
 
 class Benchmarker(TangoMixin, base.Benchmarker):
 
-    async def __ainit__(self, device, acquisitions=None):
+    async def __ainit__(self, experiment, device, acquisitions=None):
         await TangoMixin.__ainit__(self, device)
-        await base.Benchmarker.__ainit__(self, acquisitions=acquisitions)
+        await base.Benchmarker.__ainit__(self, experiment=experiment, acquisitions=acquisitions)
 
     @TangoMixin.cancel_remote
     @remote
@@ -72,9 +72,9 @@ class Benchmarker(TangoMixin, base.Benchmarker):
 
 class ImageWriter(TangoMixin, base.ImageWriter):
 
-    async def __ainit__(self, walker, acquisitions=None):
-        await TangoMixin.__ainit__(self, walker.device)
-        await base.ImageWriter.__ainit__(self, walker, acquisitions=acquisitions)
+    async def __ainit__(self, experiment, acquisitions=None):
+        await TangoMixin.__ainit__(self, experiment.walker.device)
+        await base.ImageWriter.__ainit__(self, experiment=experiment, acquisitions=acquisitions)
 
     @TangoMixin.cancel_remote
     @remote
@@ -84,8 +84,8 @@ class ImageWriter(TangoMixin, base.ImageWriter):
 
 class LiveView(base.LiveView):
 
-    async def __ainit__(self, viewer, endpoint, acquisitions=None):
-        await base.LiveView.__ainit__(self, viewer, acquisitions=acquisitions)
+    async def __ainit__(self, viewer, endpoint, experiment, acquisitions=None):
+        await base.LiveView.__ainit__(self, viewer, experiment=experiment, acquisitions=acquisitions)
         self._endpoint = endpoint
         self._orig_limits = await viewer.get_limits()
 
@@ -118,11 +118,12 @@ class _TangoProxyArgs:
 
 
 class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
-    async def __ainit__(self, device, acquisitions=None, do_normalization=True,
+    async def __ainit__(self, device, experiment, acquisitions=None, do_normalization=True,
                         average_normalization=True, walker=None, slice_directory='online-slices'):
         await TangoMixin.__ainit__(self, device)
         await base.OnlineReconstruction.__ainit__(
             self,
+            experiment=experiment,
             acquisitions=acquisitions,
             do_normalization=do_normalization,
             average_normalization=average_normalization,

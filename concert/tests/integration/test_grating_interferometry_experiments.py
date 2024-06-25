@@ -102,8 +102,8 @@ class GratingInterferometryStepping:
 
     async def run_experiment(self):
         self.camera.experiment = self.exp
-        self.acc = await Accumulator(acquisitions=self.exp.acquisitions)
-        self.writer = await ImageWriter(self.walker, acquisitions=self.exp.acquisitions)
+        self.acc = await Accumulator(experiment=self.exp)
+        self.writer = await ImageWriter(experiment=self.exp)
         self.phase_stepping_addon = await PhaseGratingSteppingFourierProcessing(experiment=self.exp)
         await self.exp.run()
 

@@ -141,8 +141,8 @@ class Radiography:
 
     async def run_experiment(self) -> None:
         self.camera.source = self.source
-        self.acc = await Accumulator(acquisitions=self.exp.acquisitions)
-        self.writer = await ImageWriter(self.walker, acquisitions=self.exp.acquisitions)
+        self.acc = await Accumulator(experiment=self.exp)
+        self.writer = await ImageWriter(experiment=self.exp)
         await self.exp.run()
 
     async def test_flats(self):

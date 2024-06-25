@@ -39,7 +39,7 @@ class DummyAddon(Addon):
     remote = False
 
     async def __ainit__(self):
-        await super(DummyAddon, self).__ainit__()
+        await super(DummyAddon, self).__ainit__(experiment=None, acquisitions=[])
 
     def _make_consumers(self, acquisitions):
         return dict((acq, AcquisitionConsumer(local(null))) for acq in acquisitions)
@@ -219,7 +219,7 @@ class TestExperiment(TestExperimentBase):
 
     async def test_consumer_addon(self):
         accumulate = Accumulate()
-        consumer = await LocalConsumer(accumulate, acquisitions=[self.acquisitions[0]])
+        consumer = await LocalConsumer(accumulate, experiment=self.experiment, acquisitions=[self.acquisitions[0]])
         await self.experiment.run()
         self.assertEqual(accumulate.items, list(range(self.num_produce)))
 
@@ -227,28 +227,31 @@ class TestExperiment(TestExperimentBase):
         data_dir = tempfile.mkdtemp()
         try:
             walker = await DirectoryWalker(root=data_dir, bytes_per_file=0)
-            writer = await LocalImageWriter(walker, acquisitions=self.acquisitions)
+            self.experiment.walker = walker
+            writer = await LocalImageWriter(self.experiment)
+            await self.experiment.set_separate_scans(False)
             await self.experiment.run()
 
             # Check if the writing coroutine has been attached
             for i in range(self.num_produce):
                 foo = op.join(data_dir, 'foo', (await walker.get_dsetname()).format(i))
                 bar = op.join(data_dir, 'bar', (await walker.get_dsetname()).format(i))
-
                 self.assertTrue(await walker.exists(foo))
                 self.assertTrue(await walker.exists(bar))
         finally:
+            self.experiment.walker = None
             shutil.rmtree(data_dir)
 
+
     async def test_accumulation(self):
-        acc = await LocalAccumulator(self.acquisitions)
+        acc = await LocalAccumulator(self.experiment)
         await self.experiment.run()
 
         for acq in self.acquisitions:
             self.assertEqual(await acc.get_items(acq), list(range(self.num_produce)))
 
         # Test detach
-        acc = await LocalAccumulator(self.acquisitions)
+        acc = await LocalAccumulator(self.experiment)
         await acc.detach(self.acquisitions)
         await self.experiment.run()
         for acq in self.acquisitions:

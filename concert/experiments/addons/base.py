@@ -21,10 +21,13 @@ class Addon(AsyncObject):
 
     """
 
-    async def __ainit__(self, acquisitions=None):
+    async def __ainit__(self, experiment, acquisitions=None):
+        self.experiment = experiment
         self._consumers = set([])
         if acquisitions is not None:
             await self.attach(acquisitions)
+        else:
+            await self.attach(experiment.acquisitions)
 
     async def attach(self, acquisitions):
         """Attach the addon to *acquisitions*."""
@@ -78,8 +81,8 @@ class Benchmarker(Addon):
 
     """
 
-    async def __ainit__(self, acquisitions=None):
-        await super().__ainit__(acquisitions=acquisitions)
+    async def __ainit__(self, experiment, acquisitions=None):
+        await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
 
     def _make_consumers(self, acquisitions):
         consumers = {}
@@ -115,9 +118,9 @@ class ImageWriter(Addon):
     A :class:`~concert.storage.Walker` instance
     """
 
-    async def __ainit__(self, walker, acquisitions=None):
-        self.walker = walker
-        await super().__ainit__(acquisitions=acquisitions)
+    async def __ainit__(self, experiment, acquisitions=None):
+        self.walker = experiment.walker
+        await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
 
     def _make_consumers(self, acquisitions):
         """Attach all acquisitions."""
@@ -168,8 +171,8 @@ class Consumer(Addon):
 
     """
 
-    async def __ainit__(self, consumer, acquisitions=None):
-        await super().__ainit__(acquisitions=acquisitions)
+    async def __ainit__(self, consumer, experiment, acquisitions=None):
+        await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
         self._consumer = consumer
 
     def _make_consumers(self, acquisitions):
@@ -194,8 +197,8 @@ class LiveView(Addon):
 
     """
 
-    async def __ainit__(self, viewer, acquisitions=None):
-        await super().__ainit__(acquisitions=acquisitions)
+    async def __ainit__(self, viewer, experiment, acquisitions=None):
+        await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
         self._viewer = viewer
 
     def _make_consumers(self, acquisitions):
@@ -227,10 +230,10 @@ class Accumulator(Addon):
     the numpy data type
     """
 
-    async def __ainit__(self, acquisitions=None, shapes=None, dtype=None):
+    async def __ainit__(self, experiment, acquisitions=None, shapes=None, dtype=None):
         self._shapes = shapes
         self._dtype = dtype
-        await super().__ainit__(acquisitions=acquisitions)
+        await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
 
     def _make_consumers(self, acquisitions):
         shapes = (None,) * len(acquisitions) if self._shapes is None else self._shapes
@@ -256,13 +259,13 @@ class Accumulator(Addon):
 
 
 class OnlineReconstruction(Addon):
-    async def __ainit__(self, acquisitions=None, do_normalization=True,
+    async def __ainit__(self, experiment, acquisitions=None, do_normalization=True,
                         average_normalization=True, walker=None, slice_directory='online-slices'):
         self._args = None
         self._do_normalization = do_normalization
         self.walker = walker
         self.slice_directory = slice_directory
-        await super().__ainit__(acquisitions=acquisitions)
+        await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
 
     def _make_consumers(self, acquisitions):
         consumers = {}
@@ -348,7 +351,7 @@ class PhaseGratingSteppingFourierProcessing(Addon):
         self.diff_phase = None
         self.visibility_contrast = None
         self.diff_phase_in_rad = None
-        await super().__ainit__(acquisitions=experiment.acquisitions)
+        await super().__ainit__(experiment=experiment)
 
     def _make_consumers(self, acquisitions):
         consumers = {}
