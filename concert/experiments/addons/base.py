@@ -7,7 +7,6 @@ import numpy as np
 
 from concert.base import AsyncObject, Parameterizable, Parameter, Quantity
 from concert.experiments.base import Consumer as AcquisitionConsumer
-from concert.ext.ufo import GeneralBackprojectArgs
 from concert.quantities import q
 
 LOG = logging.getLogger(__name__)
@@ -345,6 +344,7 @@ class OnlineReconstruction(Addon):
 
     async def register_args(self, **kwargs):
         params = {}
+        from concert.ext.ufo import GeneralBackprojectArgs
 
         for arg, settings in GeneralBackprojectArgs.parameters.items():
 
