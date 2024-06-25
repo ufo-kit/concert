@@ -5,7 +5,6 @@ from concert.coroutines.sinks import Accumulate
 from concert.experiments.addons import base
 from concert.experiments.base import Consumer as AcquisitionConsumer, local
 from concert.experiments.imaging import LocalGratingInterferometryStepping
-from concert.ext.ufo import LocalGeneralBackprojectArgs
 from concert.helpers import PerformanceTracker, ImageWithMetadata
 from concert.quantities import q
 
@@ -90,6 +89,7 @@ class Accumulator(base.Accumulator):
 class OnlineReconstruction(base.OnlineReconstruction):
     async def __ainit__(self, experiment, acquisitions=None, do_normalization=True,
                         average_normalization=True, slice_directory='online-slices'):
+        from concert.ext.ufo import LocalGeneralBackprojectArgs
         self._proxy = LocalGeneralBackprojectArgs()
         await base.OnlineReconstruction.__ainit__(
             self,
