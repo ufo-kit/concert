@@ -251,7 +251,7 @@ class ZmqReceiver(ZmqBase):
     :param polling_timeout: wait this many milliseconds between asking for images
     """
 
-    def __init__(self, endpoint=None, reliable=True, rcvhwm=1, topic='', polling_timeout=100):
+    def __init__(self, endpoint=None, reliable=True, rcvhwm=0, topic='', polling_timeout=100):
         self._rcvhwm = rcvhwm
         self._topic = topic
         self._poller = zmq.asyncio.Poller()
