@@ -31,10 +31,12 @@ async def tango_run_concert(name: str, port:int):
 
 @asynccontextmanager
 async def tango_run_standalone(name: str, port:int, device_uri:str):
-
-    pro = subprocess.Popen(f"{name} test -nodb --port {port} -dlist {device_uri}", stdout=subprocess.PIPE,
+    if tango.Release.version_info < (9, 4, 1):
+        port_def = f"-ORBendPoint giop:tcp::{port}"
+    else:
+        port_def = f"--port {port}"
+    pro = subprocess.Popen(f"{name} test -nodb {port_def} -dlist {device_uri}", stdout=subprocess.PIPE,
                            shell=True, preexec_fn=os.setsid)
-
 
     # TODO: this needs to go away!
     await asyncio.sleep(1)
@@ -43,7 +45,6 @@ async def tango_run_standalone(name: str, port:int, device_uri:str):
         yield
     finally:
         os.killpg(os.getpgid(pro.pid), signal.SIGTERM)
-
 
 
 class TestRemoteProcessingStartup(TestCase):
@@ -64,12 +65,10 @@ class TestRemoteProcessingStartup(TestCase):
             f = await tango_dev.state()
             self.assertNotEqual(f, None)
 
-
         async with tango_run_standalone('TangoDummyCamera', 1245, "concert/tango/dummycamera"):
             tango_dev = get_tango_device('tango://localhost:1245/concert/tango/dummycamera#dbase=no')
             f = await tango_dev.state()
             self.assertNotEqual(f, None)
-
 
     async def test_reco_startup(self):
         if test_with_tofu:

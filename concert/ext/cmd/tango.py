@@ -75,13 +75,17 @@ class TangoCommand(SubCommand):
         else:
             if device is None:
                 device = f'concert/tango/{server}'
+            if tango.Release.version_info < (9, 4, 1):
+                port_def = f"-ORBendPoint giop:tcp::{port}"
+            else:
+                port_def = f"--port {port}"
             run(
                 [server_class['class']],
+
                 args=[
                     server,
                     'name',
-                    '-ORBendPoint',
-                    f'giop:tcp::{port}',
+                    port_def,
                     '-v4',
                     '-nodb',
                     '-dlist',
