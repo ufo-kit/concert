@@ -48,16 +48,20 @@ class TangoCamera(Device, metaclass=DeviceMeta):
         self._send_poison_pill = True
         self._sender = ZmqSender()
         self._params_initialized = False
+        self.camera = None
         super().__init__(cl, name)
 
     async def init_device(self):
+        if self.camera is None:
+            self.camera = await Base()
         self.info_stream('%s init_device', self.__class__.__name__)
         await super().init_device()
         self._index = 0
         self._stop_streaming_requested = False
         if not self._params_initialized:
-            camera = await Base()
-            for param in camera:
+            for param in self.camera:
+                if param.name == "zmq_options":
+                    continue
                 self.debug_stream("Adding `%s' attribute", param.name)
                 default = await param.get()
                 write_type = AttrWriteType.READ_WRITE if param.writable else AttrWriteType.READ
@@ -203,8 +207,8 @@ class TangoDummyCamera(TangoCamera):
     )
 
     async def init_device(self):
+        self.camera = await Camera()
         await super().init_device()
-        self._camera = await Camera()
 
     @command()
     async def start_recording(self):
