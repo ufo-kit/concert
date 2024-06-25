@@ -260,10 +260,10 @@ class Accumulator(Addon):
 
 class OnlineReconstruction(Addon):
     async def __ainit__(self, experiment, acquisitions=None, do_normalization=True,
-                        average_normalization=True, walker=None, slice_directory='online-slices'):
+                        average_normalization=True, slice_directory='online-slices'):
         self._args = None
         self._do_normalization = do_normalization
-        self.walker = walker
+        self.walker = self.experiment.walker
         self.slice_directory = slice_directory
         await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
 

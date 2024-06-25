@@ -88,14 +88,13 @@ class Accumulator(base.Accumulator):
 
 class OnlineReconstruction(base.OnlineReconstruction):
     async def __ainit__(self, experiment, acquisitions=None, do_normalization=True,
-                        average_normalization=True, walker=None, slice_directory='online-slices'):
+                        average_normalization=True, slice_directory='online-slices'):
         await base.OnlineReconstruction.__ainit__(
             self,
             experiment=experiment,
             acquisitions=acquisitions,
             do_normalization=do_normalization,
             average_normalization=average_normalization,
-            walker=walker,
             slice_directory=slice_directory
         )
         from concert.ext.ufo import GeneralBackprojectManager, QuantifiedArgs
