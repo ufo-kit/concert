@@ -144,6 +144,9 @@ async def zmq_send_image(socket, image, metadata=None):
     """Send *image* over zmq *socket*. If *metadata* is None, it is created. If *image* is None,
     {'end': True} is sent in metadata and no actual payload is sent.
     """
+    if socket is None:
+        raise ValueError("socket cannot be none")
+
     if image is None or not metadata:
         metadata = zmq_create_image_metadata(image)
 
