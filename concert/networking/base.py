@@ -346,7 +346,7 @@ class ZmqReceiver(ZmqBase):
                 LOG.debug("Flushed %d messages", flush_i)
 
 
-class BroadcastServer(ZmqReceiver):
+class ZmqBroadcaster(ZmqReceiver):
     """
     A ZMQ server which listens to some remote host and broadcasts the data further to the specified
     endpoints. If *reliable* is True, use PUSH/PULL, otherwise PUB/SUB (in which case
@@ -397,9 +397,9 @@ class BroadcastServer(ZmqReceiver):
     async def consume(self):
         """Receive data from server and broadcast to all consumers."""
         if self._request_stop_forwarding:
-            raise BroadcastError('Cannot consume streams with shutdown BroadcastServer')
+            raise BroadcastError('Cannot consume streams with shutdown ZmqBroadcaster')
 
-        LOG.debug('BroadcastServer: forwarding new stream')
+        LOG.debug('ZmqBroadcaster: forwarding new stream')
         self._finished = asyncio.Event()
         st = None
         try:
@@ -419,7 +419,7 @@ class BroadcastServer(ZmqReceiver):
             self._finished.set()
             if st is None:
                 st = time.perf_counter()
-            LOG.debug('BroadcastServer: stream finished in %.3f s', time.perf_counter() - st)
+            LOG.debug('ZmqBroadcaster: stream finished in %.3f s', time.perf_counter() - st)
 
     async def serve(self):
         """Serve until asked to stop."""
@@ -449,7 +449,7 @@ class BroadcastServer(ZmqReceiver):
         for socket in self._broadcast_sockets:
             socket.close()
 
-        LOG.info('BroadcastServer: shut down')
+        LOG.info('ZmqBroadcaster: shut down')
 
 
 def is_zmq_endpoint_local(endpoint):
@@ -464,5 +464,5 @@ def is_zmq_endpoint_local(endpoint):
 
 
 class BroadcastError(Exception):
-    """BroadcastServer-related exceptions."""
+    """ZmqBroadcaster-related exceptions."""
     pass

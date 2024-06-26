@@ -484,7 +484,7 @@ class BroadcastCommand(SubCommand):
 
     def run(self, source=None, destinations=None, config=None, start_consumers=False,
             logfile=None, loglevel=None):
-        from concert.networking.base import BroadcastServer
+        from concert.networking.base import ZmqBroadcaster
 
         setup_logging('broadcast', to_stream=True, filename=logfile, loglevel=loglevel)
 
@@ -540,7 +540,7 @@ class BroadcastCommand(SubCommand):
                 endpoints.append((endpoint, reliable, sndhwm))
 
         LOG.info("Listening on `%s' and forwarding to `%s'", source, endpoints)
-        server = BroadcastServer(source, endpoints)
+        server = ZmqBroadcaster(source, endpoints)
 
         if start_consumers:
             for cmd in consumer_commands:
