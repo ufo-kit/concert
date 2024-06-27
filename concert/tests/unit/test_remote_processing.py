@@ -6,6 +6,7 @@ from concert.tests import TestCase
 from concert.ext.cmd.tango import TangoCommand
 import asyncio
 from concert.networking.base import get_tango_device
+from concert.storage import RemoteDirectoryWalker
 from multiprocessing import Process
 import os
 import tango
@@ -53,6 +54,8 @@ class TestRemoteProcessingStartup(TestCase):
             tango_dev = get_tango_device('tango://localhost:1233/concert/tango/walker#dbase=no')
             f = await tango_dev.state()
             self.assertNotEqual(f, None)
+            walker = await RemoteDirectoryWalker(tango_dev)
+            print(await walker.get_endpoint())
 
         async with tango_run_standalone('TangoRemoteWalker', 1233, "concert/tango/walker"):
             tango_dev = get_tango_device('tango://localhost:1233/concert/tango/walker#dbase=no')
