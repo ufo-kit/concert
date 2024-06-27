@@ -392,7 +392,7 @@ class _ImageUpdaterBase:
             self._loop = asyncio.get_event_loop()
         if self._receiver:
             self.unsubscribe()
-        self._receiver = ZmqReceiver(endpoint=address, reliable=False, rcvhwm=1, topic='')
+        self._receiver = ZmqReceiver(endpoint=address, reliable=False, rcvhwm=1)
 
     def recv_array(self):
         available = self._loop.run_until_complete(self._receiver.is_message_available())

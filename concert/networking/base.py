@@ -160,6 +160,17 @@ async def zmq_send_image(socket, image, metadata=None):
         LOG.debug('No listeners or queue full on %s', socket.get(zmq.LAST_ENDPOINT))
 
 
+def zmq_setup_sending_socket(context, endpoint, reliable, sndhwm):
+    socket = context.socket(zmq.PUSH if reliable else zmq.PUB)
+    # Do not keep old images
+    socket.setsockopt(zmq.LINGER, 0)
+    if sndhwm:
+        socket.set(zmq.SNDHWM, sndhwm)
+    socket.bind(endpoint)
+
+    return socket
+
+
 class ZmqBase:
 
     """
@@ -228,12 +239,12 @@ class ZmqSender(ZmqBase):
 
     def _setup_socket(self):
         """Create and connect a PUSH socket."""
-        self._socket = self._context.socket(zmq.PUSH if self._reliable else zmq.PUB)
-        # Do not keep old images
-        self._socket.setsockopt(zmq.LINGER, 0)
-        if self._sndhwm:
-            self._socket.set(zmq.SNDHWM, self._sndhwm)
-        self._socket.bind(self._endpoint)
+        self._socket = zmq_setup_sending_socket(
+            self._context,
+            self._endpoint,
+            self._reliable,
+            self._sndhwm,
+        )
 
     async def send_image(self, image):
         """Send *image*."""
@@ -249,14 +260,11 @@ class ZmqReceiver(ZmqBase):
     will be used and some images might be skipped
     :param timeout: wait this many milliseconds between checking for the finished state and trying
     to get the next image
-    :param topic: topic filter for image subscription, works only in combination with
-    *reliable=False*
     :param polling_timeout: wait this many milliseconds between asking for images
     """
 
-    def __init__(self, endpoint=None, reliable=True, rcvhwm=0, topic='', polling_timeout=100):
+    def __init__(self, endpoint=None, reliable=True, rcvhwm=0, polling_timeout=100):
         self._rcvhwm = rcvhwm
-        self._topic = topic
         self._poller = zmq.asyncio.Poller()
         self._polling_timeout = polling_timeout
         self._request_stop = False
@@ -267,7 +275,8 @@ class ZmqReceiver(ZmqBase):
         self._socket = self._context.socket(zmq.PULL if self._reliable else zmq.SUB)
         if not self._reliable:
             self._socket.set(zmq.RCVHWM, self._rcvhwm)
-            self._socket.setsockopt_string(zmq.SUBSCRIBE, self._topic)
+            # Do not filter topics for now
+            self._socket.setsockopt_string(zmq.SUBSCRIBE, "")
         self._socket.connect(self._endpoint)
         self._poller.register(self._socket, zmq.POLLIN)
 
@@ -369,10 +378,12 @@ class ZmqBroadcaster(ZmqReceiver):
         self._request_stop_forwarding = False
 
         for (destination, reliable, sndhwm) in broadcast_endpoints:
-            socket = self._context.socket(zmq.PUSH if reliable else zmq.PUB)
-            if not reliable:
-                socket.set(zmq.SNDHWM, sndhwm)
-            socket.bind(destination)
+            socket = zmq_setup_sending_socket(
+                self._context,
+                destination,
+                reliable,
+                sndhwm,
+            )
             self._broadcast_sockets.add(socket)
             self._poller_out.register(socket, flags=zmq.POLLOUT)
 
@@ -429,10 +440,11 @@ class ZmqBroadcaster(ZmqReceiver):
         while True:
             # Wait until actual data is available in case someone requests stop between one stream
             # end and second stream start
-            await self.is_message_available(polling_timeout=-1)
+            available = await self.is_message_available(polling_timeout=self._polling_timeout)
             if self._request_stop_forwarding:
                 break
-            await self.consume()
+            if available:
+                await self.consume()
 
     async def shutdown(self):
         """Shutdown forwarding forever. It is not possible to call *consume()* from now on. If this
