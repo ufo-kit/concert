@@ -389,7 +389,7 @@ class CommData:
     port: int = None
     protocol: str = "tcp"
     socket_type: zmq.SocketType = zmq.PUSH
-    sndhwm: int = -1
+    sndhwm: int = 1000
 
     def __post_init__(self):
         if self.protocol not in ["tcp", "ipc"]:

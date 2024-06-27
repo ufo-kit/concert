@@ -161,6 +161,8 @@ async def zmq_send_image(socket, image, metadata=None):
 
 
 def zmq_setup_sending_socket(context, endpoint, reliable, sndhwm):
+    if sndhwm is not None and sndhwm < 0:
+        raise ValueError("sndhwm must be greater than 0")
     socket = context.socket(zmq.PUSH if reliable else zmq.PUB)
     # Do not keep old images
     socket.setsockopt(zmq.LINGER, 0)
