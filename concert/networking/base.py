@@ -220,6 +220,14 @@ class ZmqBase:
             self._socket.close()
             self._socket = None
 
+    def __enter__(self):
+        LOG.log(AIODEBUG, 'ZMQ Socket connection enter')
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        LOG.log(AIODEBUG, 'ZMQ Socket connection exit')
+        self.close()
+
     def _setup_socket(self):
         """Create and connect zmq socket, implementation-specific."""
         raise NotImplementedError
