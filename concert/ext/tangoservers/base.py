@@ -59,6 +59,8 @@ class TangoRemoteProcessing(Device, metaclass=DeviceMeta):
     @InfoIt(show_args=True)
     async def set_endpoint(self, endpoint):
         """Set endpoint."""
+        if self._task and not self._task.done():
+            raise RuntimeError("Endpoint cannot be set while streaming")
         self._receiver.connect(endpoint)
         self._endpoint = endpoint
 
@@ -80,6 +82,8 @@ class TangoRemoteProcessing(Device, metaclass=DeviceMeta):
                     raise exc
             self.set_state(tango.DevState.STANDBY)
 
+        if self._task and not self._task.done():
+            raise RuntimeError("Previous stream still running")
         self._task = start(consumer_coro)
         self._task.add_done_callback(callback)
         self.set_state(tango.DevState.RUNNING)
