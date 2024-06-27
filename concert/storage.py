@@ -8,10 +8,12 @@ import asyncio
 import os
 import logging
 import re
+import zmq
 from typing import Optional, AsyncIterable, Awaitable, Type, Iterable, Set
 import tifffile
 from concert.base import AsyncObject, Parameterizable, Parameter
 from concert.coroutines.base import background
+from concert.networking.base import ZmqSender
 from concert.writers import TiffWriter
 from concert.typing import RemoteDirectoryWalkerTangoDevice
 from concert.typing import ArrayLike
@@ -480,6 +482,7 @@ class RemoteDirectoryWalker(Walker):
 
     device: RemoteDirectoryWalkerTangoDevice
     endpoint = Parameter()
+    local_sender_zmq_options = Parameter(help="ZMQ streaming options")
 
     async def __ainit__(self,
                         device: RemoteDirectoryWalkerTangoDevice,
@@ -528,6 +531,7 @@ class RemoteDirectoryWalker(Walker):
         await self.device.write_attribute(attr_name="start_index",
                                           value=start_index)
         await self.device.write_attribute(attr_name="bytes_per_file", value=bytes_per_file)
+        self._commdata = None
         await super().__ainit__(root=self._root, dsetname=dsetname, log_name=log_name)
 
     async def _descend(self, name: str) -> None:
@@ -549,6 +553,12 @@ class RemoteDirectoryWalker(Walker):
     async def _get_current(self):
         """Provides current from remote context"""
         return (await self.device["current"]).value
+
+    async def _get_local_sender_zmq_options(self):
+        return self._commdata
+
+    async def _set_local_sender_zmq_options(self, value):
+        self._commdata = value
 
     async def home(self) -> None:
         """Return to root remotely and inside its own context (which is
@@ -577,7 +587,23 @@ class RemoteDirectoryWalker(Walker):
         corresponding device server uses the DirectoryWalker class to create
         the writer for incoming data.
         """
-        raise NotImplementedError("delegates writing utility to remote tango server")
+        old_endpoint = await self.get_endpoint()
+        await self.set_endpoint(self._commdata.client_endpoint)
+
+        try:
+            f = self.device.write_sequence(name)
+            with ZmqSender(
+                self._commdata.server_endpoint,
+                reliable=self._commdata.socket_type == zmq.PUSH,
+                sndhwm=self._commdata.sndhwm
+            ) as sender:
+                async for image in producer:
+                    await sender.send_image(image)
+
+                await sender.send_image(None)
+                await f
+        finally:
+            await self.set_endpoint(old_endpoint)
 
     @background
     async def write_sequence(self, name: Optional[str] = "") -> None:
