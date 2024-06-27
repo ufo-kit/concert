@@ -67,6 +67,19 @@ class TestZmq(TestCase):
         with self.assertRaises(ValueError):
             await self.sender.send_image(self.image)
 
+    async def test_contextmanager(self):
+        self.sender.close()
+        with ZmqSender(SERVER) as sender:
+            pass
+
+        with self.assertRaises(ValueError):
+            await sender.send_image(self.image)
+
+    def test_sndhwm(self):
+        self.sender.close()
+        with self.assertRaises(ValueError):
+            sender = ZmqSender(endpoint=SERVER, sndhwm=-1)
+
     async def test_is_message_available(self):
         self.assertFalse(await self.receiver.is_message_available(polling_timeout=10))
         await self.sender.send_image(self.image)
