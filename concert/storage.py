@@ -577,21 +577,18 @@ class RemoteDirectoryWalker(Walker):
         """
         return await self.device.exists(paths)
 
-    async def create_writer(self,
-                            producer: AsyncIterable[ArrayLike],
-                            name: Optional[str] = None,
-                            dsetname: Optional[str] = None) -> Awaitable:
-        """
-        Explicitly specifies that remote directory walker handles asynchronous
-        data writing with a tango device server running remotely. Internally,
-        corresponding device server uses the DirectoryWalker class to create
-        the writer for incoming data.
-        """
+    async def _create_writer(
+        self,
+        producer: AsyncIterable[ArrayLike],
+        dsetname: Optional[str] = None
+    ) -> Awaitable:
         old_endpoint = await self.get_endpoint()
         await self.set_endpoint(self._commdata.client_endpoint)
+        old_dsetname = await self.get_dsetname()
+        await self.device.write_attribute(attr_name="dsetname", value=dsetname or old_dsetname)
 
         try:
-            f = self.device.write_sequence(name)
+            f = self.device.write_sequence("")
             with ZmqSender(
                 self._commdata.server_endpoint,
                 reliable=self._commdata.socket_type == zmq.PUSH,
@@ -604,6 +601,7 @@ class RemoteDirectoryWalker(Walker):
                 await f
         finally:
             await self.set_endpoint(old_endpoint)
+            await self.device.write_attribute(attr_name="dsetname", value=old_dsetname)
 
     @background
     async def write_sequence(self, name: Optional[str] = "") -> None:
