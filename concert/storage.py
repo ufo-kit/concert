@@ -282,7 +282,7 @@ class Walker(Parameterizable):
         if name:
             await self.descend(name)
         try:
-            return await (await self._create_writer(producer, dsetname=await self.get_dsetname()))
+            return await self._create_writer(producer, dsetname=await self.get_dsetname())
         finally:
             if name:
                 await self.ascend()
@@ -296,7 +296,7 @@ class Walker(Parameterizable):
         *producer*. The execution starts immediately in the background and
         await will block until the images are written.
         """
-        return await (await self._create_writer(producer, dsetname=dsetname))
+        return await self._create_writer(producer, dsetname=dsetname)
 
     async def get_log_handler(self) -> AsyncLoggingHandlerCloser:
         """Provides a log handler featuring an asynchronous flush and closure
@@ -354,7 +354,7 @@ class DummyWalker(Walker):
             async for item in producer:
                 self._paths.add(os.path.join(path, str(i)))
                 i += 1
-        return _append_paths()
+        return await _append_paths()
 
     async def get_log_handler(self) -> AsyncLoggingHandlerCloser:
         """Provides a no-op logging handler as a placeholder"""
@@ -430,7 +430,7 @@ class DirectoryWalker(Walker):
             dset_path = os.path.join(self._current, dset_prefix)
             raise StorageError("`{}' is not empty".format(dset_path))
         prefix = os.path.join(self._current, dsetname)
-        return write_images(
+        return await write_images(
             producer,
             self.writer,
             prefix,
