@@ -8,7 +8,7 @@ from time import time
 
 import concert
 from concert.storage import DirectoryWalker
-from concert.experiments.base import Experiment as BaseExperiment, Acquisition
+from concert.experiments.base import Experiment as BaseExperiment, Acquisition, local
 from concert.tests import TestCase as BaseTestCase, slow
 from concert.directors.dummy import Director
 from concert.directors.base import Director as BaseDirector
@@ -31,6 +31,7 @@ class Experiment(BaseExperiment):
         await super().__ainit__(acquisitions=[acquisition], walker=walker,
                                 separate_scans=separate_scans)
 
+    @local
     async def _frame_producer(self):
         yield np.random.random((100, 100))
 
@@ -39,6 +40,7 @@ class BrokenExperiment(Experiment):
     """
     Experiment, that causes an exception within the acquisition call.
     """
+    @local
     async def _frame_producer(self):
         yield None
         raise Exception("Experiment broken")
@@ -55,6 +57,7 @@ class EarlyReadyExperiment(Experiment):
         self.ready_time = {}
         self.acq_finished_time = {}
 
+    @local
     async def _frame_producer(self):
         yield np.random.random((100, 100))
         if self._set_ready:
@@ -85,9 +88,10 @@ class TestCase(BaseTestCase):
     Test case that sets up a walker, runs self.director and deletes the data in the walker
      at the end.
     """
-    def setUp(self):
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
         self._data_dir = tempfile.mkdtemp()
-        self.walker = DirectoryWalker(root=self._data_dir)
+        self.walker = await DirectoryWalker(root=self._data_dir)
 
     def tearDown(self) -> None:
         shutil.rmtree(self._data_dir)
@@ -96,6 +100,7 @@ class TestCase(BaseTestCase):
 @slow
 class DirectorTest(TestCase):
     async def asyncSetUp(self):
+        await super().asyncSetUp()
         self.experiment = await Experiment(walker=self.walker, separate_scans=False)
         self.director = await Director(experiment=self.experiment, num_iterations=5)
         await self.director.run()
@@ -108,6 +113,7 @@ class DirectorTest(TestCase):
 @slow
 class DirectorTestBrokenExperiment(TestCase):
     async def asyncSetUp(self):
+        await super().asyncSetUp()
         self.experiment = await BrokenExperiment(walker=self.walker, separate_scans=False)
         self.director = await Director(experiment=self.experiment, num_iterations=5)
 
@@ -123,6 +129,7 @@ class DirectorTestBrokenExperiment(TestCase):
 @slow
 class EarlyFinishExperiment(TestCase):
     async def asyncSetUp(self):
+        await super().asyncSetUp()
         self.experiment = await EarlyReadyExperiment(walker=self.walker,
                                                      separate_scans=False,
                                                      set_ready=True)
@@ -142,6 +149,7 @@ class EarlyFinishExperiment(TestCase):
 @slow
 class NotEarlyFinishExperiment(TestCase):
     async def asyncSetUp(self):
+        await super().asyncSetUp()
         self.experiment = await EarlyReadyExperiment(walker=self.walker,
                                                      separate_scans=False,
                                                      set_ready=False)
@@ -161,6 +169,7 @@ class NotEarlyFinishExperiment(TestCase):
 @slow
 class XYScanDirectorTest(TestCase):
     async def asyncSetUp(self):
+        await super().asyncSetUp()
         self.experiment = await Experiment(walker=self.walker, separate_scans=False)
         self.x_motor = await LinearMotor()
         self.y_motor = await LinearMotor()

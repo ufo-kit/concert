@@ -1,8 +1,6 @@
 plugins = []
 
-try:
-    from . import spyder
+from . import spyder, tango
 
-    plugins.append(spyder.SpyderCommand())
-except ImportError:
-    pass
+plugins.append(spyder.SpyderCommand())
+plugins.append(tango.TangoCommand())

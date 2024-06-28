@@ -361,6 +361,28 @@ useful for invoking mechanisms beyond concert, e.g. updating the limits in a
 Tango database. The limits can be locked in a similar way to parameter locking.
 
 
+Acquisitions
+============
+
+Each experiment consist of a set of :class:`.LocalAcquisition` or
+:class:`.RemoteAcquisition` instances which generate images. The purpose of the
+acquisition class is to trigger the data acquisition and connect the processing
+consumers to it.
+
+In case of :class:`.LocalAcquisition`, the image data is is produced by an async
+generator and forwarded to :class:`.LocalConsumer` instances. The splitting of
+the data stream is handled by the acquisition. Local consumers wrap data
+processing coroutine functions which do the actual processing.
+
+In case of :class:`.RemoteAcquisition`, the images must be streamed via `ZMQ
+<https://pyzmq.readthedocs.io/en/latest/>`_ by the producer and the consumers must be of type
+:class:`.RemoteConsumer`. In this case, the producer may be an async generator
+yielding arbitrary values or a coroutine function returning the amount of
+produced images. Either way, the number of generated
+images is used in the call to :meth:`.RemoteConsumer.wait`, which must block
+until the remote processing has finished.
+
+
 Creating a experiment class
 ===========================
 
@@ -369,8 +391,7 @@ Like the :class:`.Device` an experiment class can also hold :class:`.Quantity` a
 The logger from the :class:`.Experiment` will automatically write the values of these in the experiments log file.
 It also has a state parameter, showing the current experiments state.
 
-Each experiment consist of a set of :class:`.Acquisitions`, each generating images.
-An example experiment with one :class:`.Acquisitions` can look like this::
+An example experiment with one :class:`.LocalAcquisition` can look like this::
 
     class MyExperiment(Experiment):
         num_images = Parameter(help="number of images to acquire")
@@ -392,4 +413,3 @@ An example experiment with one :class:`.Acquisitions` can look like this::
             async with self._camera.recording():
                 for i in range(await self.get_num_images()):
                     yield await self._camera.grab()
-
