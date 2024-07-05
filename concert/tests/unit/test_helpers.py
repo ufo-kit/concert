@@ -4,6 +4,7 @@ import zmq
 from concert.tests import TestCase, suppressed_logging
 from concert.quantities import q
 from concert.helpers import (
+    get_basename,
     get_state_from_awaitable,
     is_iterable,
     measure,
@@ -108,6 +109,12 @@ def test_performance_tracker(caplog):
             pt.size = 1 * q.GB
         assert pt.duration >= .01 * q.s
     assert 'size' in caplog.text
+
+
+@suppressed_logging
+def test_get_basename():
+    assert get_basename("/foo/bar/") == "bar"
+    assert get_basename("/foo/bar") == "bar"
 
 
 class TestMemoize(TestCase):
