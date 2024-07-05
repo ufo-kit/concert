@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 import inspect
 import functools
@@ -408,3 +409,10 @@ class CommData:
             return f"{self.protocol}://{self.host}"
         else:
             return f"{self.protocol}://{self.host}:{self.port}"
+
+
+def get_basename(filename):
+    if filename.endswith(os.sep):
+        filename = filename[:-1]
+
+    return os.path.basename(filename)
