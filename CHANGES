@@ -4,6 +4,20 @@ Changelog
 Here you can see the full list of changes between each Concert release.
 
 
+Version 0.32
+------------
+
+Released on June 20th 2024.
+
+
+Features
+~~~~~~~~
+
+- it is possible to specify rights on writing frames
+- added PCO timestamp check addon
+- added ImageWithMetadata for camera frames and store the metadata in tiff files
+
+
 Version 0.31
 ------------
 
