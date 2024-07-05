@@ -70,10 +70,12 @@ class ViewerBase(Parameterizable):
     """
 
     force = Parameter(help='Make sure every item is displayed')
+    title = Parameter(help='Title')
 
-    async def __ainit__(self, force: bool = False):
+    async def __ainit__(self, force: bool = False, title: str = ""):
         await super().__ainit__()
         self._force = force
+        self._title = title
         self._queue = _MP_CTX.Queue()
         # This prevents hanging in the case we exit the session after something is put in the queue
         # and before it is consumed.
@@ -89,6 +91,13 @@ class ViewerBase(Parameterizable):
 
     async def _get_force(self):
         return self._force
+
+    async def _set_title(self, value):
+        self._title = value
+        self._queue.put(('title', value))
+
+    async def _get_title(self):
+        return self._title
 
     @background
     async def __call__(self, producer, size=0, force=None):
@@ -185,11 +194,10 @@ class PyplotViewer(ViewerBase):
 
     async def __ainit__(self, style: str = "o", plot_kwargs: dict = None, autoscale: bool = True,
                         title: str = "", force: bool = False):
-        await super().__ainit__(force=force)
+        await super().__ainit__(force=force, title=title)
         self._autoscale = autoscale
         self._style = style
         self._plot_kwargs = plot_kwargs
-        self._title = title
 
     def _show(self, item):
         """Unravel the *item* for x and y so that it is plotted correctly."""
@@ -264,9 +272,8 @@ class ImageViewerBase(ViewerBase):
 
     async def __ainit__(self, limits: str = 'stream', downsampling: int = 1, title: str = "",
                         show_refresh_rate: bool = False, force: bool = False):
-        await super().__ainit__(force=force)
+        await super().__ainit__(force=force, title=title)
         self._show_refresh_rate = show_refresh_rate
-        self._title = title
         self._downsampling = downsampling
         self._limits = limits
 
@@ -382,8 +389,11 @@ class _ImageUpdaterBase:
     def __init__(self):
         self._receiver = None
         self._loop = None
-        self.commands = {'subscribe': self.subscribe,
-                         'unsubscribe': self.unsubscribe}
+        self.commands = {
+            'subscribe': self.subscribe,
+            'unsubscribe': self.unsubscribe,
+            'title': self.change_title
+        }
 
     def subscribe(self, address):
         import asyncio
@@ -434,7 +444,7 @@ class _PyQtGraphUpdater(_ImageUpdaterBase):
             {
                 'image': self.proces_image,
                 'clim': self.update_limits,
-                'show-fps': self.toggle_show_refresh_rate
+                'show-fps': self.toggle_show_refresh_rate,
             }
         )
 
@@ -477,11 +487,11 @@ class _PyQtGraphUpdater(_ImageUpdaterBase):
             y = int(pos.y() + 0.5)
             if y < image.shape[0] and x < image.shape[1]:
                 self.view.view.setTitle(
-                    f'x={x} y={y} [{self.view.imageItem.image[y, x]:g}]',
+                    f'{self.title} x={x} y={y} [{self.view.imageItem.image[y, x]:g}]',
                     bold=True
                 )
         else:
-            self.view.view.setTitle('')
+            self.view.view.setTitle(f'{self.title}')
 
     def proces_image(self, image):
         """Process current *image* including window setup if it is a first image."""
@@ -538,6 +548,11 @@ class _PyQtGraphUpdater(_ImageUpdaterBase):
                 self.view.removeItem(self.text)
             self.text = None
 
+    def change_title(self, title):
+        self.title = title
+        if self.view:
+            self.view.view.setTitle(title)
+
     def make_refresh_rate_text(self):
         """Make text for showing the refresh rate."""
         import pyqtgraph as pg
@@ -586,7 +601,7 @@ class _PyplotUpdaterBase:
         self.title = title
         # A dictionary in form command: method which tells the class what to do
         # for every received command
-        self.commands = {}
+        self.commands = {'title': self.change_title}
 
     def process(self, iteration):
         """Get item from queue and process it."""
@@ -648,10 +663,14 @@ class _PyplotUpdater(_PyplotUpdaterBase):
             # Matplotlib changes colors all the time by default
             self.plot_kwargs['color'] = 'b'
         self.autoscale = autoscale
-        self.commands = {'plot': self.plot,
-                         'style': self.change_style,
-                         'clear': self.clear,
-                         'autoscale': self.set_autoscale}
+        self.commands.update(
+            {
+                'plot': self.plot,
+                'style': self.change_style,
+                'clear': self.clear,
+                'autoscale': self.set_autoscale,
+            }
+        )
 
     def get_artists(self):
         """Get the artists for the drawing."""
@@ -726,6 +745,11 @@ class _PyplotUpdater(_PyplotUpdaterBase):
         self.autoscale = autoscale
         if self.autoscale:
             self.autoscale_view()
+
+    def change_title(self, title):
+        self.title = title
+        if self.line:
+            self.line.axes.set_title(title)
 
     def autoscale_view(self):
         """Autoscale axes limits."""
@@ -884,6 +908,11 @@ class _PyplotImageUpdaterBase(_PyplotUpdaterBase, _ImageUpdaterBase):
         upper_ratio = np.abs(upper - self.mpl_image.get_clim()[1]) / new_range
 
         return lower_ratio > 0.1 or upper_ratio > 0.1
+
+    def change_title(self, title):
+        self.title = title
+        if self.mpl_image:
+            self.mpl_image.axes.set_title(title)
 
 
 class _PyplotImageUpdater(_PyplotImageUpdaterBase):
