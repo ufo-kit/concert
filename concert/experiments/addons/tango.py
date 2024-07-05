@@ -119,7 +119,8 @@ class _TangoProxyArgs:
 
 class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
     async def __ainit__(self, device, experiment, acquisitions=None, do_normalization=True,
-                        average_normalization=True, slice_directory='online-slices'):
+                        average_normalization=True, slice_directory='online-slices',
+                        viewer=None):
         await TangoMixin.__ainit__(self, device)
         self._proxy = _TangoProxyArgs(self._device)
         await base.OnlineReconstruction.__ainit__(
@@ -128,7 +129,8 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
             acquisitions=acquisitions,
             do_normalization=do_normalization,
             average_normalization=average_normalization,
-            slice_directory=slice_directory
+            slice_directory=slice_directory,
+            viewer=viewer
         )
 
 
@@ -162,9 +164,9 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
 
     @remote
     async def reconstruct(self):
-        await self._reconstruct()
+        await base.OnlineReconstruction.reconstruct(self)
 
-    async def rereconstruct(self, slice_directory=None):
+    async def _rereconstruct(self, slice_directory=None):
         await self._reconstruct(cached=True, slice_directory=slice_directory)
 
     async def find_axis(self, region, z=0, store=False):

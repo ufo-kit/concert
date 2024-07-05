@@ -16,7 +16,7 @@ from concert.coroutines.base import background, broadcast, start
 from concert.coroutines.sinks import count
 from concert.progressbar import wrap_iterable
 from concert.base import check, Parameterizable, Parameter, Selection, State, StateError
-from concert.helpers import get_state_from_awaitable
+from concert.helpers import get_state_from_awaitable, get_basename
 from functools import partial
 
 
@@ -243,6 +243,7 @@ class Experiment(Parameterizable):
     iteration = Parameter()
     separate_scans = Parameter()
     name_fmt = Parameter()
+    current_name = Parameter(help="Name of the current iteration")
     state = State(default='standby')
     log_level = Selection(['critical', 'error', 'warning', 'info', 'debug'])
 
@@ -254,6 +255,7 @@ class Experiment(Parameterizable):
         self.walker = walker
         self._separate_scans = separate_scans
         self._name_fmt = name_fmt
+        self._current_name = ""
         self._iteration = 0
         self.log = LOG
         self._devices_to_log = {}
@@ -292,6 +294,9 @@ class Experiment(Parameterizable):
 
     async def _set_iteration(self, iteration):
         self._iteration = iteration
+
+    async def _get_current_name(self):
+        return self._current_name
 
     async def _get_separate_scans(self):
         return self._separate_scans
@@ -421,6 +426,7 @@ class Experiment(Parameterizable):
                 self.log.addHandler(handler)
                 exp_metadata: str = await self._prepare_metadata_str()
                 await self.walker.log_to_json(payload=exp_metadata)
+            self._current_name = get_basename(await self.walker.get_current())
         self.log.info(await self.info_table)
         for name, device in self._devices_to_log.items():
             self.log.info(f"Device {name}:")

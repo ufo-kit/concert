@@ -303,10 +303,12 @@ class OnlineReconstruction(Addon):
     z_parameter = Parameter()
 
     async def __ainit__(self, experiment, acquisitions=None, do_normalization=True,
-                        average_normalization=True, slice_directory='online-slices'):
+                        average_normalization=True, slice_directory='online-slices',
+                        viewer=None):
         self._do_normalization = do_normalization
         self.walker = experiment.walker
         self._slice_directory = None
+        self.viewer = viewer
         await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
         await self.set_slice_directory(slice_directory)
         await self.register_args()
@@ -419,13 +421,21 @@ class OnlineReconstruction(Addon):
         raise NotImplementedError
 
     async def reconstruct(self, *args, **kwargs):
-        raise NotImplementedError
+        await self._reconstruct(*args, **kwargs)
+        await self._show_slice()
 
     async def rereconstruct(self, slice_directory=None):
         """Rereconstruct cached projections and saved them to *slice_directory*, which is a full
         path.
         """
-        raise NotImplementedError
+        await self._rereconstruct(slice_directory=slice_directory)
+        await self._show_slice()
+
+    async def _show_slice(self):
+        if self.viewer:
+            index = len(np.arange(*await self.get_region())) // 2
+            await self.viewer.show(await self.get_slice(z=index))
+            await self.viewer.set_title(await self.experiment.get_current_name())
 
     async def find_axis(self, region, z=0, store=False):
         """Find the rotation axis in the *region* as [from, to, step] and return it."""
@@ -448,6 +458,7 @@ class OnlineReconstruction(Addon):
 
     async def _set_slice_directory(self, slice_directory):
         self._slice_directory = str(slice_directory)
+
 
 class PhaseGratingSteppingFourierProcessing(Addon):
     """
