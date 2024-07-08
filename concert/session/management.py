@@ -6,6 +6,8 @@ import ast
 import os
 import sys
 import shutil
+from IPython.core.profiledir import ProfileDir, ProfileDirError
+from IPython.paths import get_ipython_dir
 
 _CACHED_PATH = None
 
@@ -86,9 +88,17 @@ def create(session, imports=()):
 
 
 def remove(session):
-    """Remove a *session*."""
+    """Remove a *session* and the corresponding profile directory."""
     if exists(session):
         os.unlink(path(session))
+        try:
+            profile_folder = ProfileDir.find_profile_dir_by_name(get_ipython_dir(),
+                                                                 f"concert_{session}")
+            shutil.rmtree(profile_folder.location)
+        except ProfileDirError as e:
+            # No profile directory found
+            # This can happen if the session was created with an older version or was never started
+            pass
 
 
 def move(source, target):

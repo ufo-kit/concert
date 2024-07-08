@@ -433,6 +433,8 @@ class StartCommand(SubCommand):
         print("Welcome to Concert {0}".format(concert.__version__))
 
         ip_config = traitlets.config.Config()
+        if session is not None:
+            ip_config.BaseIPythonApplication.profile = f"concert_{session}"
         if path and path.endswith('.py'):
             docstring = cs.get_docstring(path)
             if docstring:
