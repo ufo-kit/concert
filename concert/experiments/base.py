@@ -14,7 +14,7 @@ from concert.coroutines.base import background, broadcast
 from concert.coroutines.sinks import null
 from concert.progressbar import wrap_iterable
 from concert.base import check, Parameterizable, Parameter, Selection, State, StateError, transition
-from concert.helpers import get_state_from_awaitable
+from concert.helpers import get_state_from_awaitable, Logger
 
 LOG = logging.getLogger(__name__)
 
@@ -133,8 +133,10 @@ class Experiment(Parameterizable):
         self._iteration = 0
         self.log = LOG
         self._devices_to_log = {}
+        self._devices_to_log_optional = {}
         self.ready_to_prepare_next_sample = asyncio.Event()
         self._run_awaitable = None
+        self.timed_logger = None
         await Parameterizable.__ainit__(self)
 
         if separate_scans and walker:
@@ -143,10 +145,14 @@ class Experiment(Parameterizable):
             while self.walker.exists(self._name_fmt.format(self._iteration)):
                 self._iteration += 1
 
-    def add_device_to_log(self, name: str, device: concert.devices.base.Device):
-        self._devices_to_log[name] = device
+    def add_device_to_log(self, name: str, device: concert.devices.base.Device, optional=False):
+        if optional:
+            self._devices_to_log_optional[name] = device
+        else:
+            self._devices_to_log[name] = device
 
-    async def log_to_json(self, directory: str):
+    async def log_to_json(self, directory: str, postfix: str = ''):
+        await self.prepare_logging()
         data = {}
         experiment_parameters = {}
         for param in self:
@@ -158,9 +164,18 @@ class Experiment(Parameterizable):
             for param in device:
                 device_data[param.name] = str(await param.get())
             data[name] = device_data
+        for name, device in self._devices_to_log_optional.items():
+            device_data = {}
+            for param in device:
+                try:
+                    device_data[param.name] = str(await param.get())
+                except Exception as e:
+                    device_data[param.name] = 'Error: Unable to read parameter.'
+            data[name] = device_data
 
-        with open(os.path.join(directory, 'experiment.json'), 'w') as outfile:
+        with open(os.path.join(directory, f'experiment{postfix}.json'), 'w') as outfile:
             json.dump(data, outfile, indent=4)
+        await self.finish_logging()
 
     async def _get_iteration(self):
         return self._iteration
@@ -193,6 +208,15 @@ class Experiment(Parameterizable):
     async def finish(self):
         """Gets executed after every experiment run."""
         pass
+
+    async def prepare_logging(self):
+        """Function for preparing the device logging."""
+        pass
+
+    async def finish_logging(self):
+        """Function called after logging."""
+        pass
+
 
     @property
     def acquisitions(self):
@@ -291,7 +315,8 @@ class Experiment(Parameterizable):
                                               '- %(message)s')
                 handler.setFormatter(formatter)
                 self.log.addHandler(handler)
-                await self.log_to_json(self.walker.current)
+                await self.log_to_json(self.walker.current, '_start')
+                self.timed_logger = Logger(os.path.join(self.walker.current, 'timed.log'))
         self.log.info(await self.info_table)
         for name, device in self._devices_to_log.items():
             self.log.info(f"Device {name}:")
@@ -308,6 +333,9 @@ class Experiment(Parameterizable):
         finally:
             try:
                 await self.finish()
+                if self.walker:
+                    if os.path.exists(self.walker.current):
+                        await self.log_to_json(self.walker.current, '_end')
             except Exception as e:
                 LOG.warning(f"Error `{e}' while finalizing experiment")
                 raise StateError('error', msg=str(e))
@@ -320,6 +348,8 @@ class Experiment(Parameterizable):
                 if handler:
                     handler.close()
                     self.log.removeHandler(handler)
+                if self.timed_logger:
+                    self.timed_logger.save()
                 await self.set_iteration(iteration + 1)
 
 
