@@ -15,16 +15,16 @@ LOG = logging.getLogger(__name__)
 class Camera(UcaCamera):
     async def __ainit__(self, name="pco", params=None):
         self._timestamp_enabled = False
-        await super().__ainit__(name=name, params=params)
+        await UcaCamera.__ainit__(self, name=name, params=params)
 
     async def _record_real(self):
-        self._timestamp_enabled = await self.get_timestamp() in ['both', 'binary']
-        await super()._record_real()
+        self._timestamp_enabled = (await self.get_timestamp_mode()).value_name in ['UCA_PCO_CAMERA_TIMESTAMP_BINARY', 'UCA_PCO_CAMERA_TIMESTAMP_BOTH']
+        await UcaCamera._record_real(self)
 
     @background
     async def start_readout(self):
-        self._timestamp_enabled = await self.get_timestamp() in ['both', 'binary']
-        await super().start_readout()
+        self._timestamp_enabled = (await self.get_timestamp_mode()).value_name in ['UCA_PCO_CAMERA_TIMESTAMP_BINARY', 'UCA_PCO_CAMERA_TIMESTAMP_BOTH']
+        await UcaCamera.start_readout(self)
 
     @background
     async def grab(self) -> ImageWithMetadata:

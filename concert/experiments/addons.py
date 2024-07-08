@@ -388,6 +388,7 @@ class PCOTimestampCheck(Addon):
         self.timestamp_missing = False
         i = 0
         last_acquisition = await self._experiment.acquisitions[-1].get_state() == "running"
+        first_frame = 1
         async for img in producer:
             if i == 0:
                 if not isinstance(img, ImageWithMetadata) or (
@@ -398,9 +399,10 @@ class PCOTimestampCheck(Addon):
                                                "Works only with pco cameras.")
                     self.timestamp_missing = True
                     return
-            if img.metadata['frame_number'] != i + 1:
+                first_frame = img.metadata['frame_number']
+            if img.metadata['frame_number'] != i + first_frame:
                 self._experiment.log.error(
-                    f"Frame {i + 1} had wrong frame number {img.metadata['frame_number']}.")
+                    f"Frame {i} had wrong frame number {img.metadata['frame_number']} (first_frame: {first_frame}).")
                 self.timestamp_incorrect = True
             i += 1
         if last_acquisition and self.timestamp_incorrect:
