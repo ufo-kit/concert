@@ -3,14 +3,13 @@ loghandler.py
 -------------
 Encapsulates the log handling utilities for the walker APIs.
 """
-import logging
 import asyncio
-from typing import List, Protocol
+import hashlib
+import logging
+import uuid
+from typing import List, Protocol, Callable, Any
 from concert.typing import RemoteDirectoryWalkerTangoDevice
 from concert.coroutines.base import get_event_loop
-
-LOG = logging.getLogger(__name__)
-
 
 #############
 # Protocols #
@@ -27,6 +26,12 @@ class AsyncLoggingHandlerCloser(Protocol):
         ...
 ##############################################################################
 
+##############################################################################
+# Convenient routine to create a unique identifier for an object. This identifier
+# distinguishes the logger and in turn handler objects for remote walker device server.
+uid_for: Callable[[object], str] = lambda obj: uuid.UUID(
+        hashlib.md5(obj.__str__().encode("UTF-8")).hexdigest()).__str__()
+##############################################################################
 
 class NoOpLoggingHandler:
     """Defines placeholder handler closer which can be used for dummy
@@ -67,23 +72,28 @@ class RemoteLoggingHandler(logging.Handler):
     """
 
     _device: RemoteDirectoryWalkerTangoDevice
+    _owner_id: str
     _tasks: List[asyncio.Task]
     _loop: asyncio.AbstractEventLoop
 
     def __init__(
             self,
             device: RemoteDirectoryWalkerTangoDevice,
+            owner_id: str,
             fmt: str = "[%(asctime)s] %(levelname)s: %(name)s: %(message)s") -> None:
         """
         Instantiates a remote handler for logging in remote host.
 
         :param device: device to send the log payload to write
         :type device: RemoteDirectoryWalkerTangoDevice
+        :param owner_id: unique identifier for the object which wants to log something
+        :type owner_id: str
         :param fmt: format for logging
         :type fmt: str
         """
         super().__init__()
         self._device = device
+        self._owner_id = owner_id
         self.setFormatter(logging.Formatter(fmt))
         self._loop = get_event_loop()
         self._tasks = []
@@ -93,13 +103,13 @@ class RemoteLoggingHandler(logging.Handler):
         Ensures conformance to logging.Handler api. In this method we create
         a coroutine task in the form of an asyncio.Future and add the same to
         collection of future tasks after adding a callback to handle the task
-        completion.
+        completion. Owner_id is used by the device server to identify the logger
+        object, which should deal with logging.
         """
         if self._loop:
             self._tasks.append(
-                asyncio.ensure_future(self._device.log([str(record.levelno),
-                                                       self.format(record)]),
-                                      loop=self._loop))
+                asyncio.ensure_future(self._device.log([self._owner_id, str(record.levelno),
+                                                        self.format(record)]), loop=self._loop))
         else:
             raise RuntimeError("event loop unavailable")
 
@@ -109,7 +119,7 @@ class RemoteLoggingHandler(logging.Handler):
 
     async def aclose(self) -> None:
         await self.aflush()
-        await self._device.close_log_handler()
+        await self._device.deregister_logger_with(self._owner_id)
         super().close()
 
 

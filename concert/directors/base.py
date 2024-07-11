@@ -5,6 +5,7 @@ import logging
 from concert.base import Parameterizable, background, Parameter, State, transition, StateError, \
     check, Selection
 from concert.helpers import get_state_from_awaitable
+from concert.loghandler import AsyncLoggingHandlerCloser, uid_for
 
 LOG = logging.getLogger(__name__)
 
@@ -99,11 +100,12 @@ class Director(Parameterizable):
         handler = None
         try:
             if self._experiment.walker:
-                handler = logging.FileHandler(os.path.join(await self._experiment.walker.get_current(),
-                                                           'director.log'))
-                formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s '
-                                              '- %(message)s')
-                handler.setFormatter(formatter)
+                handler: AsyncLoggingHandlerCloser = await self._experiment.walker.register_logger_with(
+                    uid=uid_for(self),
+                    log_name=self.__class__.__name__,
+                    log_level=logging.NOTSET,
+                    file_name="director.log"
+                )
                 self.log.addHandler(handler)
             self.log.info(await self.info_table)
 
@@ -148,7 +150,7 @@ class Director(Parameterizable):
             raise
         finally:
             if handler:
-                handler.close()
+                await handler.aclose()
                 self.log.removeHandler(handler)
             await self._experiment['separate_scans'].restore()
             await self.finish()

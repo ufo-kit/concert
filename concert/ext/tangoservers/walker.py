@@ -5,7 +5,7 @@ Implements a device server for file system traversal at remote host.
 """
 import logging
 import os
-from typing import Type, List
+from typing import Type, List, Dict, Tuple
 from tango import DebugIt, DevState, CmdArgType
 from tango.server import attribute, command, AttrWriteType
 from concert.helpers import PerformanceTracker
@@ -66,8 +66,8 @@ class TangoRemoteWalker(TangoRemoteProcessing):
     )
 
     _writer: Type[writers.TiffWriter]
-    _logger: logging.Logger
-    _log_handler: logging.FileHandler
+    _loggers: Dict[str, logging.Logger]
+    _log_handlers: Dict[str, logging.FileHandler]
 
     @staticmethod
     def _create_dir(directory: str, mode: int = 0o0750) -> None:
@@ -90,7 +90,8 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         await super().init_device()
         self._root = os.environ["HOME"]
         self._current = self._root
-        self._logger = logging.getLogger(self.__class__.__name__)
+        self._loggers = {} 
+        self._log_handlers = {}
         self.set_state(DevState.STANDBY)
         self.info_stream(
             "%s in state: %s at directory: %s",
@@ -182,40 +183,48 @@ class TangoRemoteWalker(TangoRemoteProcessing):
             self.set_state(DevState.FAULT)
             raise
 
-
-
-
     async def consume(self, walker: DirectoryWalker) -> None:
+        """Defines an internal consumer coroutine to write incoming stream"""
         with PerformanceTracker() as pt:
             total_bytes = await walker.write(self._receiver.subscribe())
             pt.size = total_bytes * q.B
 
     @DebugIt()
     @command(
-        dtype_in=str,
-        doc_in="file name for the log file"
+        dtype_in=(str,),
+        doc_in="identifier, log_name, log_level and file_name for logging"
     )
-    async def open_log_handler(self, file_name: str) -> None:
-        self._log_handler = logging.FileHandler(os.path.join(self._current, file_name))
-        self._logger.addHandler(self._log_handler)
-
-    @DebugIt()
-    @command()
-    async def close_log_handler(self) -> None:
-        self._logger.removeHandler(self._log_handler)
-        self._log_handler.close()
+    async def register_logger_with(self, args: Tuple[str, str, str, str]) -> None:
+        uid, log_name, log_level, file_name = args[0], args[1], int(args[2]), args[3]
+        handler = logging.FileHandler(os.path.join(self._current, file_name))
+        logger = logging.Logger(log_name, log_level)
+        logger.addHandler(handler)
+        self._log_handlers[uid] = handler
+        self._loggers[uid] = logger
 
     @DebugIt()
     @command(
-        dtype_in=CmdArgType.DevVarStringArray,
-        doc_in="payload for logging. In this implementation payload is a two \
-        element array of strings, where first element denotes the log level and \
-        the second element is the content to log"
+        dtype_in=str,
+        doc_in="identifier for logger"
     )
-    async def log(self, payload: List[str]) -> None:
-        self._logger.log(int(payload[0]), payload[1])
-        self.info_stream("%s logged to file - %s",
-                         self.__class__.__name__, self.get_state())
+    async def deregister_logger_with(self, uid: str) -> None:
+        if uid in self._loggers and uid in self._log_handlers:
+            self._loggers[uid].removeHandler(self._log_handlers[uid])
+        self._log_handlers[uid].close()
+        del self._log_handlers[uid]
+        del self._loggers[uid]
+
+    @DebugIt()
+    @command(
+        dtype_in=(str,),
+        doc_in="payload for logging, includes identifier, log_level and message"
+    )
+    async def log(self, payload: Tuple[str, str, str]) -> None:
+        uid, log_level, msg = payload[0], int(payload[1]), payload[2]
+        if uid in self._loggers:
+            self._loggers[uid].log(log_level, msg)
+            self.info_stream("%s logged to file - %s",
+                             self.__class__.__name__, self.get_state())
 
     @DebugIt()
     @command(
