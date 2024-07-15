@@ -196,7 +196,7 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         doc_in="log_name, log_level and file_name for logging",
         doc_out="absolute log file path as an identifier for the logger"
     )
-    async def register_logger(self, args: Tuple[str, str, str]) -> None:
+    async def register_logger(self, args: Tuple[str, str, str]) -> str:
         logger_name, log_level, file_name = args[0], int(args[1]), args[2]
         # NOTE: log_path functions as unique identifier for a logger instance as well as the
         # absolute path for the log file, where logs should be written.

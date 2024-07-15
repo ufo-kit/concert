@@ -2,19 +2,23 @@ import asyncio
 
 import shutil
 import tempfile
+from typing import Tuple
 import numpy as np
 import logging
 from time import time
-
+import unittest.mock as mock
 import concert
 from concert.storage import DirectoryWalker
-from concert.experiments.base import Experiment as BaseExperiment, Acquisition, local
+from concert.experiments.base import Experiment as BaseExperiment, Acquisition, local 
+from concert.experiments.base import Consumer as AcquisitionConsumer
 from concert.tests import TestCase as BaseTestCase, slow
 from concert.directors.dummy import Director
 from concert.directors.base import Director as BaseDirector
 from concert.directors.scanning import XYScan
 from concert.devices.motors.dummy import LinearMotor
 from concert.quantities import q
+from concert.storage import RemoteDirectoryWalker
+from concert.tests.util.mocks import MockWalkerDevice
 
 
 LOG = logging.getLogger(__name__)
@@ -186,3 +190,92 @@ class XYScanDirectorTest(TestCase):
 
     async def test_final_state(self):
         self.assertEqual(await self.director.get_state(), "standby")
+
+
+class MockLoggingDirector(BaseDirector):
+    """Defines mock director to repeat a given number of experiments, so that some reasonable
+    assertions can be made on the logging behavior"""
+
+    _num_iter: int
+    _iter_name: str
+
+    async def __ainit__(self, experiment: Experiment, num_iter: int, iter_name: str) -> None:
+        self._num_iter = num_iter
+        self._iter_name = iter_name
+        await super().__ainit__(experiment=experiment)
+
+    async def _get_number_of_iterations(self) -> int:
+        return self._num_iter
+
+    async def _prepare_run(self, iteration: int) -> None:
+        self.log.info(f"Preparing iteration: {iteration}")
+
+    async def _get_iteration_name(self, iteration: int) -> str:
+        return f"{self._iter_name}_{iteration:04d}"
+
+    async def get_iteration_name(self, iteration: int) -> str:
+        return self._get_iteration_name(iteration)
+
+    async def get_iteration(self) -> int:
+        return self._get_current_iteration()
+
+
+class TestDirectorLogging(TestCase):
+
+    async def asyncSetUp(self):
+        self._visited = 0
+        self._acquired = 0
+        self._root = "root"
+        self._logger_id = "testable_logger_id"
+        self._director_iter = 3
+        self._device = MockWalkerDevice(logger_id=self._logger_id)
+        self._walker = await RemoteDirectoryWalker(device=self._device, root=self._root)
+        foo = await Acquisition("foo", self.produce, acquire=self.acquire)
+        foo.add_consumer(AcquisitionConsumer(self.consume)), Tuple
+        bar = await Acquisition("bar", self.produce, acquire=self.acquire)
+        acquisitions = [foo, bar]
+        self.num_produce = 2
+        self._item = None
+        self._logger = logging.getLogger(__name__)
+        self._experiment = await BaseExperiment(acquisitions=acquisitions, walker=self._walker)
+        self._experiment.log = self._logger
+        await self._experiment._set_log_level("debug")
+        self._direxp = await MockLoggingDirector(experiment=self._experiment,
+                                                 num_iter=self._director_iter, iter_name="iter")
+        await super().asyncSetUp()
+
+    async def acquire(self):
+        self._acquired += 1
+
+    @local
+    async def produce(self):
+        self._visited += 1
+        for i in range(self.num_produce):
+            yield np.ones((1,)) * i
+
+    @local
+    async def consume(self, producer):
+        async for item in producer:
+            self._item = item
+
+    async def test_experiment_logging(self) -> None:
+        _ = await self._direxp.run()
+        mock_device = self._walker.device.mock_device
+        expected_register = 1 + 3 # director.log + (self._director_iter * experiment.log)
+        self.assertTrue(mock_device.register_logger.call_count == expected_register)
+        mock_device.register_logger.assert_has_calls([
+            mock.call((MockLoggingDirector.__name__, str(logging.NOTSET), "director.log")),
+            mock.call(("Experiment", str(logging.NOTSET), "experiment.log")),
+            mock.call(("Experiment", str(logging.NOTSET), "experiment.log")),
+            mock.call(("Experiment", str(logging.NOTSET), "experiment.log"))
+        ])
+        expected_deregister = expected_register
+        mock_device.deregister_logger.assert_has_calls([
+            mock.call(self._logger_id),
+            mock.call(self._logger_id),
+            mock.call(self._logger_id),
+            mock.call(self._logger_id)
+        ])
+        expected_json_logging = 3 # self._director_iter * experiment.log
+        self.assertTrue(mock_device.log_to_json.call_count == expected_json_logging)
+

@@ -501,6 +501,8 @@ class RemoteDirectoryWalker(Walker):
         :type bytes_per_file: int
         """
         self.device = device
+        # NOTE: The method get_attribute_list is not a coroutine, hence should not be
+        # awaited.
         LOG.debug("device attributes: %s", self.device.get_attribute_list())
         # The 'root' is either explicitly specified or initialized using the
         # value from the remote server where the Tango device is initialized
