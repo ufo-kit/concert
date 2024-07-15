@@ -17,8 +17,7 @@ from concert.networking.base import ZmqSender
 from concert.writers import TiffWriter
 from concert.typing import RemoteDirectoryWalkerTangoDevice
 from concert.typing import ArrayLike
-from concert.loghandler import AsyncLoggingHandlerCloser, NoOpLoggingHandler
-from concert.loghandler import LoggingHandler, RemoteLoggingHandler
+from concert.loghandler import AsyncLoggingHandlerCloser, NoOpLoggingHandler, RemoteLoggingHandler
 
 
 LOG = logging.getLogger(__name__)
@@ -287,8 +286,8 @@ class Walker(Parameterizable):
         """
         return await self._create_writer(producer, dsetname=dsetname)
 
-    async def register_logger_with(self, uid: str, log_name: str, log_level: int,
-                                   file_name: str) -> AsyncLoggingHandlerCloser:
+    async def register_logger(self, logger_name: str, log_level: int,
+                              file_name: str) -> AsyncLoggingHandlerCloser:
         """Registers a logger with walker device server and provides a remote logging handler"""
         raise NotImplementedError
 
@@ -345,8 +344,8 @@ class DummyWalker(Walker):
                 i += 1
         return await _append_paths()
 
-    async def register_logger_with(self, uid: str, log_name: str, log_level: int,
-                                   file_name: str) -> AsyncLoggingHandlerCloser:
+    async def register_logger(self, logger_name: str, log_level: int,
+                              file_name: str) -> AsyncLoggingHandlerCloser:
         """Provides a no-op logging handler as a placeholder"""
         return NoOpLoggingHandler()
 
@@ -439,12 +438,10 @@ class DirectoryWalker(Walker):
         """Check if *paths* exist."""
         return os.path.exists(os.path.join(await self.get_current(), *paths))
 
-    async def register_logger_with(self, uid: str, log_name: str, log_level: int,
-                                   file_name: str) -> AsyncLoggingHandlerCloser:
-        # NOTE: With the remote walker taking over the responsibility of logging most of the
-        # parameters remain unused. We need to consider if it makes sense to simplify interface of
-        # DirectoryWalker with protocols.
-        return LoggingHandler(os.path.join(await self.get_current(), file_name))
+    async def register_logger(self, logger_name: str, log_level: int,
+                              file_name: str) -> AsyncLoggingHandlerCloser:
+        # With decentralized concert logging utility is delegated to the remote directory walker
+        return NoOpLoggingHandler()
 
     async def log_to_json(self, payload: str) -> None:
         """
@@ -570,8 +567,7 @@ class RemoteDirectoryWalker(Walker):
     async def _create_writer(
         self,
         producer: AsyncIterable[ArrayLike],
-        dsetname: Optional[str] = None
-    ) -> Awaitable:
+        dsetname: Optional[str] = None) -> Awaitable:
         old_endpoint = await self.get_endpoint()
         await self.set_endpoint(self._commdata.client_endpoint)
         old_dsetname = await self.get_dsetname()
@@ -608,14 +604,14 @@ class RemoteDirectoryWalker(Walker):
         if await self.device.state() != tango.DevState.STANDBY:
             raise StorageError("Error within TangoRemoteWriter")
 
-    async def register_logger_with(self, uid: str, log_name: str, log_level: int,
-                                   file_name: str) -> AsyncLoggingHandlerCloser:
+    async def register_logger(self, logger_name: str, log_level: int,
+                              file_name: str) -> AsyncLoggingHandlerCloser:
         """
         Provides a logging handler for the current path, capable to facilitate
         logging at a remote host.
         """
-        await self.device.register_logger_with((uid, log_name, str(log_level), file_name))
-        return RemoteLoggingHandler(device=self.device, owner_id=uid)
+        logger_id: str = await self.device.register_logger((logger_name, str(log_level), file_name))
+        return RemoteLoggingHandler(device=self.device, logger_id=logger_id)
 
     async def log_to_json(self, payload: str) -> None:
         """Implements api layer for writing experiment metadata"""

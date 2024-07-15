@@ -192,27 +192,33 @@ class TangoRemoteWalker(TangoRemoteProcessing):
     @DebugIt()
     @command(
         dtype_in=(str,),
-        doc_in="identifier, log_name, log_level and file_name for logging"
+        dtype_out=str,
+        doc_in="log_name, log_level and file_name for logging",
+        doc_out="absolute log file path as an identifier for the logger"
     )
-    async def register_logger_with(self, args: Tuple[str, str, str, str]) -> None:
-        uid, log_name, log_level, file_name = args[0], args[1], int(args[2]), args[3]
-        handler = logging.FileHandler(os.path.join(self._current, file_name))
-        logger = logging.Logger(log_name, log_level)
+    async def register_logger(self, args: Tuple[str, str, str]) -> None:
+        logger_name, log_level, file_name = args[0], int(args[1]), args[2]
+        # NOTE: log_path functions as unique identifier for a logger instance as well as the
+        # absolute path for the log file, where logs should be written.
+        log_path: str = os.path.join(self._current, file_name)
+        handler = logging.FileHandler(log_path)
+        logger = logging.Logger(logger_name, log_level)
         logger.addHandler(handler)
-        self._log_handlers[uid] = handler
-        self._loggers[uid] = logger
+        self._log_handlers[log_path] = handler
+        self._loggers[log_path] = logger
+        return log_path
 
     @DebugIt()
     @command(
         dtype_in=str,
-        doc_in="identifier for logger"
+        doc_in="unique identifier for logger"
     )
-    async def deregister_logger_with(self, uid: str) -> None:
-        if uid in self._loggers and uid in self._log_handlers:
-            self._loggers[uid].removeHandler(self._log_handlers[uid])
-        self._log_handlers[uid].close()
-        del self._log_handlers[uid]
-        del self._loggers[uid]
+    async def deregister_logger(self, logger_id: str) -> None:
+        if logger_id in self._loggers and logger_id in self._log_handlers:
+            self._loggers[logger_id].removeHandler(self._log_handlers[logger_id])
+        self._log_handlers[logger_id].close()
+        del self._log_handlers[logger_id]
+        del self._loggers[logger_id]
 
     @DebugIt()
     @command(
@@ -220,11 +226,11 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         doc_in="payload for logging, includes identifier, log_level and message"
     )
     async def log(self, payload: Tuple[str, str, str]) -> None:
-        uid, log_level, msg = payload[0], int(payload[1]), payload[2]
-        if uid in self._loggers:
-            self._loggers[uid].log(log_level, msg)
-            self.info_stream("%s logged to file - %s",
-                             self.__class__.__name__, self.get_state())
+        logger_id, log_level, msg = payload[0], int(payload[1]), payload[2]
+        if logger_id in self._loggers:
+            self._loggers[logger_id].log(log_level, msg)
+            self.info_stream("%s logged to file: %s - %s",
+                             self.__class__.__name__, logger_id, self.get_state())
 
     @DebugIt()
     @command(

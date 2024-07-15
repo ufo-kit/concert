@@ -25,14 +25,6 @@ class AsyncLoggingHandlerCloser(Protocol):
         """Defines an asynchronous closing routine for logging handler"""
         ...
 ##############################################################################
-
-##############################################################################
-# Convenient routine to create a unique identifier for an object. This identifier
-# distinguishes the logger and in turn handler objects for remote walker device server.
-uid_for: Callable[[object], str] = lambda obj: uuid.UUID(
-        hashlib.md5(obj.__str__().encode("UTF-8")).hexdigest()).__str__()
-##############################################################################
-
 class NoOpLoggingHandler:
     """Defines placeholder handler closer which can be used for dummy
     implementation."""
@@ -46,24 +38,6 @@ class NoOpLoggingHandler:
         ...
 
 
-class LoggingHandler(logging.FileHandler):
-    """Facilitates the logging utility for local directory traversal by
-    extending builtin logging.Handler object."""
-
-    def __init__(
-            self,
-            *args,
-            fmt: str = "[%(asctime)s] %(levelname)s: %(name)s: %(message)s") -> None:
-        super().__init__(*args)
-        self.setFormatter(logging.Formatter(fmt))
-
-    async def aflush(self) -> None:
-        super().flush()
-
-    async def aclose(self) -> None:
-        super().close()
-
-
 class RemoteLoggingHandler(logging.Handler):
     """
     Facilitates logging to file at a remote server in the network by extending
@@ -72,28 +46,28 @@ class RemoteLoggingHandler(logging.Handler):
     """
 
     _device: RemoteDirectoryWalkerTangoDevice
-    _owner_id: str
+    _logger_id: str
     _tasks: List[asyncio.Task]
     _loop: asyncio.AbstractEventLoop
 
     def __init__(
             self,
             device: RemoteDirectoryWalkerTangoDevice,
-            owner_id: str,
+            logger_id: str,
             fmt: str = "[%(asctime)s] %(levelname)s: %(name)s: %(message)s") -> None:
         """
         Instantiates a remote handler for logging in remote host.
 
         :param device: device to send the log payload to write
         :type device: RemoteDirectoryWalkerTangoDevice
-        :param owner_id: unique identifier for the object which wants to log something
-        :type owner_id: str
+        :param logger_id: unique identifier for the logger object
+        :type logger_id: str
         :param fmt: format for logging
         :type fmt: str
         """
         super().__init__()
         self._device = device
-        self._owner_id = owner_id
+        self._logger_id = logger_id
         self.setFormatter(logging.Formatter(fmt))
         self._loop = get_event_loop()
         self._tasks = []
@@ -108,7 +82,7 @@ class RemoteLoggingHandler(logging.Handler):
         """
         if self._loop:
             self._tasks.append(
-                asyncio.ensure_future(self._device.log([self._owner_id, str(record.levelno),
+                asyncio.ensure_future(self._device.log([self._logger_id, str(record.levelno),
                                                         self.format(record)]), loop=self._loop))
         else:
             raise RuntimeError("event loop unavailable")
@@ -119,7 +93,7 @@ class RemoteLoggingHandler(logging.Handler):
 
     async def aclose(self) -> None:
         await self.aflush()
-        await self._device.deregister_logger_with(self._owner_id)
+        await self._device.deregister_logger(self._logger_id)
         super().close()
 
 
