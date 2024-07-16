@@ -171,16 +171,15 @@ class Acquisition(Parameterizable):
             # 4. Someone raises exception
             while True:
                 done, tasks = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-                self._pending_tasks = tasks
-
-                if not tasks:
-                    break
 
                 completed = done.pop()
                 if completed.cancelled() or completed.exception():
                     await cancel_and_wait(tasks)
                     if completed.exception():
                         raise completed.exception()
+
+                if not tasks:
+                    break
         except BaseException as exception:
             # If something went wrong we cannot leave the running tasks haning, otherwise the
             # remotes might still be waiting for data, so cancel processing. Processing is
