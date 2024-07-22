@@ -58,7 +58,6 @@ class MockWalkerDevice:
         await self.mock_device.deregister_logger(logger_id)
 
     async def log(self, payload: Tuple[str, str, str]) -> None:
-        print(f"Mock device got a log call")
         await self.mock_device.log(payload)
 
     async def log_to_json(self, payload: str) -> None:

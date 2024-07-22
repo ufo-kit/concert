@@ -192,8 +192,8 @@ class XYScanDirectorTest(TestCase):
         self.assertEqual(await self.director.get_state(), "standby")
 
 
-class MockLoggingDirector(BaseDirector):
-    """Defines mock director to repeat a given number of experiments, so that some reasonable
+class TestableLoggingDirector(BaseDirector):
+    """Defines testable director to repeat a given number of experiments, so that some reasonable
     assertions can be made on the logging behavior"""
 
     _num_iter: int
@@ -240,7 +240,7 @@ class TestDirectorLogging(TestCase):
         self._experiment = await BaseExperiment(acquisitions=acquisitions, walker=self._walker)
         self._experiment.log = self._logger
         await self._experiment._set_log_level("debug")
-        self._direxp = await MockLoggingDirector(experiment=self._experiment,
+        self._direxp = await TestableLoggingDirector(experiment=self._experiment,
                                                  num_iter=self._director_iter, iter_name="iter")
         await super().asyncSetUp()
 
@@ -264,7 +264,7 @@ class TestDirectorLogging(TestCase):
         expected_register = 1 + 3 # director.log + (self._director_iter * experiment.log)
         self.assertTrue(mock_device.register_logger.call_count == expected_register)
         mock_device.register_logger.assert_has_calls([
-            mock.call((MockLoggingDirector.__name__, str(logging.NOTSET), "director.log")),
+            mock.call((TestableLoggingDirector.__name__, str(logging.NOTSET), "director.log")),
             mock.call(("Experiment", str(logging.NOTSET), "experiment.log")),
             mock.call(("Experiment", str(logging.NOTSET), "experiment.log")),
             mock.call(("Experiment", str(logging.NOTSET), "experiment.log"))
