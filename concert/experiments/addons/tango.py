@@ -4,6 +4,8 @@ import inspect
 import logging
 import os
 import numpy as np
+import tango
+
 from concert.experiments.addons import base
 from concert.experiments.base import remote
 from concert.quantities import q
@@ -124,7 +126,10 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
         await TangoMixin.__ainit__(self, device)
 
         # Lock the device to prevent other processes from using it
-        self._device.lock()
+        try:
+            self._device.lock()
+        except tango.NonDbDevice:
+            pass
 
         self._proxy = _TangoProxyArgs(self._device)
         await base.OnlineReconstruction.__ainit__(
