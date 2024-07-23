@@ -122,6 +122,10 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
                         average_normalization=True, slice_directory='online-slices',
                         viewer=None):
         await TangoMixin.__ainit__(self, device)
+
+        # Lock the device to prevent other processes from using it
+        self._device.lock()
+
         self._proxy = _TangoProxyArgs(self._device)
         await base.OnlineReconstruction.__ainit__(
             self,
