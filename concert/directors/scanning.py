@@ -115,7 +115,7 @@ class XYScan(Director):
         await asyncio.gather(self._x_motor.set_position(x_pos[x_index]),
                              self._y_motor.set_position(y_pos[y_index]))
 
-    async def _get_iteration_name(self, iteration: int) -> str:
+    async def get_iteration_name(self, iteration: int) -> str:
         x_index = iteration // await self.get_y_num()
         y_index = iteration % await self.get_y_num()
         return f"iteration_{x_index:04d}_{y_index:04d}"
