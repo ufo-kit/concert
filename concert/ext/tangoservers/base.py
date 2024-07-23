@@ -5,7 +5,7 @@ from concert.coroutines.base import start
 from concert.networking.base import ZmqReceiver
 from tango import InfoIt, DebugIt
 from tango.server import Device, attribute, DeviceMeta
-from tango.server import AttrWriteType, command
+from tango.server import AttrWriteType, DispLevel, command
 
 
 class TangoRemoteProcessing(Device, metaclass=DeviceMeta):
@@ -18,6 +18,14 @@ class TangoRemoteProcessing(Device, metaclass=DeviceMeta):
         access=AttrWriteType.READ_WRITE,
         fget="get_endpoint",
         fset="set_endpoint"
+    )
+
+    task_status = attribute(
+        label="Streaming task status",
+        dtype=str,
+        display_level=DispLevel.EXPERT,
+        access=AttrWriteType.READ_WRITE,
+        doc="Report status of the streaming task",
     )
 
     def __init__(self, cl, name):
@@ -99,3 +107,13 @@ class TangoRemoteProcessing(Device, metaclass=DeviceMeta):
         """Stop processing immediately."""
         if self._task:
             self._task.cancel()
+
+    @DebugIt()
+    @command()
+    async def wait_for_task(self):
+        """Stop processing immediately."""
+        if self._task:
+            await self._task
+
+    async def read_task_status(self):
+        return str(self._task)

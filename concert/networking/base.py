@@ -7,6 +7,7 @@ import zmq
 import zmq.asyncio
 from concert.quantities import q
 from concert.config import AIODEBUG, PERFDEBUG
+from concert.coroutines.base import background, get_event_loop
 from concert.helpers import ImageWithMetadata
 
 
@@ -475,6 +476,46 @@ class ZmqBroadcaster(ZmqReceiver):
             socket.close()
 
         LOG.info('ZmqBroadcaster: shut down')
+
+
+def long_tango_command(device, start_func, result_func, event_name):
+    import tango
+    subscribed = False
+    future = None
+
+    def callback(evt):
+        nonlocal future
+        LOG.debug("callback on `%s': %s", event_name, evt.attr_value.value)
+        if future:
+            future.set_result(evt.attr_value.value)
+
+    @background
+    async def call_func(*args, **kwargs):
+        nonlocal future, subscribed
+        if not subscribed:
+            device.subscribe_event(
+                event_name,
+                tango.EventType.CHANGE_EVENT,
+                callback,
+            )
+            subscribed = True
+        loop = get_event_loop()
+        future = loop.create_future()
+        try:
+            await start_func(*args, **kwargs)
+            await future
+            return await result_func()
+        except tango.DevFailed:
+            raise
+        except BaseException as e:
+            LOG.debug(
+                "`%s' occured, remote cancelled with result: %s",
+                e.__class__.__name__,
+                await asyncio.gather(device.cancel(), return_exceptions=True)
+            )
+            raise
+
+    return call_func
 
 
 def is_zmq_endpoint_local(endpoint):

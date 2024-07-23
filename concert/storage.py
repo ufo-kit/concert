@@ -15,7 +15,7 @@ from typing import Optional, AsyncIterable, Awaitable, Type, Iterable, Set
 import tifffile
 from concert.base import AsyncObject, Parameterizable, Parameter
 from concert.coroutines.base import background
-from concert.networking.base import ZmqSender
+from concert.networking.base import long_tango_command, ZmqSender
 from concert.writers import TiffWriter
 from concert.typing import RemoteDirectoryWalkerTangoDevice
 from concert.typing import ArrayLike
@@ -542,6 +542,12 @@ class RemoteDirectoryWalker(Walker):
         await self.device.write_attribute(attr_name="bytes_per_file", value=bytes_per_file)
         self._commdata = None
         await super().__ainit__(root=self._root, dsetname=dsetname, log_name=log_name)
+        self._tango_write_sequence_call = long_tango_command(
+            self.device,
+            self.device.write_sequence,
+            self.device.wait_for_task,
+            "task_status",
+        )
 
     async def _descend(self, name: str) -> None:
         await self.device.descend(name)
@@ -620,13 +626,7 @@ class RemoteDirectoryWalker(Walker):
         :param path: path to write to
         :type path: str
         """
-        import tango
-        self.device.command_inout_asynch("write_sequence", name, True)
-        while await self.device.state() == tango.DevState.RUNNING:
-            await asyncio.sleep(0.1)
-        if await self.device.state() != tango.DevState.STANDBY:
-            raise StorageError("Error within TangoRemoteWriter")
-
+        await self._tango_write_sequence_call(name)
 
     async def get_log_handler(self) -> AsyncLoggingHandlerCloser:
         """
