@@ -610,7 +610,7 @@ class RemoteDirectoryWalker(Walker):
         """
         await self.device.write_sequence(name)
 
-    async def get_log_handler(self) -> AsyncLoggingHandlerCloser:
+    async def register_logger(self) -> AsyncLoggingHandlerCloser:
         """
         Provides a logging handler for the current path, capable to facilitate
         logging at a remote host.
