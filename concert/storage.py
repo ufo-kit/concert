@@ -8,6 +8,8 @@ import asyncio
 import os
 import logging
 import re
+
+import tango
 import zmq
 from typing import Optional, AsyncIterable, Awaitable, Type, Iterable, Set
 import tifffile
@@ -504,6 +506,13 @@ class RemoteDirectoryWalker(Walker):
         # NOTE: The method get_attribute_list is not a coroutine, hence should not be
         # awaited.
         LOG.debug("device attributes: %s", self.device.get_attribute_list())
+
+        # Prevent the device from being accessed by other clients
+        try:
+            self.device.lock()
+        except tango.NonDbDevice:
+            pass
+
         # The 'root' is either explicitly specified or initialized using the
         # value from the remote server where the Tango device is initialized
         # with reasonable defaults.
@@ -599,15 +608,9 @@ class RemoteDirectoryWalker(Walker):
         :param path: path to write to
         :type path: str
         """
-        import tango
-        self.device.command_inout_asynch("write_sequence", name, True)
-        while await self.device.state() == tango.DevState.RUNNING:
-            await asyncio.sleep(0.1)
-        if await self.device.state() != tango.DevState.STANDBY:
-            raise StorageError("Error within TangoRemoteWriter")
+        await self.device.write_sequence(name)
 
-    async def register_logger(self, logger_name: str, log_level: int,
-                              file_name: str) -> AsyncLoggingHandlerCloser:
+    async def get_log_handler(self) -> AsyncLoggingHandlerCloser:
         """
         Provides a logging handler for the current path, capable to facilitate
         logging at a remote host.

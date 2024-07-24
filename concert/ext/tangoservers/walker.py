@@ -169,19 +169,13 @@ class TangoRemoteWalker(TangoRemoteProcessing):
     @DebugIt(show_args=True)
     @command(dtype_in=str)
     async def write_sequence(self, name):
-        self.set_state(DevState.RUNNING)
-        try:
-            walker = await DirectoryWalker(
-                writer=self._writer,
-                dsetname=self._dsetname,
-                bytes_per_file=self._bytes_per_file,
-                root=os.path.join(self._current, name) if name else self._current
-            )
-            await self._process_stream(self.consume(walker))
-            self.set_state(DevState.STANDBY)
-        except:
-            self.set_state(DevState.FAULT)
-            raise
+        walker = await DirectoryWalker(
+            writer=self._writer,
+            dsetname=self._dsetname,
+            bytes_per_file=self._bytes_per_file,
+            root=os.path.join(self._current, name) if name else self._current
+        )
+        await self._process_stream(self.consume(walker))
 
     async def consume(self, walker: DirectoryWalker) -> None:
         """Defines an internal consumer coroutine to write incoming stream"""

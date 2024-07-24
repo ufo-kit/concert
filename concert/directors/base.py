@@ -72,7 +72,10 @@ class Director(Parameterizable):
         """
         raise NotImplementedError
 
-    async def _get_iteration_name(self, iteration: int) -> str:
+    async def _get_current_iteration_name(self):
+        return await self.get_iteration_name(await self.get_current_iteration())
+
+    async def get_iteration_name(self, iteration: int) -> str:
         """
         Function for giving meaningfully names for each experiment execution.
         Should be overwritten for more complicated naming (e.g. specimen descriptions).
@@ -85,7 +88,6 @@ class Director(Parameterizable):
     async def _prepare_next_run(self):
         if await self.get_current_iteration() < await self.get_number_of_iterations() - 1:
             await self._prepare_run(await self.get_current_iteration() + 1)
-
 
     @background
     @check(source=['standby', 'error'], target="standby")
@@ -117,9 +119,9 @@ class Director(Parameterizable):
                 self._iteration = iteration
                 await self._run_event.wait()
 
-                await self._experiment.walker.descend(await self._get_iteration_name(iteration))
+                await self._experiment.walker.descend(await self.get_iteration_name(iteration))
                 exp_run = self._experiment.run()
-                sample_name = await self._get_iteration_name(iteration)
+                sample_name = await self.get_iteration_name(iteration)
                 self._experiment.log.info(f"Sample name: {sample_name}")
                 self._experiment.log.info(await self.info_table)
 

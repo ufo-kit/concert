@@ -29,7 +29,7 @@ class TangoCommand(SubCommand):
         super(TangoCommand, self).__init__('tango', opts)
 
     def run(self, server: str, port: int, database: bool = False, device: [str, None] = None, instancelogfile=None,
-            loglevel=None, logfile=None):
+            loglevel='info', logfile=None):
         """
         Run a Tango server
 
