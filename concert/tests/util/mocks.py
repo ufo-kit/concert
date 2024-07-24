@@ -9,17 +9,18 @@ import asyncio
 import os
 import unittest.mock as mock
 from typing import Sequence, Any, Tuple
+import tango
 
 
 class MockWalkerDevice:
     """Attempts to mock the behavior of walker tango device server"""
 
     mock_device: mock.AsyncMock
-    _logger_id: str
+    _log_path: str
 
-    def __init__(self, logger_id: str) -> None:
+    def __init__(self, log_path: str) -> None:
         self.mock_device = mock.AsyncMock()
-        self._logger_id = logger_id
+        self._log_path = log_path
 
     async def write_attribute(self, attr_name: str, value: Any) -> None:
         await self.mock_device.write_attribute(attr_name=attr_name, value=value)
@@ -38,6 +39,9 @@ class MockWalkerDevice:
             mock_value.value = "some_value"
         return mock_value
 
+    def lock(self, lock_validity: int = tango.constants.DEFAULT_LOCK_VALIDITY) -> None:
+        self.mock_device.lock(lock_validity=tango.constants.DEFAULT_LOCK_VALIDITY)
+
     async def descend(self, name: str) -> None:
         await self.mock_device.descend(name=name)
         
@@ -52,10 +56,10 @@ class MockWalkerDevice:
     
     async def register_logger(self, args: Tuple[str, str, str]) -> str:
         await self.mock_device.register_logger(args)
-        return self._logger_id
+        return self._log_path
 
-    async def deregister_logger(self, logger_id: str) -> None:
-        await self.mock_device.deregister_logger(logger_id)
+    async def deregister_logger(self, log_path: str) -> None:
+        await self.mock_device.deregister_logger(log_path)
 
     async def log(self, payload: Tuple[str, str, str]) -> None:
         await self.mock_device.log(payload)

@@ -320,8 +320,8 @@ class TestExperimentLogging(TestCase):
         self._visited = 0
         self._acquired = 0
         self._root = "root"
-        self._logger_id = "testable_logger_id"
-        self._device = MockWalkerDevice(logger_id=self._logger_id)
+        self._log_path = "testable_logger_path"
+        self._device = MockWalkerDevice(log_path=self._log_path)
         self._walker = await RemoteDirectoryWalker(device=self._device, root=self._root)
         foo = await Acquisition("foo", self.produce, acquire=self.acquire)
         foo.add_consumer(AcquisitionConsumer(self.consume)), Tuple
@@ -358,8 +358,8 @@ class TestExperimentLogging(TestCase):
         mock_device = self._walker.device.mock_device
         mock_device.register_logger.assert_called_once_with(
                 (Experiment.__name__, str(logging.NOTSET), "experiment.log"))
-        mock_device.deregister_logger.assert_called_once_with(self._logger_id)
+        mock_device.deregister_logger.assert_called_once_with(self._log_path)
         mock_device.log_to_json.assert_called_once()
-        # TODO: Figure out why the remote handler does not get a call back in the tests, while it
-        # works inside a session.
+        # TODO: Figure out why the remote handler emit method does not get a call back in the
+        # tests, while it works inside a session.
 

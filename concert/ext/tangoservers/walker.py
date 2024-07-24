@@ -192,8 +192,6 @@ class TangoRemoteWalker(TangoRemoteProcessing):
     )
     async def register_logger(self, args: Tuple[str, str, str]) -> str:
         logger_name, log_level, file_name = args[0], int(args[1]), args[2]
-        # NOTE: log_path functions as unique identifier for a logger instance as well as the
-        # absolute path for the log file, where logs should be written.
         log_path: str = os.path.join(self._current, file_name)
         handler = logging.FileHandler(log_path)
         logger = logging.Logger(logger_name, log_level)
@@ -207,24 +205,24 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         dtype_in=str,
         doc_in="unique identifier for logger"
     )
-    async def deregister_logger(self, logger_id: str) -> None:
-        if logger_id in self._loggers and logger_id in self._log_handlers:
-            self._loggers[logger_id].removeHandler(self._log_handlers[logger_id])
-        self._log_handlers[logger_id].close()
-        del self._log_handlers[logger_id]
-        del self._loggers[logger_id]
+    async def deregister_logger(self, log_path: str) -> None:
+        if log_path in self._loggers and log_path in self._log_handlers:
+            self._loggers[log_path].removeHandler(self._log_handlers[log_path])
+        self._log_handlers[log_path].close()
+        del self._log_handlers[log_path]
+        del self._loggers[log_path]
 
     @DebugIt()
     @command(
         dtype_in=(str,),
-        doc_in="payload for logging, includes identifier, log_level and message"
+        doc_in="payload for logging, includes log_path as identifier, log_level and message"
     )
     async def log(self, payload: Tuple[str, str, str]) -> None:
-        logger_id, log_level, msg = payload[0], int(payload[1]), payload[2]
-        if logger_id in self._loggers:
-            self._loggers[logger_id].log(log_level, msg)
+        log_path, log_level, msg = payload[0], int(payload[1]), payload[2]
+        if log_path in self._loggers:
+            self._loggers[log_path].log(log_level, msg)
             self.info_stream("%s logged to file: %s - %s",
-                             self.__class__.__name__, logger_id, self.get_state())
+                             self.__class__.__name__, log_path, self.get_state())
 
     @DebugIt()
     @command(

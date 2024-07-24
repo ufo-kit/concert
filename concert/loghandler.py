@@ -46,28 +46,28 @@ class RemoteLoggingHandler(logging.Handler):
     """
 
     _device: RemoteDirectoryWalkerTangoDevice
-    _logger_id: str
+    _log_path: str
     _tasks: List[asyncio.Task]
     _loop: asyncio.AbstractEventLoop
 
     def __init__(
             self,
             device: RemoteDirectoryWalkerTangoDevice,
-            logger_id: str,
+            log_path: str,
             fmt: str = "[%(asctime)s] %(levelname)s: %(name)s: %(message)s") -> None:
         """
         Instantiates a remote handler for logging in remote host.
 
         :param device: device to send the log payload to write
         :type device: RemoteDirectoryWalkerTangoDevice
-        :param logger_id: unique identifier for the logger object
-        :type logger_id: str
+        :param log_path: log path as unique identifier for the logger object
+        :type log_path: str
         :param fmt: format for logging
         :type fmt: str
         """
         super().__init__()
         self._device = device
-        self._logger_id = logger_id
+        self._log_path = log_path
         self.setFormatter(logging.Formatter(fmt))
         self._loop = get_event_loop()
         self._tasks = []
@@ -82,7 +82,7 @@ class RemoteLoggingHandler(logging.Handler):
         """
         if self._loop:
             self._tasks.append(
-                asyncio.ensure_future(self._device.log([self._logger_id, str(record.levelno),
+                asyncio.ensure_future(self._device.log([self._log_path, str(record.levelno),
                                                         self.format(record)]), loop=self._loop))
         else:
             raise RuntimeError("event loop unavailable")
@@ -93,7 +93,7 @@ class RemoteLoggingHandler(logging.Handler):
 
     async def aclose(self) -> None:
         await self.aflush()
-        await self._device.deregister_logger(self._logger_id)
+        await self._device.deregister_logger(self._log_path)
         super().close()
 
 

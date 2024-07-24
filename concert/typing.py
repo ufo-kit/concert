@@ -124,7 +124,7 @@ class RemoteDirectoryWalkerTangoDevice(
         """
         ...
 
-    async def deregister_logger(self, logger_id: str) -> None:
+    async def deregister_logger(self, log_path: str) -> None:
         """
         Deallocates the file handler and logger for provided logger id
         """
@@ -133,7 +133,7 @@ class RemoteDirectoryWalkerTangoDevice(
     async def log(self, payload: Tuple[str, str, str]) -> None:
         """
         Facilitates logging using a specific logger from the maintained loggers. Payload
-        consists of logger id, logging level and log message.
+        consists of log path as identifier for logger, logging level and log message.
         """
         ...
 #####################################################################

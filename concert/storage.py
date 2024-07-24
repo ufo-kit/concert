@@ -610,13 +610,14 @@ class RemoteDirectoryWalker(Walker):
         """
         await self.device.write_sequence(name)
 
-    async def register_logger(self) -> AsyncLoggingHandlerCloser:
+    async def register_logger(self, logger_name: str, log_level: int,
+                              file_name: str) -> AsyncLoggingHandlerCloser:
         """
         Provides a logging handler for the current path, capable to facilitate
         logging at a remote host.
         """
-        logger_id: str = await self.device.register_logger((logger_name, str(log_level), file_name))
-        return RemoteLoggingHandler(device=self.device, logger_id=logger_id)
+        log_path: str = await self.device.register_logger((logger_name, str(log_level), file_name))
+        return RemoteLoggingHandler(device=self.device, log_path=log_path)
 
     async def log_to_json(self, payload: str) -> None:
         """Implements api layer for writing experiment metadata"""

@@ -226,9 +226,9 @@ class TestDirectorLogging(TestCase):
         self._visited = 0
         self._acquired = 0
         self._root = "root"
-        self._logger_id = "testable_logger_id"
+        self._log_path = "testable_logger_path"
         self._director_iter = 3
-        self._device = MockWalkerDevice(logger_id=self._logger_id)
+        self._device = MockWalkerDevice(log_path=self._log_path)
         self._walker = await RemoteDirectoryWalker(device=self._device, root=self._root)
         foo = await Acquisition("foo", self.produce, acquire=self.acquire)
         foo.add_consumer(AcquisitionConsumer(self.consume)), Tuple
@@ -271,10 +271,10 @@ class TestDirectorLogging(TestCase):
         ])
         expected_deregister = expected_register
         mock_device.deregister_logger.assert_has_calls([
-            mock.call(self._logger_id),
-            mock.call(self._logger_id),
-            mock.call(self._logger_id),
-            mock.call(self._logger_id)
+            mock.call(self._log_path),
+            mock.call(self._log_path),
+            mock.call(self._log_path),
+            mock.call(self._log_path)
         ])
         expected_json_logging = 3 # self._director_iter * experiment.log
         self.assertTrue(mock_device.log_to_json.call_count == expected_json_logging)
