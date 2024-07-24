@@ -6,6 +6,7 @@ from typing import Tuple
 import numpy as np
 import logging
 from time import time
+import unittest
 import unittest.mock as mock
 import concert
 from concert.storage import DirectoryWalker
@@ -214,15 +215,16 @@ class TestableLoggingDirector(BaseDirector):
         return f"{self._iter_name}_{iteration:04d}"
 
     async def get_iteration_name(self, iteration: int) -> str:
-        return self._get_iteration_name(iteration)
+        return await self._get_iteration_name(iteration)
 
     async def get_iteration(self) -> int:
         return self._get_current_iteration()
 
 
-class TestDirectorLogging(TestCase):
+class TestDirectorLogging(unittest.IsolatedAsyncioTestCase):
 
     async def asyncSetUp(self):
+        logging.disable(logging.NOTSET)
         self._visited = 0
         self._acquired = 0
         self._root = "root"
@@ -233,16 +235,18 @@ class TestDirectorLogging(TestCase):
         foo = await Acquisition("foo", self.produce, acquire=self.acquire)
         foo.add_consumer(AcquisitionConsumer(self.consume)), Tuple
         bar = await Acquisition("bar", self.produce, acquire=self.acquire)
-        acquisitions = [foo, bar]
+        self._acquisitions = [foo, bar]
         self.num_produce = 2
         self._item = None
-        self._logger = logging.getLogger(__name__)
-        self._experiment = await BaseExperiment(acquisitions=acquisitions, walker=self._walker)
-        self._experiment.log = self._logger
+        self._experiment = await BaseExperiment(acquisitions=self._acquisitions, walker=self._walker)
         await self._experiment._set_log_level("debug")
         self._direxp = await TestableLoggingDirector(experiment=self._experiment,
                                                  num_iter=self._director_iter, iter_name="iter")
         await super().asyncSetUp()
+
+    async def asyncTearDown(self) -> None:
+        logging.disable(logging.CRITICAL)
+        await super().asyncTearDown()
 
     async def acquire(self):
         self._acquired += 1
@@ -258,7 +262,7 @@ class TestDirectorLogging(TestCase):
         async for item in producer:
             self._item = item
 
-    async def test_experiment_logging(self) -> None:
+    async def test_director_logging(self) -> None:
         _ = await self._direxp.run()
         mock_device = self._walker.device.mock_device
         expected_register = 1 + 3 # director.log + (self._director_iter * experiment.log)
@@ -269,6 +273,22 @@ class TestDirectorLogging(TestCase):
             mock.call(("Experiment", str(logging.NOTSET), "experiment.log")),
             mock.call(("Experiment", str(logging.NOTSET), "experiment.log"))
         ])
+        # Expected logs for testable logging director is computed as following
+        # Director logging its info_table to root director.log
+        root_director_log = 1
+        # TestableLoggingDirector calls INFO log from _prepare_run for each iteration
+        director_prep_log = self._director_iter
+        # Director uses experiment's logger to log its own info_table for each iteration
+        director_triggered_exp_info_log = self._director_iter
+        # Experiment _run logs its own info_table for each iteration
+        exp_info_log = self._director_iter
+        # Experiment _run triggers one DEBUG log for current iteration start, one DEBUG log for each
+        # acquisition, one DEBUG log for acquisition consume finished, one DEBUG log for current
+        # iteration duration, all of which happens for each iteration of director
+        exp_debug_log = self._director_iter * (1 + len(self._acquisitions) + 1 + 1)
+        director_log_total = root_director_log + director_prep_log + director_triggered_exp_info_log \
+                + exp_info_log + exp_debug_log
+        self.assertEqual(mock_device.log.call_count, director_log_total)
         expected_deregister = expected_register
         mock_device.deregister_logger.assert_has_calls([
             mock.call(self._log_path),

@@ -9,6 +9,7 @@ import os.path as op
 import tempfile
 import shutil
 from typing import Any, Tuple, Sequence
+import unittest
 import unittest.mock as mock
 import numpy as np
 from concert.quantities import q
@@ -314,9 +315,10 @@ class TestExperimentStates(TestCase):
         self.assertEqual(await exp.get_state(), "error")
 
 
-class TestExperimentLogging(TestCase):
+class TestExperimentLogging(unittest.IsolatedAsyncioTestCase):
 
     async def asyncSetUp(self):
+        logging.disable(logging.NOTSET)
         self._visited = 0
         self._acquired = 0
         self._root = "root"
@@ -326,16 +328,18 @@ class TestExperimentLogging(TestCase):
         foo = await Acquisition("foo", self.produce, acquire=self.acquire)
         foo.add_consumer(AcquisitionConsumer(self.consume)), Tuple
         bar = await Acquisition("bar", self.produce, acquire=self.acquire)
-        acquisitions = [foo, bar]
+        self._acquisitions = [foo, bar]
         self.num_produce = 2
         self._item = None
-        self._logger = logging.getLogger(__name__)
-        self._experiment = await Experiment(acquisitions=acquisitions, walker=self._walker)
-        self._experiment.log = self._logger
+        self._experiment = await Experiment(acquisitions=self._acquisitions, walker=self._walker)
         await self._experiment._set_log_level("debug")
         self._devices = [await Shutter(), await LinearMotor(), await Camera()]
         [self._experiment.add_device_to_log(f"Device-{dix}", dev) for dix, dev in enumerate(self._devices)]
         await super().asyncSetUp()
+
+    async def asyncTearDown(self) -> None:
+        logging.disable(logging.CRITICAL)
+        await super().asyncTearDown()
 
     async def acquire(self):
         self._acquired += 1
@@ -355,11 +359,20 @@ class TestExperimentLogging(TestCase):
         _ = await self._experiment.run()
         self.assertEqual(self._visited, len(self._experiment.acquisitions))
         self.assertEqual(self._acquired, len(self._experiment.acquisitions))
+        # Expected INFO log invocations is computed by accumulating the following
+        # Experiment class logging its info_table
+        # 2 INFO log calls per device, which are explicitly added to device logging
+        exp_info_log = 1 + 2 * len(self._devices)
+        # Expected DEBUG log invocations is copmputed by accumulating the following
+        # DEBUG call for experiment iteration start
+        # DEBUG call for each acquisition
+        # DEBUG call for consumer coroutine finish
+        # DEBUG call for experiment iteration finish
+        exp_debug_log = 1 + len(self._acquisitions) + 1 + 1
         mock_device = self._walker.device.mock_device
         mock_device.register_logger.assert_called_once_with(
                 (Experiment.__name__, str(logging.NOTSET), "experiment.log"))
+        self.assertEqual(mock_device.log.call_count, exp_info_log + exp_debug_log)
         mock_device.deregister_logger.assert_called_once_with(self._log_path)
         mock_device.log_to_json.assert_called_once()
-        # TODO: Figure out why the remote handler emit method does not get a call back in the
-        # tests, while it works inside a session.
 
