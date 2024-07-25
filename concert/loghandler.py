@@ -40,6 +40,24 @@ class NoOpLoggingHandler:
         ...
 
 
+class LoggingHandler(logging.FileHandler):
+    """Facilitates the logging utility for local directory traversal by
+    extending builtin logging.Handler object."""
+
+    def __init__(
+            self,
+            *args,
+            fmt: str = "[%(asctime)s] %(levelname)s: %(name)s: %(message)s") -> None:
+        super().__init__(*args)
+        self.setFormatter(logging.Formatter(fmt))
+
+    async def aflush(self) -> None:
+        super().flush()
+
+    async def aclose(self) -> None:
+        super().close()
+
+
 class RemoteLoggingHandler(logging.Handler):
     """
     Facilitates logging to file at a remote server in the network by extending

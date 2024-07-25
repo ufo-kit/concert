@@ -1,8 +1,8 @@
 import asyncio
-
+import os
 import shutil
 import tempfile
-from typing import Tuple
+from typing import Tuple, List
 import logging
 from time import time
 import unittest
@@ -228,9 +228,8 @@ class TestDirectorLogging(unittest.IsolatedAsyncioTestCase):
         self._visited = 0
         self._acquired = 0
         self._root = "root"
-        self._log_path = "testable_logger_path"
         self._director_iter = 3
-        self._device = MockWalkerDevice(log_path=self._log_path)
+        self._device = MockWalkerDevice()
         self._walker = await RemoteDirectoryWalker(device=self._device, root=self._root)
         foo = await Acquisition("foo", self.produce, acquire=self.acquire)
         foo.add_consumer(AcquisitionConsumer(self.consume)), Tuple
@@ -267,8 +266,8 @@ class TestDirectorLogging(unittest.IsolatedAsyncioTestCase):
         _ = await self._direxp.run()
         mock_device = self._walker.device.mock_device
         # director.log + (self._director_iter * experiment.log)
-        expected_register = 1 + self._director_iter * 1
-        self.assertTrue(mock_device.register_logger.call_count == expected_register)
+        expected_register_call_count = 1 + self._director_iter
+        self.assertEqual(mock_device.register_logger.call_count, expected_register_call_count)
         mock_device.register_logger.assert_has_calls([
             mock.call((TestableLoggingDirector.__name__, str(logging.NOTSET), "director.log")),
             mock.call(("Experiment", str(logging.NOTSET), "experiment.log")),
@@ -281,23 +280,28 @@ class TestDirectorLogging(unittest.IsolatedAsyncioTestCase):
         # TestableLoggingDirector calls INFO log from _prepare_run for each iteration
         director_prep_log = self._director_iter
         # Director uses experiment's logger to log its own info_table for each iteration
-        director_triggered_exp_info_log = self._director_iter
+        director_exp_info_log = self._director_iter
         # Experiment _run logs its own info_table for each iteration
         exp_info_log = self._director_iter
         # Experiment _run triggers one DEBUG log for current iteration start, one DEBUG log for each
         # acquisition, one DEBUG log for acquisition consume finished, one DEBUG log for current
         # iteration duration, all of which happens for each iteration of director
         exp_debug_log = self._director_iter * (1 + len(self._acquisitions) + 1 + 1)
-        director_log_total = (root_director_log + director_prep_log)
-        director_log_total += (director_triggered_exp_info_log + exp_info_log + exp_debug_log)
-        self.assertEqual(mock_device.log.call_count, director_log_total)
-        expected_deregister = expected_register
-        mock_device.deregister_logger.assert_has_calls([
-            mock.call(self._log_path),
-            mock.call(self._log_path),
-            mock.call(self._log_path),
-            mock.call(self._log_path)
-        ])
-        # self._director_iter * experiment.log
-        expected_json_logging = 3
-        self.assertTrue(mock_device.log_to_json.call_count == expected_json_logging)
+        director_log_total_call_count = (root_director_log + director_prep_log)
+        director_log_total_call_count += (director_exp_info_log + exp_info_log + exp_debug_log)
+        self.assertEqual(mock_device.log.call_count, director_log_total_call_count)
+        expected_deregister_call_count = expected_register_call_count
+        log_base_paths: List[str] = [await self._walker.get_current()] * self._director_iter
+        director_iterations: List[str] = [await self._direxp.get_iteration_name(
+            iteration) for iteration in range(self._director_iter)]
+        expected_log_paths = [os.path.join(base_path, iteration,
+                                           "experiment.log") for base_path, iteration in zip(
+                                               log_base_paths, director_iterations)]
+        expected_log_paths.append(os.path.join(await self._walker.get_current(), "director.log"))
+        expected_deregister_calls: List[mock.call] = list(map(lambda path: mock.call(path),
+                                                              expected_log_paths))
+        mock_device.deregister_logger.assert_has_calls(expected_deregister_calls)
+        self.assertEqual(mock_device.deregister_logger.call_count, expected_deregister_call_count)
+        # JSON logging takes place ones for each iteration
+        expected_json_logging_call_count = self._director_iter
+        self.assertTrue(mock_device.log_to_json.call_count == expected_json_logging_call_count)

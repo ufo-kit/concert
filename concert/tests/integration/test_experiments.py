@@ -4,6 +4,7 @@ files creation.
 """
 import asyncio
 import logging
+import os
 import os.path as op
 import tempfile
 import shutil
@@ -11,6 +12,7 @@ from typing import Tuple
 import unittest
 import numpy as np
 from concert.quantities import q
+import concert.config as cfg
 from concert.coroutines.base import start
 from concert.coroutines.sinks import Accumulate, null
 from concert.experiments.base import (Acquisition, Consumer as AcquisitionConsumer, Experiment,
@@ -317,12 +319,11 @@ class TestExperimentLogging(unittest.IsolatedAsyncioTestCase):
 
     async def asyncSetUp(self):
         logging.disable(logging.NOTSET)
+        cfg.PROGRESS_BAR = False
         self._visited = 0
         self._acquired = 0
-        self._root = "root"
-        self._log_path = "testable_logger_path"
-        self._device = MockWalkerDevice(log_path=self._log_path)
-        self._walker = await RemoteDirectoryWalker(device=self._device, root=self._root)
+        self._device = MockWalkerDevice()
+        self._walker = await RemoteDirectoryWalker(device=self._device)
         foo = await Acquisition("foo", self.produce, acquire=self.acquire)
         foo.add_consumer(AcquisitionConsumer(self.consume)), Tuple
         bar = await Acquisition("bar", self.produce, acquire=self.acquire)
@@ -372,5 +373,7 @@ class TestExperimentLogging(unittest.IsolatedAsyncioTestCase):
         mock_device.register_logger.assert_called_once_with((Experiment.__name__,
                                                              str(logging.NOTSET), "experiment.log"))
         self.assertEqual(mock_device.log.call_count, exp_info_log + exp_debug_log)
-        mock_device.deregister_logger.assert_called_once_with(self._log_path)
+        expected_log_path = os.path.join(await self._walker.get_current(),
+                                         "scan_0000/experiment.log")
+        mock_device.deregister_logger.assert_called_once_with(expected_log_path)
         mock_device.log_to_json.assert_called_once()

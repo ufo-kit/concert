@@ -8,10 +8,9 @@ import asyncio
 import os
 import logging
 import re
-
+from typing import Optional, AsyncIterable, Awaitable, Type, Iterable, Set
 import tango
 import zmq
-from typing import Optional, AsyncIterable, Awaitable, Type, Iterable, Set
 import tifffile
 from concert.base import Parameterizable, Parameter
 from concert.coroutines.base import background
@@ -19,7 +18,8 @@ from concert.networking.base import ZmqSender
 from concert.writers import TiffWriter
 from concert.typing import RemoteDirectoryWalkerTangoDevice
 from concert.typing import ArrayLike
-from concert.loghandler import AsyncLoggingHandlerCloser, NoOpLoggingHandler, RemoteLoggingHandler
+from concert.loghandler import AsyncLoggingHandlerCloser, NoOpLoggingHandler
+from concert.loghandler import LoggingHandler, RemoteLoggingHandler
 
 
 LOG = logging.getLogger(__name__)
@@ -441,8 +441,7 @@ class DirectoryWalker(Walker):
 
     async def register_logger(self, logger_name: str, log_level: int,
                               file_name: str) -> AsyncLoggingHandlerCloser:
-        # With decentralized concert logging utility is delegated to the remote directory walker
-        return NoOpLoggingHandler()
+        return LoggingHandler(os.path.join(await self.get_current(), file_name))
 
     async def log_to_json(self, payload: str) -> None:
         """
