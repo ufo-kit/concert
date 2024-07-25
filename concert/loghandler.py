@@ -4,16 +4,16 @@ loghandler.py
 Encapsulates the log handling utilities for the walker APIs.
 """
 import asyncio
-import hashlib
 import logging
-import uuid
-from typing import List, Protocol, Callable, Any
+from typing import List, Protocol
 from concert.typing import RemoteDirectoryWalkerTangoDevice
 from concert.coroutines.base import get_event_loop
 
 #############
 # Protocols #
 ##############################################################################
+
+
 class AsyncLoggingHandlerCloser(Protocol):
     """Abstarct logging handler, which can be closed asynchronously"""
 
@@ -25,6 +25,8 @@ class AsyncLoggingHandlerCloser(Protocol):
         """Defines an asynchronous closing routine for logging handler"""
         ...
 ##############################################################################
+
+
 class NoOpLoggingHandler:
     """Defines placeholder handler closer which can be used for dummy
     implementation."""

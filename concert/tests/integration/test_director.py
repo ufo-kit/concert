@@ -3,14 +3,14 @@ import asyncio
 import shutil
 import tempfile
 from typing import Tuple
-import numpy as np
 import logging
 from time import time
 import unittest
 import unittest.mock as mock
+import numpy as np
 import concert
 from concert.storage import DirectoryWalker
-from concert.experiments.base import Experiment as BaseExperiment, Acquisition, local 
+from concert.experiments.base import Experiment as BaseExperiment, Acquisition, local
 from concert.experiments.base import Consumer as AcquisitionConsumer
 from concert.tests import TestCase as BaseTestCase, slow
 from concert.directors.dummy import Director
@@ -181,12 +181,12 @@ class XYScanDirectorTest(TestCase):
         self.director = await XYScan(experiment=self.experiment,
                                      x_motor=self.x_motor,
                                      y_motor=self.y_motor,
-                                     x_min=0*q.mm,
-                                     x_max=10*q.mm,
-                                     x_step=2.5*q.mm,
-                                     y_min=0*q.mm,
-                                     y_max=10*q.mm,
-                                     y_step=2.5*q.mm)
+                                     x_min=0 * q.mm,
+                                     x_max=10 * q.mm,
+                                     x_step=2.5 * q.mm,
+                                     y_min=0 * q.mm,
+                                     y_max=10 * q.mm,
+                                     y_step=2.5 * q.mm)
         await self.director.run()
 
     async def test_final_state(self):
@@ -238,10 +238,11 @@ class TestDirectorLogging(unittest.IsolatedAsyncioTestCase):
         self._acquisitions = [foo, bar]
         self.num_produce = 2
         self._item = None
-        self._experiment = await BaseExperiment(acquisitions=self._acquisitions, walker=self._walker)
+        self._experiment = await BaseExperiment(acquisitions=self._acquisitions,
+                                                walker=self._walker)
         await self._experiment._set_log_level("debug")
         self._direxp = await TestableLoggingDirector(experiment=self._experiment,
-                                                 num_iter=self._director_iter, iter_name="iter")
+                                                     num_iter=self._director_iter, iter_name="iter")
         await super().asyncSetUp()
 
     async def asyncTearDown(self) -> None:
@@ -265,7 +266,8 @@ class TestDirectorLogging(unittest.IsolatedAsyncioTestCase):
     async def test_director_logging(self) -> None:
         _ = await self._direxp.run()
         mock_device = self._walker.device.mock_device
-        expected_register = 1 + 3 # director.log + (self._director_iter * experiment.log)
+        # director.log + (self._director_iter * experiment.log)
+        expected_register = 1 + self._director_iter * 1
         self.assertTrue(mock_device.register_logger.call_count == expected_register)
         mock_device.register_logger.assert_has_calls([
             mock.call((TestableLoggingDirector.__name__, str(logging.NOTSET), "director.log")),
@@ -286,8 +288,8 @@ class TestDirectorLogging(unittest.IsolatedAsyncioTestCase):
         # acquisition, one DEBUG log for acquisition consume finished, one DEBUG log for current
         # iteration duration, all of which happens for each iteration of director
         exp_debug_log = self._director_iter * (1 + len(self._acquisitions) + 1 + 1)
-        director_log_total = root_director_log + director_prep_log + director_triggered_exp_info_log \
-                + exp_info_log + exp_debug_log
+        director_log_total = (root_director_log + director_prep_log)
+        director_log_total += (director_triggered_exp_info_log + exp_info_log + exp_debug_log)
         self.assertEqual(mock_device.log.call_count, director_log_total)
         expected_deregister = expected_register
         mock_device.deregister_logger.assert_has_calls([
@@ -296,6 +298,6 @@ class TestDirectorLogging(unittest.IsolatedAsyncioTestCase):
             mock.call(self._log_path),
             mock.call(self._log_path)
         ])
-        expected_json_logging = 3 # self._director_iter * experiment.log
+        # self._director_iter * experiment.log
+        expected_json_logging = 3
         self.assertTrue(mock_device.log_to_json.call_count == expected_json_logging)
-

@@ -4,13 +4,11 @@ files creation.
 """
 import asyncio
 import logging
-import os
 import os.path as op
 import tempfile
 import shutil
-from typing import Any, Tuple, Sequence
+from typing import Tuple
 import unittest
-import unittest.mock as mock
 import numpy as np
 from concert.quantities import q
 from concert.coroutines.base import start
@@ -227,7 +225,8 @@ class TestExperiment(TestExperimentBase):
 
     async def test_consumer_addon(self):
         accumulate = Accumulate()
-        consumer = await LocalConsumer(accumulate, experiment=self.experiment, acquisitions=[self.acquisitions[0]])
+        consumer = await LocalConsumer(accumulate, experiment=self.experiment,
+                                       acquisitions=[self.acquisitions[0]])
         await self.experiment.run()
         self.assertEqual(accumulate.items, list(range(self.num_produce)))
 
@@ -249,7 +248,6 @@ class TestExperiment(TestExperimentBase):
         finally:
             self.experiment.walker = None
             shutil.rmtree(data_dir)
-
 
     async def test_accumulation(self):
         acc = await LocalAccumulator(self.experiment)
@@ -334,7 +332,8 @@ class TestExperimentLogging(unittest.IsolatedAsyncioTestCase):
         self._experiment = await Experiment(acquisitions=self._acquisitions, walker=self._walker)
         await self._experiment._set_log_level("debug")
         self._devices = [await Shutter(), await LinearMotor(), await Camera()]
-        [self._experiment.add_device_to_log(f"Device-{dix}", dev) for dix, dev in enumerate(self._devices)]
+        [self._experiment.add_device_to_log(f"Device-{dix}", dev) for dix,
+         dev in enumerate(self._devices)]
         await super().asyncSetUp()
 
     async def asyncTearDown(self) -> None:
@@ -370,9 +369,8 @@ class TestExperimentLogging(unittest.IsolatedAsyncioTestCase):
         # DEBUG call for experiment iteration finish
         exp_debug_log = 1 + len(self._acquisitions) + 1 + 1
         mock_device = self._walker.device.mock_device
-        mock_device.register_logger.assert_called_once_with(
-                (Experiment.__name__, str(logging.NOTSET), "experiment.log"))
+        mock_device.register_logger.assert_called_once_with((Experiment.__name__,
+                                                             str(logging.NOTSET), "experiment.log"))
         self.assertEqual(mock_device.log.call_count, exp_info_log + exp_debug_log)
         mock_device.deregister_logger.assert_called_once_with(self._log_path)
         mock_device.log_to_json.assert_called_once()
-

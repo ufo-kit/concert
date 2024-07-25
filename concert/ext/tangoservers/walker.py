@@ -5,7 +5,7 @@ Implements a device server for file system traversal at remote host.
 """
 import logging
 import os
-from typing import Type, List, Dict, Tuple
+from typing import Type, Dict, Tuple
 from tango import DebugIt, DevState, CmdArgType
 from tango.server import attribute, command, AttrWriteType
 from concert.helpers import PerformanceTracker
@@ -90,7 +90,7 @@ class TangoRemoteWalker(TangoRemoteProcessing):
         await super().init_device()
         self._root = os.environ["HOME"]
         self._current = self._root
-        self._loggers = {} 
+        self._loggers = {}
         self._log_handlers = {}
         self.set_state(DevState.STANDBY)
         self.info_stream(

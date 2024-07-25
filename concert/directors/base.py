@@ -1,8 +1,7 @@
-import os
 import asyncio
 import logging
 
-from concert.base import Parameterizable, background, Parameter, State, transition, StateError, \
+from concert.base import Parameterizable, background, Parameter, State, StateError, \
     check, Selection
 from concert.helpers import get_state_from_awaitable
 from concert.loghandler import AsyncLoggingHandlerCloser
@@ -132,8 +131,9 @@ class Director(Parameterizable):
                 try:
                     await exp_run
                 except Exception as e:
+                    itr_name = await self.get_iteration_name(await self.get_iteration())
                     self.log.error(
-                        f"Director iteration {await self.get_iteration_name(await self.get_iteration())} failed.")
+                        f"Director iteration {itr_name} failed.")
                     self.log.error(e)
                     raise e
                 finally:

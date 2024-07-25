@@ -5,7 +5,6 @@ Encapsulates mock devices which can be used to replace device servers for remote
 is to approximately mock the async command invocations of the device servers, without actually
 running them.
 """
-import asyncio
 import os
 import unittest.mock as mock
 from typing import Sequence, Any, Tuple
@@ -44,7 +43,7 @@ class MockWalkerDevice:
 
     async def descend(self, name: str) -> None:
         await self.mock_device.descend(name=name)
-        
+
     async def ascend(self) -> None:
         await self.mock_device.ascend()
 
@@ -53,7 +52,7 @@ class MockWalkerDevice:
 
     async def write_sequence(self, name: str) -> None:
         await self.mock_device.write_sequence(name=name)
-    
+
     async def register_logger(self, args: Tuple[str, str, str]) -> str:
         await self.mock_device.register_logger(args)
         return self._log_path
@@ -70,4 +69,3 @@ class MockWalkerDevice:
 
 if __name__ == "__main__":
     pass
-

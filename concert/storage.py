@@ -145,7 +145,7 @@ async def write_images(producer: AsyncIterable[ArrayLike],
                     LOG.debug('Writer "{}" closed'.format(prefix.format(start_index
                                                                         + file_index - 1)))
                 im_writer = writer(prefix.format(start_index + file_index), bytes_per_file,
-                                   first_frame=start_index+i)
+                                   first_frame=start_index + i)
                 file_index += 1
                 written = 0
             if im_writer:
@@ -208,12 +208,12 @@ class Walker(Parameterizable):
         """Ascend from current depth."""
         raise NotImplementedError
 
-    async def _create_writer(self,
-                       producer: AsyncIterable[ArrayLike],
-                       dsetname: Optional[str] = None) -> Awaitable:
+    async def _create_writer(self, producer: AsyncIterable[ArrayLike],
+                             dsetname: Optional[str] = None) -> Awaitable:
         """
         Subclass should provide the implementation for, how the writer should
-        be created for asynchronously received data"""
+        be created for asynchronously received data
+        """
         raise NotImplementedError
 
     async def _get_current(self) -> str:
@@ -333,9 +333,8 @@ class DummyWalker(Walker):
         if self._current != self._root:
             self._current = os.path.dirname(self._current)
 
-    async def _create_writer(self,
-                       producer: AsyncIterable[ArrayLike],
-                       dsetname: Optional[str] = None) -> Awaitable:
+    async def _create_writer(self, producer: AsyncIterable[ArrayLike],
+                             dsetname: Optional[str] = None) -> Awaitable:
         dsetname = dsetname or await self.get_dsetname()
         path = os.path.join(self._current, dsetname)
 
@@ -350,6 +349,7 @@ class DummyWalker(Walker):
                               file_name: str) -> AsyncLoggingHandlerCloser:
         """Provides a no-op logging handler as a placeholder"""
         return NoOpLoggingHandler()
+
 
 class DirectoryWalker(Walker):
     """
@@ -409,9 +409,8 @@ class DirectoryWalker(Walker):
         """Provides start index from local context"""
         return self._start_index
 
-    async def _create_writer(self,
-                       producer: AsyncIterable[ArrayLike],
-                       dsetname: Optional[str] = None) -> Awaitable:
+    async def _create_writer(self, producer: AsyncIterable[ArrayLike],
+                             dsetname: Optional[str] = None) -> Awaitable:
         dsetname = dsetname or await self.get_dsetname()
         if self._dset_exists(dsetname):
             dset_prefix = split_dsetformat(dsetname)
@@ -575,10 +574,8 @@ class RemoteDirectoryWalker(Walker):
         """
         return await self.device.exists(paths)
 
-    async def _create_writer(
-        self,
-        producer: AsyncIterable[ArrayLike],
-        dsetname: Optional[str] = None) -> Awaitable:
+    async def _create_writer(self, producer: AsyncIterable[ArrayLike],
+                             dsetname: Optional[str] = None) -> Awaitable:
         old_endpoint = await self.get_endpoint()
         await self.set_endpoint(self._commdata.client_endpoint)
         old_dsetname = await self.get_dsetname()
