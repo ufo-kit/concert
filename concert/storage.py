@@ -315,6 +315,9 @@ class DummyWalker(Walker):
         await super().__ainit__(root)
         self._paths = set([])
 
+    async def log_to_json(self, payload: str, filename: str = "experiment.json") -> None:
+        pass
+
     @property
     async def paths(self) -> Iterable[str]:
         return self._paths
