@@ -294,7 +294,7 @@ class Walker(Parameterizable):
         raise NotImplementedError
 
     @background
-    async def log_to_json(self, payload: str) -> None:
+    async def log_to_json(self, payload: str, filename: str="experiment.json") -> None:
         """
         Provides local counterpart of the remote logging of experiment
         metadata. Writes the provided payload to a static file called
@@ -443,7 +443,7 @@ class DirectoryWalker(Walker):
                               file_name: str) -> AsyncLoggingHandlerCloser:
         return LoggingHandler(os.path.join(await self.get_current(), file_name))
 
-    async def log_to_json(self, payload: str) -> None:
+    async def log_to_json(self, payload: str, filename: str="experiment.json") -> None:
         """
         Logs experiment metadata as *payload* to a file called experiment.json
 
@@ -455,7 +455,7 @@ class DirectoryWalker(Walker):
         :type payload: str
         """
         with open(
-                file=os.path.join(await self.get_current(), "experiment.json"),
+                file=os.path.join(await self.get_current(), filename),
                 mode="w",
                 encoding="utf-8") as lgf:
             lgf.write(payload)
@@ -615,9 +615,9 @@ class RemoteDirectoryWalker(Walker):
         log_path: str = await self.device.register_logger((logger_name, str(log_level), file_name))
         return RemoteLoggingHandler(device=self.device, log_path=log_path)
 
-    async def log_to_json(self, payload: str) -> None:
+    async def log_to_json(self, payload: str, filename: str="experiment.json") -> None:
         """Implements api layer for writing experiment metadata"""
-        await self.device.log_to_json(payload)
+        await self.device.log_to_json([payload, filename])
 
 
 class StorageError(Exception):
