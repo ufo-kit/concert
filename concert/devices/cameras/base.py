@@ -59,15 +59,24 @@ frame. The callable is applied to the frame and the converted one is returned by
     camera.convert = np.fliplr
     # The frame is left-right flipped
     grab(camera)
+
+Cameras can send images over a ZMQ stream by the :meth:`Camera.grab_send` method. Instead of giving
+the frames to the user, it sends the frames via the ZMQ stream.
+
+There is a grab :class:`asyncio.Lock` which prevents the frames to be grabbed at the same time from
+competing methods like :meth:`Camera.grab` and :meth:`RemoteMixin.grab_send`.
 """
+import asyncio
 import contextlib
 import logging
+import zmq
 from concert.base import AccessorNotImplementedError, Parameter, Quantity, State, check, identity
 from concert.config import AIODEBUG
 from concert.coroutines.base import background
 from concert.quantities import q
-from concert.helpers import Bunch, ImageWithMetadata
+from concert.helpers import Bunch, CommData, ImageWithMetadata
 from concert.devices.base import Device
+from concert.networking.base import ZmqSender
 
 
 LOG = logging.getLogger(__name__)
@@ -93,10 +102,14 @@ class Camera(Device):
     state = State(default='standby')
     frame_rate = Quantity(1 / q.second, help="Frame frequency")
     trigger_source = Parameter(help="Trigger source")
+    zmq_options = Parameter(help="ZMQ streaming options")
 
     async def __ainit__(self):
         await super(Camera, self).__ainit__()
         self.convert = identity
+        self._grab_lock = asyncio.Lock()
+        self._commdata = None
+        self._sender = None
 
     @background
     @check(source='standby', target='recording')
@@ -114,9 +127,10 @@ class Camera(Device):
         """
         stop_recording()
 
-        Stop recording frames.
+        Stop recording frames, acquires the grab lock before the actual implementation is called.
         """
-        await self._stop_real()
+        async with self._grab_lock:
+            await self._stop_real()
 
     @contextlib.asynccontextmanager
     async def recording(self):
@@ -138,28 +152,96 @@ class Camera(Device):
             await self.stop_recording()
 
     @background
+    @check(source='recording')
     async def trigger(self):
         """Trigger a frame if possible."""
         await self._trigger_real()
 
     @background
+    @check(source=['recording', 'readout'])
     async def grab(self) -> ImageWithMetadata:
         """Return a concert.storage.ImageWithMetadata (subclass of np.ndarray) with data of the
-        current frame."""
-        img = self.convert(await self._grab_real())
-        return img.view(ImageWithMetadata)
+        current frame. Acquires grab lock."""
+        async with self._grab_lock:
+            img = self.convert(await self._grab_real())
+            return img.view(ImageWithMetadata)
 
+    # Be strict, if the camera is recording an experiment might be in progress, so let's restrict
+    # this to 'standby'
+    @check(source=['standby'])
     async def stream(self):
         """
         stream()
 
-        Grab frames continuously yield them. This is an async generator.
+        Grab frames continuously yield them. This is an async generator. Acquires grab lock in every
+        iteration separately, i.e. you can e.g. call :meth:`.stop_recording` while :meth:`.stream`
+        runs in the background.
         """
+        await self['trigger_source'].stash()
         await self.set_trigger_source(self.trigger_sources.AUTO)
         await self.start_recording()
 
-        while await self.get_state() == 'recording':
-            yield await self.grab()
+        try:
+            while True:
+                # Make state checking and grabbing atomic so that no one can stop_recording()
+                # between the state is obtained and grab() is called.
+                async with self._grab_lock:
+                    if await self.get_state() == 'recording':
+                        image = self.convert(await self._grab_real())
+                        image = image.view(ImageWithMetadata)
+                    else:
+                        break
+                yield image
+        except asyncio.CancelledError:
+            if await self.get_state() == 'recording':
+                await self.stop_recording()
+        finally:
+            await self['trigger_source'].restore()
+
+    @background
+    @check(source=['recording', 'readout'])
+    async def grab_send(self, num, end=True):
+        """Grab and send over a zmq socket. If *end* is True, end-of-stream indicator is sent to all
+        consumers when the desired number of images is sent. Acquires grab lock for the whole time
+        *num* frames are being sent.
+        """
+        async with self._grab_lock:
+            try:
+                await self._grab_send_real(num, end=end)
+            except asyncio.CancelledError:
+                await self.stop_sending()
+                raise
+
+    @background
+    @check(source='recording')
+    async def stop_sending(self):
+        """
+        Stop sending images. The server must send a poison pill which serves as an end-of-stream
+        indicator to consumers.
+        """
+        await self._stop_sending()
+
+    async def _grab_send_real(self, num, end=True):
+        for i in range(num):
+            img = self.convert(await self._grab_real())
+            await self._sender.send_image(img.view(ImageWithMetadata))
+        if end:
+            await self._sender.send_image(None)
+
+    async def _stop_sending(self):
+        raise AccessorNotImplementedError
+
+    async def _get_zmq_options(self):
+        return self._commdata
+
+    async def _set_zmq_options(self, value):
+
+        self._commdata = value
+        self._sender = ZmqSender(
+            self._commdata.server_endpoint,
+            reliable=self._commdata.socket_type == zmq.PUSH,
+            sndhwm=self._commdata.sndhwm
+        )
 
     async def _get_trigger_source(self):
         raise AccessorNotImplementedError
@@ -186,8 +268,55 @@ class BufferedMixin(Device):
 
     state = State(default='standby')
 
-    def readout_buffer(self, *args, **kwargs):
-        return self._readout_real(*args, **kwargs)
+    @background
+    @check(source='standby', target='readout')
+    async def start_readout(self):
+        """
+        start_readout()
+
+        Start reading out frames.
+        """
+        await self._start_readout_real()
+
+    @background
+    @check(source='readout', target='standby')
+    async def stop_readout(self):
+        """
+        stop_readout()
+
+        Stop reading out frames.
+        """
+        await self._stop_readout_real()
+
+    @contextlib.asynccontextmanager
+    async def readout(self):
+        """
+        readout()
+
+        A context manager for starting and stopping the readout.
+
+        In general it is used with the ``async with`` keyword like this::
+
+            async with camera.readout():
+                frames = await camera.readout_buffer()
+        """
+        await self.start_readout()
+        try:
+            yield
+        finally:
+            LOG.log(AIODEBUG, 'stop readout in readout()')
+            await self.stop_readout()
+
+    @check(source='readout')
+    async def readout_buffer(self, *args, **kwargs):
+        async for item in self._readout_real(*args, **kwargs):
+            yield item
+
+    async def _start_readout_real(self):
+        raise AccessorNotImplementedError
+
+    async def _stop_readout_real(self):
+        raise AccessorNotImplementedError
 
     async def _readout_real(self, *args, **kwargs):
         raise AccessorNotImplementedError

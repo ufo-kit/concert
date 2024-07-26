@@ -1,227 +1,178 @@
-"""Add-ons for acquisitions are standalone extensions which can be applied to them. They operate on
-the acquired data, e.g. write images to disk, do tomographic reconstruction etc.
-"""
 import os
-import logging
 import numpy as np
-from concert.helpers import ImageWithMetadata
-
-from concert.base import AsyncObject
 from concert.coroutines.base import async_generate
 from concert.coroutines.sinks import Accumulate
-from concert.experiments.imaging import GratingInterferometryStepping
-
-LOG = logging.getLogger(__name__)
-
-
-class Addon(object):
-
-    """A base addon class. An addon can be attached, i.e. its functionality is applied to the
-    specified *acquisitions* and detached.
-
-    .. py:attribute:: acquisitions
-
-    A list of :class:`~concert.experiments.base.Acquisition` objects. The addon attaches itself on
-    construction.
-
-    """
-
-    def __init__(self, acquisitions):
-        self.acquisitions = acquisitions
-        self._attached = False
-        self.attach()
-
-    def attach(self):
-        """Attach the addon to all acquisitions."""
-        if self._attached:
-            LOG.debug('Cannot attach an already attached Addon')
-        else:
-            self._attach()
-            self._attached = True
-
-    def detach(self):
-        """Detach the addon from all acquisitions."""
-        if self._attached:
-            self._detach()
-            self._attached = False
-        else:
-            LOG.debug('Cannot detach an unattached Addon')
-
-    def _attach(self):
-        """Attach implementation."""
-        raise NotImplementedError
-
-    def _detach(self):
-        """Detach implementation."""
-        raise NotImplementedError
+from concert.experiments.addons import base
+from concert.experiments.base import Consumer as AcquisitionConsumer, local
+from concert.experiments.imaging import LocalGratingInterferometryStepping
+from concert.helpers import PerformanceTracker, ImageWithMetadata
+from concert.quantities import q
 
 
-class Consumer(Addon):
+class Benchmarker(base.Benchmarker):
 
-    """An addon which applies a specific coroutine-based consumer to acquisitions.
+    async def __ainit__(self, experiment, acquisitions=None):
+        await base.Benchmarker.__ainit__(self, experiment=experiment, acquisitions=acquisitions)
+        self._durations = {}
 
-    .. py:attribute:: acquisitions
+    @local
+    async def start_timer(self, producer, acquisition_name):
+        total_bytes = 0
+        with PerformanceTracker() as pt:
+            async for image in producer:
+                total_bytes += image.nbytes
+            pt.size = total_bytes * q.B
+        self._durations[acquisition_name] = pt.duration
 
-    a list of :class:`~concert.experiments.base.Acquisition` objects
+    async def _get_duration(self, acquisition_name):
+        return self._durations[acquisition_name]
 
-    .. py:attribute:: consumer
-
-    A callable which returns a coroutine which processes the incoming data from acquisitions
-
-    """
-
-    def __init__(self, acquisitions, consumer):
-        self.consumer = consumer
-        super(Consumer, self).__init__(acquisitions)
-
-    def _attach(self):
-        """Attach all acquisitions."""
-        for acq in self.acquisitions:
-            acq.consumers.append(self.consumer)
-
-    def _detach(self):
-        """Detach all acquisitions."""
-        for acq in self.acquisitions:
-            acq.consumers.remove(self.consumer)
+    async def _teardown(self):
+        self._durations = {}
 
 
-class Accumulator(Addon):
+class ImageWriter(base.ImageWriter):
+    async def __ainit__(self, experiment, acquisitions=None):
+        await base.ImageWriter.__ainit__(self, experiment=experiment, acquisitions=acquisitions)
 
-    """An addon which accumulates data.
+    @local
+    async def write_sequence(self, name, producer=None):
+        """Wrap the walker and write data to subdirectory *name*."""
+        return await self.walker.create_writer(producer, name=name)
 
-    .. py:attribute:: acquisitions
 
-    a list of :class:`~concert.experiments.base.Acquisition` objects
+class Consumer(base.Consumer):
+    async def __ainit__(self, consumer, experiment, acquisitions=None):
+        await base.Consumer.__ainit__(self, consumer=consumer, experiment=experiment, acquisitions=acquisitions)
 
-    .. py:attribute:: shapes
+    @local
+    async def consume(self, producer):
+        await self._consumer(producer)
 
-    a list of shapes for different acquisitions
 
-    .. py:attribute:: dtype
+class LiveView(base.LiveView):
+    async def __ainit__(self, viewer, experiment, acquisitions=None):
+        await base.LiveView.__ainit__(self, viewer, experiment=experiment, acquisitions=acquisitions)
 
-    the numpy data type
-    """
+    @local
+    async def consume(self, producer):
+        await self._viewer(producer)
 
-    def __init__(self, acquisitions, shapes=None, dtype=None):
+
+class Accumulator(base.Accumulator):
+    async def __ainit__(self, experiment, acquisitions=None, shapes=None, dtype=None):
+        await base.Accumulator.__ainit__(
+            self,
+            experiment=experiment,
+            acquisitions=acquisitions,
+            shapes=shapes,
+            dtype=dtype
+        )
         self._accumulators = {}
-        self._shapes = shapes
-        self._dtype = dtype
-        self.items = {}
-        super(Accumulator, self).__init__(acquisitions)
 
-    def _attach(self):
-        """Attach all acquisitions."""
-        shapes = (None,) * len(self.acquisitions) if self._shapes is None else self._shapes
+    @local
+    def accumulate(self, producer, acquisition_name, shape=None, dtype=None):
+        if acquisition_name not in self._accumulators:
+            self._accumulators[acquisition_name] = Accumulate(shape=shape, dtype=dtype)
 
-        for i, acq in enumerate(self.acquisitions):
-            self._accumulators[acq] = Accumulate(shape=shapes[i], dtype=self._dtype)
-            self.items[acq] = self._accumulators[acq].items
-            acq.consumers.append(self._accumulators[acq])
+        return self._accumulators[acquisition_name](producer)
 
-    def _detach(self):
-        """Detach all acquisitions."""
-        self.items = {}
-        for acq in self.acquisitions:
-            acq.consumers.remove(self._accumulators[acq])
+    async def _get_items(self, acquisition_name):
+        if acquisition_name not in self._accumulators:
+            return []
+        return self._accumulators[acquisition_name].items
 
+    async def teardown(self):
         self._accumulators = {}
 
 
-class ImageWriter(Addon):
-
-    """An addon which writes images to disk.
-
-    .. py:attribute:: acquisitions
-
-    a list of :class:`~concert.experiments.base.Acquisition` objects
-
-    .. py:attribute:: walker
-
-    A :class:`~concert.storage.Walker` instance
-    """
-
-    def __init__(self, acquisitions, walker):
-        self.walker = walker
-        self._writers = {}
-        super(ImageWriter, self).__init__(acquisitions)
-
-    def _attach(self):
-        """Attach all acquisitions."""
-        for acq in self.acquisitions:
-            self._writers[acq] = self._write_sequence(acq)
-            acq.consumers.append(self._writers[acq])
-
-    def _detach(self):
-        """Detach all acquisitions."""
-        for acq in self.acquisitions:
-            acq.consumers.remove(self._writers[acq])
-            del self._writers[acq]
-
-    def _write_sequence(self, acquisition):
-        """Wrap the walker and write data."""
-        async def wrapped_writer(producer):
-            """Returned wrapper."""
-            async with self.walker:
-                writer = self.walker.create_writer(producer, name=acquisition.name)
-            await writer
-
-        return wrapped_writer
-
-
-class OnlineReconstruction(AsyncObject, Addon):
-    async def __ainit__(self, experiment, reco_args, do_normalization=True,
-                        average_normalization=True, walker=None, slice_directory='online-slices'):
+class OnlineReconstruction(base.OnlineReconstruction):
+    async def __ainit__(self, experiment, acquisitions=None, do_normalization=True,
+                        average_normalization=True, slice_directory='online-slices',
+                        viewer=None):
+        from concert.ext.ufo import LocalGeneralBackprojectArgs
+        self._proxy = LocalGeneralBackprojectArgs()
+        await base.OnlineReconstruction.__ainit__(
+            self,
+            experiment=experiment,
+            acquisitions=acquisitions,
+            do_normalization=do_normalization,
+            average_normalization=average_normalization,
+            slice_directory=slice_directory,
+            viewer=viewer
+        )
         from concert.ext.ufo import GeneralBackprojectManager
 
-        self.experiment = experiment
-        self.manager = await GeneralBackprojectManager(
-            reco_args,
+        #self._args = await QuantifiedArgs()
+        self._manager = await GeneralBackprojectManager(
+            self.args,
             average_normalization=average_normalization
         )
-        self.walker = walker
-        self.slice_directory = slice_directory
-        self._consumers = {}
-        self._do_normalization = do_normalization
-        super().__init__(experiment.acquisitions)
 
-    async def _reconstruct(self, producer):
-        await self.manager.backproject(producer)
+    @local
+    async def update_darks(self, producer):
+        return await self._manager.update_darks(producer)
+
+    @local
+    async def update_flats(self, producer):
+        return await self._manager.update_flats(producer)
+
+    async def _reconstruct(self, producer=None, slice_directory=None):
+        if producer is None:
+            await self._manager.backproject(async_generate(self._manager.projections))
+        else:
+            await self._manager.backproject(producer)
+
         if self.walker:
-            async with self.walker:
-                producer = async_generate(self.manager.volume)
-                writer = self.walker.create_writer(
-                    producer,
-                    name=self.slice_directory,
-                    dsetname='slice_{:>04}.tif'
-                )
-            await writer
+            if (
+                producer is not None and await self.get_slice_directory()
+                or producer is None and slice_directory
+            ):
+                async with self.walker:
+                    producer = async_generate(self._manager.volume)
+                    writer = self.walker.create_writer(
+                        producer,
+                        name=await self.get_slice_directory() if slice_directory is None else slice_directory,
+                        dsetname='slice_{:>04}.tif'
+                    )
+                await writer
 
-    def _attach(self):
-        if self._do_normalization:
-            self._consumers[self.experiment.darks] = self.manager.update_darks
-            self._consumers[self.experiment.flats] = self.manager.update_flats
-        self._consumers[self.experiment.radios] = self._reconstruct
+    @local
+    async def reconstruct(self, producer):
+        await base.OnlineReconstruction.reconstruct(self, producer=producer)
 
-        for acq, consumer in self._consumers.items():
-            acq.consumers.append(consumer)
+    async def _rereconstruct(self, slice_directory=None):
+        await self._reconstruct(producer=None, slice_directory=slice_directory)
 
-    def _detach(self):
-        for acq, consumer in list(self._consumers.items()):
-            acq.consumers.remove(consumer)
+    async def find_axis(self, region, z=0, store=False):
+        return (
+            await self._manager.find_parameters(
+                ["center-position-x"],
+                regions=[region],
+                store=store,
+                z=z
+            )
+        )[0]
+
+    async def get_volume(self):
+        return self._manager.volume
+
+    async def _get_slice_x(self, index):
+        return self._manager.volume[:, :, index]
+
+    async def _get_slice_y(self, index):
+        return self._manager.volume[:, index, :]
+
+    async def _get_slice_z(self, index):
+        return self._manager.volume[index]
 
 
-class PhaseGratingSteppingFourierProcessing(Addon):
-    """
-    Addon for concert.experiments.imaging.GratingInterferometryStepping to process the raw data.
-    The order of the acquisitions can be changed.
-    """
-
-    def __init__(self, experiment, output_directory="contrasts"):
-        if not isinstance(experiment, GratingInterferometryStepping):
+class PhaseGratingSteppingFourierProcessing(base.PhaseGratingSteppingFourierProcessing):
+    async def __ainit__(self, experiment, output_directory="contrasts"):
+        if not isinstance(experiment, LocalGratingInterferometryStepping):
             raise Exception("This addon can only be used with "
                             "concert.experiments.imaging.GratingInterferometryStepping.")
         self._output_directory = output_directory
-        self._consumers = {}
         self._experiment = experiment
         self._dark_image = None
         self._reference_stepping = []
@@ -236,22 +187,13 @@ class PhaseGratingSteppingFourierProcessing(Addon):
         self.diff_phase = None
         self.visibility_contrast = None
         self.diff_phase_in_rad = None
-        super().__init__(experiment.acquisitions)
+        await base.PhaseGratingSteppingFourierProcessing.__ainit__(
+            self,
+            experiment,
+            output_directory=output_directory
+        )
 
-    def _attach(self):
-        self._consumers[self._experiment.get_acquisition("darks")] = self.process_darks
-        self._consumers[self._experiment.get_acquisition(
-            "reference_stepping")] = self.process_stepping
-        self._consumers[self._experiment.get_acquisition(
-            "object_stepping")] = self.process_stepping
-
-        for acq, consumer in self._consumers.items():
-            acq.consumers.append(consumer)
-
-    def _detach(self):
-        for acq, consumer in list(self._consumers.items()):
-            acq.consumers.remove(consumer)
-
+    @local
     async def process_darks(self, producer):
         """
         Processes dark images. All dark images are averaged.
@@ -267,6 +209,7 @@ class PhaseGratingSteppingFourierProcessing(Addon):
                 self._dark_image += item
         self._dark_image /= await self._experiment.get_num_darks()
 
+    @local
     async def process_stepping(self, producer):
         if await self._experiment.get_acquisition("reference_stepping").get_state() == "running":
             current_stepping = "reference"
@@ -358,31 +301,61 @@ class PhaseGratingSteppingFourierProcessing(Addon):
 
     async def _write_single_image(self, name, image):
         async with self._experiment.walker:
-            file_name = os.path.join(self._experiment.walker.current, name)
+            file_name = os.path.join(await self._experiment.walker.get_current(), name)
 
         im_writer = self._experiment.walker.writer(file_name, bytes_per_file=0)
         im_writer.write(image)
 
+    async def get_object_intensity(self):
+        return self.object_intensity
 
-class PCOTimestampCheck(Addon):
-    def __init__(self, experiment):
+    async def get_object_phase(self):
+        return self.object_phase
+
+    async def get_object_visibility(self):
+        return self.object_visibility
+
+    async def get_reference_intensity(self):
+        return self.reference_intensity
+
+    async def get_reference_phase(self):
+        return self.reference_phase
+
+    async def get_reference_visibility(self):
+        return self.reference_visibility
+
+    async def get_intensity(self):
+        return self.intensity
+
+    async def get_diff_phase(self):
+        return self.diff_phase
+
+    async def get_visibility_contrast(self):
+        return self.visibility_contrast
+
+    async def get_diff_phase_in_rad(self):
+        return self.diff_phase_in_rad
+
+
+class PCOTimestampCheck(base.Addon):
+
+    async def __ainit__(self, experiment, acquisitions=None):
         self._timestamp_checks = {}
         self._experiment = experiment
         self.timestamp_incorrect = False
         self.timestamp_missing = False
-        super().__init__(experiment.acquisitions)
+        await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
 
-    def _attach(self):
+    def _make_consumers(self, acquisitions):
         """Attach all acquisitions."""
-        for acq in self.acquisitions:
-            self._timestamp_checks[acq] = self._check_timestamp
-            acq.consumers.append(self._timestamp_checks[acq])
+        consumers = {}
 
-    def _detach(self):
-        """Detach all acquisitions."""
-        for acq in self.acquisitions:
-            acq.consumers.remove(self._timestamp_checks)
+        for acq in acquisitions:
+            consumers[acq] = AcquisitionConsumer(self._check_timestamp)
 
+        return consumers
+
+    @local
     async def _check_timestamp(self, producer):
         self.timestamp_incorrect = False
         self.timestamp_missing = False
@@ -407,16 +380,6 @@ class PCOTimestampCheck(Addon):
             raise PCOTimestampCheckError("Not all 'frame_numbers' where correct.")
         if last_acquisition and self.timestamp_missing:
             raise PCOTimestampCheckError("Not all images contained timestamps.")
-
-
-class AddonError(Exception):
-    """Addon errors."""
-
-    pass
-
-
-class OnlineReconstructionError(Exception):
-    pass
 
 
 class PCOTimestampCheckError(Exception):

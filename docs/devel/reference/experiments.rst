@@ -5,7 +5,7 @@ Experiments
 There are abstract implementations for radiography, stepped tomography, continuous tomography,
 stepped spiral tomography and continuous spiral tomography.
 
-All of them implement :class:`.Acquisition` for dark images (without beam), flat field images (with beam, but sample moved to
+All of them implement :class:`.LocalAcquisition` for dark images (without beam), flat field images (with beam, but sample moved to
 Experiment.flatfield_position) and projections of the sample according to the measurement scheme.
 
 In each acquisition generator the functions :func:`~concert.experiments.imaging.Radiography._prepare_flats`, :func:`~concert.experiments.imaging.Radiography._finish_flats`,

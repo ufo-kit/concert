@@ -28,7 +28,7 @@ class TestAborting(TestCase):
     async def test_abort_awaiting_background(self):
         task = start(corofunc(self))
         try:
-            abort_awaiting(background=True)
+            abort_awaiting()
             await task
         except asyncio.CancelledError:
             pass

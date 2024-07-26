@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 import inspect
 import functools
 import logging
+import zmq
+import concert.config
 from dataclasses import dataclass, field
 from typing import Any
 from pint.errors import DimensionalityError
+from concert.quantities import q
 
 import numpy as np
 
@@ -324,3 +328,91 @@ class ImageWithMetadata(np.ndarray):
         if obj is None:
             return
         self.metadata = getattr(obj, 'metadata', {})
+
+
+class PerformanceTracker:
+
+    """A stopwatch with the ability to report data throughput.
+
+    :param summary: if True, output everything at the end, otherwise immediately on :meth:`.lap`
+    call.
+    :param loglevel: logging level
+    """
+
+    def __init__(self, summary=False, loglevel=concert.config.PERFDEBUG):
+        self.start = 0 * q.s
+        self.duration = 0 * q.s
+        self.size = 0 * q.B
+        self.loglevel = loglevel
+        self.summary = [] if summary else None
+        self.iteration = 0
+
+    def __enter__(self):
+        self.start = time.perf_counter() * q.s
+
+        return self
+
+    def lap(self, name=None, final=False):
+        duration = time.perf_counter() * q.s - self.start
+
+        if final:
+            self.duration = duration
+
+        if name is None:
+            if final:
+                name = 'final'
+            else:
+                name = str(self.iteration)
+                self.iteration += 1
+
+        output = f'{name} duration: {duration:.2f}'
+        if self.size:
+            size = self.size.to(q.mebibyte)
+            output += f', size: {size:.2f}, throughput: {size / duration:.2f}'
+
+        if self.summary is not None:
+            self.summary.append(output)
+        else:
+            LOG.log(self.loglevel, output)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.lap(final=True)
+        if self.summary is not None:
+            for record in self.summary:
+                LOG.log(self.loglevel, record)
+
+
+@dataclass
+class CommData:
+    """Encapsulates communication metadata."""
+
+    host: str
+    port: int = None
+    protocol: str = "tcp"
+    socket_type: zmq.SocketType = zmq.PUSH
+    sndhwm: int = 1000
+
+    def __post_init__(self):
+        if self.protocol not in ["tcp", "ipc"]:
+            raise ValueError("protocol must be one of `tcp', `ipc'")
+
+    @property
+    def server_endpoint(self) -> str:
+        if self.protocol == "ipc":
+            return f"{self.protocol}://{self.host}"
+        else:
+            return f"{self.protocol}://*:{self.port}"
+
+    @property
+    def client_endpoint(self) -> str:
+        if self.protocol == "ipc":
+            return f"{self.protocol}://{self.host}"
+        else:
+            return f"{self.protocol}://{self.host}:{self.port}"
+
+
+def get_basename(filename):
+    if filename.endswith(os.sep):
+        filename = filename[:-1]
+
+    return os.path.basename(filename)
