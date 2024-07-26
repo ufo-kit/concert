@@ -5,7 +5,7 @@ typing.py
 ---------
 Facilitates type annotations for concert
 """
-from typing import Protocol, Any, NewType, Sequence
+from typing import Protocol, Any, NewType, Sequence, Tuple
 import numpy
 
 # Defines ArrayLike as a new type
@@ -117,23 +117,23 @@ class RemoteDirectoryWalkerTangoDevice(
         :type path: str
         """
 
-    async def open_log_file(self, file_path: str) -> None:
+    async def register_logger(self, args: Tuple[str, str, str]) -> None:
         """
-        Opens a log file for writing logs asynchronously.
-        :param file_path: absolute path to the log file
-        :type file_path: str
+        Registers a logger and corresponding file handler with provided logger name,
+        logging level and log file name as tuple
         """
         ...
 
-    async def close_log_file(self) -> None:
-        """Closes the log file if its open"""
+    async def deregister_logger(self, log_path: str) -> None:
+        """
+        Deallocates the file handler and logger for provided logger id
+        """
         ...
 
-    async def log(self, payload: str) -> None:
+    async def log(self, payload: Tuple[str, str, str]) -> None:
         """
-        Writes log to the log file.
-        :param payload: arbitrary log payload as a string
-        :type payload: str
+        Facilitates logging using a specific logger from the maintained loggers. Payload
+        consists of log path as identifier for logger, logging level and log message.
         """
         ...
 #####################################################################

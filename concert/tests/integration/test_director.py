@@ -1,20 +1,25 @@
 import asyncio
-
+import os
 import shutil
 import tempfile
-import numpy as np
+from typing import Tuple, List
 import logging
 from time import time
-
+import unittest
+import unittest.mock as mock
+import numpy as np
 import concert
 from concert.storage import DirectoryWalker
 from concert.experiments.base import Experiment as BaseExperiment, Acquisition, local
+from concert.experiments.base import Consumer as AcquisitionConsumer
 from concert.tests import TestCase as BaseTestCase, slow
 from concert.directors.dummy import Director
 from concert.directors.base import Director as BaseDirector
 from concert.directors.scanning import XYScan
 from concert.devices.motors.dummy import LinearMotor
 from concert.quantities import q
+from concert.storage import RemoteDirectoryWalker
+from concert.tests.util.mocks import MockWalkerDevice
 
 
 LOG = logging.getLogger(__name__)
@@ -176,13 +181,127 @@ class XYScanDirectorTest(TestCase):
         self.director = await XYScan(experiment=self.experiment,
                                      x_motor=self.x_motor,
                                      y_motor=self.y_motor,
-                                     x_min=0*q.mm,
-                                     x_max=10*q.mm,
-                                     x_step=2.5*q.mm,
-                                     y_min=0*q.mm,
-                                     y_max=10*q.mm,
-                                     y_step=2.5*q.mm)
+                                     x_min=0 * q.mm,
+                                     x_max=10 * q.mm,
+                                     x_step=2.5 * q.mm,
+                                     y_min=0 * q.mm,
+                                     y_max=10 * q.mm,
+                                     y_step=2.5 * q.mm)
         await self.director.run()
 
     async def test_final_state(self):
         self.assertEqual(await self.director.get_state(), "standby")
+
+
+class TestableLoggingDirector(BaseDirector):
+    """Defines testable director to repeat a given number of experiments, so that some reasonable
+    assertions can be made on the logging behavior"""
+
+    _num_iter: int
+    _iter_name: str
+
+    async def __ainit__(self, experiment: Experiment, num_iter: int, iter_name: str) -> None:
+        self._num_iter = num_iter
+        self._iter_name = iter_name
+        await super().__ainit__(experiment=experiment)
+
+    async def _get_number_of_iterations(self) -> int:
+        return self._num_iter
+
+    async def _prepare_run(self, iteration: int) -> None:
+        self.log.info(f"Preparing iteration: {iteration}")
+
+    async def _get_iteration_name(self, iteration: int) -> str:
+        return f"{self._iter_name}_{iteration:04d}"
+
+    async def get_iteration_name(self, iteration: int) -> str:
+        return await self._get_iteration_name(iteration)
+
+    async def get_iteration(self) -> int:
+        return self._get_current_iteration()
+
+
+class TestDirectorLogging(unittest.IsolatedAsyncioTestCase):
+
+    async def asyncSetUp(self):
+        logging.disable(logging.NOTSET)
+        self._visited = 0
+        self._acquired = 0
+        self._root = "root"
+        self._director_iter = 3
+        self._device = MockWalkerDevice()
+        self._walker = await RemoteDirectoryWalker(device=self._device, root=self._root)
+        foo = await Acquisition("foo", self.produce, acquire=self.acquire)
+        foo.add_consumer(AcquisitionConsumer(self.consume)), Tuple
+        bar = await Acquisition("bar", self.produce, acquire=self.acquire)
+        self._acquisitions = [foo, bar]
+        self.num_produce = 2
+        self._item = None
+        self._experiment = await BaseExperiment(acquisitions=self._acquisitions,
+                                                walker=self._walker)
+        await self._experiment._set_log_level("debug")
+        self._direxp = await TestableLoggingDirector(experiment=self._experiment,
+                                                     num_iter=self._director_iter, iter_name="iter")
+        await super().asyncSetUp()
+
+    async def asyncTearDown(self) -> None:
+        logging.disable(logging.CRITICAL)
+        await super().asyncTearDown()
+
+    async def acquire(self):
+        self._acquired += 1
+
+    @local
+    async def produce(self):
+        self._visited += 1
+        for i in range(self.num_produce):
+            yield np.ones((1,)) * i
+
+    @local
+    async def consume(self, producer):
+        async for item in producer:
+            self._item = item
+
+    async def test_director_logging(self) -> None:
+        _ = await self._direxp.run()
+        mock_device = self._walker.device.mock_device
+        # director.log + (self._director_iter * experiment.log)
+        expected_register_call_count = 1 + self._director_iter
+        self.assertEqual(mock_device.register_logger.call_count, expected_register_call_count)
+        mock_device.register_logger.assert_has_calls([
+            mock.call((TestableLoggingDirector.__name__, str(logging.NOTSET), "director.log")),
+            mock.call(("Experiment", str(logging.NOTSET), "experiment.log")),
+            mock.call(("Experiment", str(logging.NOTSET), "experiment.log")),
+            mock.call(("Experiment", str(logging.NOTSET), "experiment.log"))
+        ])
+        # Expected logs for testable logging director is computed as following
+        # Director logging its info_table to root director.log
+        root_director_log = 1
+        # TestableLoggingDirector calls INFO log from _prepare_run for each iteration
+        director_prep_log = self._director_iter
+        # Director uses experiment's logger to log its own info_table for each iteration
+        director_exp_info_log = self._director_iter
+        # Experiment _run logs its own info_table for each iteration
+        exp_info_log = self._director_iter
+        # Experiment _run triggers one DEBUG log for current iteration start, one DEBUG log for each
+        # acquisition, one DEBUG log for acquisition consume finished, one DEBUG log for current
+        # iteration duration, all of which happens for each iteration of director
+        exp_debug_log = self._director_iter * (1 + len(self._acquisitions) + 1 + 1)
+        director_log_total_call_count = (root_director_log + director_prep_log)
+        director_log_total_call_count += (director_exp_info_log + exp_info_log + exp_debug_log)
+        self.assertEqual(mock_device.log.call_count, director_log_total_call_count)
+        expected_deregister_call_count = expected_register_call_count
+        log_base_paths: List[str] = [await self._walker.get_current()] * self._director_iter
+        director_iterations: List[str] = [await self._direxp.get_iteration_name(
+            iteration) for iteration in range(self._director_iter)]
+        expected_log_paths = [os.path.join(base_path, iteration,
+                                           "experiment.log") for base_path, iteration in zip(
+                                               log_base_paths, director_iterations)]
+        expected_log_paths.append(os.path.join(await self._walker.get_current(), "director.log"))
+        expected_deregister_calls: List[mock.call] = list(map(lambda path: mock.call(path),
+                                                              expected_log_paths))
+        mock_device.deregister_logger.assert_has_calls(expected_deregister_calls)
+        self.assertEqual(mock_device.deregister_logger.call_count, expected_deregister_call_count)
+        # JSON logging takes place ones for each iteration
+        expected_json_logging_call_count = self._director_iter
+        self.assertTrue(mock_device.log_to_json.call_count == expected_json_logging_call_count)

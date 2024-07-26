@@ -1,10 +1,10 @@
-import os
 import asyncio
 import logging
 
-from concert.base import Parameterizable, background, Parameter, State, transition, StateError, \
+from concert.base import Parameterizable, background, Parameter, State, StateError, \
     check, Selection
 from concert.helpers import get_state_from_awaitable
+from concert.loghandler import AsyncLoggingHandlerCloser
 
 LOG = logging.getLogger(__name__)
 
@@ -101,11 +101,11 @@ class Director(Parameterizable):
         handler = None
         try:
             if self._experiment.walker:
-                handler = logging.FileHandler(os.path.join(await self._experiment.walker.get_current(),
-                                                           'director.log'))
-                formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s '
-                                              '- %(message)s')
-                handler.setFormatter(formatter)
+                handler: AsyncLoggingHandlerCloser = await self._experiment.walker.register_logger(
+                    logger_name=self.__class__.__name__,
+                    log_level=logging.NOTSET,
+                    file_name="director.log"
+                )
                 self.log.addHandler(handler)
             self.log.info(await self.info_table)
 
@@ -131,8 +131,9 @@ class Director(Parameterizable):
                 try:
                     await exp_run
                 except Exception as e:
+                    itr_name = await self.get_iteration_name(await self.get_iteration())
                     self.log.error(
-                        f"Director iteration {await self.get_iteration_name(await self.get_iteration())} failed.")
+                        f"Director iteration {itr_name} failed.")
                     self.log.error(e)
                     raise e
                 finally:
@@ -150,7 +151,7 @@ class Director(Parameterizable):
             raise
         finally:
             if handler:
-                handler.close()
+                await handler.aclose()
                 self.log.removeHandler(handler)
             await self._experiment['separate_scans'].restore()
             await self.finish()
