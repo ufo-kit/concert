@@ -267,6 +267,8 @@ class Experiment(Parameterizable):
     current_name = Parameter(help="Name of the current iteration")
     state = State(default='standby')
     log_level = Selection(['critical', 'error', 'warning', 'info', 'debug'])
+    log_devices_at_start = Parameter()
+    log_devices_at_finish = Parameter()
 
     async def __ainit__(self, acquisitions, walker=None, separate_scans=True,
                         name_fmt='scan_{:>04}'):
@@ -280,9 +282,14 @@ class Experiment(Parameterizable):
         self._iteration = 0
         self.log = LOG
         self._devices_to_log = {}
+        self._devices_to_log_optional = {}
+        self._log_devices_at_start = None
+        self._log_devices_at_finish = None
         self.ready_to_prepare_next_sample = asyncio.Event()
         self._run_awaitable = None
         await Parameterizable.__ainit__(self)
+        await self.set_log_devices_at_start(True)
+        await self.set_log_devices_at_finish(True)
 
         if separate_scans and walker:
             # The data is not supposed to be overwritten, so find an iteration which
@@ -290,8 +297,30 @@ class Experiment(Parameterizable):
             while await self.walker.exists(self._name_fmt.format(self._iteration)):
                 self._iteration += 1
 
-    def add_device_to_log(self, name: str, device: concert.devices.base.Device):
-        self._devices_to_log[name] = device
+    async def _set_log_devices_at_start(self, log):
+        self._log_devices_at_start = bool(log)
+
+    async def _get_log_devices_at_start(self):
+        return self._log_devices_at_start
+
+    async def _set_log_devices_at_finish(self, log):
+        self._log_devices_at_finish = bool(log)
+
+    async def _get_log_devices_at_finish(self):
+        return self._log_devices_at_finish
+
+    def add_device_to_log(self, name: str, device: concert.devices.base.Device, optional=False):
+        """
+        Add a device to log.
+
+        :param name: Name of the device
+        :param device: Device to log
+        :param optional: If True, an exception when trying to log the device will not cause an error.
+        """
+        if optional:
+            self._devices_to_log_optional[name] = device
+        else:
+            self._devices_to_log[name] = device
 
     async def _prepare_metadata_str(self) -> str:
         """Prepares the experiment metadata to be written to file. It is
@@ -307,6 +336,16 @@ class Experiment(Parameterizable):
             device_data = {}
             for param in device:
                 device_data[param.name] = str(await param.get())
+            metadata[name] = device_data
+
+        for name, device in self._devices_to_log_optional.items():
+            device_data = {}
+            for param in device:
+                try:
+                    device_data[param.name] = str(await param.get())
+                except Exception as e:
+                    self.log.info(f"Error while logging optional device {name}")
+                    self.log.info(e)
             metadata[name] = device_data
         return json.dumps(metadata, indent=4)
 
@@ -449,8 +488,11 @@ class Experiment(Parameterizable):
                     file_name="experiment.log"
                 )
                 self.log.addHandler(handler)
-                exp_metadata: str = await self._prepare_metadata_str()
-                await self.walker.log_to_json(payload=exp_metadata)
+                if await self.get_log_devices_at_start():
+                    exp_metadata: str = await self._prepare_metadata_str()
+                    # Todo: enable after chandan's PR
+                    # await self.walker.set_log_name('experiment_start.json')
+                    await self.walker.log_to_json(payload=exp_metadata)
             self._current_name = get_basename(await self.walker.get_current())
         self.log.info(await self.info_table)
         for name, device in self._devices_to_log.items():
@@ -464,6 +506,12 @@ class Experiment(Parameterizable):
         finally:
             try:
                 await self.finish()
+                if self.walker:
+                    if await self.get_log_devices_at_finish():
+                        # Todo: enable after chandan's PR
+                        # await self.walker.set_log_name('experiment_finish.json')
+                        exp_metadata: str = await self._prepare_metadata_str()
+                        await self.walker.log_to_json(payload=exp_metadata)
             except Exception as e:
                 LOG.warning(f"Error `{e}' while finalizing experiment")
                 raise StateError('error', msg=str(e))
