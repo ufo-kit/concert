@@ -490,9 +490,7 @@ class Experiment(Parameterizable):
                 self.log.addHandler(handler)
                 if await self.get_log_devices_at_start():
                     exp_metadata: str = await self._prepare_metadata_str()
-                    # Todo: enable after chandan's PR
-                    # await self.walker.set_log_name('experiment_start.json')
-                    await self.walker.log_to_json(payload=exp_metadata)
+                    await self.walker.log_to_json(payload=exp_metadata, filename="experiment_start.json")
             self._current_name = get_basename(await self.walker.get_current())
         self.log.info(await self.info_table)
         for name, device in self._devices_to_log.items():
@@ -508,10 +506,8 @@ class Experiment(Parameterizable):
                 await self.finish()
                 if self.walker:
                     if await self.get_log_devices_at_finish():
-                        # Todo: enable after chandan's PR
-                        # await self.walker.set_log_name('experiment_finish.json')
                         exp_metadata: str = await self._prepare_metadata_str()
-                        await self.walker.log_to_json(payload=exp_metadata)
+                        await self.walker.log_to_json(payload=exp_metadata, filename="experiment_finish.json")
             except Exception as e:
                 LOG.warning(f"Error `{e}' while finalizing experiment")
                 raise StateError('error', msg=str(e))
