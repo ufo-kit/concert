@@ -14,22 +14,21 @@ from skimage.measure._regionprops import RegionProperties
 from tango import DebugIt, DevState, CmdArgType, EventType
 from tango.server import attribute, command, AttrWriteType
 from concert.ext.tangoservers.base import TangoRemoteProcessing
-from concert.ext.ufo import FlatCorrect, MedianFilter 
+from concert.ext.ufo import FlatCorrect, GaussianBlur
 
 
 class QualityAssurance(TangoRemoteProcessing):
     """
-    Implements Tango device server to encapsulate quality assurance
-    routines
+    Implements Tango device server to encapsulate quality assurance routines.
     """
 
-    lpf_size = attribute(
-        label="Low_Pass_Filter_Size",
-        dtype=int,
+    sigma = attribute(
+        label="Sigma",
+        dtype=float,
         access=AttrWriteType.READ_WRITE,
-        fget="get_lpf_size",
-        fset="set_lpf_size",
-        doc="low pass filter size to filter flatcorrected projections"
+        fget="get_sigma",
+        fset="set_sigma",
+        doc="Standard deviation(sigma) for Gaussian low pass filtering"
     )
 
     num_markers = attribute(
@@ -95,39 +94,32 @@ class QualityAssurance(TangoRemoteProcessing):
         doc="offset in number of projections to be used to run estimation"
     )
 
-    monitor_window = attribute(
-        label="Monitor_Window",
-        dtype=int,
-        access=AttrWriteType.READ_WRITE,
-        fget="get_monitor_window",
-        fset="set_monitor_window",
-        doc="monitoring window to detect plateau in rotation axis estimation slope"
-    )
-
     _marker_centroids: List[ArrayLike]
     _point_in_time: int
     _angle_dist: ArrayLike
     _norm_buffer: List[ArrayLike]
     _estm_rot_axis: List[float]
+    _monitor_window: int  # TODO: Temporary internal attribute
 
     async def init_device(self) -> None:
         await super().init_device()
-        EventType.EVE
         self._marker_centroids = []
         self._point_in_time = 0
         self._norm_buffer = []
         self._estm_rot_axis = []
+        self._monitor_window = 100  # TODO: Temporary internal attribute
         self.info_stream("%s initialized device with state: %s",
                          self.__class__.__name__, self.get_state())
 
-    def get_lpf_size(self) -> int:
-        return self._lpf_size
+    def get_sigma(self) -> int:
+        return self._sigma
 
-    def set_lpf_size(self, lpf_size: int) -> None:
-        self._lpf_size = lpf_size
+    def set_sigma(self, sigma: float) -> None:
+        self._sigma = sigma
+        print(f"Sigma: {sigma}")
         self.info_stream(
-            "%s has set low pass filter size to: %d, state: %s",
-            self.__class__.__name__, self.get_lpf_size(), self.get_state()
+                "%s has set sigma to: %f, state: %s",
+            self.__class__.__name__, self._sigma, self.get_state()
         )
 
     def get_num_markers(self) -> int:
@@ -137,7 +129,7 @@ class QualityAssurance(TangoRemoteProcessing):
         self._num_markers = num_markers
         self.info_stream(
             "%s has set number of markers to: %d, state: %s",
-            self.__class__.__name__, self.get_num_markers(), self.get_state()
+            self.__class__.__name__, self._num_markers, self.get_state()
         )
 
     def get_rot_angle(self) -> float:
@@ -147,7 +139,7 @@ class QualityAssurance(TangoRemoteProcessing):
         self._rot_angle = rot_angle
         self.info_stream(
             "%s has set overall angle of rotation to: %f, state: %s",
-            self.__class__.__name__, self.get_rot_angle(), self.get_state()
+            self.__class__.__name__, self._rot_angle, self.get_state()
         )
 
     def get_num_darks(self) -> int:
@@ -157,7 +149,7 @@ class QualityAssurance(TangoRemoteProcessing):
         self._num_darks = num_darks
         self.info_stream(
             "%s has set overall number of dark field acquisitions to: %d, state: %s",
-            self.__class__.__name__, self.get_num_darks(), self.get_state()
+            self.__class__.__name__, self._num_darks, self.get_state()
         )
 
     def get_num_flats(self) -> int:
@@ -167,7 +159,7 @@ class QualityAssurance(TangoRemoteProcessing):
         self._num_flats = num_flats
         self.info_stream(
             "%s has set overall number of flat field acquisitions to: %d, state: %s",
-            self.__class__.__name__, self.get_num_flats(), self.get_state()
+            self.__class__.__name__, self._num_flats, self.get_state()
         )
 
     def get_num_radios(self) -> int:
@@ -177,7 +169,7 @@ class QualityAssurance(TangoRemoteProcessing):
         self._num_radios = num_radios
         self.info_stream(
             "%s has set overall number of projections to: %d, state: %s",
-            self.__class__.__name__, self.get_num_radios(), self.get_state()
+            self.__class__.__name__, self._num_radios, self.get_state()
         )
 
     def get_wait_window(self) -> int:
@@ -187,7 +179,7 @@ class QualityAssurance(TangoRemoteProcessing):
         self._wait_window = wait_window
         self.info_stream(
             "%s has set initial wait window for estimation to: %d projections, state: %s",
-            self.__class__.__name__, self.get_wait_window(), self.get_state()
+            self.__class__.__name__, self._wait_window, self.get_state()
         )
 
     def get_estm_offset(self) -> int:
@@ -197,17 +189,7 @@ class QualityAssurance(TangoRemoteProcessing):
         self._estm_offset = estm_offset
         self.info_stream(
             "%s has set estimation offset interval to: %d projections, state %s",
-            self.__class__.__name__, self.get_estm_offset(), self.get_state()
-        )
-
-    def get_monitor_window(self) -> int:
-        return self._monitor_window
-
-    def set_monitor_window(self, monitor_window: int) -> None:
-        self._monitor_window = monitor_window
-        self.info_stream(
-            "%s has set monitoring window to: %d projections, state %s",
-            self.__class__.__name__, self.get_monitor_window(), self.get_state()
+            self.__class__.__name__, self._estm_offset, self.get_state()
         )
 
     @property
@@ -221,29 +203,33 @@ class QualityAssurance(TangoRemoteProcessing):
         """
         return self._num_darks + self._num_flats
 
+    @property
+    def _gaussian_kernel_size(self) -> int:
+        """Computes Gaussian kernel size from provided standard deviation(sigma)"""
+        return 2 * np.ceil(3 * self._sigma).astype(int) + 1
+
     @DebugIt()
     @command()
     async def prepare_angular_distribution(self) -> None:
-        self._angle_dist = np.linspace(0., self.get_rot_angle(), self.get_num_radios())
+        """Prepares projected angular distribution as input values for nonlinear polynomial fit"""
+        self._angle_dist = np.linspace(0., self._rot_angle, self._num_radios)
         self.info_stream("%s: prepared angular distribution", self.__class__.__name__)
 
     @DebugIt()
     @command()
-    async def derive_rot_axis(self) -> None:
-        # TODO: Consider estimating axis with an offset in projections. Estimating
-        # axis with every projection is slow without further optimization.
-        await self._process_stream(self._compute_axis_ufo(self._receiver.subscribe()))
+    async def estimate_center_of_rotation(self) -> None:
+        """Estimates the center of rotation"""
+        await self._process_stream(self._estimate_center(self._receiver.subscribe()))
 
     @staticmethod
-    def opt_func(angle_x: np.float64,
-                 center_p1: np.float64,
-                 radius_p2: np.float64,
+    def opt_func(angle_x: np.float64, center_p1: np.float64, radius_p2: np.float64,
                  phase_p3: np.float64) -> np.float64:
+        """Defines the model function for nonlinear polynomial fit"""
         return center_p1 + radius_p2 * np.cos(angle_x + phase_p3)
 
-    async def _compute_axis_ufo(self, producer: AsyncIterator[ArrayLike]) -> None:
+    async def _estimate_center(self, producer: AsyncIterator[ArrayLike]) -> None:
         async for image in producer:
-            # Process normalization images
+            # Process dark and flat fields
             self._point_in_time += 1
             if self._point_in_time <= self._norm_window:
                 self._norm_buffer.append(image)
@@ -253,9 +239,10 @@ class QualityAssurance(TangoRemoteProcessing):
                 break
         dark: ArrayLike = np.array(self._norm_buffer[:self._num_darks]).mean(axis=0)
         flat: ArrayLike = np.array(self._norm_buffer[self._num_darks:self._num_flats]).mean(axis=0)
+        # Instantiate Ufo processes for flat-field correction and Gaussian filtering
         ffc = FlatCorrect(dark=dark, flat=flat, absorptivity=False)
-        mf = MedianFilter(kernel_size=self.get_lpf_size())
-        async for projection in mf(ffc(producer)):
+        gb = GaussianBlur(kernel_size=self._gaussian_kernel_size, sigma=self._sigma)
+        async for projection in gb(ffc(producer)):
             # Process projections
             thresh: ArrayLike = skf.threshold_multiotsu(projection, classes=3)
             mask: ArrayLike = projection < thresh.min()
@@ -265,8 +252,8 @@ class QualityAssurance(TangoRemoteProcessing):
             # TODO: Here we implicitly assume that the detected number of regions would always be
             # greater than the expected number of markers. In practice this is an edge case because
             # it might not always be true.
-            if len(regions) > self.get_num_markers():
-                regions = regions[:self.get_num_markers()]
+            if len(regions) > self._num_markers:
+                regions = regions[:self._num_markers]
             self._marker_centroids.append(np.array(
                 list(map(lambda region: region.centroid, regions))))
             # We start estimating after initial wait window is passed. This is required for the
@@ -292,7 +279,7 @@ class QualityAssurance(TangoRemoteProcessing):
                         # errors in estimation. This needs to be explored and experimented. Ideal
                         # solution is the simplest one that works reasonably well all the time and
                         # not perfectly only some times.
-                        for mix in range(self.get_num_markers()):
+                        for mix in range(self._num_markers):
                             x: ArrayLike = self._angle_dist[:self._point_in_time - self._norm_window]
                             y: ArrayLike = np.array(self._marker_centroids)[:, mix, 1]
                             params, _ = sop.curve_fit(f=self.opt_func,
@@ -307,7 +294,7 @@ class QualityAssurance(TangoRemoteProcessing):
                             np.median(rot_axes)
                         )
                         self._estm_rot_axis.append(np.median(rot_axes))
-                        if (self._point_in_time - self._norm_window) % 100 == 0:
+                        if (self._point_in_time - self._norm_window) % self._monitor_window == 0:
                             self.info_stream(
                                 "Estimated gradient: %s",
                                 np.round(np.abs(np.gradient(self._estm_rot_axis)), decimals=4)
