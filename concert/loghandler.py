@@ -3,18 +3,17 @@ loghandler.py
 -------------
 Encapsulates the log handling utilities for the walker APIs.
 """
-import logging
 import asyncio
+import logging
 from typing import List, Protocol
 from concert.typing import RemoteDirectoryWalkerTangoDevice
 from concert.coroutines.base import get_event_loop
 
-LOG = logging.getLogger(__name__)
-
-
 #############
 # Protocols #
 ##############################################################################
+
+
 class AsyncLoggingHandlerCloser(Protocol):
     """Abstarct logging handler, which can be closed asynchronously"""
 
@@ -67,23 +66,28 @@ class RemoteLoggingHandler(logging.Handler):
     """
 
     _device: RemoteDirectoryWalkerTangoDevice
+    _log_path: str
     _tasks: List[asyncio.Task]
     _loop: asyncio.AbstractEventLoop
 
     def __init__(
             self,
             device: RemoteDirectoryWalkerTangoDevice,
+            log_path: str,
             fmt: str = "[%(asctime)s] %(levelname)s: %(name)s: %(message)s") -> None:
         """
         Instantiates a remote handler for logging in remote host.
 
         :param device: device to send the log payload to write
         :type device: RemoteDirectoryWalkerTangoDevice
+        :param log_path: log path as unique identifier for the logger object
+        :type log_path: str
         :param fmt: format for logging
         :type fmt: str
         """
         super().__init__()
         self._device = device
+        self._log_path = log_path
         self.setFormatter(logging.Formatter(fmt))
         self._loop = get_event_loop()
         self._tasks = []
@@ -93,13 +97,13 @@ class RemoteLoggingHandler(logging.Handler):
         Ensures conformance to logging.Handler api. In this method we create
         a coroutine task in the form of an asyncio.Future and add the same to
         collection of future tasks after adding a callback to handle the task
-        completion.
+        completion. Owner_id is used by the device server to identify the logger
+        object, which should deal with logging.
         """
         if self._loop:
             self._tasks.append(
-                asyncio.ensure_future(self._device.log([str(record.levelno),
-                                                       self.format(record)]),
-                                      loop=self._loop))
+                asyncio.ensure_future(self._device.log([self._log_path, str(record.levelno),
+                                                        self.format(record)]), loop=self._loop))
         else:
             raise RuntimeError("event loop unavailable")
 
@@ -109,7 +113,7 @@ class RemoteLoggingHandler(logging.Handler):
 
     async def aclose(self) -> None:
         await self.aflush()
-        await self._device.close_log_handler()
+        await self._device.deregister_logger(self._log_path)
         super().close()
 
 

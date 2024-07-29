@@ -3,11 +3,16 @@ Test experiments. Logging is disabled, so just check the directory and log
 files creation.
 """
 import asyncio
-import numpy as np
+import logging
+import os
 import os.path as op
 import tempfile
 import shutil
+from typing import Tuple
+import unittest
+import numpy as np
 from concert.quantities import q
+import concert.config as cfg
 from concert.coroutines.base import start
 from concert.coroutines.sinks import Accumulate, null
 from concert.experiments.base import (Acquisition, Consumer as AcquisitionConsumer, Experiment,
@@ -19,8 +24,11 @@ from concert.experiments.addons.local import (Accumulator as LocalAccumulator,
                                               Consumer as LocalConsumer,
                                               ImageWriter as LocalImageWriter)
 from concert.devices.cameras.dummy import Camera
+from concert.devices.shutters.dummy import Shutter
+from concert.devices.motors.dummy import LinearMotor
 from concert.tests import TestCase, suppressed_logging, assert_almost_equal
-from concert.storage import DirectoryWalker, DummyWalker
+from concert.storage import DirectoryWalker, DummyWalker, RemoteDirectoryWalker
+from concert.tests.util.mocks import MockWalkerDevice
 
 
 class VisitChecker(object):
@@ -219,7 +227,8 @@ class TestExperiment(TestExperimentBase):
 
     async def test_consumer_addon(self):
         accumulate = Accumulate()
-        consumer = await LocalConsumer(accumulate, experiment=self.experiment, acquisitions=[self.acquisitions[0]])
+        consumer = await LocalConsumer(accumulate, experiment=self.experiment,
+                                       acquisitions=[self.acquisitions[0]])
         await self.experiment.run()
         self.assertEqual(accumulate.items, list(range(self.num_produce)))
 
@@ -241,7 +250,6 @@ class TestExperiment(TestExperimentBase):
         finally:
             self.experiment.walker = None
             shutil.rmtree(data_dir)
-
 
     async def test_accumulation(self):
         acc = await LocalAccumulator(self.experiment)
@@ -305,3 +313,67 @@ class TestExperimentStates(TestCase):
         with self.assertRaises(Exception):
             await exp.run()
         self.assertEqual(await exp.get_state(), "error")
+
+
+class TestExperimentLogging(unittest.IsolatedAsyncioTestCase):
+
+    async def asyncSetUp(self):
+        logging.disable(logging.NOTSET)
+        cfg.PROGRESS_BAR = False
+        self._visited = 0
+        self._acquired = 0
+        self._device = MockWalkerDevice()
+        self._walker = await RemoteDirectoryWalker(device=self._device)
+        foo = await Acquisition("foo", self.produce, acquire=self.acquire)
+        foo.add_consumer(AcquisitionConsumer(self.consume)), Tuple
+        bar = await Acquisition("bar", self.produce, acquire=self.acquire)
+        self._acquisitions = [foo, bar]
+        self.num_produce = 2
+        self._item = None
+        self._experiment = await Experiment(acquisitions=self._acquisitions, walker=self._walker)
+        await self._experiment._set_log_level("debug")
+        self._devices = [await Shutter(), await LinearMotor(), await Camera()]
+        [self._experiment.add_device_to_log(f"Device-{dix}", dev) for dix,
+         dev in enumerate(self._devices)]
+        await super().asyncSetUp()
+
+    async def asyncTearDown(self) -> None:
+        logging.disable(logging.CRITICAL)
+        await super().asyncTearDown()
+
+    async def acquire(self):
+        self._acquired += 1
+
+    @local
+    async def produce(self):
+        self._visited += 1
+        for i in range(self.num_produce):
+            yield np.ones((1,)) * i
+
+    @local
+    async def consume(self, producer):
+        async for item in producer:
+            self._item = item
+
+    async def test_experiment_logging(self) -> None:
+        _ = await self._experiment.run()
+        self.assertEqual(self._visited, len(self._experiment.acquisitions))
+        self.assertEqual(self._acquired, len(self._experiment.acquisitions))
+        # Expected INFO log invocations is computed by accumulating the following
+        # Experiment class logging its info_table
+        # 2 INFO log calls per device, which are explicitly added to device logging
+        exp_info_log = 1 + 2 * len(self._devices)
+        # Expected DEBUG log invocations is copmputed by accumulating the following
+        # DEBUG call for experiment iteration start
+        # DEBUG call for each acquisition
+        # DEBUG call for consumer coroutine finish
+        # DEBUG call for experiment iteration finish
+        exp_debug_log = 1 + len(self._acquisitions) + 1 + 1
+        mock_device = self._walker.device.mock_device
+        mock_device.register_logger.assert_called_once_with((Experiment.__name__,
+                                                             str(logging.NOTSET), "experiment.log"))
+        self.assertEqual(mock_device.log.call_count, exp_info_log + exp_debug_log)
+        expected_log_path = os.path.join(await self._walker.get_current(),
+                                         "scan_0000/experiment.log")
+        mock_device.deregister_logger.assert_called_once_with(expected_log_path)
+        mock_device.log_to_json.assert_called_once()

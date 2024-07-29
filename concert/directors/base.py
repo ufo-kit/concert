@@ -1,10 +1,10 @@
-import os
 import asyncio
 import logging
 
-from concert.base import Parameterizable, background, Parameter, State, transition, StateError, \
+from concert.base import Parameterizable, background, Parameter, State, StateError, \
     check, Selection
 from concert.helpers import get_state_from_awaitable
+from concert.loghandler import AsyncLoggingHandlerCloser
 
 LOG = logging.getLogger(__name__)
 
@@ -71,7 +71,10 @@ class Director(Parameterizable):
         """
         raise NotImplementedError
 
-    async def _get_iteration_name(self, iteration: int) -> str:
+    async def _get_current_iteration_name(self):
+        return await self.get_iteration_name(await self.get_current_iteration())
+
+    async def get_iteration_name(self, iteration: int) -> str:
         """
         Function for giving meaningfully names for each experiment execution.
         Should be overwritten for more complicated naming (e.g. specimen descriptions).
@@ -84,7 +87,6 @@ class Director(Parameterizable):
     async def _prepare_next_run(self):
         if await self.get_current_iteration() < await self.get_number_of_iterations() - 1:
             await self._prepare_run(await self.get_current_iteration() + 1)
-
 
     @background
     @check(source=['standby', 'error'], target="standby")
@@ -99,11 +101,11 @@ class Director(Parameterizable):
         handler = None
         try:
             if self._experiment.walker:
-                handler = logging.FileHandler(os.path.join(await self._experiment.walker.get_current(),
-                                                           'director.log'))
-                formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s '
-                                              '- %(message)s')
-                handler.setFormatter(formatter)
+                handler: AsyncLoggingHandlerCloser = await self._experiment.walker.register_logger(
+                    logger_name=self.__class__.__name__,
+                    log_level=logging.NOTSET,
+                    file_name="director.log"
+                )
                 self.log.addHandler(handler)
             self.log.info(await self.info_table)
 
@@ -116,9 +118,9 @@ class Director(Parameterizable):
                 self._iteration = iteration
                 await self._run_event.wait()
 
-                await self._experiment.walker.descend(await self._get_iteration_name(iteration))
+                await self._experiment.walker.descend(await self.get_iteration_name(iteration))
                 exp_run = self._experiment.run()
-                sample_name = await self._get_iteration_name(iteration)
+                sample_name = await self.get_iteration_name(iteration)
                 self._experiment.log.info(f"Sample name: {sample_name}")
                 self._experiment.log.info(await self.info_table)
 
@@ -129,8 +131,9 @@ class Director(Parameterizable):
                 try:
                     await exp_run
                 except Exception as e:
+                    itr_name = await self.get_iteration_name(await self.get_iteration())
                     self.log.error(
-                        f"Director iteration {await self.get_iteration_name(await self.get_iteration())} failed.")
+                        f"Director iteration {itr_name} failed.")
                     self.log.error(e)
                     raise e
                 finally:
@@ -148,7 +151,7 @@ class Director(Parameterizable):
             raise
         finally:
             if handler:
-                handler.close()
+                await handler.aclose()
                 self.log.removeHandler(handler)
             await self._experiment['separate_scans'].restore()
             await self.finish()

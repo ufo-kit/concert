@@ -17,6 +17,7 @@ from concert.coroutines.sinks import count
 from concert.progressbar import wrap_iterable
 from concert.base import check, Parameterizable, Parameter, Selection, State, StateError
 from concert.helpers import get_state_from_awaitable, get_basename
+from concert.loghandler import AsyncLoggingHandlerCloser
 from functools import partial
 
 
@@ -171,16 +172,15 @@ class Acquisition(Parameterizable):
             # 4. Someone raises exception
             while True:
                 done, tasks = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-                self._pending_tasks = tasks
-
-                if not tasks:
-                    break
 
                 completed = done.pop()
                 if completed.cancelled() or completed.exception():
                     await cancel_and_wait(tasks)
                     if completed.exception():
                         raise completed.exception()
+
+                if not tasks:
+                    break
         except BaseException as exception:
             # If something went wrong we cannot leave the running tasks haning, otherwise the
             # remotes might still be waiting for data, so cancel processing. Processing is
@@ -422,7 +422,11 @@ class Experiment(Parameterizable):
             if separate_scans:
                 await self.walker.descend((await self.get_name_fmt()).format(iteration))
             if os.path.exists(await self.walker.get_current()):
-                handler = await self.walker.get_log_handler()
+                handler: AsyncLoggingHandlerCloser = await self.walker.register_logger(
+                    logger_name=self.__class__.__name__,
+                    log_level=logging.NOTSET,
+                    file_name="experiment.log"
+                )
                 self.log.addHandler(handler)
                 exp_metadata: str = await self._prepare_metadata_str()
                 await self.walker.log_to_json(payload=exp_metadata)
