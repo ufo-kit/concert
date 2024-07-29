@@ -3,7 +3,7 @@ qa.py
 -----
 Implements a device server to execute quality assurance routines during acquisition.
 """
-from typing import List, AsyncIterator
+from typing import List, AsyncIterator, Tuple
 import numpy as np
 from numpy.typing import ArrayLike
 import scipy.ndimage as snd
@@ -21,25 +21,6 @@ class QualityAssurance(TangoRemoteProcessing):
     """
     Implements Tango device server to encapsulate quality assurance routines.
     """
-
-    sigma = attribute(
-        label="Sigma",
-        dtype=float,
-        access=AttrWriteType.READ_WRITE,
-        fget="get_sigma",
-        fset="set_sigma",
-        doc="Standard deviation(sigma) for Gaussian low pass filtering"
-    )
-
-    num_markers = attribute(
-        label="Num_Markers",
-        dtype=int,
-        access=AttrWriteType.READ_WRITE,
-        fget="get_num_markers",
-        fset="set_num_markers",
-        doc="number of markers to estimate axis of rotation from"
-    )
-
     rot_angle = attribute(
         label="Rot_Angle",
         dtype=float,
@@ -76,15 +57,6 @@ class QualityAssurance(TangoRemoteProcessing):
         doc="overall number of projections to be acquired"
     )
 
-    wait_window = attribute(
-        label="Wait_Window",
-        dtype=int,
-        access=AttrWriteType.READ_WRITE,
-        fget="get_wait_window",
-        fset="set_wait_window",
-        doc="initial wait time before starting rotation axis estimation"
-    )
-
     estm_offset = attribute(
         label="Estm_Offset",
         dtype=int,
@@ -94,7 +66,6 @@ class QualityAssurance(TangoRemoteProcessing):
         doc="offset in number of projections to be used to run estimation"
     )
 
-    _marker_centroids: List[ArrayLike]
     _point_in_time: int
     _angle_dist: ArrayLike
     _norm_buffer: List[ArrayLike]
@@ -103,34 +74,12 @@ class QualityAssurance(TangoRemoteProcessing):
 
     async def init_device(self) -> None:
         await super().init_device()
-        self._marker_centroids = []
         self._point_in_time = 0
         self._norm_buffer = []
         self._estm_rot_axis = []
         self._monitor_window = 100  # TODO: Temporary internal attribute
         self.info_stream("%s initialized device with state: %s",
                          self.__class__.__name__, self.get_state())
-
-    def get_sigma(self) -> int:
-        return self._sigma
-
-    def set_sigma(self, sigma: float) -> None:
-        self._sigma = sigma
-        print(f"Sigma: {sigma}")
-        self.info_stream(
-                "%s has set sigma to: %f, state: %s",
-            self.__class__.__name__, self._sigma, self.get_state()
-        )
-
-    def get_num_markers(self) -> int:
-        return self._num_markers
-
-    def set_num_markers(self, num_markers: int) -> None:
-        self._num_markers = num_markers
-        self.info_stream(
-            "%s has set number of markers to: %d, state: %s",
-            self.__class__.__name__, self._num_markers, self.get_state()
-        )
 
     def get_rot_angle(self) -> float:
         return self._rot_angle
@@ -172,16 +121,6 @@ class QualityAssurance(TangoRemoteProcessing):
             self.__class__.__name__, self._num_radios, self.get_state()
         )
 
-    def get_wait_window(self) -> int:
-        return self._wait_window
-
-    def set_wait_window(self, wait_window: int) -> None:
-        self._wait_window = wait_window
-        self.info_stream(
-            "%s has set initial wait window for estimation to: %d projections, state: %s",
-            self.__class__.__name__, self._wait_window, self.get_state()
-        )
-
     def get_estm_offset(self) -> int:
         return self._estm_offset
 
@@ -203,11 +142,6 @@ class QualityAssurance(TangoRemoteProcessing):
         """
         return self._num_darks + self._num_flats
 
-    @property
-    def _gaussian_kernel_size(self) -> int:
-        """Computes Gaussian kernel size from provided standard deviation(sigma)"""
-        return 2 * np.ceil(3 * self._sigma).astype(int) + 1
-
     @DebugIt()
     @command()
     async def prepare_angular_distribution(self) -> None:
@@ -216,10 +150,19 @@ class QualityAssurance(TangoRemoteProcessing):
         self.info_stream("%s: prepared angular distribution", self.__class__.__name__)
 
     @DebugIt()
-    @command()
-    async def estimate_center_of_rotation(self) -> None:
+    @command(
+        dtype_in=(float,),
+        doc_in="number of markers, initial wait window and sigma for gaussian filtering"
+    )
+    async def estimate_center_of_rotation(self, args) -> None:
         """Estimates the center of rotation"""
-        await self._process_stream(self._estimate_center(self._receiver.subscribe()))
+        num_markers, wait_window, sigma = int(args[0]), int(args[1]), args[2]
+        self.info_stream("%s starting estimation using markers=%d, wait_time=%d, sigma=%f",
+                         self.__class__.__name__, num_markers, wait_window, sigma)
+        await self._process_stream(self._estimate_from_markers(self._receiver.subscribe(),
+                                                               num_markers=num_markers,
+                                                               wait_window=wait_window,
+                                                               sigma=sigma))
 
     @staticmethod
     def opt_func(angle_x: np.float64, center_p1: np.float64, radius_p2: np.float64,
@@ -227,7 +170,9 @@ class QualityAssurance(TangoRemoteProcessing):
         """Defines the model function for nonlinear polynomial fit"""
         return center_p1 + radius_p2 * np.cos(angle_x + phase_p3)
 
-    async def _estimate_center(self, producer: AsyncIterator[ArrayLike]) -> None:
+    async def _estimate_from_markers(self, producer: AsyncIterator[ArrayLike], num_markers: int,
+                                     wait_window: int, sigma: float) -> None:
+        marker_centroids: List[ArrayLike] = []
         async for image in producer:
             # Process dark and flat fields
             self._point_in_time += 1
@@ -241,7 +186,7 @@ class QualityAssurance(TangoRemoteProcessing):
         flat: ArrayLike = np.array(self._norm_buffer[self._num_darks:self._num_flats]).mean(axis=0)
         # Instantiate Ufo processes for flat-field correction and Gaussian filtering
         ffc = FlatCorrect(dark=dark, flat=flat, absorptivity=False)
-        gb = GaussianBlur(kernel_size=self._gaussian_kernel_size, sigma=self._sigma)
+        gb = GaussianBlur(kernel_size=2 * np.ceil(3 * sigma).astype(int) + 1, sigma=sigma)
         async for projection in gb(ffc(producer)):
             # Process projections
             thresh: ArrayLike = skf.threshold_multiotsu(projection, classes=3)
@@ -252,18 +197,18 @@ class QualityAssurance(TangoRemoteProcessing):
             # TODO: Here we implicitly assume that the detected number of regions would always be
             # greater than the expected number of markers. In practice this is an edge case because
             # it might not always be true.
-            if len(regions) > self._num_markers:
-                regions = regions[:self._num_markers]
-            self._marker_centroids.append(np.array(
+            if len(regions) > num_markers:
+                regions = regions[:num_markers]
+            marker_centroids.append(np.array(
                 list(map(lambda region: region.centroid, regions))))
             # We start estimating after initial wait window is passed. This is required for the
             # optimization method to be able to yield some values for the parameters.
-            if self._point_in_time - self._norm_window < self._wait_window:
+            if self._point_in_time - self._norm_window < wait_window:
                 self.info_stream(
                     "%s: Skipping estimation until [%d/%d]",
                     self.__class__.__name__,
                     self._point_in_time - self._norm_window,
-                    self._wait_window
+                    wait_window
                 )
             else:
                 # We use an offset in terms of number of projections for estimation to gain speed
@@ -279,9 +224,9 @@ class QualityAssurance(TangoRemoteProcessing):
                         # errors in estimation. This needs to be explored and experimented. Ideal
                         # solution is the simplest one that works reasonably well all the time and
                         # not perfectly only some times.
-                        for mix in range(self._num_markers):
+                        for mix in range(num_markers):
                             x: ArrayLike = self._angle_dist[:self._point_in_time - self._norm_window]
-                            y: ArrayLike = np.array(self._marker_centroids)[:, mix, 1]
+                            y: ArrayLike = np.array(marker_centroids)[:, mix, 1]
                             params, _ = sop.curve_fit(f=self.opt_func,
                                                       xdata=np.squeeze(x),
                                                       ydata=np.squeeze(y))

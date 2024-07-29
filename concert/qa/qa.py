@@ -13,8 +13,7 @@ from concert.coroutines.base import background
 class QualityAssurance(AsyncObject):
 
     async def __ainit__(self, device, num_darks: int, num_flats: int, num_radios: int,
-                        num_markers: int, rot_angle: np.float64, wait_window: int,
-                        sigma: float, estm_offset: int = 5) -> None:
+                        rot_angle: float, estm_offset: int = 5) -> None:
         """
         Encapsulates quality assurance stack for data acquisition and online reconstruction.
         #TODO: Quality Assurance in our context is a broad terminology, because we are also working on
@@ -29,14 +28,8 @@ class QualityAssurance(AsyncObject):
         :type num_flats: int
         :param num_radios: number of projections acquired
         :type num_radios: int
-        :param num_markers: number of markers to track
-        :type num_markers: int
         :param rot_angle: overall angle of rotation in radians
         :type rot_angle: float
-        :param wait_window: initial wait time before starting estimation
-        :type wait_window: int
-        :param sigma: standard deviation(sigma) for Gaussian filtering
-        :type sigma: float
         :param estm_offset: offset to use while estimating center of rotation
         :type estm_offset: int
         """
@@ -44,17 +37,15 @@ class QualityAssurance(AsyncObject):
         await self._device.write_attribute("num_darks", num_darks)
         await self._device.write_attribute("num_flats", num_flats)
         await self._device.write_attribute("num_radios", num_radios)
-        await self._device.write_attribute("num_markers", num_markers)
         await self._device.write_attribute("rot_angle", rot_angle)
-        await self._device.write_attribute("wait_window", wait_window)
-        await self._device.write_attribute("sigma", sigma)
         await self._device.write_attribute("estm_offset", estm_offset)
         await self._device.prepare_angular_distribution()
         await super().__ainit__()
 
     @background
-    async def estimate_center_of_rotation(self) -> None:
-        await self._device.estimate_center_of_rotation()
+    async def estimate_center_of_rotation(self, num_markers: int, wait_window: int,
+                                          sigma: float) -> None:
+        await self._device.estimate_center_of_rotation((num_markers, wait_window, sigma))
 
 
 if __name__ == "__main__":
