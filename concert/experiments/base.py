@@ -15,7 +15,7 @@ import concert.devices.base
 from concert.coroutines.base import background, broadcast, start
 from concert.coroutines.sinks import count
 from concert.progressbar import wrap_iterable
-from concert.base import check, Parameterizable, Parameter, Selection, State, StateError
+from concert.base import check, Parameterizable, Parameter, Selection, State, StateError, RunnableParameterizable
 from concert.helpers import get_state_from_awaitable, get_basename
 from concert.loghandler import AsyncLoggingHandlerCloser
 from functools import partial
@@ -53,7 +53,7 @@ class Consumer:
         LOG.debug('%s finished in %.3f s', self._corofunc.__qualname__, time.perf_counter() - st)
 
 
-class Acquisition(Parameterizable):
+class Acquisition(RunnableParameterizable):
     """
     An acquisition acquires data, gets it and sends it to consumers. This is a base class for local
     and remote acquisitions and must not be used directly.
@@ -71,7 +71,6 @@ class Acquisition(Parameterizable):
         a coroutine function which acquires the data, takes no arguments, can be None.
 
     """
-    state = State(default='standby')
 
     async def __ainit__(self, name, producer_corofunc, acquire=None):
         self.name = name
@@ -88,11 +87,7 @@ class Acquisition(Parameterizable):
         if acquire and not asyncio.iscoroutinefunction(acquire):
             raise TypeError('acquire must be a coroutine function')
         self.acquire = acquire
-        self._run_awaitable = None
-        await Parameterizable.__ainit__(self)
-
-    async def _get_state(self):
-        return await get_state_from_awaitable(self._run_awaitable)
+        await super().__ainit__()
 
     @background
     async def _run(self):
@@ -205,7 +200,7 @@ class Acquisition(Parameterizable):
         return "Acquisition({})".format(self.name)
 
 
-class Experiment(Parameterizable):
+class Experiment(RunnableParameterizable):
 
     """
     Experiment base class. An experiment can be run multiple times with the output data and log
@@ -244,7 +239,6 @@ class Experiment(Parameterizable):
     separate_scans = Parameter()
     name_fmt = Parameter()
     current_name = Parameter(help="Name of the current iteration")
-    state = State(default='standby')
     log_level = Selection(['critical', 'error', 'warning', 'info', 'debug'])
     log_devices_at_start = Parameter()
     log_devices_at_finish = Parameter()
@@ -265,8 +259,7 @@ class Experiment(Parameterizable):
         self._log_devices_at_start = None
         self._log_devices_at_finish = None
         self.ready_to_prepare_next_sample = asyncio.Event()
-        self._run_awaitable = None
-        await Parameterizable.__ainit__(self)
+        await super().__ainit__()
         await self.set_log_devices_at_start(True)
         await self.set_log_devices_at_finish(True)
 
@@ -439,15 +432,6 @@ class Experiment(Parameterizable):
             if await self.get_state() != 'running':
                 break
             await acq()
-
-    @background
-    @check(source=['standby', 'error', 'cancelled'], target=['standby', 'cancelled'])
-    async def run(self):
-        self._run_awaitable = self._run()
-        await self._run_awaitable
-
-    async def _get_state(self):
-        return await get_state_from_awaitable(self._run_awaitable)
 
     @background
     async def _run(self):
