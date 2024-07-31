@@ -31,6 +31,14 @@ from concert.storage import DirectoryWalker, DummyWalker, RemoteDirectoryWalker
 from concert.tests.util.mocks import MockWalkerDevice
 
 
+class BrokenDeviceException(Exception):
+    pass
+
+
+class BrokenDevice(LinearMotor):
+    async def _get_position(self):
+        raise BrokenDeviceException("Broken device")
+
 class VisitChecker(object):
 
     """Use this to check that a callback was called."""
@@ -407,3 +415,17 @@ class TestExperimentLogging(unittest.IsolatedAsyncioTestCase):
         _ = await self._experiment.run()
         self.assertEqual(mock_device.log_to_json.call_count, 0)
 
+    async def test_optional_device_logging(self):
+        broken_device = await BrokenDevice()
+        self._experiment._devices_to_log = {}
+        self._experiment._devices_to_log_optional = {}
+        self._experiment.add_device_to_log("BrokenDevice", broken_device, optional=False)
+        # Test that the experiment fails when a non-optional device is broken
+        with self.assertRaises(BrokenDeviceException):
+            await self._experiment.run()
+
+        self._experiment._devices_to_log = {}
+        self._experiment._devices_to_log_optional = {}
+        self._experiment.add_device_to_log("BrokenDevice", broken_device, optional=True)
+        # Test that the experiment does not fail when an optional device is broken
+        await self._experiment.run()
