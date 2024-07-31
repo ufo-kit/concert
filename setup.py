@@ -35,7 +35,7 @@ setup(
     install_requires=[
         'ipython',
         'matplotlib',
-        'numpy<=1.26.0',
+        'numpy',
         'pint>=0.12',
         'prettytable',
         'pyqtgraph',
