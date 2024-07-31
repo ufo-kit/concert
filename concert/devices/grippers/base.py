@@ -1,4 +1,5 @@
 """A gripper can grip and release objects."""
+from abc import abstractmethod
 
 from concert.base import check, State
 from concert.coroutines.base import background
@@ -31,10 +32,12 @@ class Gripper(Device):
         """
         await self._grip()
 
+    @abstractmethod
     async def _release(self):
         """The actual release implementation."""
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     async def _grip(self):
         """The actual grip implementation."""
-        raise NotImplementedError
+        ...

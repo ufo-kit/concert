@@ -69,6 +69,8 @@ competing methods like :meth:`Camera.grab` and :meth:`RemoteMixin.grab_send`.
 import asyncio
 import contextlib
 import logging
+from abc import abstractmethod
+
 import zmq
 from concert.base import AccessorNotImplementedError, Parameter, Quantity, State, check, identity
 from concert.config import AIODEBUG
@@ -243,23 +245,29 @@ class Camera(Device):
             sndhwm=self._commdata.sndhwm
         )
 
+    @abstractmethod
     async def _get_trigger_source(self):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _set_trigger_source(self, source):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _record_real(self):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _stop_real(self):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _trigger_real(self):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _grab_real(self):
-        raise AccessorNotImplementedError
+        ...
 
 
 class BufferedMixin(Device):
@@ -312,11 +320,14 @@ class BufferedMixin(Device):
         async for item in self._readout_real(*args, **kwargs):
             yield item
 
+    @abstractmethod
     async def _start_readout_real(self):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _stop_readout_real(self):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _readout_real(self, *args, **kwargs):
-        raise AccessorNotImplementedError
+        ...

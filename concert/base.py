@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Core module Parameters"""
+import abc
 import asyncio
 import numpy as np
 import logging
@@ -1100,7 +1101,7 @@ class SelectionValue(ParameterValue):
         return tuple(self._parameter.iterable)
 
 
-class AsyncType(type):
+class AsyncType(abc.ABCMeta):
 
     """
     Metaclass which allows an awaitable constructor `__ainit__(...)' instead of `__init__(...)' and
@@ -1180,7 +1181,7 @@ class AsyncObject(metaclass=AsyncType):
         pass
 
 
-class Parameterizable(AsyncObject):
+class Parameterizable(AsyncObject, abc.ABC):
 
     """
     Collection of parameters.

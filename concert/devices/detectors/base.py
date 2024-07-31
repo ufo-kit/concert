@@ -2,6 +2,8 @@
 Detector is a device which consists of a camera and an objective lens
 which affects the effective pixel size.
 """
+from abc import abstractmethod
+
 from concert.quantities import q
 from concert.base import Quantity, AccessorNotImplementedError
 from concert.devices.base import Device
@@ -23,9 +25,11 @@ class Detector(Device):
         return (await self.camera.get_sensor_pixel_height()) * self.magnification
 
     @property
+    @abstractmethod
     def camera(self):
-        raise AccessorNotImplementedError
+        ...
 
     @property
+    @abstractmethod
     def magnification(self):
-        raise AccessorNotImplementedError
+        ...

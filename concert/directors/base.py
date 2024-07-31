@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from abc import abstractmethod
 
 from concert.base import Parameterizable, background, Parameter, State, StateError, \
     check, Selection
@@ -53,6 +54,7 @@ class Director(Parameterizable):
     async def _set_log_level(self, level):
         self.log.setLevel(level.upper())
 
+    @abstractmethod
     async def _prepare_run(self, iteration: int):
         """
         This function changes whatever should be different between the different experiment
@@ -62,16 +64,17 @@ class Director(Parameterizable):
         :param iteration:
         :type iteration: int
         """
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     async def _get_number_of_iterations(self) -> int:
         """
         Should return the total number of iterations.
         :return: Number of iterations.
         """
-        raise NotImplementedError
+        ...
 
-    async def _get_current_iteration_name(self):
+    async def _get_current_iteration_name(self) -> str:
         return await self.get_iteration_name(await self.get_current_iteration())
 
     async def get_iteration_name(self, iteration: int) -> str:

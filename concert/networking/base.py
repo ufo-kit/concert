@@ -1,4 +1,6 @@
 """Connection protocols for network communication."""
+import abc
+from abc import abstractmethod
 import asyncio
 import logging
 import numpy as np
@@ -173,7 +175,7 @@ def zmq_setup_sending_socket(context, endpoint, reliable, sndhwm):
     return socket
 
 
-class ZmqBase:
+class ZmqBase(abc.ABC):
 
     """
     Base for sending/receiving zmq image streams.
@@ -228,10 +230,10 @@ class ZmqBase:
         LOG.log(AIODEBUG, 'ZMQ Socket connection exit')
         self.close()
 
+    @abstractmethod
     def _setup_socket(self):
         """Create and connect zmq socket, implementation-specific."""
-        raise NotImplementedError
-
+        ...
 
 class ZmqSender(ZmqBase):
 
@@ -287,6 +289,7 @@ class ZmqReceiver(ZmqBase):
             self._socket.set(zmq.RCVHWM, self._rcvhwm)
             # Do not filter topics for now
             self._socket.setsockopt_string(zmq.SUBSCRIBE, "")
+
         self._socket.connect(self._endpoint)
         self._poller.register(self._socket, zmq.POLLIN)
 
