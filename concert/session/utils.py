@@ -2,6 +2,8 @@ import asyncio
 import logging
 import math
 import os
+import abc
+from abc import abstractmethod
 import inspect
 import subprocess
 import sys
@@ -15,7 +17,7 @@ from concert.quantities import q
 LOG = logging.getLogger(__name__)
 
 
-class SubCommand(object):
+class SubCommand(abc.ABC):
 
     """Base sub-command class (concert [subcommand])."""
 
@@ -31,9 +33,10 @@ class SubCommand(object):
         self.name = name
         self.opts = opts
 
+    @abstractmethod
     def run(self, *args, **kwargs):
         """Run the command"""
-        raise NotImplementedError
+        ...
 
 
 def setup_logging(name, to_stream=False, filename=None, loglevel=None):

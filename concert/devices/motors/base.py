@@ -15,6 +15,8 @@ As long as an motor is moving, :meth:`Motor.stop` will stop the motion.
 """
 import asyncio
 import logging
+from abc import abstractmethod
+
 from concert.coroutines.base import background
 from concert.quantities import q
 from concert.base import Quantity, State, check, AccessorNotImplementedError
@@ -70,14 +72,16 @@ class _PositionMixin(Device):
         await self._disable()
 
     async def _enable(self):
-        raise AccessorNotImplementedError
+        pass
 
     async def _disable(self):
-        raise AccessorNotImplementedError
+        pass
 
+    @abstractmethod
     async def _home(self):
         raise AccessorNotImplementedError
 
+    @abstractmethod
     async def _stop(self):
         raise AccessorNotImplementedError
 
@@ -102,8 +106,9 @@ class LinearMotor(_PositionMixin):
     async def __ainit__(self):
         await super(LinearMotor, self).__ainit__()
 
+    @abstractmethod
     async def _get_state(self):
-        raise NotImplementedError
+        ...
 
     state = State(default='standby')
 
@@ -143,8 +148,9 @@ class ContinuousLinearMotor(LinearMotor, _VelocityMixin):
     async def __ainit__(self):
         await super(ContinuousLinearMotor, self).__ainit__()
 
+    @abstractmethod
     async def _get_state(self):
-        raise NotImplementedError
+        ...
 
     state = State(default='standby')
 
@@ -163,8 +169,9 @@ class RotationMotor(_PositionMixin):
         Position of the motor in angular units.
     """
 
+    @abstractmethod
     async def _get_state(self):
-        raise NotImplementedError
+        ...
 
     state = State(default='standby')
 
@@ -189,8 +196,9 @@ class ContinuousRotationMotor(RotationMotor, _VelocityMixin):
     async def __ainit__(self):
         await super(ContinuousRotationMotor, self).__ainit__()
 
+    @abstractmethod
     async def _get_state(self):
-        raise NotImplementedError
+        ...
 
     state = State(default='standby')
 

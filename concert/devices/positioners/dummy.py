@@ -21,7 +21,7 @@ async def get_axes():
     y_rot_axis = await base.Axis('y', y_rot)
     z_rot_axis = await base.Axis('z', z_rot, direction=-1)
 
-    return (x_lin_axis, y_lin_axis, z_lin_axis, x_rot_axis, y_rot_axis, z_rot_axis)
+    return x_lin_axis, y_lin_axis, z_lin_axis, x_rot_axis, y_rot_axis, z_rot_axis
 
 
 class Positioner(base.Positioner):

@@ -8,6 +8,7 @@ import asyncio
 import os
 import logging
 import re
+from abc import abstractmethod
 from typing import Optional, AsyncIterable, Awaitable, Type, Iterable, Set
 import tango
 import zmq
@@ -200,25 +201,29 @@ class Walker(Parameterizable):
     async def __aexit__(self, exc_type, exc, tb) -> None:
         self._lock.release()
 
+    @abstractmethod
     async def _descend(self, name: str) -> None:
         """Descend to *name*."""
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     async def _ascend(self) -> None:
         """Ascend from current depth."""
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     async def _create_writer(self, producer: AsyncIterable[ArrayLike],
                              dsetname: Optional[str] = None) -> Awaitable:
         """
         Subclass should provide the implementation for, how the writer should
         be created for asynchronously received data
         """
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     async def _get_current(self) -> str:
         """Fetches the current from internal contex"""
-        raise NotImplementedError
+        ...
 
     async def _get_root(self) -> str:
         """Fetches the root from internal context"""
@@ -236,10 +241,10 @@ class Walker(Parameterizable):
         """Return to root"""
         self._current = self._root
 
+    @abstractmethod
     async def exists(self, *paths) -> bool:
         """Return True if path from current position specified by a list of
         *paths* exists."""
-        raise NotImplementedError
 
     async def descend(self, name: str) -> Walker:
         """Descend to *name* and return *self*."""
@@ -288,11 +293,13 @@ class Walker(Parameterizable):
         """
         return await self._create_writer(producer, dsetname=dsetname)
 
+    @abstractmethod
     async def register_logger(self, logger_name: str, log_level: int,
                               file_name: str) -> AsyncLoggingHandlerCloser:
         """Registers a logger with walker device server and provides a remote logging handler"""
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     @background
     async def log_to_json(self, payload: str, filename: str="experiment.json") -> None:
         """
@@ -303,7 +310,7 @@ class Walker(Parameterizable):
         :param payload: content to write
         :type payload: str
         """
-        raise NotImplementedError
+        ...
 
 
 class DummyWalker(Walker):
