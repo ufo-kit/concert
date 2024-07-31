@@ -1,5 +1,7 @@
 """Shutter Device."""
-from concert.base import check, State, AccessorNotImplementedError
+from abc import abstractmethod
+
+from concert.base import check, State
 from concert.coroutines.base import background
 from concert.devices.base import Device
 
@@ -29,11 +31,13 @@ class Shutter(Device):
         Close the shutter."""
         await self._close()
 
+    @abstractmethod
     async def _open(self):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _close(self):
-        raise AccessorNotImplementedError
+        ...
 
     async def _emergency_stop(self):
         if await self.get_state() == 'open':

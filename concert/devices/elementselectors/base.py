@@ -3,8 +3,9 @@ ElementSelector module for setting discrete elements (filters, screens, intensit
 Getter and Setter for element and the
 current state must be provided by the device implementation.
 """
+from abc import abstractmethod
 
-from concert.base import State, AccessorNotImplementedError
+from concert.base import State
 from concert.devices.base import Device
 
 
@@ -17,11 +18,13 @@ class ElementSelector(Device):
     async def __ainit__(self):
         await super().__ainit__()
 
+    @abstractmethod
     async def _set_element(self, element):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _get_element(self):
-        raise AccessorNotImplementedError
+        ...
 
 
 class ElementSelectorError(Exception):

@@ -2,6 +2,8 @@
 Module to implement a monochromator with a second crystal/multilayer that can be scanned.
 """
 import asyncio
+from abc import ABC
+
 import numpy as np
 from concert.base import background, check
 from concert.coroutines.base import broadcast
@@ -11,7 +13,7 @@ from concert.coroutines.sinks import Accumulate
 from concert.quantities import q
 
 
-class Monochromator(BaseMonochromator):
+class Monochromator(BaseMonochromator, ABC):
     """
     Base implementation of a monochromator with the ability to scan a second crystal/multilayer.
     """

@@ -3,8 +3,9 @@ Lens changer, like used in optics with the possibility to motorized switch objec
 Getter and Setter for objective and the
 current state must be provided by the device implementation.
 '''
+from abc import abstractmethod
 
-from concert.base import State, AccessorNotImplementedError
+from concert.base import State
 from concert.devices.base import Device
 
 
@@ -15,11 +16,12 @@ class LensChanger(Device):
     async def __ainit__(self):
         await super(LensChanger, self).__ainit__()
 
+    @abstractmethod
     async def _set_objective(self, objective):
-        raise AccessorNotImplementedError
+        ...
 
     async def _get_objective(self):
-        raise AccessorNotImplementedError
+        ...
 
 
 class LensChangerError(Exception):

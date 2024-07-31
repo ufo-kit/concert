@@ -1,7 +1,9 @@
 """Port, IO Device."""
 
 import asyncio
-from concert.base import AccessorNotImplementedError, State, check
+from abc import abstractmethod
+
+from concert.base import State, check
 from concert.coroutines.base import background
 from concert.quantities import q
 from concert.devices.base import Device
@@ -45,13 +47,13 @@ class Signal(Device):
         await asyncio.sleep(duration.to(q.s).magnitude)
         await self.off()
 
+    @abstractmethod
     async def _on(self):
-        """Implementation."""
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     async def _off(self):
-        """Implementation."""
-        raise NotImplementedError
+        ...
 
 
 class IO(Device):
@@ -86,13 +88,15 @@ class IO(Device):
         self._check(port)
         await self._write_port(port, value)
 
+    @abstractmethod
     async def _read_port(self, port):
         """Implementation of reading a *port* from the device."""
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _write_port(self, port, value):
         """Implementation of writing a *value* to a *port* on the device."""
-        raise AccessorNotImplementedError
+        ...
 
 
 class IODeviceError(Exception):
