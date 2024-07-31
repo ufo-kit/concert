@@ -7,7 +7,8 @@ import logging
 import functools
 import inspect
 import types
-from concert.helpers import memoize
+from typing import List, Union
+from concert.helpers import memoize, get_state_from_awaitable
 from concert.coroutines.base import background, get_event_loop, run_in_loop, wait_until
 from concert.quantities import q
 
@@ -266,7 +267,7 @@ def transition(immediate=None, target=None):
     return wrapped
 
 
-def check(source='*', target='*'):
+def check(source: Union[str, List[str]] = '*', target: Union[str, List[str]] = '*'):
     """
     Decorates a method for checking the device state.
 
@@ -1347,3 +1348,25 @@ class Parameterizable(AsyncObject, abc.ABC):
         """Unlock all the parameters for writing."""
         for param in self:
             param.unlock()
+
+
+class RunnableParameterizable(Parameterizable):
+    state = State()
+
+    async def __ainit__(self):
+        await super().__ainit__()
+        self._run_awaitable = None
+
+    async def _get_state(self):
+        return await get_state_from_awaitable(self._run_awaitable)
+
+    @background
+    @check(source=['standby', 'error', 'cancelled'], target=['standby', 'cancelled'])
+    async def run(self):
+        self._run_awaitable = self._run()
+        await self._run_awaitable
+
+    @abc.abstractmethod
+    @background
+    async def _run(self):
+        ...
