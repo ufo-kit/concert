@@ -265,6 +265,8 @@ class RemoteNetCamera(Camera):
         await Camera.__ainit__(self, 'net', params=params)
         self._ucad_host = self.uca.props.host
         self._ucad_port = self.uca.props.port
+        if ":" in self._ucad_host:
+            self._ucad_host, self._ucad_port = self._ucad_host.split(":")
 
     async def _communicate(self, request):
         reader, writer = await asyncio.open_connection(self._ucad_host, self._ucad_port)
