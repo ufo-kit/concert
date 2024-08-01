@@ -210,19 +210,20 @@ class LockError(Exception):
     pass
 
 
-def transition(immediate=None, target=None):
+def transition(immediate=None, target=None, state_name='state'):
     """Change software state of a device to *immediate*. After the function execution finishes
     change the state to *target*. On :py:class:`.asyncio.CancelledError`, state is set to *target*
     and cleanup logic must take place in the callable to be wrapped.
+    *state_name* can be used if multiple states are used.
     """
     def wrapped(func):
         @functools.wraps(func)
         async def call_func(instance, *args, **kwargs):
-            if 'state' not in instance:
+            if state_name not in instance:
                 raise FSMError('Changing state requires state parameter')
 
             # Store the original in case target is None
-            target_state = target if target else await instance['state'].get()
+            target_state = target if target else await instance[state_name].get()
 
             if immediate:
                 setattr(instance, '_state_value', immediate)
@@ -247,7 +248,7 @@ def transition(immediate=None, target=None):
     return wrapped
 
 
-def check(source='*', target='*'):
+def check(source='*', target='*', state_name='state'):
     """
     Decorates a method for checking the device state.
 
@@ -255,11 +256,12 @@ def check(source='*', target='*'):
     invoking the decorated method. *target* is the state that the state object
     will be after successful completion of the method or a list of possible
     target states.
+    *state_name* is the name of the state parameter. Can be used if multiple states are present in one device.
     """
     async def check_now(instance, allowed_states, state_str):
-        state = await instance['state'].get()
+        state = await instance[state_name].get()
         if state not in allowed_states and '*' not in allowed_states:
-            raise TransitionNotAllowed(f"{state_str} state `{state}' not in `{allowed_states}'")
+            raise TransitionNotAllowed(f"{state_str} {state_name} `{state}' not in `{allowed_states}'")
 
     def wrapped(func):
         sources = [source] if isinstance(source, str) else source
@@ -267,7 +269,7 @@ def check(source='*', target='*'):
 
         @functools.wraps(func)
         async def call_func(instance, *args, **kwargs):
-            if 'state' not in instance:
+            if state_name not in instance:
                 raise FSMError('Transitioning requires state parameter')
 
             await check_now(instance, sources, 'Current')
@@ -462,10 +464,10 @@ class State(Parameter):
         raise AttributeError('State cannot be set')
 
     def _value(self, instance):
-        if not hasattr(instance, '_state_value'):
-            setattr(instance, '_state_value', self.default)
+        if not hasattr(instance, f'_{self.name}_value'):
+            setattr(instance, f'_{self.name}_value', self.default)
 
-        return getattr(instance, '_state_value')
+        return getattr(instance, f'_{self.name}_value')
 
 
 class Selection(Parameter):
