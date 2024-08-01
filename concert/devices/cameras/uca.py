@@ -267,6 +267,8 @@ class RemoteNetCamera(Camera):
         self._ucad_host = self.uca.props.host
         self._ucad_port = self.uca.props.port
         weakref.finalize(self, _ucad_unregister_all, self._ucad_host, self._ucad_port)
+        if ":" in self._ucad_host:
+            self._ucad_host, self._ucad_port = self._ucad_host.split(":")
 
     async def _communicate(self, request):
         await _ucad_communicate(request, self._ucad_host, self._ucad_port)
