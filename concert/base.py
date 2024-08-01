@@ -230,34 +230,35 @@ class LockError(Exception):
     pass
 
 
-def transition(immediate=None, target=None):
+def transition(immediate=None, target=None, state_name='state'):
     """Change software state of a device to *immediate*. After the function execution finishes
     change the state to *target*. On :py:class:`.asyncio.CancelledError`, state is set to *target*
     and cleanup logic must take place in the callable to be wrapped.
+    *state_name* can be used to define the state if multiple states are used.
     """
     def wrapped(func):
         @functools.wraps(func)
         async def call_func(instance, *args, **kwargs):
-            if 'state' not in instance:
-                raise FSMError('Changing state requires state parameter')
+            if state_name not in instance:
+                raise FSMError(f'Changing {state_name} requires state parameter')
 
             # Store the original in case target is None
-            target_state = target if target else await instance['state'].get()
+            target_state = target if target else await instance[state_name].get()
 
             if immediate:
-                setattr(instance, '_state_value', immediate)
+                setattr(instance, f'_{state_name}_value', immediate)
 
             try:
                 result = await _execute_func(func, instance, *args, **kwargs)
-                setattr(instance, '_state_value', target_state)
+                setattr(instance, f'_{state_name}_value', target_state)
             except StateError as error:
-                setattr(instance, '_state_value', error.state)
+                setattr(instance, f'_{state_name}_value', error.state)
                 raise error
             except asyncio.CancelledError:
                 # If *func* is cancelled, *func* must make sure that all cleanup except state update
                 # happens. If even the state should have some special value, then do not use
                 # *transition* at all and implement everything in *func*.
-                setattr(instance, '_state_value', target_state)
+                setattr(instance, f'_{state_name}_value', target_state)
                 raise
 
             return result
@@ -267,7 +268,7 @@ def transition(immediate=None, target=None):
     return wrapped
 
 
-def check(source: Union[str, List[str]] = '*', target: Union[str, List[str]] = '*'):
+def check(source: Union[str, List[str]] = '*', target: Union[str, List[str]] = '*', state_name='state'):
     """
     Decorates a method for checking the device state.
 
@@ -275,9 +276,10 @@ def check(source: Union[str, List[str]] = '*', target: Union[str, List[str]] = '
     invoking the decorated method. *target* is the state that the state object
     will be after successful completion of the method or a list of possible
     target states.
+    *state_name* can be used to define the state if multiple states are used.
     """
     async def check_now(instance, allowed_states, state_str):
-        state = await instance['state'].get()
+        state = await instance[state_name].get()
         if state not in allowed_states and '*' not in allowed_states:
             raise TransitionNotAllowed(f"{state_str} state `{state}' not in `{allowed_states}'")
 
@@ -289,8 +291,8 @@ def check(source: Union[str, List[str]] = '*', target: Union[str, List[str]] = '
         async def call_func(instance, *args, **kwargs):
             # Tell IPython not to print this frame
             __tracebackhide__ = True
-            if 'state' not in instance:
-                raise FSMError('Transitioning requires state parameter')
+            if state_name not in instance:
+                raise FSMError(f'Transitioning of {state_name} requires state parameter')
 
             await check_now(instance, sources, 'Current')
             result = await _execute_func(func, instance, *args, **kwargs)
@@ -302,8 +304,8 @@ def check(source: Union[str, List[str]] = '*', target: Union[str, List[str]] = '
         async def call_asyncgen(instance, *args, **kwargs):
             # Tell IPython not to print this frame
             __tracebackhide__ = True
-            if 'state' not in instance:
-                raise FSMError('Transitioning requires state parameter')
+            if state_name not in instance:
+                raise FSMError(f'Transitioning of {state_name} requires state parameter')
 
             await check_now(instance, sources, 'Current')
             async for item in _execute_asyncgen(func, instance, *args, **kwargs):
@@ -492,14 +494,15 @@ class State(Parameter):
         super(State, self).__init__(fget=fget, help=help)
         self.default = default
 
+
     def __set__(self, instance, value):
-        raise AttributeError('State cannot be set')
+        raise AttributeError(f'State {self.name} cannot be set')
 
     def _value(self, instance):
-        if not hasattr(instance, '_state_value'):
-            setattr(instance, '_state_value', self.default)
+        if not hasattr(instance, f'_{self.name}_value'):
+            setattr(instance, f'_{self.name}_value', self.default)
 
-        return getattr(instance, '_state_value')
+        return getattr(instance, f'_{self.name}_value')
 
 
 class Selection(Parameter):
@@ -788,9 +791,9 @@ class StateValue(ParameterValue):
             if not self._parameter.fget:
                 if self._parameter.default is None:
                     raise FSMError('Software state must have a default value')
-                if not hasattr(self._instance, '_state_value'):
-                    self._instance._state_value = self._parameter.default
-                return self._instance._state_value
+                if not hasattr(self._instance, f'_{self.name}_value'):
+                    setattr(self._instance, f"_{self.name}_value", self._parameter.default)
+                return getattr(self._instance, f"_{self.name}_value")
             else:
                 raise ReadAccessError(self.name)
 
