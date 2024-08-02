@@ -1,10 +1,13 @@
 import asyncio
+from typing import AsyncIterator
 import copy
 import logging
+import sys
 import threading
 import time
-import sys
 import numpy as np
+from numpy.typing import ArrayLike
+
 
 try:
     import gi
@@ -228,6 +231,30 @@ class FlatCorrect(InjectProcess):
             await self.insert(projection, index=0)
             await self.insert(self.dark.astype(np.float32) if first else None, index=1)
             await self.insert(self.flat.astype(np.float32) if first else None, index=2)
+            yield await self.result(leave_index=0)
+            first = False
+
+
+class GaussianBlur(InjectProcess):
+    """Encapsulates UFO Gaussian blur implementation"""
+
+    _gb: object
+
+    def __init__(self, kernel_size: int, sigma: float, copy_inputs: bool = False) -> None:
+        self._gb = get_task('blur')
+        self._gb.props.size = kernel_size
+        self._gb.props.sigma = sigma
+        super().__init__(self._gb, get_output=True, output_dims=2, copy_inputs=copy_inputs)
+
+    async def __call__(self, producer: AsyncIterator[ArrayLike]) -> AsyncIterator[ArrayLike]:
+        """Co-routine compatible consumer."""
+        if not self._started:
+            self.start()
+        first = True
+        async for projection in producer:
+            if projection.dtype != np.float32:
+                projection: ArrayLike = projection.astype(np.float32)
+            await self.insert(projection, index=0)
             yield await self.result(leave_index=0)
             first = False
 
