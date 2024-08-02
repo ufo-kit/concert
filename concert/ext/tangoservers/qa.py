@@ -66,18 +66,26 @@ class QualityAssurance(TangoRemoteProcessing):
         doc="offset in number of projections to be used to run estimation"
     )
 
+    center_of_rotation = attribute(
+        label="Center_Of_Rotation",
+        dtype=float,
+        access=AttrWriteType.READ_WRITE,
+        fget="get_center_of_rotation",
+        fset="set_center_of_rotation",
+        doc="estimated center of rotation"
+    )
+
     _point_in_time: int
     _angle_dist: ArrayLike
     _norm_buffer: List[ArrayLike]
-    _estm_rot_axis: List[float]
     _monitor_window: int  # TODO: Temporary internal attribute
 
     async def init_device(self) -> None:
         await super().init_device()
         self._point_in_time = 0
         self._norm_buffer = []
-        self._estm_rot_axis = []
         self._monitor_window = 100  # TODO: Temporary internal attribute
+        self.set_change_event("center_of_rotation", True, False)
         self.info_stream("%s initialized device with state: %s",
                          self.__class__.__name__, self.get_state())
 
@@ -131,6 +139,12 @@ class QualityAssurance(TangoRemoteProcessing):
             self.__class__.__name__, self._estm_offset, self.get_state()
         )
 
+    def get_center_of_rotation(self) -> float:
+        return self._center_of_rotation
+
+    def set_center_of_rotation(self, new_value: float) -> None:
+        self._center_of_rotation = new_value
+
     @property
     def _norm_window(self) -> int:
         """
@@ -152,17 +166,20 @@ class QualityAssurance(TangoRemoteProcessing):
     @DebugIt()
     @command(
         dtype_in=(float,),
-        doc_in="number of markers, initial wait window and sigma for gaussian filtering"
+        doc_in="number of markers, wait window, check window, sigma, decision threshold"
     )
     async def estimate_center_of_rotation(self, args) -> None:
         """Estimates the center of rotation"""
-        num_markers, wait_window, sigma = int(args[0]), int(args[1]), args[2]
+        num_markers, wait_window, check_window = int(args[0]), int(args[1]), int(args[2])
+        sigma, threshold = args[3], args[4]
         self.info_stream("%s starting estimation using markers=%d, wait_time=%d, sigma=%f",
                          self.__class__.__name__, num_markers, wait_window, sigma)
         await self._process_stream(self._estimate_from_markers(self._receiver.subscribe(),
                                                                num_markers=num_markers,
                                                                wait_window=wait_window,
-                                                               sigma=sigma))
+                                                               check_window=check_window,
+                                                               sigma=sigma,
+                                                               threshold=threshold))
 
     @staticmethod
     def opt_func(angle_x: np.float64, center_p1: np.float64, radius_p2: np.float64,
@@ -171,8 +188,11 @@ class QualityAssurance(TangoRemoteProcessing):
         return center_p1 + radius_p2 * np.cos(angle_x + phase_p3)
 
     async def _estimate_from_markers(self, producer: AsyncIterator[ArrayLike], num_markers: int,
-                                     wait_window: int, sigma: float) -> None:
+                                     wait_window: int, check_window: int, sigma: float,
+                                     threshold: float) -> None:
         marker_centroids: List[ArrayLike] = []
+        estm_rot_axis: List[float] = []
+        event_triggered = False
         async for image in producer:
             # Process dark and flat fields
             self._point_in_time += 1
@@ -238,12 +258,26 @@ class QualityAssurance(TangoRemoteProcessing):
                             self._num_radios,
                             np.median(rot_axes)
                         )
-                        self._estm_rot_axis.append(np.median(rot_axes))
+                        estm_rot_axis.append(np.median(rot_axes))
+                        self._center_of_rotation = np.median(rot_axes)
                         if (self._point_in_time - self._norm_window) % self._monitor_window == 0:
                             self.info_stream(
-                                "Estimated gradient: %s",
-                                np.round(np.abs(np.gradient(self._estm_rot_axis)), decimals=4)
+                                    "Estimated gradient:\n%s\nEstimated difference:\n%s",
+                                np.round(np.abs(np.gradient(estm_rot_axis)), decimals=4),
+                                np.round(np.abs(np.gradient(estm_rot_axis) - threshold), decimals=1)
                             )
+                        # Check if a plateau has been observed for the absolute gradient of the
+                        # estimated center of rotations for a reasonable window of time.
+                        if len(estm_rot_axis) > check_window and not event_triggered:
+                            grad_diff: ArrayLike = np.round(np.abs(
+                                np.gradient(estm_rot_axis[-check_window:]) - threshold), decimals=0)
+                            print(f"All Close: {np.allclose(grad_diff, 0.)}")
+                            if np.allclose(grad_diff, 0.):
+                                self.info_stream("%s: Event Triggered for center of rotation",
+                                                 self.__class__.__name__)
+                                self.push_change_event("center_of_rotation",
+                                                       self._center_of_rotation)
+                                event_triggered = True
                     except RuntimeError:
                         self.info_stream(
                             "%s could not find optimal parameters with projection: [%d/%d]",

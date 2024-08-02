@@ -44,8 +44,9 @@ class QualityAssurance(AsyncObject):
 
     @background
     async def estimate_center_of_rotation(self, num_markers: int, wait_window: int,
-                                          sigma: float) -> None:
-        await self._device.estimate_center_of_rotation((num_markers, wait_window, sigma))
+                                          check_window: int, sigma: float, threshold: float) -> None:
+        await self._device.estimate_center_of_rotation((num_markers, wait_window, check_window,
+                                                        sigma, threshold))
 
 
 if __name__ == "__main__":
