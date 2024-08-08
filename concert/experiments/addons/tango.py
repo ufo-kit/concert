@@ -121,9 +121,6 @@ class _TangoProxyArgs:
 
 
 class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
-    reuse_darks_and_flats = Parameter(
-        help="Use darks/flats from file."
-             "Requires to load them first via the functions read_darks_from_file and read_flats_from_file")
 
     async def __ainit__(self, device, experiment, acquisitions=None, do_normalization=True,
                         average_normalization=True, slice_directory='online-slices',
