@@ -246,11 +246,13 @@ class Walker(Parameterizable):
         """Return True if path from current position specified by a list of
         *paths* exists."""
 
+    @background
     async def descend(self, name: str) -> Walker:
         """Descend to *name* and return *self*."""
         await self._descend(name)
         return self
 
+    @background
     async def ascend(self) -> Walker:
         """Ascend from current depth and return *self*."""
         await self._ascend()
@@ -516,10 +518,10 @@ class RemoteDirectoryWalker(Walker):
         LOG.debug("device attributes: %s", self.device.get_attribute_list())
 
         # Prevent the device from being accessed by other clients
-        try:
-            self.device.lock()
-        except tango.NonDbDevice:
-            pass
+        #try:
+        #    self.device.lock()
+        #except tango.NonDbDevice:
+        #    pass
 
         # The 'root' is either explicitly specified or initialized using the
         # value from the remote server where the Tango device is initialized
