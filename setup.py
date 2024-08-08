@@ -22,7 +22,12 @@ setup(
     packages=find_packages(exclude=['*.tests']),
     scripts=['bin/concert',
              'bin/concert-server',
-             'bin/concert-connect'],
+             'bin/concert-connect',
+             'concert/ext/tangoservers/bin/TangoDummyCamera',
+             'concert/ext/tangoservers/bin/TangoFileCamera',
+             'concert/ext/tangoservers/bin/TangoOnlineReconstruction',
+             'concert/ext/tangoservers/bin/TangoRemoteWalker',
+             'concert/ext/tangoservers/bin/TangoBenchmarker'],
     data_files=data_files,
     exclude_package_data={'': ['README.rst']},
     description="Lightweight beamline control system",
@@ -36,7 +41,8 @@ setup(
         'pyqtgraph',
         'pyxdg',
         'scipy',
-        'tifffile'
+        'tifffile',
+        'pyzmq>=23.2.1',
     ],
     test_suite='concert.tests',
 )

@@ -1,6 +1,7 @@
 import asyncio
 import concert.config
 import functools
+import inspect
 import queue
 import logging
 import time
@@ -42,44 +43,95 @@ def run_in_loop(coroutine, error_msg_if_running=None):
         task.cancel()
 
 
-def run_in_executor(func, *args):
-    r"""Run a blocking function *func* with signature func(\*args) in an executor."""
-    # Leave this here for now, if there are problems with the normal run_in_executor returning a
-    # future then let's re-visit
-    # """Run a blocking function *func* with signature func(*args) in an executor, wrap the future
-    # into a real coroutine and return it.
-    # """
-    # async def make_coro():
-    #     loop = asyncio.get_running_loop()
-    #     future = loop.run_in_executor(None, func, *args)
-    #
-    #     try:
-    #         return await future
-    #     except asyncio.CancelledError:
-    #         # Wait for the future to finish even if we are cancelled.
-    #         LOG.log(AIODEBUG, f'{func.__name__} waiting for concurrent.Future')
-    #         return await future
-    # return make_coro()
-    loop = get_event_loop()
+async def run_in_executor(func, *args):
+    r"""Run a blocking function *func* with signature func(\*args) in an executor. If
+    run_in_executor() is cancelled, it blocks until *func* finishes so that all resources are in
+    consistent state.
+    """
+    __tracebackhide__ = True
 
-    return loop.run_in_executor(None, func, *args)
+    loop = asyncio.get_running_loop()
+    future = loop.run_in_executor(None, func, *args)
+
+    try:
+        # Shield makes sure future isn't cancelled when we are cancelled, then we can wait for it in
+        # the except block
+        return await asyncio.shield(future)
+    except asyncio.CancelledError:
+        # Wait for the future to finish even if we are cancelled.
+        LOG.log(AIODEBUG, "CancelledError in run_in_executor, cancelling `%s'", func.__name__)
+        await future
+        raise
 
 
-def start(coroutine):
-    """Wrap *coroutine* into a task and start its execution right away. The returned task will also
+def start(awaitable):
+    """Wrap *awaitable* into a task and start its execution right away. The returned task will also
     be cancellable by ctrl-k.
     """
-    task = asyncio.ensure_future(coroutine)
+    if hasattr(awaitable, '_is_concert_task'):
+        # Do not nest tasks
+        return awaitable
+
+    awaited = False
+
+    # Wrap *awaitable* into another one which catches KeyboardInterrupt, so that when we are on
+    # IPython 8.5+ and have a blocking call inside *awaitable* we won't crash, see
+    # https://github.com/ipython/ipython/issues/13737 for proper fix in future IPython versions.
+    async def wrapper_coro():
+        # Tell IPython not to print this frame
+        __tracebackhide__ = True
+        nonlocal awaited
+
+        try:
+            return await awaitable
+        except KeyboardInterrupt as key_interrupt:
+            name = awaitable.__qualname__ if hasattr(awaitable, '__qualname__') else awaitable
+            LOG.debug("KeyboardInterrupt in start `%s'", name)
+            raise asyncio.CancelledError from key_interrupt
+        finally:
+            awaited = True
+
+    # Pathological case of cancelling the returned task immediately in which case the wrapper_coro()
+    # wouldn't be called and thus *awaitable* wouldn't be awaited and we'd get "awaitable was never
+    # awaited" warning. To avoid that we wrap the *awaitable* into a task and cancel it immediately.
+    # NOTE: We cannot create an extra wrapping task early in start() and wait for it in
+    # wrapper_coro() because if the awaitable contained blocking code and KeyboardInterrupt came, it
+    # would be thrown into ipython after start() and before the prompt return, thus it wouldn't deal
+    # with the above-mentioned IPython issue.
+    def callback(task):
+        if not awaited:
+            LOG.debug('start() has not awaited awaitable, creating and cancelling a dummy task')
+            # NOTE: Create and cancel a dummy task which will make sure that the loop will advance
+            # the coroutine. Alternatively, we could use awaitable.send(None) to advance it
+            # ourselves but that would limit start() to be used only with coroutines, so if the
+            # dummy task approach doesn't cause trouble it can stay, otherwise try the send().
+            dummy = asyncio.ensure_future(awaitable)
+            dummy.cancel()
+
+    wrapped_coroutine = wrapper_coro()
+
+    # Keep the names
+    orig_coro = None
+    if inspect.iscoroutine(awaitable):
+        orig_coro = awaitable
+    elif isinstance(awaitable, asyncio.Task):
+        orig_coro = awaitable._coro
+    if orig_coro:
+        wrapped_coroutine.__name__ = orig_coro.__name__
+        wrapped_coroutine.__qualname__ = orig_coro.__qualname__
+
+    task = asyncio.ensure_future(wrapped_coroutine)
     task._is_concert_task = True
+    task.add_done_callback(callback)
 
     return task
 
 
-def background(coroutine):
+def background(corofunc):
     """Same as :func:`.start`, just meant to be used as a decorator."""
-    @functools.wraps(coroutine)
+    @functools.wraps(corofunc)
     def inner(*args, **kwargs):
-        return start(coroutine(*args, **kwargs))
+        return start(corofunc(*args, **kwargs))
 
     return inner
 

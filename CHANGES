@@ -18,6 +18,18 @@ Features
 - added ImageWithMetadata for camera frames and store the metadata in tiff files
 
 
+Version 0.33
+------------
+
+First decentralized release.
+
+Notes
+~~~~~
+
+- camera.stream stashes the trigger_source and restores it 
+- uca camera caches state to speed up recording
+
+
 Version 0.31
 ------------
 

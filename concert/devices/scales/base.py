@@ -1,4 +1,5 @@
 """Base scales module for implementing scales."""
+from abc import abstractmethod
 
 from concert.coroutines.base import background
 from concert.devices.base import Device
@@ -21,8 +22,9 @@ class Scales(Device):
     async def __ainit__(self):
         await super(Scales, self).__ainit__()
 
+    @abstractmethod
     async def _get_weight(self):
-        raise AccessorNotImplementedError
+        ...
 
 
 class TarableScales(Scales):
@@ -41,5 +43,6 @@ class TarableScales(Scales):
         """
         await self._tare()
 
+    @abstractmethod
     async def _tare(self):
-        raise AccessorNotImplementedError
+        ...
