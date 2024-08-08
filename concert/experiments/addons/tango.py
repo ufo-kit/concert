@@ -6,6 +6,7 @@ import os
 import numpy as np
 import tango
 
+from concert.base import Parameter
 from concert.experiments.addons import base
 from concert.experiments.base import remote
 from concert.quantities import q
@@ -120,6 +121,10 @@ class _TangoProxyArgs:
 
 
 class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
+    reuse_darks_and_flats = Parameter(
+        help="Use darks/flats from file."
+             "Requires to load them first via the functions read_darks_from_file and read_flats_from_file")
+
     async def __ainit__(self, device, experiment, acquisitions=None, do_normalization=True,
                         average_normalization=True, slice_directory='online-slices',
                         viewer=None):
@@ -142,6 +147,17 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
             viewer=viewer
         )
 
+    async def _get_reuse_darks_and_flats(self):
+        return (await self._device['reuse_darks_and_flats']).value
+
+    async def _set_reuse_darks_and_flats(self, val):
+        await self._device.write_attribute('reuse_darks_and_flats', bool(val))
+
+    async def read_darks_from_file(self, path):
+        await self._device.read_darks_from_file(path)
+
+    async def read_flats_from_file(self, path):
+        await self._device.read_flats_from_file(path)
 
     @TangoMixin.cancel_remote
     @remote

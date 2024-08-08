@@ -1,13 +1,14 @@
 """Tango device for online 3D reconstruction from zmq image stream."""
 import numpy as np
 from tango import DebugIt, CmdArgType
-from tango.server import command
+from tango.server import command, attribute
 from .base import TangoRemoteProcessing
 from concert.coroutines.base import async_generate
 from concert.ext.ufo import GeneralBackprojectManager, GeneralBackprojectArgs
 from concert.quantities import q
 from concert.networking.base import get_tango_device, ZmqSender
 from concert.storage import RemoteDirectoryWalker
+from concert.readers import TiffSequenceReader
 
 
 MAX_DIM = 100000
@@ -47,6 +48,14 @@ def set_{0}(self, values):
     except TypeError:
         self._args.{0} = values
 """
+
+
+async def read_images(path):
+    with TiffSequenceReader(path) as reader:
+        image_stack = []
+        async for image in reader.read_range():
+            image_stack.append(image)
+        return image_stack
 
 
 class TangoOnlineReconstruction(TangoRemoteProcessing):
@@ -99,6 +108,14 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
         )
         self._walker = None
         self._sender = None
+
+    @attribute(dtype=bool)
+    async def reuse_darks_and_flats(self):
+        return self._manager.reuse_normalization
+
+    @reuse_darks_and_flats.write
+    async def reuse_darks_and_flats(self, value):
+        self._manager.reuse_normalization = value
 
     @DebugIt()
     @command()
@@ -193,6 +210,16 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
                 store=store
             )
         )[0]
+
+    @DebugIt()
+    @command(dtype_in=str)
+    async def read_darks_from_file(self, path):
+        self._manager.darks = await read_images(path)
+
+    @DebugIt()
+    @command(dtype_in=str)
+    async def read_flats_from_file(self, path):
+        self._manager.flats = await read_images(path)
 
     @DebugIt(show_ret=True)
     @command(dtype_out=(int,))
