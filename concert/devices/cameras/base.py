@@ -69,6 +69,7 @@ competing methods like :meth:`Camera.grab` and :meth:`RemoteMixin.grab_send`.
 import asyncio
 import contextlib
 import logging
+from typing import Dict, List
 import zmq
 from concert.base import AccessorNotImplementedError, Parameter, Quantity, State, check, identity
 from concert.config import AIODEBUG
@@ -102,14 +103,13 @@ class Camera(Device):
     state = State(default='standby')
     frame_rate = Quantity(1 / q.second, help="Frame frequency")
     trigger_source = Parameter(help="Trigger source")
-    zmq_options = Parameter(help="ZMQ streaming options")
+    _senders: Dict[CommData, ZmqSender]
 
     async def __ainit__(self):
         await super(Camera, self).__ainit__()
         self.convert = identity
         self._grab_lock = asyncio.Lock()
-        self._commdata = None
-        self._sender = None
+        self._senders = {}
 
     @background
     @check(source='standby', target='recording')
@@ -222,25 +222,30 @@ class Camera(Device):
         await self._stop_sending()
 
     async def _grab_send_real(self, num, end=True):
-        for i in range(num):
+        for _ in range(num):
             img = self.convert(await self._grab_real())
-            await self._sender.send_image(img.view(ImageWithMetadata))
+            tasks: List[asyncio.Task] = list(map(
+                lambda sender: asyncio.create_task(sender.send_image(img.view(ImageWithMetadata))),
+                self._senders.values()))
+            await asyncio.gather(*tasks)
         if end:
-            await self._sender.send_image(None)
+            tasks: List[asyncio.Task] = list(map(
+                lambda sender: asyncio.create_task(sender.send_image(None)),
+                self._senders.values()))
+            await asyncio.gather(*tasks)
 
     async def _stop_sending(self):
         raise AccessorNotImplementedError
 
-    async def _get_zmq_options(self):
-        return self._commdata
+    async def unregister_endpoint(self, endpoint: CommData) -> None:
+        if endpoint in self._senders:
+            del self._senders[endpoint]
 
-    async def _set_zmq_options(self, value):
-
-        self._commdata = value
-        self._sender = ZmqSender(
-            self._commdata.server_endpoint,
-            reliable=self._commdata.socket_type == zmq.PUSH,
-            sndhwm=self._commdata.sndhwm
+    async def register_endpoint(self, endpoint: CommData) -> None:
+        self._senders[endpoint] = ZmqSender(
+            endpoint.server_endpoint,
+            reliable=endpoint.socket_type == zmq.PUSH,
+            sndhwm=endpoint.sndhwm
         )
 
     async def _get_trigger_source(self):
