@@ -1,7 +1,10 @@
 """Tango device for online 3D reconstruction from zmq image stream."""
+import asyncio
+import os
 import numpy as np
-from tango import DebugIt, CmdArgType
+from tango import DebugIt, CmdArgType, EventType, EventData, GreenMode
 from tango.server import command
+from tango.asyncio import DeviceProxy
 from .base import TangoRemoteProcessing
 from concert.coroutines.base import async_generate
 from concert.ext.ufo import GeneralBackprojectManager, GeneralBackprojectArgs
@@ -89,16 +92,71 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     # Do not infect the class with temp variables
     del arg, dtype, settings
 
+    _qa_device: DeviceProxy
+    _qa_subscription: int
+    _slice_directory: str
+    _cached: bool
+    _readiness: asyncio.Event
+
     async def init_device(self):
         """Inits device and communciation"""
         await super().init_device()
-
+        self._readiness = asyncio.Event()
         self._manager = await GeneralBackprojectManager(
             self._args,
+            readiness=self._readiness,
             average_normalization=True
         )
         self._walker = None
         self._sender = None
+
+    @DebugIt()
+    @command(
+        dtype_in=str,
+        doc_in="absolute path of the directory to write online slices"
+    )
+    async def set_slice_directory(self, slice_directory: str) -> None:
+        self._slice_directory = slice_directory
+
+    @DebugIt()
+    @command(
+        dtype_in=bool,
+        doc_in="whether to reconstruct from cache"
+    )
+    async def set_cached(self, cached: bool) -> None:
+        self._cached = cached
+
+    @DebugIt()
+    @command(
+        dtype_in=str,
+        doc_in="device proxy reference for qa"
+    )
+    async def register_qa_feedback(self, qa_ref: str) -> None:
+        """Subscribes for QA events"""
+        # Get the device proxy reference for QA device and subscribe for event
+        self._qa_device = await DeviceProxy(qa_ref)
+        self._qa_subscription = await self._qa_device.subscribe_event(
+                "center_of_rotation", EventType.USER_EVENT, self._on_center_of_rotation_estimated,
+                green_mode=GreenMode.Asyncio)
+
+    def _on_center_of_rotation_estimated(self, event: EventData) -> None:
+        """
+        Defines the callback function upon receiving estimated center of rotation by the QA
+        device
+        """
+        # We wrap the implementation within exception handling to catch transparent issues in Tango
+        # and reraise.
+        try:
+            if event.attr_value.value is not None:
+                self.info_stream("%s: Received estimated center of rotation: %f",
+                                 self.__class__.__name__, event.attr_value.value)
+                self._manager.args.center_position_x = [event.attr_value.value]
+                # Readiness event signals GeneralBackprojectManager to start backprojector once
+                # required parameter values are estimated.
+                self._readiness.set()
+        except Exception as err:
+            self.error_stream("%s: Encountered error: %s", self.__class__.__name__, str(err))
+            raise
 
     @DebugIt()
     @command()

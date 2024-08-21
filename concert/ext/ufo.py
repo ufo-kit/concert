@@ -1,5 +1,5 @@
 import asyncio
-from typing import AsyncIterator
+from typing import AsyncIterator, Set, Optional, List
 import copy
 import logging
 import sys
@@ -205,9 +205,12 @@ class InjectProcess(object):
 
 
 class FlatCorrect(InjectProcess):
-    """
-    Flat-field correction.
-    """
+    """Flat-field correction"""
+
+    dark: ArrayLike
+    flat: ArrayLike
+    ffc: object
+
     def __init__(self, dark, flat, absorptivity=True, fix_nan_and_inf=True, copy_inputs=False):
         self.dark = dark
         self.flat = flat
@@ -550,9 +553,14 @@ class GeneralBackprojectManager(Parameterizable):
 
     state = State(default='standby')
 
-    async def __ainit__(self, args, average_normalization=True, regions=None, copy_inputs=False):
+    _readiness: asyncio.Event
+
+    async def __ainit__(self, args: GeneralBackprojectArgs, readiness: asyncio.Event,
+                        average_normalization: bool = True, regions: Optional[Set[float]] = None,
+                        copy_inputs: bool = False) -> None:
         await super().__ainit__()
         self.args = args
+        self._readiness = readiness
         self.regions = regions
         self.copy_inputs = copy_inputs
         self.projections = None
@@ -619,6 +627,7 @@ class GeneralBackprojectManager(Parameterizable):
 
     async def _produce(self):
         """Produce projections for backprojectors."""
+        # We wait for the readiness event from the Tango device server to start the back projection.
         for i in range(self.args.number):
             async with self._producer_condition:
                 await self._producer_condition.wait_for(lambda: self._num_received_projections > i)
@@ -781,7 +790,9 @@ class GeneralBackprojectManager(Parameterizable):
             consume_task = start(self._consume(offset, bp(self._produce())))
             consume_task.add_done_callback(consume_cb)
             await consume_task
-
+        # We wait for the readiness event to be set from the reco device server before starting any
+        # backprojector task
+        await self._readiness.wait()
         LOG.debug('Reconstructing %d batches: %s', len(self._regions), self._regions)
         try:
             self._state_value = 'running'

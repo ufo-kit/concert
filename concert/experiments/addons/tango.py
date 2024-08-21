@@ -1,15 +1,19 @@
 import asyncio
+from dataclasses import dataclass
 import functools
 import inspect
 import logging
 import os
+from typing import Set, Dict
 import numpy as np
 import tango
 
 from concert.experiments.addons import base
-from concert.experiments.base import remote
+from concert.experiments.base import remote, Acquisition, Experiment
 from concert.quantities import q
-
+from concert.experiments.addons.typing import AbstractQADevice
+from concert.experiments.addons.base import AcquisitionConsumer
+from concert.base import Parameter
 
 LOG = logging.getLogger(__name__)
 
@@ -199,3 +203,73 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
     async def _get_slice_z(self, index):
         shape = await self._device.get_volume_shape()
         return (await self._device.get_slice_z(index)).reshape(shape[1], shape[2])
+
+
+class QualityAssurance(TangoMixin, base.Addon):
+
+    _device: AbstractQADevice
+    _num_markers: int  # number for marker-based estimation
+    _wait_window: int  # minimum number of projections to wait
+    _check_window: int  # previous number of projections to check for estimation plateau
+    _sigma: int  # standard deviation for Gaussian filtering
+    _err_threshold: int  # error threshold in estimation
+
+    center_of_rotation = Parameter()
+
+    async def __ainit__(self,
+                        device: AbstractQADevice, experiment: Experiment,
+                        acquisitions: Set[Acquisition], num_darks: int, num_flats: int,
+                        num_radios: int, rot_angle: float, estm_offset: int,
+                        num_markers: int, wait_window: int, check_window: int,
+                        sigma: float, err_threshold: float)  -> None:
+        self._num_markers = num_markers
+        self._wait_window = wait_window
+        self._check_window = check_window
+        self._sigma = sigma
+        self._err_threshold = err_threshold
+        await TangoMixin.__ainit__(self, device)
+        # TODO: Do we need to lock the device here, as we do for online reconstruction ?
+        await self._device.write_attribute("num_darks", num_darks)
+        await self._device.write_attribute("num_flats", num_flats)
+        await self._device.write_attribute("num_radios", num_radios)
+        await self._device.write_attribute("rot_angle", rot_angle)
+        await self._device.write_attribute("estm_offset", estm_offset)
+        await self._device.prepare_angular_distribution()
+        await base.Addon.__ainit__(self, experiment, acquisitions)
+
+    async def _get_center_of_rotation(self) -> float:
+        return await(self._device["center_of_rotation"]).value
+
+    def _make_consumers(self,
+                        acquisitions: Set[Acquisition]) -> Dict[Acquisition, AcquisitionConsumer]:
+        """Accumulates consumers for expected acquisitions"""
+        # NOTE: For now we process darks, flats and radios as individual acquiitions and it leads
+        # to the device server averaging them and storing them in memory. It would later be used for
+        # flat field correction of incoming projections on the fly. However, as next revision of
+        # quality assurance we want to refactor our implementation in such a way that we don't need
+        # to run flat-field correction separately for QA and reconstruction.
+        consumers: [Acquisition, AcquisitionConsumer] = {}
+        consumers[base.get_acq_by_name(acquisitions, "darks")] = AcquisitionConsumer(self.update_darks)
+        consumers[base.get_acq_by_name(acquisitions, "flats")] = AcquisitionConsumer(self.update_flats)
+        consumers[base.get_acq_by_name(acquisitions, "radios")] = AcquisitionConsumer(
+                self.estimate_center_of_rotation)
+        return consumers
+    
+    @TangoMixin.cancel_remote
+    @remote
+    async def update_darks(self) -> None:
+        await self._device.update_darks()
+
+    @TangoMixin.cancel_remote
+    @remote
+    async def update_flats(self) -> None:
+        await self._device.update_flats()
+
+    @TangoMixin.cancel_remote
+    @remote
+    async def estimate_center_of_rotation(self) -> None:
+        await asyncio.sleep(10)
+        await self._device.estimate_center_of_rotation(
+                (self._num_markers, self._wait_window, self._check_window,
+                 self._sigma, self._err_threshold))
+
