@@ -14,7 +14,7 @@ from skimage.measure._regionprops import RegionProperties
 from tango import DebugIt, DevState, CmdArgType, EventType
 from tango.server import attribute, command, AttrWriteType
 from concert.ext.tangoservers.base import TangoRemoteProcessing
-from concert.ext.ufo import FlatCorrect, GaussianBlur
+from concert.ext.ufo import FlatCorrect, GaussianFilter, MedianFilter
 
 
 class QualityAssurance(TangoRemoteProcessing):
@@ -210,9 +210,10 @@ class QualityAssurance(TangoRemoteProcessing):
         num_intensity_classes = 3
         ffc = FlatCorrect(dark=self._dark, flat=self._flat, absorptivity=False)
         # Derive Gaussian kernel size from standard deviation with formula: 2 * ceil(3 * sigma) + 1.
-        gb = GaussianBlur(kernel_size=2 * np.ceil(3 * sigma).astype(int) + 1, sigma=sigma)
+        lpf = GaussianFilter(kernel_size=2 * np.ceil(3 * sigma).astype(int) + 1, sigma=sigma)
+        #lpf = MedianFilter(kernel_size=3)
         # Process all projections for potential marker centroids but run curve-fit conditionally.
-        async for projection in gb(ffc(producer)):
+        async for projection in lpf(ffc(producer)):
             thresh: ArrayLike = skf.threshold_multiotsu(projection, classes=num_intensity_classes)
             mask: ArrayLike = projection < thresh.min()
             labels: ArrayLike = sms.label(mask)
