@@ -1,9 +1,13 @@
 from datetime import datetime
-import numpy as np
+from unittest import mock
+import numpy as np 
+import zmq
 from concert.tests import TestCase
 from concert.quantities import q
 from concert.devices.cameras.dummy import Camera, BufferedCamera
 from concert.devices.cameras.pco import Timestamp, TimestampError
+from concert.helpers import CommData
+from concert.networking.base import ZmqSender
 
 
 class TestDummyCamera(TestCase):
@@ -85,6 +89,41 @@ class TestDummyCamera(TestCase):
         camera = await Camera(background=self.background, simulate=False)
         async with camera.recording():
             np.testing.assert_equal(self.background, await camera.grab())
+
+#    async def test_endpoint_registration(self) -> None:
+#
+#        async def mock_register_endpoint(self, endpoint: CommData) -> None:
+#            if endpoint in self._senders:
+#                raise ValueError("zmq endpoint already in list")
+#            self._senders[endpoint] = mock.MagicMock(
+#                endpoint.server_endpoint,
+#                reliable=endpoint.socket_type == zmq.PUSH,
+#                sndhwm=endpoint.sndhwm
+#            )
+#
+#        comm1 = CommData(host="localhost", port=8991, protocol="tcp", socket_type=zmq.PUSH,
+#                         sndhwm=0)
+#        comm2 = CommData(host="localhost", port=8991, protocol="tcp", socket_type=zmq.PUSH,
+#                         sndhwm=0)
+#        comm3 = CommData(host="localhost", port=8992, protocol="tcp", socket_type=zmq.PUSH,
+#                         sndhwm=0)
+#        self.assertTrue(comm1 == comm2)
+#        fqn_func = "concert.devices.cameras.base.Camera.register_endpoint"
+#        with mock.patch(fqn_func, wraps=mock_register_endpoint) as mre:
+#            try:
+#                await self.camera.register_endpoint(endpoint=comm1)
+#            except Exception:
+#                self.fail("first endpoint registration must not fail")
+#            with self.assertRaises(ValueError):
+#                await self.camera.register_endpoint(endpoint=comm2)
+#            try:
+#                await self.camera.register_endpoint(endpoint=comm3)
+#            except Exception:
+#                self.fail("new endpoint registration must not fail")
+#            try:
+#                await self.camera.unregister_endpoint(endpoint=comm1)
+#            except Exception:
+#                self.fail("removing a registered endpoint must not fail")
 
 
 class TestPCOTimeStamp(TestCase):
