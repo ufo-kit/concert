@@ -23,6 +23,19 @@ from concert.ext.cmd import plugins
 logging.addLevelName(concert.config.PERFDEBUG, 'PERFDEBUG')
 logging.addLevelName(concert.config.AIODEBUG, 'AIODEBUG')
 LOG = logging.getLogger(__name__)
+STARTUP_FMT = """
+try:
+    from {0} import *
+except Exception as e:
+    import os
+    import signal
+    import sys
+    import traceback
+    print("\\nAn error occured while starting session `{0}':")
+    print("-------------------------------------------" + "-" * len('{0}'))
+    print(traceback.format_exc(), file=sys.stderr)
+    os.kill(os.getpid(), signal.SIGTERM)
+"""
 
 
 def docstring_summary(doc):
@@ -410,8 +423,7 @@ class StartCommand(SubCommand):
                 # --filename must have been specified
                 session = os.path.splitext(os.path.basename(path))[0]
                 sys.path.append(os.path.dirname(path))
-
-            ip_config.InteractiveShellApp.exec_lines = [f'from {session} import *']
+            ip_config.InteractiveShellApp.exec_lines = [STARTUP_FMT.format(session)]
         else:
             session_code = 'from concert.quantities import q'
             ip_config.InteractiveShellApp.exec_lines = [session_code]
