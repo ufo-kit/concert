@@ -7,6 +7,8 @@ camera provides means to
 * :meth:`~Camera.stop_recording` the acquisition,
 * :meth:`~Camera.trigger` a frame capture and
 * :meth:`~Camera.grab` to get the last frame.
+* :meth:`~Camera.register_endpoint` to register a ZMQ server endpoint
+* :meth:`~Camera.unregister_endpoint` to remove a previously registered ZMQ server endpoint
 
 Camera triggering is specified by the :attr:`~Camera.trigger_source` parameter, which
 can be one of
@@ -61,7 +63,9 @@ frame. The callable is applied to the frame and the converted one is returned by
     grab(camera)
 
 Cameras can send images over a ZMQ stream by the :meth:`Camera.grab_send` method. Instead of giving
-the frames to the user, it sends the frames via the ZMQ stream.
+the frames to the user, it sends the frames via the ZMQ stream. For this to work once must do the
+ZMQ server endpoints registration with the camera using `register_endpoint` method, which takes
+an instance of `concert.helpers.CommData` as argument.
 
 There is a grab :class:`asyncio.Lock` which prevents the frames to be grabbed at the same time from
 competing methods like :meth:`Camera.grab` and :meth:`RemoteMixin.grab_send`.
@@ -69,6 +73,7 @@ competing methods like :meth:`Camera.grab` and :meth:`RemoteMixin.grab_send`.
 import asyncio
 import contextlib
 import logging
+from typing import Dict
 import zmq
 from concert.base import AccessorNotImplementedError, Parameter, Quantity, State, check, identity
 from concert.config import AIODEBUG
@@ -102,14 +107,13 @@ class Camera(Device):
     state = State(default='standby')
     frame_rate = Quantity(1 / q.second, help="Frame frequency")
     trigger_source = Parameter(help="Trigger source")
-    zmq_options = Parameter(help="ZMQ streaming options")
+    _senders: Dict[CommData, ZmqSender]
 
     async def __ainit__(self):
         await super(Camera, self).__ainit__()
         self.convert = identity
         self._grab_lock = asyncio.Lock()
-        self._commdata = None
-        self._sender = None
+        self._senders = {}
 
     @background
     @check(source='standby', target='recording')
@@ -222,25 +226,46 @@ class Camera(Device):
         await self._stop_sending()
 
     async def _grab_send_real(self, num, end=True):
-        for i in range(num):
+        async def send_to_all(image):
+            image = image if image is None else image.view(ImageWithMetadata)
+            await asyncio.gather(
+                *(sender.send_image(image) for sender in self._senders.values())
+            )
+
+        for _ in range(num):
             img = self.convert(await self._grab_real())
-            await self._sender.send_image(img.view(ImageWithMetadata))
+            await send_to_all(img)
+
         if end:
-            await self._sender.send_image(None)
+            await send_to_all(None)
 
     async def _stop_sending(self):
         raise AccessorNotImplementedError
 
-    async def _get_zmq_options(self):
-        return self._commdata
+    async def unregister_endpoint(self, endpoint: CommData) -> None:
+        """
+        Removes a previously registered ZMQ server endpoint.
 
-    async def _set_zmq_options(self, value):
+        :param endpoint: previously registered ZMQ server endpoint
+        :type endpoint: concert.helpers.CommData
+        """
+        if endpoint in self._senders:
+            del self._senders[endpoint]
 
-        self._commdata = value
-        self._sender = ZmqSender(
-            self._commdata.server_endpoint,
-            reliable=self._commdata.socket_type == zmq.PUSH,
-            sndhwm=self._commdata.sndhwm
+    async def register_endpoint(self, endpoint: CommData) -> None:
+        """
+        Registers a ZMQ server endpoint to stream captured frames to a remote client consumer.
+
+        :param endpoint: ZMQ server endpoint to register
+        :type endpoint: concert.helpers.CommData
+        """
+        if endpoint in self._senders:
+            raise ValueError("zmq endpoint already in list")
+
+        self._senders[endpoint] = ZmqSender(
+            endpoint.server_endpoint,
+            reliable=endpoint.socket_type == zmq.PUSH,
+            sndhwm=endpoint.sndhwm
         )
 
     async def _get_trigger_source(self):

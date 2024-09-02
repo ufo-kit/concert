@@ -9,7 +9,7 @@ import struct
 from concert.coroutines.base import background, run_in_executor
 from concert.quantities import q
 from concert.base import check, Parameter, Quantity
-from concert.helpers import Bunch
+from concert.helpers import Bunch, CommData
 from concert.devices.cameras import base
 
 
@@ -287,13 +287,14 @@ class RemoteNetCamera(Camera):
     async def _grab_send_real(self, num, end=True):
         await self._send_grab_push_command(num_images=num, end=end)
 
-    async def register_endpoint(self, endpoint, socket_type, sndhwm=-1):
+    async def register_endpoint(self, endpoint: CommData) -> None:
         await self._communicate(
-            struct.pack("I128sii", 12, bytes(endpoint, 'ascii'), socket_type, sndhwm)
+            struct.pack("I128sii", 12, bytes(endpoint.server_endpoint, 'ascii'),
+                        endpoint.socket_type, endpoint.sndhwm)
         )
 
-    async def unregister_endpoint(self, endpoint):
-        await self._communicate(struct.pack("I128s", 13, bytes(endpoint, 'ascii')))
+    async def unregister_endpoint(self, endpoint: CommData) -> None:
+        await self._communicate(struct.pack("I128s", 13, bytes(endpoint.server_endpoint, 'ascii')))
 
 
 def _construct_ucad_error(message):

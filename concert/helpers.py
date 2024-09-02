@@ -410,6 +410,18 @@ class CommData:
         else:
             return f"{self.protocol}://{self.host}:{self.port}"
 
+    def __eq__(self, other: CommData) -> bool:
+        for key, value in self.__dict__.items():
+            if other.__dict__[key] != value:
+                return False
+        return True
+
+    def __ne__(self, other: CommData) -> bool:
+        return not self.__eq__(other)
+
+    def __hash__(self) -> int:
+        return hash((self.host, self.port, self.protocol, self.socket_type, self.sndhwm))
+
 
 def get_basename(filename):
     if filename.endswith(os.sep):

@@ -221,6 +221,7 @@ class TestVarious(TestCase):
 
 
 class TestCommData(TestCase):
+
     def test_tcp(self):
         comms = CommData("localhost", port=1234, protocol="tcp", socket_type=zmq.PUSH, sndhwm=1234)
         self.assertEqual(comms.server_endpoint, "tcp://*:1234")
@@ -239,3 +240,21 @@ class TestCommData(TestCase):
     def test_wrong_protocols(self):
         with self.assertRaises(ValueError):
             comms = CommData("localhost", protocol="foo")
+
+    def test_equality(self) -> None:
+        comm1 = CommData(host="localhost", port=8991, protocol="tcp", socket_type=zmq.PUB,
+                         sndhwm=-1)
+        comm2 = CommData(host="localhost", port=8991, protocol="tcp", socket_type=zmq.PUB,
+                         sndhwm=-1)
+        comm3 = CommData(host="localhost", port=8992, protocol="tcp", socket_type=zmq.PUB,
+                         sndhwm=-1)
+        self.assertEqual(comm1, comm2)
+        self.assertTrue(comm1 == comm2)
+        self.assertNotEqual(comm1, comm3)
+        self.assertFalse(comm2 == comm3)
+
+    def test_hash_function(self) -> None:
+        comm1 = CommData(host="localhost", port=8991, protocol="tcp", socket_type=zmq.PUB,
+                         sndhwm=-1)
+        self.assertTrue(hash(comm1) == hash(("localhost", 8991, "tcp", zmq.PUB, -1)))
+        self.assertFalse(hash(comm1) == hash(("localhost", 8991, "tcp", zmq.PUSH, -1)))
