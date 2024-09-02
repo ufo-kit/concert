@@ -268,7 +268,6 @@ class QualityAssurance(TangoMixin, base.Addon):
     @TangoMixin.cancel_remote
     @remote
     async def estimate_center_of_rotation(self) -> None:
-        await asyncio.sleep(10)
         await self._device.estimate_center_of_rotation(
                 (self._num_markers, self._wait_window, self._check_window,
                  self._sigma, self._err_threshold))

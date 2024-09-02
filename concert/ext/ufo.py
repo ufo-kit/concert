@@ -252,13 +252,11 @@ class MedianFilter(InjectProcess):
         """Co-routine compatible consumer."""
         if not self._started:
             self.start()
-        first = True
         async for projection in producer:
             if projection.dtype != np.float32:
                 projection: ArrayLike = projection.astype(np.float32)
             await self.insert(projection, index=0)
             yield await self.result(leave_index=0)
-            first = False
 
 
 class GaussianFilter(InjectProcess):
@@ -276,13 +274,11 @@ class GaussianFilter(InjectProcess):
         """Co-routine compatible consumer."""
         if not self._started:
             self.start()
-        first = True
         async for projection in producer:
             if projection.dtype != np.float32:
                 projection: ArrayLike = projection.astype(np.float32)
             await self.insert(projection, index=0)
             yield await self.result(leave_index=0)
-            first = False
 
 
 class GeneralBackprojectArgs(object):
@@ -576,14 +572,13 @@ class GeneralBackprojectManager(Parameterizable):
 
     state = State(default='standby')
 
-    _readiness: asyncio.Event
+    _found_rotation_axis: asyncio.Event
 
-    async def __ainit__(self, args: GeneralBackprojectArgs, readiness: asyncio.Event,
-                        average_normalization: bool = True, regions: Optional[Set[float]] = None,
-                        copy_inputs: bool = False) -> None:
+    async def __ainit__(self, args: GeneralBackprojectArgs, average_normalization: bool = True,
+                        regions: Optional[Set[float]] = None, copy_inputs: bool = False,
+                        **kwargs) -> None:
         await super().__ainit__()
         self.args = args
-        self._readiness = readiness
         self.regions = regions
         self.copy_inputs = copy_inputs
         self.projections = None
@@ -603,6 +598,7 @@ class GeneralBackprojectManager(Parameterizable):
         self._producer_condition = asyncio.Condition()
         self._processing_task = None
         self._regions = None
+        self._found_rotation_axis = kwargs.get("found_rotation_axis", None)
 
     @property
     def num_received_projections(self):
@@ -813,9 +809,10 @@ class GeneralBackprojectManager(Parameterizable):
             consume_task = start(self._consume(offset, bp(self._produce())))
             consume_task.add_done_callback(consume_cb)
             await consume_task
-        # We wait for the readiness event to be set from the reco device server before starting any
-        # backprojector task
-        await self._readiness.wait()
+        # We wait for the event to be set from the reco device server, that the axis of rotation
+        # is estimated before starting any backprojector task.
+        if self._found_rotation_axis:
+            await self._found_rotation_axis.wait()
         LOG.debug('Reconstructing %d batches: %s', len(self._regions), self._regions)
         try:
             self._state_value = 'running'

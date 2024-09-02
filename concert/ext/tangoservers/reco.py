@@ -96,18 +96,18 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     _qa_subscription: int
     _slice_directory: str
     _cached: bool
-    _readiness: asyncio.Event
+    _found_rotation_axis: asyncio.Event
 
     async def init_device(self):
         """Inits device and communciation"""
         await super().init_device()
-        # Readiness event signals GeneralBackprojectManager to start backprojector. We trigger this
-        # event from the callback response upon having required parameters estimated.
-        self._readiness = asyncio.Event()
+        # Rotation axis event signals GeneralBackprojectManager to start backprojector. We trigger
+        # this event from the callback response upon having required parameters estimated.
+        self._found_rotation_axis = asyncio.Event()
         self._manager = await GeneralBackprojectManager(
             self._args,
-            readiness=self._readiness,
-            average_normalization=True
+            average_normalization=True,
+            found_rotation_axis=self._found_rotation_axis
         )
         self._walker = None
         self._sender = None
@@ -153,7 +153,7 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
                 self.info_stream("%s: Received estimated center of rotation: %f",
                                  self.__class__.__name__, event.attr_value.value)
                 self._manager.args.center_position_x = [event.attr_value.value]
-                self._readiness.set()
+                self._found_rotation_axis.set()
         except Exception as err:
             self.error_stream("%s: Encountered error: %s", self.__class__.__name__, str(err))
             raise
