@@ -11,9 +11,10 @@ import tango
 from concert.experiments.addons import base
 from concert.experiments.base import remote, Acquisition, Experiment
 from concert.quantities import q
-from concert.experiments.addons.typing import AbstractQADevice
+from concert.experiments.addons.typing import AbstractRAEDevice
 from concert.experiments.addons.base import AcquisitionConsumer
 from concert.base import Parameter
+from concert.ext.tangoservers.rae import EstimationAlgorithm
 
 LOG = logging.getLogger(__name__)
 
@@ -205,35 +206,37 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
         return (await self._device.get_slice_z(index)).reshape(shape[1], shape[2])
 
 
-class QualityAssurance(TangoMixin, base.Addon):
+class RotationAxisEstimator(TangoMixin, base.Addon):
 
-    _device: AbstractQADevice
-    _num_markers: int  # number for marker-based estimation
+    _device: AbstractRAEDevice
     _wait_window: int  # minimum number of projections to wait
     _check_window: int  # previous number of projections to check for estimation plateau
-    _sigma: int  # standard deviation for Gaussian filtering
     _err_threshold: int  # error threshold in estimation
 
-    center_of_rotation = Parameter()
-
     async def __ainit__(self,
-                        device: AbstractQADevice, experiment: Experiment,
+                        device: AbstractRAEDevice, experiment: Experiment,
                         acquisitions: Set[Acquisition], num_darks: int, num_flats: int,
-                        num_radios: int, rot_angle: float, estm_offset: int,
-                        num_markers: int, wait_window: int, check_window: int,
-                        sigma: float, err_threshold: float)  -> None:
-        self._num_markers = num_markers
+                        num_radios: int, rot_angle: float, estm_offset: int, wait_window: int,
+                        check_window: int, err_threshold: float, **kwargs)  -> None:
         self._wait_window = wait_window
         self._check_window = check_window
-        self._sigma = sigma
         self._err_threshold = err_threshold
         await TangoMixin.__ainit__(self, device)
-        # TODO: Do we need to lock the device here, as we do for online reconstruction ?
         await self._device.write_attribute("num_darks", num_darks)
         await self._device.write_attribute("num_flats", num_flats)
         await self._device.write_attribute("num_radios", num_radios)
         await self._device.write_attribute("rot_angle", rot_angle)
         await self._device.write_attribute("estm_offset", estm_offset)
+        await self._device.write_attribute("estimation_algorithm",
+                                           kwargs.get("estimation_algorithm",
+                                                      EstimationAlgorithm.MT_SEGMENTATION))
+        crop_left = kwargs.get("crop_left", 0)
+        crop_right = kwargs.get("crop_right", 0)
+        crop_vertical = kwargs.get("crop_vertical", 0)
+        num_markers = kwargs.get("num_markers", 0)
+        marker_diameter_px = kwargs.get("marker_diameter_px", 0)
+        await self._device.write_attribute("marae", np.array([crop_left, crop_right, crop_vertical,
+                                                     num_markers, marker_diameter_px]))
         await self._device.prepare_angular_distribution()
         await base.Addon.__ainit__(self, experiment, acquisitions)
 
@@ -268,7 +271,6 @@ class QualityAssurance(TangoMixin, base.Addon):
     @TangoMixin.cancel_remote
     @remote
     async def estimate_center_of_rotation(self) -> None:
-        await self._device.estimate_center_of_rotation(
-                (self._num_markers, self._wait_window, self._check_window,
-                 self._sigma, self._err_threshold))
+        await self._device.estimate_center_of_rotation((self._wait_window, self._check_window,
+                                                        self._err_threshold))
 

@@ -6,7 +6,7 @@ Encapsulates type definitions for concert.experiments.addon.
 from typing import Protocol, Tuple
 
 
-class AbstractQADevice(Protocol):
+class AbstractRAEDevice(Protocol):
 
     async def update_darks(self) -> None:
         """Asynchronously accumulates the dark field projections and averages them"""

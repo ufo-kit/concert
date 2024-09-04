@@ -92,8 +92,8 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     # Do not infect the class with temp variables
     del arg, dtype, settings
 
-    _qa_device: DeviceProxy
-    _qa_subscription: int
+    _rae_device: DeviceProxy
+    _rae_subscription: int
     _slice_directory: str
     _cached: bool
     _found_rotation_axis: asyncio.Event
@@ -131,13 +131,13 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     @DebugIt()
     @command(
         dtype_in=str,
-        doc_in="device proxy reference for qa"
+        doc_in="device proxy reference for axis of rotation estimator"
     )
-    async def register_qa_feedback(self, qa_ref: str) -> None:
-        """Subscribes for QA events"""
-        # Get the device proxy reference for QA device and subscribe for event
-        self._qa_device = await DeviceProxy(qa_ref)
-        self._qa_subscription = await self._qa_device.subscribe_event(
+    async def register_rotation_axis_feedback(self, rae_dev_ref: str) -> None:
+        """Subscribes for event concerning axis of rotation estimation"""
+        # Get the device proxy reference for RotationAxisEstimator device and subscribe for event
+        self._rae_device = await DeviceProxy(rae_dev_ref)
+        self._rae_subscription = await self._rae_device.subscribe_event(
                 "center_of_rotation", EventType.USER_EVENT, self._on_center_of_rotation_estimated,
                 green_mode=GreenMode.Asyncio)
 
