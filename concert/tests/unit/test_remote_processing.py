@@ -25,7 +25,7 @@ async def tango_run_concert(name: str, port:int):
 
 
     # TODO: this needs to go away!
-    await asyncio.sleep(1)
+    await asyncio.sleep(5)
 
     try:
         yield
@@ -89,6 +89,12 @@ class TestRemoteProcessingStartup(TestCase):
 
     async def test_rae_startup(self) -> None:
         async with tango_run_concert('rae', 1248):
+            tango_dev: tango.DeviceProxy = get_tango_device(
+                    'tango://localhost:1248/concert/tango/rae#dbase=no')
+            f: tango.DevState = await tango_dev.state()
+            self.assertNotEqual(f, None)
+
+        async with tango_run_standalone('rae', 1248, "concert/tango/rae"):
             tango_dev: tango.DeviceProxy = get_tango_device(
                     'tango://localhost:1248/concert/tango/rae#dbase=no')
             f: tango.DevState = await tango_dev.state()
