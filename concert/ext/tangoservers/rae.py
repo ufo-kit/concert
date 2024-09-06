@@ -89,11 +89,11 @@ class RotationAxisEstimator(TangoRemoteProcessing):
     marae = attribute(
         label="Meta attributes for rotation axis estimation",
         dtype=(int,),
-        max_dim_x=5,  # max_dim_x corresponds to the number of elements packed into it
+        max_dim_x=6,  # max_dim_x corresponds to the number of elements packed into it
         access=AttrWriteType.WRITE,
         fset="set_marae",
-        doc="encapsulates meta attributes for rotation axis estimation, crop_left, crop_right, \
-        crop_vertical, num_markers, marker_diameter_px"
+        doc="encapsulates meta attributes for rotation axis estimation, crop_top, crop_bottom, \
+        crop_left, crop_right, num_markers, marker_diameter_px"
     )
 
     _angle_dist: ArrayLike
@@ -174,7 +174,7 @@ class RotationAxisEstimator(TangoRemoteProcessing):
     def set_center_of_rotation(self, new_value: float) -> None:
         self._center_of_rotation = new_value
 
-    def set_marae(self, marae: Tuple[int, int, int, int, int]) -> None:
+    def set_marae(self, marae: Tuple[int, int, int, int, int, int]) -> None:
         self._marae = marae
 
     @DebugIt()
@@ -236,12 +236,13 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         # NOTE: We crop a patch from the projection to localize the markers of interest so that the
         # algorithm can run efficiently. However, this has implications, especially for the left
         # side cropping. We need to add the same to estimated rotation axis as a correction factor.
-        crop_left, crop_right, crop_vertical, num_markers, marker_diameter_px = self._marae
+        crop_top, crop_bottom, crop_left, crop_right, num_markers, marker_diameter_px = self._marae
         self.info_stream("%s:meta information for rotation axis estimation",
                          self.__class__.__name__)
-        self.info_stream("crop:[:%d, %d:%d], num_markers: %d, marker_diameter_px: %d",
-                         crop_vertical, crop_left, crop_right, num_markers, marker_diameter_px)
-        patch: ArrayLike = projection[:crop_vertical, crop_left: crop_right]
+        self.info_stream("crop:[%d:%d, %d:%d], num_markers: %d, marker_diameter_px: %d",
+                         crop_top, crop_bottom, crop_left, crop_right, num_markers,
+                         marker_diameter_px)
+        patch: ArrayLike = projection[crop_top:crop_bottom, crop_left: crop_right]
         centroids: List[ArrayLike] = []
         if self._estimation_algorithm == EstimationAlgorithm.MT_HOUGH_TRANSFORM:
             self.info_stream("%s:using Hough circle transform to track markers",
@@ -300,7 +301,7 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         marker_centroids: List[ArrayLike] = []
         estm_rot_axis: List[float] = []
         event_triggered = False
-        crop_left, _, _, num_markers, _ = self._marae
+        _, _, crop_left, _, num_markers, _ = self._marae
         ffc = FlatCorrect(dark=self._dark, flat=self._flat, absorptivity=True)
         async for projection in ffc(producer):
             centroids_x: ArrayLike = self._extract_marker_centroids(projection=projection)
@@ -378,10 +379,7 @@ class RotationAxisEstimator(TangoRemoteProcessing):
                     except RuntimeError:
                         self.info_stream(
                             "%s could not find optimal parameters with projection: [%d/%d]",
-                            self.__class__.__name__,
-                            self._point_in_time - self._norm_window,
-                            self._num_radios
-                        )
+                            self.__class__.__name__, projection_count, self._num_radios)
             projection_count += 1
 
     async def _estimate_corr(self, producer: AsyncIterator[ArrayLike], wait_window: int,

@@ -230,13 +230,15 @@ class RotationAxisEstimator(TangoMixin, base.Addon):
         await self._device.write_attribute("estimation_algorithm",
                                            kwargs.get("estimation_algorithm",
                                                       EstimationAlgorithm.MT_SEGMENTATION))
+        crop_top = kwargs.get("crop_top", 0)
+        crop_bottom = kwargs.get("crop_bottom", 0)
         crop_left = kwargs.get("crop_left", 0)
         crop_right = kwargs.get("crop_right", 0)
-        crop_vertical = kwargs.get("crop_vertical", 0)
         num_markers = kwargs.get("num_markers", 0)
         marker_diameter_px = kwargs.get("marker_diameter_px", 0)
-        await self._device.write_attribute("marae", np.array([crop_left, crop_right, crop_vertical,
-                                                     num_markers, marker_diameter_px]))
+        await self._device.write_attribute("marae", np.array([crop_top, crop_bottom,
+                                                              crop_left, crop_right,
+                                                              num_markers, marker_diameter_px]))
         await self._device.prepare_angular_distribution()
         await base.Addon.__ainit__(self, experiment, acquisitions)
 
