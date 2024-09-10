@@ -6,6 +6,7 @@ Implements a device server to execute quality assurance routines during acquisit
 from enum import IntEnum
 from typing import List, AsyncIterator, Tuple, Dict, Awaitable
 import numpy as np
+import numpy.fft as nft
 from numpy.typing import ArrayLike
 import scipy.ndimage as snd
 import scipy.optimize as sop
@@ -25,7 +26,8 @@ class EstimationAlgorithm(IntEnum):
 
     MT_SEGMENTATION = 0
     MT_HOUGH_TRANSFORM = 1
-    OPT_GRADIENT_DESCENT = 2
+    PHASE_CORRELATION = 2
+    IMAGE_REGISTRATION = 3
 
 
 class RotationAxisEstimator(TangoRemoteProcessing):
@@ -68,32 +70,58 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         doc="overall number of projections to be acquired"
     )
 
-    estm_offset = attribute(
-        label="Estmation offset",
-        dtype=int,
-        access=AttrWriteType.READ_WRITE,
-        fget="get_estm_offset",
-        fset="set_estm_offset",
-        doc="offset in number of projections to be used to run estimation"
-    )
-
     center_of_rotation = attribute(
         label="Center of rotation",
         dtype=float,
         access=AttrWriteType.READ_WRITE,
         fget="get_center_of_rotation",
         fset="set_center_of_rotation",
-        doc="estimated center of rotation"
+        doc="estimated or known center of rotation, when phase correlation or image registration \
+        methods are used to estimate a shift in center, we need previously known value to correct"
     )
 
-    marae = attribute(
-        label="Meta attributes for rotation axis estimation",
+    meta_attr_markers = attribute(
+        label="Meta attributes for marker tracking",
         dtype=(int,),
-        max_dim_x=6,  # max_dim_x corresponds to the number of elements packed into it
+        max_dim_x=6,
         access=AttrWriteType.WRITE,
-        fset="set_marae",
-        doc="encapsulates meta attributes for rotation axis estimation, crop_top, crop_bottom, \
+        fset="set_meta_attr_markers",
+        doc="encapsulates meta attributes for marker tracking i.e. crop_top, crop_bottom, \
         crop_left, crop_right, num_markers, marker_diameter_px"
+    )
+
+    meta_attr_mt_estm = attribute(
+        label="Meta attributes for axis estimation from marker tracking",
+        dtype=(float,),
+        max_dim_x=4,
+        access=AttrWriteType.WRITE,
+        fset="set_meta_attr_mt_estm",
+        doc="encapsulates attributes for axis estimation using marker tracking i.e., initial \
+        number of projections to wait before starting estimation (wait_window), number of \
+        projections to check the stability in estimated value(check_window), an offset of \
+        projections to run estimation algorithm on(estm_offset), estimation error threshold \
+        (err_threshold)"
+    )
+
+    meta_attr_phase_corr = attribute(
+        label="Meta attributes for phase correlation",
+        dtype=(int,),
+        max_dim_x=2,
+        access=AttrWriteType.WRITE,
+        fset="set_meta_attr_phase_corr",
+        doc="encapsulates meta attributes for phase correlation i.e., detector row index for \
+        feature to correlate(det_row_idx), number of projection for correlation(num_proj_corr)"
+    )
+
+    reference_sino = attribute(
+        label="Reference sinogram",
+        dtype=((float,),),
+        max_dim_y=3000,
+        max_dim_x=2016,
+        access=AttrWriteType.WRITE,
+        fset="set_reference_sino",
+        doc="reference sinogram from an earlier measurement, required for phase correlation, \
+        image registration"
     )
 
     _angle_dist: ArrayLike
@@ -105,6 +133,8 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         await super().init_device()
         self._norm_buffer = []
         self._estimation_algorithm = EstimationAlgorithm.MT_SEGMENTATION
+        self._center_of_rotation = None
+        self.set_state(DevState.STANDBY)
         self.info_stream("%s initialized device with state: %s",
                          self.__class__.__name__, self.get_state())
 
@@ -158,24 +188,23 @@ class RotationAxisEstimator(TangoRemoteProcessing):
             self.__class__.__name__, self._num_radios, self.get_state()
         )
 
-    def get_estm_offset(self) -> int:
-        return self._estm_offset
-
-    def set_estm_offset(self, estm_offset: int) -> None:
-        self._estm_offset = estm_offset
-        self.info_stream(
-            "%s has set estimation offset interval to: %d projections, state %s",
-            self.__class__.__name__, self._estm_offset, self.get_state()
-        )
-
     def get_center_of_rotation(self) -> float:
         return self._center_of_rotation
 
     def set_center_of_rotation(self, new_value: float) -> None:
         self._center_of_rotation = new_value
 
-    def set_marae(self, marae: Tuple[int, int, int, int, int, int]) -> None:
-        self._marae = marae
+    def set_meta_attr_markers(self, mam: ArrayLike) -> None:
+        self._meta_attr_markers = mam
+
+    def set_meta_attr_mt_estm(self, mame: ArrayLike) -> None:
+        self._meta_attr_mt_estm = mame
+
+    def set_meta_attr_phase_corr(self, mapc: ArrayLike) -> None:
+        self._meta_attr_phase_corr = mapc
+
+    def set_reference_sino(self, ref_sino: ArrayLike) -> None:
+        self._reference_sino = ref_sino
 
     @DebugIt()
     @command()
@@ -209,21 +238,17 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         await self._process_stream(self._update_ff_projections("_flat", self._receiver.subscribe()))
 
     @DebugIt()
-    @command(
-        dtype_in=(float,),
-        doc_in="wait window, check window, decision threshold"
-    )
-    async def estimate_center_of_rotation(self, args: Tuple[float]) -> None:
+    @command()
+    async def estimate_center_of_rotation(self) -> None:
         """Estimates the center of rotation"""
-        wait_window, check_window, err_threshold = int(args[0]), int(args[1]), args[2] 
-        estimate: Awaitable[[AsyncIterator[ArrayLike], int, int, float], None]
         if self._estimation_algorithm in [EstimationAlgorithm.MT_SEGMENTATION,
                                           EstimationAlgorithm.MT_HOUGH_TRANSFORM]:
-            estimate = self._estimate_mt
+            await self._process_stream(self._estimate_marker_tracking(self._receiver.subscribe()))
+        elif self._estimation_algorithm == EstimationAlgorithm.PHASE_CORRELATION:
+            await self._process_stream(self._estimate_phase_corr(self._receiver.subscribe()))
         else:
-            estimate = self._estimate_corr
-        await self._process_stream(estimate(self._receiver.subscribe(),wait_window=wait_window,
-                                            check_window=check_window, err_threshold=err_threshold))
+            await self._process_stream(
+                    self._estimate_image_registration(self._receiver.subscribe()))
 
     @staticmethod
     def opt_func(angle_x: np.float64, center_p1: np.float64, radius_p2: np.float64,
@@ -236,7 +261,10 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         # NOTE: We crop a patch from the projection to localize the markers of interest so that the
         # algorithm can run efficiently. However, this has implications, especially for the left
         # side cropping. We need to add the same to estimated rotation axis as a correction factor.
-        crop_top, crop_bottom, crop_left, crop_right, num_markers, marker_diameter_px = self._marae
+        crop_top, crop_bottom, crop_left, crop_right = self._meta_attr_markers[:4]
+        num_markers, marker_diameter_px = self._meta_attr_markers[4:6]
+        wait_window, check_window, estm_offset = self._meta_attr_mt_estm[:-1].astype(int)
+        err_threshold = self._meta_attr_mt_estm[-1]
         self.info_stream("%s:meta information for rotation axis estimation",
                          self.__class__.__name__)
         self.info_stream("crop:[%d:%d, %d:%d], num_markers: %d, marker_diameter_px: %d",
@@ -291,9 +319,7 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         # To reduce memory foot print we store only the horizontal coordinates.
         return np.array(centroids)[:, 1]
 
-    async def _estimate_mt(self, producer: AsyncIterator[ArrayLike],
-                                           wait_window: int, check_window: int,
-                                           err_threshold: float) -> None:
+    async def _estimate_marker_tracking(self, producer: AsyncIterator[ArrayLike]) -> None:
         """
         Estimates the center of rotation with marker tracking and nonlinear polynomial fit.
         """
@@ -301,7 +327,9 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         marker_centroids: List[ArrayLike] = []
         estm_rot_axis: List[float] = []
         event_triggered = False
-        _, _, crop_left, _, num_markers, _ = self._marae
+        _, _, crop_left, _, num_markers, _, = self._meta_attr_markers
+        wait_window, check_window, estm_offset = self._meta_attr_mt_estm[:-1].astype(int)
+        err_threshold = self._meta_attr_mt_estm[-1]
         ffc = FlatCorrect(dark=self._dark, flat=self._flat, absorptivity=True)
         async for projection in ffc(producer):
             centroids_x: ArrayLike = self._extract_marker_centroids(projection=projection)
@@ -320,7 +348,7 @@ class RotationAxisEstimator(TangoRemoteProcessing):
             else:
                 # We start curve-fit after wait window is passed, however we do that with a
                 # configurable offset of projections to gain momentum.
-                if projection_count % self._estm_offset == 0:
+                if projection_count % estm_offset == 0:
                     try:
                         rot_axes:  List[np.float64] = []
                         for mix in range(num_markers):
@@ -382,9 +410,41 @@ class RotationAxisEstimator(TangoRemoteProcessing):
                             self.__class__.__name__, projection_count, self._num_radios)
             projection_count += 1
 
-    async def _estimate_corr(self, producer: AsyncIterator[ArrayLike], wait_window: int,
-                               check_window: int, err_threshold: float) -> None:
-        """Estimates the center of rotation with correlation and gradient descent optimization"""
+    async def _estimate_phase_corr(self, producer: AsyncIterator[ArrayLike]) -> None:
+        """Estimates center of rotation with correlation with phase correlation"""
+        # We assert, that there is a pre-computed known value exists for the center of rotation
+        # because this method estimates the potential error for the same.
+        assert(self._center_of_rotation is not None and self._center_of_rotation != 0.)
+        # We assert that the reference sinogram from previous measurement is available for the
+        # cross correlation.
+        assert(self._reference_sino is not None)
+        det_row_idx, num_proj_corr = self._meta_attr_phase_corr
+        moving_sino: List[ArrayLike] = []
+        ffc = FlatCorrect(dark=self._dark, flat=self._flat, absorptivity=True)
+        projection_count = 0
+        self.info_stream("%s: commencing axis correction estimation with phase correlation",
+                         self.__class__.__name__)
+        async for projection in ffc(producer):
+            projection_count += 1
+            if projection_count < num_proj_corr:
+                moving_sino.append(projection[det_row_idx, :])
+            else:
+                break
+        moving_sino_arr: ArrayLike = np.vstack(moving_sino)
+        corr: ArrayLike = nft.ifft2(
+                nft.fft2(self._reference_sino - self._reference_sino.mean()) * np.conj(
+                    nft.fft2(moving_sino_arr - moving_sino_arr.mean(), s=self._reference_sino.shape)
+                    )).real
+        corr_peak_loc: Tuple[int, int] = np.unravel_index(corr.argmax(), corr.shape)
+        axis_correction: int = self._reference_sino.shape[1] - corr_peak_loc[1]
+        self._center_of_rotation += axis_correction
+        self.info_stream("%s: estimated axis error %d pixles, revised center of rotation: %d",
+                         self.__class__.__name__, axis_correction, self._center_of_rotation)
+        self.push_event("center_of_rotation", [], [], self._center_of_rotation)
+
+    async def _estimate_image_registration(self, producer: AsyncIterator[ArrayLike],
+                                           wait_window: int) -> None:
+        """Estimates center of rotation with image registration and gradient descent optimization"""
         raise NotImplementedError
 
 

@@ -89,12 +89,14 @@ class TestRemoteProcessingStartup(TestCase):
 
     async def test_rae_startup(self) -> None:
         async with tango_run_concert('rae', 1248):
+            await asyncio.sleep(2)
             tango_dev: tango.DeviceProxy = get_tango_device(
                     'tango://localhost:1248/concert/tango/rae#dbase=no')
             f: tango.DevState = await tango_dev.state()
             self.assertNotEqual(f, None)
 
         async with tango_run_standalone('rae', 1248, "concert/tango/rae"):
+            await asyncio.sleep(2)
             tango_dev: tango.DeviceProxy = get_tango_device(
                     'tango://localhost:1248/concert/tango/rae#dbase=no')
             f: tango.DevState = await tango_dev.state()

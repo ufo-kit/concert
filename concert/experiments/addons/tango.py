@@ -209,37 +209,47 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
 class RotationAxisEstimator(TangoMixin, base.Addon):
 
     _device: AbstractRAEDevice
-    _wait_window: int  # minimum number of projections to wait
-    _check_window: int  # previous number of projections to check for estimation plateau
-    _err_threshold: int  # error threshold in estimation
 
-    async def __ainit__(self,
-                        device: AbstractRAEDevice, experiment: Experiment,
+    async def __ainit__(self, device: AbstractRAEDevice, experiment: Experiment,
                         acquisitions: Set[Acquisition], num_darks: int, num_flats: int,
-                        num_radios: int, rot_angle: float, estm_offset: int, wait_window: int,
-                        check_window: int, err_threshold: float, **kwargs)  -> None:
-        self._wait_window = wait_window
-        self._check_window = check_window
-        self._err_threshold = err_threshold
+                        num_radios: int, rot_angle: float = np.pi, **kwargs)  -> None:
         await TangoMixin.__ainit__(self, device)
         await self._device.write_attribute("num_darks", num_darks)
         await self._device.write_attribute("num_flats", num_flats)
         await self._device.write_attribute("num_radios", num_radios)
         await self._device.write_attribute("rot_angle", rot_angle)
-        await self._device.write_attribute("estm_offset", estm_offset)
-        await self._device.write_attribute("estimation_algorithm",
-                                           kwargs.get("estimation_algorithm",
-                                                      EstimationAlgorithm.MT_SEGMENTATION))
-        crop_top = kwargs.get("crop_top", 0)
-        crop_bottom = kwargs.get("crop_bottom", 0)
-        crop_left = kwargs.get("crop_left", 0)
-        crop_right = kwargs.get("crop_right", 0)
-        num_markers = kwargs.get("num_markers", 0)
-        marker_diameter_px = kwargs.get("marker_diameter_px", 0)
-        await self._device.write_attribute("marae", np.array([crop_top, crop_bottom,
-                                                              crop_left, crop_right,
-                                                              num_markers, marker_diameter_px]))
-        await self._device.prepare_angular_distribution()
+        est_algo = kwargs.get("estimation_algorithm", EstimationAlgorithm.MT_SEGMENTATION)
+        await self._device.write_attribute("estimation_algorithm", est_algo)
+        if est_algo in [EstimationAlgorithm.MT_SEGMENTATION,EstimationAlgorithm.MT_HOUGH_TRANSFORM]:
+            # Process meta attributes for marker tracking method
+            crop_top = kwargs.get("crop_top")
+            crop_bottom = kwargs.get("crop_bottom")
+            crop_left = kwargs.get("crop_left")
+            crop_right = kwargs.get("crop_right")
+            num_markers = kwargs.get("num_markers")
+            marker_diameter_px = kwargs.get("marker_diameter_px")
+            wait_window = kwargs.get("wait_window")
+            check_window = kwargs.get("check_window")
+            err_threshold = kwargs.get("err_threshold")
+            estm_offset = kwargs.get("estm_offset")
+            await self._device.write_attribute(
+                    "meta_attr_markers", np.array([crop_top, crop_bottom, crop_left, crop_right,
+                                                   num_markers, marker_diameter_px]))
+            await self._device.write_attribute(
+                    "meta_attr_mt_estm", np.array([wait_window, check_window, estm_offset,
+                                                   err_threshold], dtype=np.float32))
+            await self._device.prepare_angular_distribution()
+        if est_algo == EstimationAlgorithm.PHASE_CORRELATION:
+            # Process meta attributes for phase correlation method
+            reference_sino: ArrayLike = kwargs.get("reference_sino")
+            det_row_idx = kwargs.get("det_row_idx")
+            num_proj_corr = kwargs.get("num_proj_corr")
+            await self._device.write_attribute("reference_sino", reference_sino)
+            await self._device.write_attribute("meta_attr_phase_corr",
+                                               np.array([det_row_idx, num_proj_corr]))
+        if est_algo == EstimationAlgorithm.IMAGE_REGISTRATION:
+            # Process meta attributes for image registration method
+            raise NotImplementedError
         await base.Addon.__ainit__(self, experiment, acquisitions)
 
     async def _get_center_of_rotation(self) -> float:
@@ -273,6 +283,5 @@ class RotationAxisEstimator(TangoMixin, base.Addon):
     @TangoMixin.cancel_remote
     @remote
     async def estimate_center_of_rotation(self) -> None:
-        await self._device.estimate_center_of_rotation((self._wait_window, self._check_window,
-                                                        self._err_threshold))
+        await self._device.estimate_center_of_rotation()
 
