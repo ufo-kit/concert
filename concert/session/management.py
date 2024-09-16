@@ -25,6 +25,7 @@ from concert.quantities import q
 from concert.session.utils import ddoc, dstate, pdoc, code_of
 
 LOG = logging.getLogger(__name__)
+MULTIINSTANCE = False
 """
 
 
