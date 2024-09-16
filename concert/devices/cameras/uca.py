@@ -296,6 +296,9 @@ class RemoteNetCamera(Camera):
     async def unregister_endpoint(self, endpoint: CommData) -> None:
         await self._communicate(struct.pack("I128s", 13, bytes(endpoint.server_endpoint, 'ascii')))
 
+    async def unregister_all(self) -> None:
+        await self._communicate(struct.pack("I", 14))
+
 
 def _construct_ucad_error(message):
     # struct UcaNetDefaultReply of uca-net-protocol.h
