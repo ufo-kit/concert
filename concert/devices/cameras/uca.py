@@ -6,6 +6,7 @@ import functools
 import logging
 import numpy as np
 import struct
+import weakref
 from concert.coroutines.base import background, run_in_executor
 from concert.quantities import q
 from concert.base import check, Parameter, Quantity
@@ -265,16 +266,10 @@ class RemoteNetCamera(Camera):
         await Camera.__ainit__(self, 'net', params=params)
         self._ucad_host = self.uca.props.host
         self._ucad_port = self.uca.props.port
+        weakref.finalize(self, _ucad_unregister_all, self._ucad_host, self._ucad_port)
 
     async def _communicate(self, request):
-        reader, writer = await asyncio.open_connection(self._ucad_host, self._ucad_port)
-        try:
-            writer.write(request)
-            await writer.drain()
-            _construct_ucad_error(await reader.read())
-        finally:
-            writer.close()
-            await writer.wait_closed()
+        await _ucad_communicate(request, self._ucad_host, self._ucad_port)
 
     async def _send_grab_push_command(self, num_images=1, end=True):
         """Grab images in ucad and push them over network to another receiver than us."""
@@ -298,6 +293,22 @@ class RemoteNetCamera(Camera):
 
     async def unregister_all(self) -> None:
         await self._communicate(struct.pack("I", 14))
+
+
+async def _ucad_communicate(request, host, port):
+    reader, writer = await asyncio.open_connection(host, port)
+    try:
+        writer.write(request)
+        await writer.drain()
+        _construct_ucad_error(await reader.read())
+    finally:
+        writer.close()
+        await writer.wait_closed()
+
+
+def _ucad_unregister_all(host, port):
+    asyncio.run(_ucad_communicate(struct.pack("I", 14), host, port))
+    LOG.debug("Unregistered all endpoints on %s:%d", host, port)
 
 
 def _construct_ucad_error(message):
