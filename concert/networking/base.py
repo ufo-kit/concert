@@ -270,10 +270,10 @@ class ZmqReceiver(ZmqBase):
     will be used and some images might be skipped
     :param timeout: wait this many milliseconds between checking for the finished state and trying
     to get the next image
-    :param polling_timeout: wait this many milliseconds between asking for images
+    :param polling_timeout: wait this long between asking for images
     """
 
-    def __init__(self, endpoint=None, reliable=True, rcvhwm=0, polling_timeout=100):
+    def __init__(self, endpoint=None, reliable=True, rcvhwm=0, polling_timeout=100 * q.ms):
         self._rcvhwm = rcvhwm
         self._poller = zmq.asyncio.Poller()
         self._polling_timeout = polling_timeout
@@ -300,11 +300,13 @@ class ZmqReceiver(ZmqBase):
         super().close()
 
     async def is_message_available(self, polling_timeout=None):
-        """Wait on the socket *polling_timeout* milliseconds and if an image is available return
-        True, False otherwise. If *polling_timeout* is None, use the constructor value; -1 means
-        infinity.
+        """Wait on the socket *polling_timeout* and if an image is available return True, False
+        otherwise. If *polling_timeout* is None, use the constructor value; -1 means infinity.
         """
-        polling_timeout = self._polling_timeout if polling_timeout is None else polling_timeout
+        if polling_timeout is None:
+            polling_timeout = self._polling_timeout
+
+        polling_timeout = polling_timeout.to(q.ms).magnitude
         sockets = dict(await self._poller.poll(timeout=polling_timeout))
 
         return self._socket in sockets and sockets[self._socket] == zmq.POLLIN
@@ -344,8 +346,8 @@ class ZmqReceiver(ZmqBase):
                 else:
                     LOG.log(
                         PERFDEBUG,
-                        'i=%d (current tries=%d [%.3f ms])',
-                        i + 1, num_tries, self._polling_timeout * num_tries * 1e-3
+                        'i=%d (current tries=%d [%s])',
+                        i + 1, num_tries, self._polling_timeout * num_tries
                     )
                     yield (metadata, image) if return_metadata else image
                 i += 1
