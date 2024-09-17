@@ -86,8 +86,8 @@ class TestZmq(TestCase):
         self.assertTrue(await self.receiver.is_message_available(polling_timeout=10 * q.ms))
 
     async def test_send_receive(self):
-        await self.sender.send_image(self.image)
-        meta, image = await self.receiver.receive_image()
+        await start(self.sender.send_image(self.image))
+        meta, image = await start(self.receiver.receive_image())
         np.testing.assert_equal(self.image, image)
 
     async def test_publish_subscribe(self):
@@ -99,22 +99,22 @@ class TestZmq(TestCase):
         receiver = ZmqReceiver(endpoint=CLIENT, reliable=False, rcvhwm=1)
         # Start ahead to make sure we catch the image
         f = start(receiver.receive_image())
-        await sender.send_image(self.image)
+        await start(sender.send_image(self.image))
         meta, image = await f
         np.testing.assert_equal(self.image, image)
 
     async def test_subscribe(self):
         # Normal operation
-        await self.sender.send_image(self.image)
-        await self.sender.send_image(None)
+        await start(self.sender.send_image(self.image))
+        await start(self.sender.send_image(None))
 
         async for _ in self.receiver.subscribe(return_metadata=False):
             pass
 
         # Stop requested
-        await self.sender.send_image(self.image)
-        await self.sender.send_image(self.image)
-        await self.sender.send_image(None)
+        await start(self.sender.send_image(self.image))
+        await start(self.sender.send_image(self.image))
+        await start(self.sender.send_image(None))
 
         i = 0
         async for _ in self.receiver.subscribe(return_metadata=False):
@@ -136,8 +136,8 @@ class TestZmq(TestCase):
         # Start ahead to make sure we catch the image
         f_sub = start(receiver_2.receive_image())
 
-        await sender.send_image(self.image)
-        meta, image = await receiver_1.receive_image()
+        await start(sender.send_image(self.image))
+        meta, image = await start(receiver_1.receive_image())
         np.testing.assert_equal(self.image, image)
         meta, image = await f_sub
         np.testing.assert_equal(self.image, image)
