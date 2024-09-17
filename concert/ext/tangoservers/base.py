@@ -38,9 +38,18 @@ class TangoRemoteProcessing(Device, metaclass=DeviceMeta):
 
     @DebugIt()
     @command()
-    async def teardown(self):
-        """Stop receiving data forever."""
-        self._receiver.close()
+    async def connect_endpoint(self):
+        """Connect to the zmq endpoint."""
+        if not self._endpoint:
+            raise RuntimeError("Endpoint not set")
+        self._receiver.connect(self._endpoint)
+
+    @DebugIt()
+    @command()
+    async def disconnect_endpoint(self):
+        """Disconnect from the zmq endpoint."""
+        if self._receiver:
+            self._receiver.close()
 
     @DebugIt()
     @command()

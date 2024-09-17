@@ -448,9 +448,9 @@ class RadiographyLogic(Experiment):
         self._camera = camera
         flat_motor_unit = self._flat_motor['position'].unit
 
-        darks_acq = await Acquisition("darks", self._take_darks)
-        flats_acq = await Acquisition("flats", self._take_flats)
-        radios_acq = await Acquisition("radios", self._take_radios)
+        darks_acq = await Acquisition("darks", self._take_darks, producer=camera)
+        flats_acq = await Acquisition("flats", self._take_flats, producer=camera)
+        radios_acq = await Acquisition("radios", self._take_radios, producer=camera)
         await super().__ainit__([darks_acq, flats_acq, radios_acq], walker,
                                 separate_scans=separate_scans)
         self.install_parameters(
@@ -1100,12 +1100,17 @@ class LocalGratingInterferometryStepping(
 
         reference_stepping = await Acquisition(
             "reference_stepping",
-            self._take_reference_scan
+            self._take_reference_scan,
+            producer=camera
         )
         self.remove(self.get_acquisition("flats"))  # No flats required due to ref. stepping
         self.add(reference_stepping)
 
-        object_stepping = await Acquisition("object_stepping", self._take_object_scan)
+        object_stepping = await Acquisition(
+            "object_stepping",
+            self._take_object_scan,
+            producer=camera
+        )
         self.remove(self.get_acquisition("radios"))  # No radios required due to obj. stepping
         self.add(object_stepping)
 

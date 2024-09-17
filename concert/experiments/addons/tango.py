@@ -8,7 +8,9 @@ import tango
 
 from concert.experiments.addons import base
 from concert.experiments.base import remote
+from concert.helpers import CommData
 from concert.quantities import q
+from typing import Awaitable
 
 
 LOG = logging.getLogger(__name__)
@@ -40,23 +42,28 @@ class TangoMixin:
 
         return wrapper
 
-    async def __ainit__(self, device):
+    async def __ainit__(self, device, endpoint: CommData) -> Awaitable:
         self._device = device
+        self.endpoint = endpoint
+        await self._device.write_attribute('endpoint', self.endpoint.client_endpoint)
+
+    async def connect_endpoint(self):
+        await self._device.connect_endpoint()
+
+    async def disconnect_endpoint(self):
+        await self._device.disconnect_endpoint()
 
     async def cancel(self):
         await self._device.cancel()
 
-    async def _setup(self):
-        await self._device.reset_connection()
-
     async def _teardown(self):
-        await self._device.teardown()
+        await self._device.disconnect_endpoint()
 
 
 class Benchmarker(TangoMixin, base.Benchmarker):
 
-    async def __ainit__(self, experiment, device, acquisitions=None):
-        await TangoMixin.__ainit__(self, device)
+    async def __ainit__(self, experiment, device, endpoint, acquisitions=None):
+        await TangoMixin.__ainit__(self, device, endpoint)
         await base.Benchmarker.__ainit__(self, experiment=experiment, acquisitions=acquisitions)
 
     @TangoMixin.cancel_remote
@@ -74,8 +81,8 @@ class Benchmarker(TangoMixin, base.Benchmarker):
 
 class ImageWriter(TangoMixin, base.ImageWriter):
 
-    async def __ainit__(self, experiment, acquisitions=None):
-        await TangoMixin.__ainit__(self, experiment.walker.device)
+    async def __ainit__(self, experiment, endpoint, acquisitions=None):
+        await TangoMixin.__ainit__(self, experiment.walker.device, endpoint)
         await base.ImageWriter.__ainit__(self, experiment=experiment, acquisitions=acquisitions)
 
     @TangoMixin.cancel_remote
@@ -87,9 +94,15 @@ class ImageWriter(TangoMixin, base.ImageWriter):
 class LiveView(base.LiveView):
 
     async def __ainit__(self, viewer, endpoint, experiment, acquisitions=None):
+        self.endpoint = endpoint
         await base.LiveView.__ainit__(self, viewer, experiment=experiment, acquisitions=acquisitions)
-        self._endpoint = endpoint
         self._orig_limits = await viewer.get_limits()
+
+    async def connect_endpoint(self):
+        self._viewer.subscribe(self.endpoint.client_endpoint)
+
+    async def disconnect_endpoint(self):
+        self._viewer.unsubscribe()
 
     @remote
     async def consume(self):
@@ -99,13 +112,9 @@ class LiveView(base.LiveView):
                 # Force viewer to update the limits by unsubscribing and re-subscribing after
                 # setting limits to stream
                 await self._viewer.set_limits('stream')
-                self._viewer.subscribe(self._endpoint)
+                self._viewer.subscribe(self.endpoint.client_endpoint)
         finally:
             self._orig_limits = await self._viewer.get_limits()
-
-    async def _teardown(self):
-        await super()._teardown()
-        self._viewer.unsubscribe()
 
 
 class _TangoProxyArgs:
@@ -120,10 +129,18 @@ class _TangoProxyArgs:
 
 
 class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
-    async def __ainit__(self, device, experiment, acquisitions=None, do_normalization=True,
-                        average_normalization=True, slice_directory='online-slices',
-                        viewer=None):
-        await TangoMixin.__ainit__(self, device)
+    async def __ainit__(
+        self,
+        device,
+        experiment,
+        endpoint,
+        acquisitions=None,
+        do_normalization=True,
+        average_normalization=True,
+        slice_directory='online-slices',
+        viewer=None
+    ):
+        await TangoMixin.__ainit__(self, device, endpoint)
 
         # Lock the device to prevent other processes from using it
         try:

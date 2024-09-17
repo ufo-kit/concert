@@ -235,9 +235,9 @@ class RemoteFileImagingExperiment(Experiment):
         self.num_flats = num_flats
         self.num_radios = num_radios
         self._camera = camera
-        darks = await Acquisition('darks', self.take_darks)
-        flats = await Acquisition('flats', self.take_flats)
-        radios = await Acquisition('radios', self.take_radios)
+        darks = await Acquisition('darks', self.take_darks, producer=camera)
+        flats = await Acquisition('flats', self.take_flats, producer=camera)
+        radios = await Acquisition('radios', self.take_radios, producer=camera)
         await super().__ainit__(
             [darks, flats, radios],
             walker=walker,
