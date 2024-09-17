@@ -382,7 +382,7 @@ class ZmqBroadcaster(ZmqReceiver):
     high water mark (use 1 for always getting the newest image, only applicable for non-reliable
     case)
     """
-    def __init__(self, endpoint, broadcast_endpoints, polling_timeout=100):
+    def __init__(self, endpoint, broadcast_endpoints, polling_timeout=100 * q.ms):
         super().__init__(endpoint, polling_timeout=polling_timeout)
         self._broadcast_sockets = set([])
         self._poller_out = zmq.asyncio.Poller()
@@ -402,7 +402,7 @@ class ZmqBroadcaster(ZmqReceiver):
     async def _forward_image(self, image, metadata):
         # Until zmq 23.2.1, this would take the whole *timeout* time even if there were events on
         # the sockets
-        sockets = dict(await self._poller_out.poll(timeout=self._polling_timeout))
+        sockets = dict(await self._poller_out.poll(timeout=self._polling_timeout.to(q.ms).magnitude))
         if sockets.keys() != self._broadcast_sockets:
             dead_ends = [
                 socket.get(zmq.LAST_ENDPOINT) for socket in self._broadcast_sockets

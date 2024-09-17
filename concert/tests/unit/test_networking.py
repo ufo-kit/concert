@@ -81,9 +81,9 @@ class TestZmq(TestCase):
             sender = ZmqSender(endpoint=SERVER, sndhwm=-1)
 
     async def test_is_message_available(self):
-        self.assertFalse(await self.receiver.is_message_available(polling_timeout=10))
+        self.assertFalse(await self.receiver.is_message_available(polling_timeout=10 * q.ms))
         await self.sender.send_image(self.image)
-        self.assertTrue(await self.receiver.is_message_available(polling_timeout=10))
+        self.assertTrue(await self.receiver.is_message_available(polling_timeout=10 * q.ms))
 
     async def test_send_receive(self):
         await self.sender.send_image(self.image)
