@@ -2,6 +2,7 @@
 
 import asyncio
 import argparse
+import atexit
 import contextlib
 import logging
 import os
@@ -54,6 +55,12 @@ def get_prompt_config(path):
             return []
 
     return MyPrompt
+
+
+def delete_lock_file(lockfile):
+    if os.path.exists(lockfile):
+        os.remove(lockfile)
+        LOG.debug("Removed lock file %s", lockfile)
 
 
 class InitCommand(SubCommand):
@@ -382,6 +389,19 @@ class StartCommand(SubCommand):
 
         ip_config = traitlets.config.Config()
         if path and path.endswith('.py'):
+            if not cs.is_multiinstance(session):
+                lockfile = os.path.join(os.path.dirname(path), '.' + os.path.basename(path))
+                if os.path.exists(lockfile):
+                    print(f"An instance of `{session}' seems to be already running.")
+                    print(
+                        f"If you are sure there are no running instances, delete `{lockfile}' "
+                        "and start again."
+                    )
+                    return
+                with open(lockfile, 'w'):
+                    pass
+                atexit.register(delete_lock_file, lockfile)
+
             docstring = cs.get_docstring(path)
             if docstring:
                 print(docstring)

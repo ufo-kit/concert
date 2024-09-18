@@ -130,6 +130,9 @@ def zmq_create_image_metadata(image):
 
 async def zmq_receive_image(socket):
     """Receive image data from a zmq *socket*."""
+    if socket is None:
+        raise NetworkingError("Socket cannot be none")
+
     metadata = await socket.recv_json()
     if 'end' in metadata:
         return (metadata, None)
@@ -145,7 +148,7 @@ async def zmq_send_image(socket, image, metadata=None):
     {'end': True} is sent in metadata and no actual payload is sent.
     """
     if socket is None:
-        raise ValueError("socket cannot be none")
+        raise NetworkingError("Socket cannot be none")
 
     if image is None or not metadata:
         metadata = zmq_create_image_metadata(image)
@@ -181,10 +184,17 @@ class ZmqBase:
     :param endpoint: endpoint in form transport://address
     :param reliable: if True, all images will reach their destination, otherwise zmq.PUB/zmq.SUB
     will be used and some images might be skipped
+    :param polling_timeout: wait this long between asking for images
+    :param timeout: time to wait for an image to be sent/received, if None, wait forever, otherwise
+    wait the specified amount of time and if it is exceeded raise :class:`TimeoutError`. This time
+    is approximate.
     """
 
-    def __init__(self, endpoint=None, reliable=True):
+    def __init__(self, endpoint=None, reliable=True, polling_timeout=100 * q.ms, timeout=None):
         self._endpoint = endpoint
+        self._poller = zmq.asyncio.Poller()
+        self._polling_timeout = polling_timeout
+        self._timeout = timeout
         self._reliable = reliable
         self._context = zmq.asyncio.Context()
         self._socket = None
@@ -241,11 +251,27 @@ class ZmqSender(ZmqBase):
     :param reliable: if True, all images will reach their destination, otherwise zmq.PUB/zmq.SUB
     will be used and some images might be skipped
     :param sndhwm: high send water mark
+    :param polling_timeout: wait this long between asking for images
+    :param timeout: time to wait for an image to be sent/received, if None, wait forever, otherwise
+    wait the specified amount of time and if it is exceeded raise :class:`TimeoutError`. This time
+    is approximate.
     """
 
-    def __init__(self, endpoint=None, reliable=True, sndhwm=None):
+    def __init__(
+        self,
+        endpoint=None,
+        reliable=True,
+        sndhwm=0,
+        polling_timeout=100 * q.ms,
+        timeout=None
+    ):
         self._sndhwm = sndhwm
-        super().__init__(endpoint=endpoint, reliable=reliable)
+        super().__init__(
+            endpoint=endpoint,
+            reliable=reliable,
+            polling_timeout=polling_timeout,
+            timeout=timeout
+        )
 
     def _setup_socket(self):
         """Create and connect a PUSH socket."""
@@ -255,10 +281,42 @@ class ZmqSender(ZmqBase):
             self._reliable,
             self._sndhwm,
         )
+        self._poller.register(self._socket, zmq.POLLOUT)
+
+    def close(self):
+        if self._socket:
+            self._poller.unregister(self._socket)
+        super().close()
+
+    async def is_consumer_available(self, polling_timeout=None):
+        """Wait on the socket *polling_timeout* and if a consumer is available return True, False
+        otherwise. If *polling_timeout* is None, use the constructor value.
+        """
+        if polling_timeout is None:
+            polling_timeout = self._polling_timeout
+
+        polling_timeout = polling_timeout.to(q.ms).magnitude
+        sockets = dict(await self._poller.poll(timeout=polling_timeout))
+
+        return self._socket in sockets and sockets[self._socket] == zmq.POLLOUT
 
     async def send_image(self, image):
         """Send *image*."""
-        await zmq_send_image(self._socket, image)
+        timeout = self._timeout.to(q.s).magnitude if self._timeout else None
+        num_tries = 0
+        st = time.perf_counter()
+
+        while True:
+            if not self._socket:
+                raise NetworkingError("Cannot send over a closed socket.")
+            if await self.is_consumer_available():
+                await zmq_send_image(self._socket, image)
+                break
+            else:
+                num_tries += 1
+
+            if timeout and time.perf_counter() - st > timeout:
+                raise TimeoutError("Sending timeout exceeded")
 
 
 class ZmqReceiver(ZmqBase):
@@ -268,17 +326,29 @@ class ZmqReceiver(ZmqBase):
     :param endpoint: endpoint in form transport://address
     :param reliable: if True, all images will reach their destination, otherwise zmq.PUB/zmq.SUB
     will be used and some images might be skipped
-    :param timeout: wait this many milliseconds between checking for the finished state and trying
-    to get the next image
-    :param polling_timeout: wait this many milliseconds between asking for images
+    :param rcvhwm: high receive water mark
+    :param polling_timeout: wait this long between asking for images
+    :param timeout: time to wait for an image to be sent/received, if None, wait forever, otherwise
+    wait the specified amount of time and if it is exceeded raise :class:`TimeoutError`. This time
+    is approximate.
     """
 
-    def __init__(self, endpoint=None, reliable=True, rcvhwm=0, polling_timeout=100):
+    def __init__(
+        self,
+        endpoint=None,
+        reliable=True,
+        rcvhwm=0,
+        polling_timeout=100 * q.ms,
+        timeout=None
+    ):
         self._rcvhwm = rcvhwm
-        self._poller = zmq.asyncio.Poller()
-        self._polling_timeout = polling_timeout
         self._request_stop = False
-        super().__init__(endpoint=endpoint, reliable=reliable)
+        super().__init__(
+            endpoint=endpoint,
+            reliable=reliable,
+            polling_timeout=polling_timeout,
+            timeout=timeout
+        )
 
     def _setup_socket(self):
         """Create and connect a PULL socket."""
@@ -300,18 +370,35 @@ class ZmqReceiver(ZmqBase):
         super().close()
 
     async def is_message_available(self, polling_timeout=None):
-        """Wait on the socket *polling_timeout* milliseconds and if an image is available return
-        True, False otherwise. If *polling_timeout* is None, use the constructor value; -1 means
-        infinity.
+        """Wait on the socket *polling_timeout* and if an image is available return True, False
+        otherwise. If *polling_timeout* is None, use the constructor value.
         """
-        polling_timeout = self._polling_timeout if polling_timeout is None else polling_timeout
+        if polling_timeout is None:
+            polling_timeout = self._polling_timeout
+
+        polling_timeout = polling_timeout.to(q.ms).magnitude
         sockets = dict(await self._poller.poll(timeout=polling_timeout))
 
         return self._socket in sockets and sockets[self._socket] == zmq.POLLIN
 
     async def receive_image(self):
         """Receive image."""
-        return await zmq_receive_image(self._socket)
+        timeout = self._timeout.to(q.s).magnitude if self._timeout else None
+        num_tries = 0
+        st = time.perf_counter()
+
+        while True:
+            if not self._socket:
+                raise NetworkingError("Cannot receive over a closed socket.")
+            if await self.is_message_available():
+                # There is something to consume
+                return await zmq_receive_image(self._socket)
+            elif self._request_stop:
+                return (None, None)
+            else:
+                num_tries += 1
+            if timeout and time.perf_counter() - st > timeout:
+                raise TimeoutError("Receiving timeout exceeded")
 
     async def subscribe(self, return_metadata=False):
         """Receive images."""
@@ -320,42 +407,27 @@ class ZmqReceiver(ZmqBase):
 
         try:
             while True:
-                num_tries = 0
-                while True:
-                    if await self.is_message_available():
-                        # There is something to consume
-                        metadata, image = await self.receive_image()
-                        break
-                    elif self._request_stop:
-                        break
-                    else:
-                        num_tries += 1
+                metadata, image = await self.receive_image()
                 if self._request_stop or image is None:
                     # Poison pill or stop requested
                     LOG.debug(
-                        '%s stopping at i=%d (reason: %s, current tries=%d)',
+                        '%s stopping at i=%d (reason: %s)',
                         self._endpoint,
                         i,
-                        'stop requested' if self._request_stop else 'image=None',
-                        num_tries
+                        'stop requested' if self._request_stop else 'image=None'
                     )
                     self._request_stop = False
                     break
                 else:
-                    LOG.log(
-                        PERFDEBUG,
-                        'i=%d (current tries=%d [%.3f ms])',
-                        i + 1, num_tries, self._polling_timeout * num_tries * 1e-3
-                    )
+                    LOG.log(PERFDEBUG, 'i=%d', i + 1)
                     yield (metadata, image) if return_metadata else image
                 i += 1
         except BaseException as e:
             LOG.debug(
-                '%s stopping at i=%d (reason: %s, current tries=%d)',
+                '%s stopping at i=%d (reason: %s)',
                 self._endpoint,
                 i,
-                e.__class__.__name__,
-                num_tries
+                e.__class__.__name__
             )
             raise
         finally:
@@ -380,7 +452,7 @@ class ZmqBroadcaster(ZmqReceiver):
     high water mark (use 1 for always getting the newest image, only applicable for non-reliable
     case)
     """
-    def __init__(self, endpoint, broadcast_endpoints, polling_timeout=100):
+    def __init__(self, endpoint, broadcast_endpoints, polling_timeout=100 * q.ms):
         super().__init__(endpoint, polling_timeout=polling_timeout)
         self._broadcast_sockets = set([])
         self._poller_out = zmq.asyncio.Poller()
@@ -400,7 +472,7 @@ class ZmqBroadcaster(ZmqReceiver):
     async def _forward_image(self, image, metadata):
         # Until zmq 23.2.1, this would take the whole *timeout* time even if there were events on
         # the sockets
-        sockets = dict(await self._poller_out.poll(timeout=self._polling_timeout))
+        sockets = dict(await self._poller_out.poll(timeout=self._polling_timeout.to(q.ms).magnitude))
         if sockets.keys() != self._broadcast_sockets:
             dead_ends = [
                 socket.get(zmq.LAST_ENDPOINT) for socket in self._broadcast_sockets
@@ -491,3 +563,7 @@ def is_zmq_endpoint_local(endpoint):
 class BroadcastError(Exception):
     """ZmqBroadcaster-related exceptions."""
     pass
+
+
+class NetworkingError(Exception):
+    """General networking exception."""

@@ -94,7 +94,8 @@ class Benchmarker(Addon):
         for acq in acquisitions:
             consumers[acq] = AcquisitionConsumer(
                 self.start_timer,
-                corofunc_args=(acq.name,)
+                corofunc_args=(acq.name,),
+                addon=self if self.start_timer.remote else None
             )
 
         return consumers
@@ -150,8 +151,9 @@ class ImageWriter(Addon):
 
             return prepare_and_write
 
+        addon = self if self.write_sequence.remote else None
         for acq in acquisitions:
-            consumers[acq] = AcquisitionConsumer(prepare_wrapper(acq))
+            consumers[acq] = AcquisitionConsumer(prepare_wrapper(acq), addon=addon)
             consumers[acq].corofunc.remote = self.write_sequence.remote
 
         return consumers
@@ -182,8 +184,9 @@ class Consumer(Addon):
     def _make_consumers(self, acquisitions):
         consumers = {}
 
+        addon = self if self.consume.remote else None
         for acq in acquisitions:
-            consumers[acq] = AcquisitionConsumer(self.consume)
+            consumers[acq] = AcquisitionConsumer(self.consume, addon=addon)
 
         return consumers
 
@@ -208,8 +211,9 @@ class LiveView(Addon):
     def _make_consumers(self, acquisitions):
         consumers = {}
 
+        addon = self if self.consume.remote else None
         for acq in acquisitions:
-            consumers[acq] = AcquisitionConsumer(self.consume)
+            consumers[acq] = AcquisitionConsumer(self.consume, addon=addon)
 
         return consumers
 
@@ -243,11 +247,13 @@ class Accumulator(Addon):
         shapes = (None,) * len(acquisitions) if self._shapes is None else self._shapes
         consumers = {}
 
+        addon = self if self.accumulate.remote else None
         for i, acq in enumerate(acquisitions):
             consumers[acq] = AcquisitionConsumer(
                 self.accumulate,
                 corofunc_args=(acq.name,),
                 corofunc_kwargs={'shape': shapes[i], 'dtype': self._dtype},
+                addon=addon
             )
 
         return consumers
@@ -316,16 +322,20 @@ class OnlineReconstruction(Addon):
     def _make_consumers(self, acquisitions):
         consumers = {}
 
+        addon = self if self.reconstruct.remote else None
         if self._do_normalization:
             consumers[get_acq_by_name(acquisitions, 'darks')] = AcquisitionConsumer(
-                self.update_darks
+                self.update_darks,
+                addon=addon
             )
             consumers[get_acq_by_name(acquisitions, 'flats')] = AcquisitionConsumer(
-                self.update_flats
+                self.update_flats,
+                addon=addon
             )
 
         consumers[get_acq_by_name(acquisitions, 'radios')] = AcquisitionConsumer(
-            self.reconstruct
+            self.reconstruct,
+            addon=addon
         )
 
         return consumers
@@ -485,14 +495,18 @@ class PhaseGratingSteppingFourierProcessing(Addon):
 
     def _make_consumers(self, acquisitions):
         consumers = {}
+        addon = self if self.process_stepping.remote else None
         consumers[get_acq_by_name(acquisitions, 'darks')] = AcquisitionConsumer(
             self.process_darks,
+            addon=addon
         )
         consumers[get_acq_by_name(acquisitions, 'reference_stepping')] = AcquisitionConsumer(
             self.process_stepping,
+            addon=addon
         )
         consumers[get_acq_by_name(acquisitions, 'object_stepping')] = AcquisitionConsumer(
             self.process_stepping,
+            addon=addon
         )
 
         return consumers
