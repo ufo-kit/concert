@@ -24,15 +24,18 @@ class TestProcesses(TestCase):
         assert_almost_equal(await self.motor.get_position(), FOCUS_POSITION, 1e-2)
 
     async def test_acquire_dark(self):
-        self.assertTrue(isinstance(await acquire_dark(self.camera, self.shutter), np.ndarray))
+        async with self.camera.recording():
+            self.assertTrue(isinstance(await acquire_dark(self.camera, self.shutter), np.ndarray))
 
     async def test_acquire_image_with_beam(self):
-        frame = await acquire_image_with_beam(self.camera, self.shutter, self.motor, 1 * q.mm)
+        async with self.camera.recording():
+            frame = await acquire_image_with_beam(self.camera, self.shutter, self.motor, 1 * q.mm)
         self.assertTrue(isinstance(frame, np.ndarray))
         self.assertEqual(await self.motor.get_position(), 1 * q.mm)
 
     async def test_determine_rotation_axis(self):
         rot_motor = await RotationMotor()
-        axis = await determine_rotation_axis(self.camera, self.shutter, self.motor, rot_motor,
-                                             1 * q.mm, 3 * q.mm)
+        async with self.camera.recording():
+            axis = await determine_rotation_axis(self.camera, self.shutter, self.motor, rot_motor,
+                                                 1 * q.mm, 3 * q.mm)
         self.assertTrue(isinstance(axis, q.Quantity))

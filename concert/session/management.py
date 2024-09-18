@@ -25,6 +25,7 @@ from concert.quantities import q
 from concert.session.utils import ddoc, dstate, pdoc, code_of
 
 LOG = logging.getLogger(__name__)
+MULTIINSTANCE = False
 """
 
 
@@ -111,6 +112,24 @@ def get_docstring(filename):
         session_code = session_file.read()
     tree = ast.parse(session_code)
     return ast.get_docstring(tree)
+
+
+def is_multiinstance(filename):
+    """Search for the MULTIINSTANCE assignment in *filename* and return its value."""
+    if not os.path.exists(filename):
+        # Just the session name, find the actual path
+        filename = path(filename)
+
+    with open(filename) as session_file:
+        lines = session_file.readlines()
+
+    for line in lines:
+        if "MULTIINSTANCE" in line:
+            node = ast.parse(line).body[0]
+            return node.value.value
+
+    # If MULTIINSTANCE is not specified be conservative and return False
+    return False
 
 
 def get_existing():

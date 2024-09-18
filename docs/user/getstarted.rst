@@ -138,6 +138,12 @@ Sessions are just normal Python modules with one additional feature that you may
 use top-level ``await`` in them, i.e. outside of an ``async def`` function, for
 more info see :ref:`shell-importing`.
 
+In the session code you can specify whether a session can run only once or
+several times, use ``MULTIINSTANCE = True | False`` for specifying this. If the
+``MULTIINSTANCE`` assignment is not found it is ``False`` by default, which
+means the session can run only once (have one instance). This is useful for
+experiment sessions which use various resources and set up remote connections.
+
 
 Adding devices
 --------------
