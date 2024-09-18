@@ -1,7 +1,6 @@
 import signal
 import subprocess
 import time
-from asyncio import timeout
 
 from concert.coroutines.base import start
 from concert.quantities import q
