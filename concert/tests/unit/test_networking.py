@@ -127,9 +127,9 @@ class TestZmq(TestCase):
 
     async def test_broadcast_immediate_shutdown(self):
         sender, broadcast, receiver_1, receiver_2 = setup_broadcaster()
-        # f = start(broadcast.serve())
-        # await broadcast.shutdown()
-        # await asyncio.wait_for(f, 1)
+        f = start(broadcast.serve())
+        await broadcast.shutdown()
+        await asyncio.wait_for(f, 1)
 
     async def test_broadcast(self):
         sender, broadcast, receiver_1, receiver_2 = setup_broadcaster()

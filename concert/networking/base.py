@@ -316,7 +316,7 @@ class ZmqSender(ZmqBase):
                 num_tries += 1
 
             if timeout and time.perf_counter() - st > timeout:
-                raise TimeoutError("Receiving timeout exceeded")
+                raise TimeoutError("Sending timeout exceeded")
 
 
 class ZmqReceiver(ZmqBase):
