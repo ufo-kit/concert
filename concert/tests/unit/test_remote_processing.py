@@ -64,13 +64,14 @@ async def tango_run_standalone(name: str, port:int, device_uri:str, start_timeou
         os.killpg(os.getpgid(pro.pid), signal.SIGTERM)
 
 
+
 class TestRemoteProcessingStartup(TestCase):
     async def test_walker_startup(self):
         tango_dev = get_tango_device('tango://localhost:1200/concert/tango/walker#dbase=no')
         f = await tango_dev.state()
         self.assertNotEqual(f, None)
 
-        tango_dev = get_tango_device('tango://localhost:1233/concert/tango/walker#dbase=no')
+        tango_dev = get_tango_device('tango://localhost:1201/concert/tango/walker#dbase=no')
         f = await tango_dev.state()
         self.assertNotEqual(f, None)
 
@@ -82,7 +83,6 @@ class TestRemoteProcessingStartup(TestCase):
         tango_dev = get_tango_device('tango://localhost:1203/concert/tango/dummycamera#dbase=no')
         f = await tango_dev.state()
         self.assertNotEqual(f, None)
-
 
     async def test_reco_startup(self):
         if test_with_tofu:
