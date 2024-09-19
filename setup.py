@@ -27,7 +27,8 @@ setup(
              'concert/ext/tangoservers/bin/TangoFileCamera',
              'concert/ext/tangoservers/bin/TangoOnlineReconstruction',
              'concert/ext/tangoservers/bin/TangoRemoteWalker',
-             'concert/ext/tangoservers/bin/TangoBenchmarker'],
+             'concert/ext/tangoservers/bin/TangoBenchmarker',
+             'concert/ext/tangoservers/bin/run_server_detached'],
     data_files=data_files,
     exclude_package_data={'': ['README.rst']},
     description="Lightweight beamline control system",
@@ -43,6 +44,7 @@ setup(
         'scipy',
         'tifffile',
         'pyzmq>=23.2.1',
+        'psutil'
     ],
     test_suite='concert.tests',
 )
