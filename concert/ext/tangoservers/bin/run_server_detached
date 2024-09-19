@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# Check if at least one argument is provided
+if [ $# -lt 1 ]; then
+  echo "Usage: $0 <program> [args...]"
+  exit 1
+fi
+
+# Start the program with provided arguments and redirect stdout and stderr to a PID-dependent file using tee
+PID=$$
+unbuffer "$@" 2>&1 | tee "output_$PID.log" &
+
+# Get the PID of the last background process
+BG_PID=$!
+
+# Define the timeout in seconds
+TIMEOUT=30
+elapsed=0
+
+# Loop until the special output is found or timeout is reached
+while ! grep -q "Ready to accept request" "output_$PID.log"; do
+  sleep 1
+  elapsed=$((elapsed + 1))
+  if [ $elapsed -ge $TIMEOUT ]; then
+    echo "Timeout reached. Exiting."
+    kill -9 $BG_PID
+    exit 1
+  fi
+done
+
+# Move the process to the background
+disown $BG_PID

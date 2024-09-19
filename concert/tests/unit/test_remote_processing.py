@@ -66,37 +66,30 @@ async def tango_run_standalone(name: str, port:int, device_uri:str, start_timeou
 
 class TestRemoteProcessingStartup(TestCase):
     async def test_walker_startup(self):
-        #async with tango_run_concert('walker', 1233):
-        #    tango_dev = get_tango_device('tango://localhost:1233/concert/tango/walker#dbase=no')
-        #    f = await tango_dev.state()
-        #    self.assertNotEqual(f, None)
-        #    walker = await RemoteDirectoryWalker(tango_dev)
-        #    print(await walker.get_endpoint())
+        tango_dev = get_tango_device('tango://localhost:1200/concert/tango/walker#dbase=no')
+        f = await tango_dev.state()
+        self.assertNotEqual(f, None)
 
-        async with tango_run_standalone('TangoRemoteWalker', 1233, "concert/tango/walker", 10*q.s):
-            tango_dev = get_tango_device('tango://localhost:1233/concert/tango/walker#dbase=no')
-            f = await tango_dev.state()
-            self.assertNotEqual(f, None)
+        tango_dev = get_tango_device('tango://localhost:1233/concert/tango/walker#dbase=no')
+        f = await tango_dev.state()
+        self.assertNotEqual(f, None)
 
     async def test_camera_startup(self):
-        #async with tango_run_concert('dummycamera', 1245):
-        #    tango_dev = get_tango_device('tango://localhost:1245/concert/tango/dummycamera#dbase=no')
-        #    f = await tango_dev.state()
-        #    self.assertNotEqual(f, None)
+        tango_dev = get_tango_device('tango://localhost:1202/concert/tango/dummycamera#dbase=no')
+        f = await tango_dev.state()
+        self.assertNotEqual(f, None)
 
-        async with tango_run_standalone('TangoDummyCamera', 1245, "concert/tango/dummycamera", 10*q.s):
-            tango_dev = get_tango_device('tango://localhost:1245/concert/tango/dummycamera#dbase=no')
-            f = await tango_dev.state()
-            self.assertNotEqual(f, None)
+        tango_dev = get_tango_device('tango://localhost:1203/concert/tango/dummycamera#dbase=no')
+        f = await tango_dev.state()
+        self.assertNotEqual(f, None)
+
 
     async def test_reco_startup(self):
         if test_with_tofu:
-            async with tango_run_concert('reco', 1247):
-                tango_dev = get_tango_device('tango://localhost:1247/concert/tango/reco#dbase=no')
-                f = await tango_dev.state()
-                self.assertNotEqual(f, None)
+            tango_dev = get_tango_device('tango://localhost:1204/concert/tango/reco#dbase=no')
+            f = await tango_dev.state()
+            self.assertNotEqual(f, None)
 
-            async with tango_run_standalone('reco', 1247, "concert/tango/reco", 10*q.s):
-                tango_dev = get_tango_device('tango://localhost:1247/concert/tango/reco#dbase=no')
-                f = await tango_dev.state()
-                self.assertNotEqual(f, None)
+            tango_dev = get_tango_device('tango://localhost:1205/concert/tango/reco#dbase=no')
+            f = await tango_dev.state()
+            self.assertNotEqual(f, None)
