@@ -272,7 +272,8 @@ class Accumulator(Addon):
 class OnlineReconstruction(Addon):
     reuse_darks_and_flats = Parameter(
         help="Use darks/flats from file."
-             "Requires to load them first via the functions read_darks_from_file and read_flats_from_file")
+             "Requires to load them first via the functions read_darks_from_file and"
+             "read_flats_from_file")
 
     UNITS = {
         'source_position_y': q.px,
@@ -382,6 +383,7 @@ class OnlineReconstruction(Addon):
 
         self.install_parameters(params)
         await self._set_args(**kwargs)
+
     def _make_getter(self, arg, unit=None):
         async def getter(instance):
             value = await self._proxy.get_reco_arg(arg)

@@ -29,7 +29,8 @@ async def start_tango_server_standalone(server, port, device_uri):
         return
     else:
         process = subprocess.Popen(
-            [f'run_server_detached {server_executable} test -nodb --port {port} --dlist={device_uri}'], shell=True)
+            [f'run_server_detached {server_executable} test -nodb --port {port} '
+             f'--dlist={device_uri}'], shell=True)
         while process.poll() is None:
             await asyncio.sleep(0.1)
 
@@ -40,19 +41,23 @@ async def start_tango_server_concert(server, port):
     if is_process_running(["tango", str(port)]):
         return
     else:
-        process = subprocess.Popen([f'run_server_detached concert tango {server} --port {port}'], shell=True)
+        process = subprocess.Popen([f'run_server_detached concert tango {server} --port {port}'],
+                                   shell=True)
         while process.poll() is None:
             await asyncio.sleep(0.1)
 
 
 class TestRemoteProcessingStartup(TestCase):
     async def asyncSetUp(self):
-        await asyncio.gather(start_tango_server_standalone('walker', 1200, 'concert/tango/walker'),
+        await asyncio.gather(start_tango_server_standalone('walker', 1200,
+                                                           'concert/tango/walker'),
                              start_tango_server_concert('walker', 1201),
-                             start_tango_server_standalone('dummycamera', 1202, 'concert/tango/dummycamera'),
+                             start_tango_server_standalone('dummycamera', 1202,
+                                                           'concert/tango/dummycamera'),
                              start_tango_server_concert('dummycamera', 1203))
         if test_with_tofu:
-            await asyncio.gather(start_tango_server_standalone('reco', 1204, 'concert/tango/reco'),
+            await asyncio.gather(start_tango_server_standalone('reco', 1204,
+                                                               'concert/tango/reco'),
                                  start_tango_server_concert('reco', 1205))
 
     async def test_walker_startup(self):

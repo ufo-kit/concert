@@ -804,8 +804,9 @@ class GeneralBackprojectManager(Parameterizable):
                     (self.args.height, self.args.width) = image.shape
                 if not self._processing_task:
                     # Start averaging before projection stream starts
-                    self._processing_task = start(self._distribute(reuse_normalization=self.reuse_normalization,
-                                                                   do_normalization=True))
+                    self._processing_task = (
+                        start(self._distribute(reuse_normalization=self.reuse_normalization,
+                                               do_normalization=True)))
 
                 async with condition:
                     images.append(image)

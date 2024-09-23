@@ -165,6 +165,7 @@ class MultipleStateDevice(Device):
     async def do_only_with_foo_and_bar_in_standby(self):
         pass
 
+
 class TestStateMachine(TestCase):
 
     async def asyncSetUp(self):
@@ -298,7 +299,6 @@ class TestStateMachine(TestCase):
             await dev.set_parameter(True)
         with self.assertRaises(FSMError):
             await dev.do_only_with_foo_and_bar_in_standby()
-
 
         await dev.switch_bar_state_to_moving()
         self.assertEqual(await dev.get_state(), 'moving')

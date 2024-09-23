@@ -39,6 +39,7 @@ class BrokenDevice(LinearMotor):
     async def _get_position(self):
         raise BrokenDeviceException("Broken device")
 
+
 class VisitChecker(object):
 
     """Use this to check that a callback was called."""

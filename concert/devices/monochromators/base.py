@@ -43,7 +43,8 @@ class Monochromator(Device):
 
     state = State(default="standby")
     energy = Quantity(q.eV, help="Energy", check=check(source='standby', target='standby'))
-    wavelength = Quantity(q.nanometer, help="Wavelength", check=check(source='standby', target='standby'))
+    wavelength = Quantity(q.nanometer, help="Wavelength",
+                          check=check(source='standby', target='standby'))
 
     @abstractmethod
     async def _get_energy(self):
