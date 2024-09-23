@@ -303,7 +303,7 @@ class Walker(Parameterizable):
 
     @abstractmethod
     @background
-    async def log_to_json(self, payload: str, filename: str="experiment.json") -> None:
+    async def log_to_json(self, payload: str, filename: str = "experiment.json") -> None:
         """
         Provides local counterpart of the remote logging of experiment
         metadata. Writes the provided payload to a static file called
@@ -455,7 +455,7 @@ class DirectoryWalker(Walker):
                               file_name: str) -> AsyncLoggingHandlerCloser:
         return LoggingHandler(os.path.join(await self.get_current(), file_name))
 
-    async def log_to_json(self, payload: str, filename: str="experiment.json") -> None:
+    async def log_to_json(self, payload: str, filename: str = "experiment.json") -> None:
         """
         Logs experiment metadata as *payload* to a file called experiment.json
 
@@ -518,10 +518,10 @@ class RemoteDirectoryWalker(Walker):
         LOG.debug("device attributes: %s", self.device.get_attribute_list())
 
         # Prevent the device from being accessed by other clients
-        #try:
-        #    self.device.lock()
-        #except tango.NonDbDevice:
-        #    pass
+        try:
+            self.device.lock()
+        except tango.NonDbDevice:
+            pass
 
         # The 'root' is either explicitly specified or initialized using the
         # value from the remote server where the Tango device is initialized
@@ -627,7 +627,7 @@ class RemoteDirectoryWalker(Walker):
         log_path: str = await self.device.register_logger((logger_name, str(log_level), file_name))
         return RemoteLoggingHandler(device=self.device, log_path=log_path)
 
-    async def log_to_json(self, payload: str, filename: str="experiment.json") -> None:
+    async def log_to_json(self, payload: str, filename: str = "experiment.json") -> None:
         """Implements api layer for writing experiment metadata"""
         await self.device.log_to_json([payload, filename])
 

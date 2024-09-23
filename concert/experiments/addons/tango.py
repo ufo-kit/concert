@@ -95,7 +95,10 @@ class LiveView(base.LiveView):
 
     async def __ainit__(self, viewer, endpoint, experiment, acquisitions=None):
         self.endpoint = endpoint
-        await base.LiveView.__ainit__(self, viewer, experiment=experiment, acquisitions=acquisitions)
+        await base.LiveView.__ainit__(self,
+                                      viewer,
+                                      experiment=experiment,
+                                      acquisitions=acquisitions)
         self._orig_limits = await viewer.get_limits()
 
     async def connect_endpoint(self):

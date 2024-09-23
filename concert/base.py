@@ -268,7 +268,8 @@ def transition(immediate=None, target=None, state_name='state'):
     return wrapped
 
 
-def check(source: Union[str, List[str]] = '*', target: Union[str, List[str]] = '*', state_name='state'):
+def check(source: Union[str, List[str]] = '*', target: Union[str, List[str]] = '*',
+          state_name='state'):
     """
     Decorates a method for checking the device state.
 
@@ -493,7 +494,6 @@ class State(Parameter):
     def __init__(self, default=None, fget=None, fset=None, data=None, check=None, help=None):
         super(State, self).__init__(fget=fget, help=help)
         self.default = default
-
 
     def __set__(self, instance, value):
         raise AttributeError(f'State {self.name} cannot be set')

@@ -10,7 +10,6 @@ from concert.quantities import q
 
 
 class Benchmarker(base.Benchmarker):
-
     async def __ainit__(self, experiment, acquisitions=None):
         await base.Benchmarker.__ainit__(self, experiment=experiment, acquisitions=acquisitions)
         self._durations = {}
@@ -43,7 +42,10 @@ class ImageWriter(base.ImageWriter):
 
 class Consumer(base.Consumer):
     async def __ainit__(self, consumer, experiment, acquisitions=None):
-        await base.Consumer.__ainit__(self, consumer=consumer, experiment=experiment, acquisitions=acquisitions)
+        await base.Consumer.__ainit__(self,
+                                      consumer=consumer,
+                                      experiment=experiment,
+                                      acquisitions=acquisitions)
 
     @local
     async def consume(self, producer):
@@ -52,7 +54,10 @@ class Consumer(base.Consumer):
 
 class LiveView(base.LiveView):
     async def __ainit__(self, viewer, experiment, acquisitions=None):
-        await base.LiveView.__ainit__(self, viewer, experiment=experiment, acquisitions=acquisitions)
+        await base.LiveView.__ainit__(self,
+                                      viewer,
+                                      experiment=experiment,
+                                      acquisitions=acquisitions)
 
     @local
     async def consume(self, producer):
@@ -103,7 +108,6 @@ class OnlineReconstruction(base.OnlineReconstruction):
         )
         from concert.ext.ufo import GeneralBackprojectManager
 
-        #self._args = await QuantifiedArgs()
         self._manager = await GeneralBackprojectManager(
             self.args,
             average_normalization=average_normalization

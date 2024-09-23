@@ -1,6 +1,6 @@
 from datetime import datetime
 from unittest import mock
-import numpy as np 
+import numpy as np
 import zmq
 from concert.tests import TestCase
 from concert.quantities import q
