@@ -31,6 +31,15 @@ from concert.storage import DirectoryWalker, DummyWalker, RemoteDirectoryWalker
 from concert.tests.util.mocks import MockWalkerDevice
 
 
+class BrokenDeviceException(Exception):
+    pass
+
+
+class BrokenDevice(LinearMotor):
+    async def _get_position(self):
+        raise BrokenDeviceException("Broken device")
+
+
 class VisitChecker(object):
 
     """Use this to check that a callback was called."""
@@ -356,6 +365,8 @@ class TestExperimentLogging(unittest.IsolatedAsyncioTestCase):
             self._item = item
 
     async def test_experiment_logging(self) -> None:
+        self._experiment.set_log_devices_at_start(True)
+        self._experiment.set_log_devices_at_start(True)
         _ = await self._experiment.run()
         self.assertEqual(self._visited, len(self._experiment.acquisitions))
         self.assertEqual(self._acquired, len(self._experiment.acquisitions))
@@ -376,4 +387,46 @@ class TestExperimentLogging(unittest.IsolatedAsyncioTestCase):
         expected_log_path = os.path.join(await self._walker.get_current(),
                                          "scan_0000/experiment.log")
         mock_device.deregister_logger.assert_called_once_with(expected_log_path)
-        mock_device.log_to_json.assert_called_once()
+        self.assertEqual(mock_device.log_to_json.call_count, 2)
+
+    async def test_experiment_logging2(self):
+        mock_device = self._walker.device.mock_device
+
+        mock_device.reset_mock()
+        self._experiment.set_log_devices_at_start(True)
+        self._experiment.set_log_devices_at_finish(True)
+        _ = await self._experiment.run()
+        self.assertEqual(mock_device.log_to_json.call_count, 2)
+
+        mock_device.reset_mock()
+        self._experiment.set_log_devices_at_start(False)
+        self._experiment.set_log_devices_at_finish(True)
+        _ = await self._experiment.run()
+        self.assertEqual(mock_device.log_to_json.call_count, 1)
+
+        mock_device.reset_mock()
+        self._experiment.set_log_devices_at_start(True)
+        self._experiment.set_log_devices_at_finish(False)
+        _ = await self._experiment.run()
+        self.assertEqual(mock_device.log_to_json.call_count, 1)
+
+        mock_device.reset_mock()
+        self._experiment.set_log_devices_at_start(False)
+        self._experiment.set_log_devices_at_finish(False)
+        _ = await self._experiment.run()
+        self.assertEqual(mock_device.log_to_json.call_count, 0)
+
+    async def test_optional_device_logging(self):
+        broken_device = await BrokenDevice()
+        self._experiment._devices_to_log = {}
+        self._experiment._devices_to_log_optional = {}
+        self._experiment.add_device_to_log("BrokenDevice", broken_device, optional=False)
+        # Test that the experiment fails when a non-optional device is broken
+        with self.assertRaises(BrokenDeviceException):
+            await self._experiment.run()
+
+        self._experiment._devices_to_log = {}
+        self._experiment._devices_to_log_optional = {}
+        self._experiment.add_device_to_log("BrokenDevice", broken_device, optional=True)
+        # Test that the experiment does not fail when an optional device is broken
+        await self._experiment.run()

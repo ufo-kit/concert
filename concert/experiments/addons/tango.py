@@ -6,6 +6,7 @@ import os
 import numpy as np
 import tango
 
+from concert.base import Parameter
 from concert.experiments.addons import base
 from concert.experiments.base import remote
 from concert.helpers import CommData
@@ -95,7 +96,10 @@ class LiveView(base.LiveView):
 
     async def __ainit__(self, viewer, endpoint, experiment, acquisitions=None):
         self.endpoint = endpoint
-        await base.LiveView.__ainit__(self, viewer, experiment=experiment, acquisitions=acquisitions)
+        await base.LiveView.__ainit__(self,
+                                      viewer,
+                                      experiment=experiment,
+                                      acquisitions=acquisitions)
         self._orig_limits = await viewer.get_limits()
 
     async def connect_endpoint(self):
@@ -129,6 +133,7 @@ class _TangoProxyArgs:
 
 
 class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
+
     async def __ainit__(
         self,
         device,
@@ -159,6 +164,17 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
             viewer=viewer
         )
 
+    async def _get_reuse_darks_and_flats(self):
+        return (await self._device['reuse_darks_and_flats']).value
+
+    async def _set_reuse_darks_and_flats(self, val):
+        await self._device.write_attribute('reuse_darks_and_flats', bool(val))
+
+    async def read_darks_from_file(self, path):
+        await self._device.read_darks_from_file(path)
+
+    async def read_flats_from_file(self, path):
+        await self._device.read_flats_from_file(path)
 
     @TangoMixin.cancel_remote
     @remote

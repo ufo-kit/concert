@@ -28,21 +28,21 @@ class TangoCommand(SubCommand):
         }
         super(TangoCommand, self).__init__('tango', opts)
 
-    def run(self, server: str, port: int, database: bool = False, device: [str, None] = None, instancelogfile=None,
-            loglevel='info', logfile=None):
+    def run(self, server: str, port: int, database: bool = False, device: [str, None] = None,
+            instancelogfile=None, loglevel='info', logfile=None):
         """
         Run a Tango server
 
-        :param server: String defining the server type. Can be one of 'benchmarker', 'dummycamera', 'filecamera',
-            'reco', 'writer', 'walker'.
+        :param server: String defining the server type. Can be one of 'benchmarker', 'dummycamera',
+        'filecamera', 'reco', 'writer', 'walker'.
         :type server: str
         :param port: Port to run the server on. If *database* is True, this will be ignored.
         :type port: int
         :param database: Run the server using a tango database.
         :type database: bool
         :param device: When a database is used, this is the device instance name.
-            When no databse is used, this is the tango device server uri. If None, the device uri will be set to
-            'concert/tango/{server}'.
+            When no databse is used, this is the tango device server uri. If None, the device uri
+            will be set to 'concert/tango/{server}'.
         :type device: str, None
         """
 

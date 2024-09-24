@@ -1,102 +1,90 @@
-import signal
 import subprocess
-import time
-
-from concert.coroutines.base import start
-from concert.quantities import q
+import psutil
 from concert.tests import TestCase
-from concert.ext.cmd.tango import TangoCommand
 import asyncio
 from concert.networking.base import get_tango_device
-from concert.storage import RemoteDirectoryWalker
-from multiprocessing import Process
-import os
-import tango
-
 test_with_tofu = False
 
-from contextlib import asynccontextmanager
 
-@asynccontextmanager
-async def tango_run_concert(name: str, port:int, start_timeout = 10*q.s):
-
-    pro = subprocess.Popen(f"concert tango {name} --port {port}", stdout=subprocess.PIPE,
-                           shell=True, preexec_fn=os.setsid)
-
-    try:
-        yield
-    finally:
-        os.killpg(os.getpgid(pro.pid), signal.SIGTERM)
-
-@asynccontextmanager
-async def tango_run_standalone(name: str, port:int, device_uri:str, start_timeout = 60*q.s):
-    if tango.Release.version_info < (9, 4, 1):
-        port_def = f"-ORBendPoint giop:tcp::{port}"
-    else:
-        port_def = f"--port {port}"
-    pro = subprocess.Popen(f"{name} test -nodb {port_def} -dlist {device_uri}", stdout=subprocess.PIPE,
-                           shell=True, preexec_fn=os.setsid)
-
-    start_time = time.time() * q.s
-    while True:
+def is_process_running(required_arguments):
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
         try:
-            stdout, stderr= pro.communicate(timeout=0.1)
-            print(stdout.decode())
-            print(stderr.decode())
+            if all(arg in proc.info['cmdline'] for arg in required_arguments):
+                return True
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+    return False
 
-            if "Ready to accept request" in stdout.decode():
-                break
-            if "Exited" in stdout.decode():
-                os.killpg(os.getpgid(pro.pid), signal.SIGTERM)
-                raise TimeoutError("Tango device exited unexpectedly")
-        except subprocess.TimeoutExpired:
-            if time.time() * q.s - start_time > start_timeout:
-                os.killpg(os.getpgid(pro.pid), signal.SIGTERM)
-                raise TimeoutError("Timeout while waiting for Tango device to start")
-            continue
-        if time.time() * q.s - start_time > start_timeout:
-            os.killpg(os.getpgid(pro.pid), signal.SIGTERM)
-            raise TimeoutError("Timeout while waiting for Tango device to start")
 
-    try:
-        yield
-    finally:
-        os.killpg(os.getpgid(pro.pid), signal.SIGTERM)
+async def start_tango_server_standalone(server, port, device_uri):
+    if server == 'walker':
+        server_executable = 'TangoRemoteWalker'
+    elif server == 'dummycamera':
+        server_executable = 'TangoDummyCamera'
+    elif server == 'reco':
+        server_executable = 'TangoOnlineReconstruction'
+    else:
+        raise ValueError(f"Unknown server type {server}")
+    if is_process_running([server_executable, str(port)]):
+        return
+    else:
+        process = subprocess.Popen(
+            [f'run_server_detached {server_executable} test -nodb --port {port} '
+             f'--dlist={device_uri}'], shell=True)
+        while process.poll() is None:
+            await asyncio.sleep(0.1)
+
+
+async def start_tango_server_concert(server, port):
+    if server not in ['walker', 'dummycamera', 'reco']:
+        raise ValueError(f"Unknown server type {server}")
+    if is_process_running(["tango", str(port)]):
+        return
+    else:
+        process = subprocess.Popen([f'run_server_detached concert tango {server} --port {port}'],
+                                   shell=True)
+        while process.poll() is None:
+            await asyncio.sleep(0.1)
 
 
 class TestRemoteProcessingStartup(TestCase):
-    async def test_walker_startup(self):
-        #async with tango_run_concert('walker', 1233):
-        #    tango_dev = get_tango_device('tango://localhost:1233/concert/tango/walker#dbase=no')
-        #    f = await tango_dev.state()
-        #    self.assertNotEqual(f, None)
-        #    walker = await RemoteDirectoryWalker(tango_dev)
-        #    print(await walker.get_endpoint())
+    async def asyncSetUp(self):
+        await asyncio.gather(start_tango_server_standalone('walker', 1200,
+                                                           'concert/tango/walker'),
+                             start_tango_server_concert('walker', 1201),
+                             start_tango_server_standalone('dummycamera', 1202,
+                                                           'concert/tango/dummycamera'),
+                             start_tango_server_concert('dummycamera', 1203))
+        if test_with_tofu:
+            await asyncio.gather(start_tango_server_standalone('reco', 1204,
+                                                               'concert/tango/reco'),
+                                 start_tango_server_concert('reco', 1205))
 
-        async with tango_run_standalone('TangoRemoteWalker', 1233, "concert/tango/walker", 10*q.s):
-            tango_dev = get_tango_device('tango://localhost:1233/concert/tango/walker#dbase=no')
-            f = await tango_dev.state()
-            self.assertNotEqual(f, None)
+    async def test_walker_startup(self):
+
+        tango_dev = get_tango_device('tango://localhost:1200/concert/tango/walker#dbase=no')
+        f = await tango_dev.state()
+        self.assertNotEqual(f, None)
+
+        tango_dev = get_tango_device('tango://localhost:1201/concert/tango/walker#dbase=no')
+        f = await tango_dev.state()
+        self.assertNotEqual(f, None)
 
     async def test_camera_startup(self):
-        #async with tango_run_concert('dummycamera', 1245):
-        #    tango_dev = get_tango_device('tango://localhost:1245/concert/tango/dummycamera#dbase=no')
-        #    f = await tango_dev.state()
-        #    self.assertNotEqual(f, None)
+        tango_dev = get_tango_device('tango://localhost:1202/concert/tango/dummycamera#dbase=no')
+        f = await tango_dev.state()
+        self.assertNotEqual(f, None)
 
-        async with tango_run_standalone('TangoDummyCamera', 1245, "concert/tango/dummycamera", 10*q.s):
-            tango_dev = get_tango_device('tango://localhost:1245/concert/tango/dummycamera#dbase=no')
-            f = await tango_dev.state()
-            self.assertNotEqual(f, None)
+        tango_dev = get_tango_device('tango://localhost:1203/concert/tango/dummycamera#dbase=no')
+        f = await tango_dev.state()
+        self.assertNotEqual(f, None)
 
     async def test_reco_startup(self):
         if test_with_tofu:
-            async with tango_run_concert('reco', 1247):
-                tango_dev = get_tango_device('tango://localhost:1247/concert/tango/reco#dbase=no')
-                f = await tango_dev.state()
-                self.assertNotEqual(f, None)
+            tango_dev = get_tango_device('tango://localhost:1204/concert/tango/reco#dbase=no')
+            f = await tango_dev.state()
+            self.assertNotEqual(f, None)
 
-            async with tango_run_standalone('reco', 1247, "concert/tango/reco", 10*q.s):
-                tango_dev = get_tango_device('tango://localhost:1247/concert/tango/reco#dbase=no')
-                f = await tango_dev.state()
-                self.assertNotEqual(f, None)
+            tango_dev = get_tango_device('tango://localhost:1205/concert/tango/reco#dbase=no')
+            f = await tango_dev.state()
+            self.assertNotEqual(f, None)

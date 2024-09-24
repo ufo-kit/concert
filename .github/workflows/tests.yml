@@ -4,7 +4,7 @@ on:
   push:
     branches: [ master ]
   pull_request:
-    branches: [ master, decentralize]
+    branches: [ master, decentralize, stuff-after-decentralized ]
 
 permissions:
   contents: read
@@ -29,10 +29,18 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -qq libtiff5-dev python3-tango
+        sudo apt-get install -qq libtiff5-dev python3-tango expect
         python -m pip install --upgrade pip
         pip install flake8 pytest coverage scikit-image pytango
         pip install .
+    - name: Start tango servers for tests in background
+      run: |
+        run_server_detached concert tango walker --port 1200
+        run_server_detached concert tango dummycamera --port 1202
+        # run_server_detached concert tango reco --port 1204
+        run_server_detached TangoRemoteWalker test -nodb --port 1201 --dlist concert/tango/walker
+        run_server_detached TangoDummyCamera test -nodb --port 1203 --dlist concert/tango/dummycamera
+        # run_server_detached TangoOnlineReco test -nodb --port 1205 --dlist concert/tango/reco
     - name: Test with pytest
       run: |
         coverage run --source=concert -m pytest -m "not skip_ci"

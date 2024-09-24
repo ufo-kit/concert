@@ -1,7 +1,7 @@
 """Sample exchanger is a device that will pick a sample from a sample holder and
 transfer it onto another one.
 """
-from concert.base import AccessorNotImplementedError
+from abc import abstractmethod
 from concert.devices.base import Device
 
 
@@ -12,8 +12,10 @@ class SampleChanger(Device):
     async def __ainit__(self):
         await super(SampleChanger, self).__ainit__()
 
+    @abstractmethod
     async def _set_sample(self):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _get_sample(self):
-        raise AccessorNotImplementedError
+        ...

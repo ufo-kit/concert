@@ -57,7 +57,8 @@ async def determine_rotation_axis(camera, shutter, flat_motor, rotation_motor, f
 
 
 async def _grab_software_trigger(camera):
-    """Switch *camera* to software trigger source and take an image. The source is restored afterwards.
+    """Switch *camera* to software trigger source and take an image. The source is restored
+    afterward.
     """
     await camera['trigger_source'].stash()
     await camera.set_trigger_source(camera.trigger_sources.SOFTWARE)

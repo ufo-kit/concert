@@ -1,19 +1,18 @@
 import asyncio
 import logging
+from abc import abstractmethod
 
-from concert.base import Parameterizable, background, Parameter, State, StateError, \
-    check, Selection
+from concert.base import background, Parameter, StateError, Selection, RunnableParameterizable
 from concert.helpers import get_state_from_awaitable
 from concert.loghandler import AsyncLoggingHandlerCloser
 
 LOG = logging.getLogger(__name__)
 
 
-class Director(Parameterizable):
+class Director(RunnableParameterizable):
     """
     Class to handle multiple experiment executions.
     """
-    state = State(default="standby")
     number_of_iterations = Parameter()
     current_iteration = Parameter()
     current_iteration_name = Parameter()
@@ -37,7 +36,6 @@ class Director(Parameterizable):
         self._iteration = 0
         self.log = LOG
         self.log.setLevel("INFO")
-        self._run_awaitable = None
         await super().__ainit__()
 
     async def _get_state(self):
@@ -53,6 +51,7 @@ class Director(Parameterizable):
     async def _set_log_level(self, level):
         self.log.setLevel(level.upper())
 
+    @abstractmethod
     async def _prepare_run(self, iteration: int):
         """
         This function changes whatever should be different between the different experiment
@@ -62,16 +61,17 @@ class Director(Parameterizable):
         :param iteration:
         :type iteration: int
         """
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     async def _get_number_of_iterations(self) -> int:
         """
         Should return the total number of iterations.
         :return: Number of iterations.
         """
-        raise NotImplementedError
+        ...
 
-    async def _get_current_iteration_name(self):
+    async def _get_current_iteration_name(self) -> str:
         return await self.get_iteration_name(await self.get_current_iteration())
 
     async def get_iteration_name(self, iteration: int) -> str:
@@ -87,12 +87,6 @@ class Director(Parameterizable):
     async def _prepare_next_run(self):
         if await self.get_current_iteration() < await self.get_number_of_iterations() - 1:
             await self._prepare_run(await self.get_current_iteration() + 1)
-
-    @background
-    @check(source=['standby', 'error'], target="standby")
-    async def run(self):
-        self._run_awaitable = self._run()
-        await self._run_awaitable
 
     @background
     async def _run(self):

@@ -33,7 +33,12 @@ class TestReaderWriter(TestCase):
     def tearDown(self) -> None:
         shutil.rmtree(self._data_dir)
 
-    async def run_test(self, enforce_json_file=False, bytes_per_file=0):
+    async def run_test(self, enforce_json_file=False, bytes_per_file=0, walker_kwargs=None):
+        if walker_kwargs is None:
+            walker_kwargs = {}
+        if 'writer' not in walker_kwargs:
+            walker_kwargs['writer'] = TiffWriter
+
         config.ALWAYS_WRITE_JSON_METADATA_FILE = enforce_json_file
         run_file_name = datetime.now().strftime("%y%m%d_%H%M%S.%f")
         folder = os.path.join(self._data_dir, run_file_name)
@@ -66,3 +71,6 @@ class TestReaderWriter(TestCase):
         await self.run_test(enforce_json_file=False, bytes_per_file=int(1E12))
         await self.run_test(enforce_json_file=True, bytes_per_file=0)
         await self.run_test(enforce_json_file=True, bytes_per_file=int(1E12))
+
+    async def test_remote_walker_tifffile(self) -> None:
+        pass

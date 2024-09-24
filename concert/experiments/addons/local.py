@@ -7,10 +7,18 @@ from concert.experiments.base import Consumer as AcquisitionConsumer, local
 from concert.experiments.imaging import LocalGratingInterferometryStepping
 from concert.helpers import PerformanceTracker, ImageWithMetadata
 from concert.quantities import q
+from concert.readers import TiffSequenceReader
+
+
+async def read_images(path):
+    with TiffSequenceReader(path) as reader:
+        image_stack = []
+        async for image in reader.read_range():
+            image_stack.append(image)
+        return image_stack
 
 
 class Benchmarker(base.Benchmarker):
-
     async def __ainit__(self, experiment, acquisitions=None):
         await base.Benchmarker.__ainit__(self, experiment=experiment, acquisitions=acquisitions)
         self._durations = {}
@@ -43,7 +51,10 @@ class ImageWriter(base.ImageWriter):
 
 class Consumer(base.Consumer):
     async def __ainit__(self, consumer, experiment, acquisitions=None):
-        await base.Consumer.__ainit__(self, consumer=consumer, experiment=experiment, acquisitions=acquisitions)
+        await base.Consumer.__ainit__(self,
+                                      consumer=consumer,
+                                      experiment=experiment,
+                                      acquisitions=acquisitions)
 
     @local
     async def consume(self, producer):
@@ -52,7 +63,10 @@ class Consumer(base.Consumer):
 
 class LiveView(base.LiveView):
     async def __ainit__(self, viewer, experiment, acquisitions=None):
-        await base.LiveView.__ainit__(self, viewer, experiment=experiment, acquisitions=acquisitions)
+        await base.LiveView.__ainit__(self,
+                                      viewer,
+                                      experiment=experiment,
+                                      acquisitions=acquisitions)
 
     @local
     async def consume(self, producer):
@@ -103,7 +117,6 @@ class OnlineReconstruction(base.OnlineReconstruction):
         )
         from concert.ext.ufo import GeneralBackprojectManager
 
-        #self._args = await QuantifiedArgs()
         self._manager = await GeneralBackprojectManager(
             self.args,
             average_normalization=average_normalization
@@ -116,6 +129,20 @@ class OnlineReconstruction(base.OnlineReconstruction):
     @local
     async def update_flats(self, producer):
         return await self._manager.update_flats(producer)
+
+    @local
+    async def read_darks_from_file(self, path):
+        self._manager.darks = await read_images(path)
+
+    @local
+    async def read_flats_from_file(self, path):
+        self._manager.flats = await read_images(path)
+
+    async def _get_reuse_darks_and_flats(self):
+        return self._manager.reuse_normalization
+
+    async def _set_reuse_darks_and_flats(self, val):
+        self._manager.reuse_normalization = bool(val)
 
     async def _reconstruct(self, producer=None, slice_directory=None):
         if producer is None:

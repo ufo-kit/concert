@@ -3,6 +3,8 @@
 For all classes the abstract functions *start_sample_exposure* and *stop_sample_exposure* need to be
  implemented."""
 import asyncio
+from abc import abstractmethod
+
 import numpy as np
 from concert.quantities import q
 from concert.experiments.base import Experiment, Acquisition, local, remote
@@ -563,37 +565,42 @@ class RadiographyLogic(Experiment):
         self._finished = False
         await super().run()
 
+    @abstractmethod
     async def _take_darks(self):
         """
         Abstract method for the generation of the dark images.
         """
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     async def _take_flats(self):
         """
         Abstract method for the generation of the flat images.
         """
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     async def _take_radios(self):
         """
         Abstract method for the generation of the projection images.
         """
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     async def start_sample_exposure(self):
         """
         This function must implement in a way that the sample is exposed by radiation, like opening
         a shutter or starting an X-ray tube.
         """
-        pass
+        ...
 
+    @abstractmethod
     async def stop_sample_exposure(self):
         """
         This function must implement in a way that the sample is not exposed by radiation, like
         closing a shutter or switching off an X-ray tube.
         """
-        pass
+        ...
 
 
 class TomographyLogic(RadiographyLogic):
@@ -683,11 +690,12 @@ class TomographyLogic(RadiographyLogic):
                              super()._finish_radios())
         self._finished = True
 
+    @abstractmethod
     async def _take_radios(self):
         """
         Abstract method for the generation of the projection images.
         """
-        raise NotImplementedError
+        ...
 
 
 class ContinuousTomographyLogic(TomographyLogic):
@@ -1174,16 +1182,18 @@ class LocalGratingInterferometryStepping(
         """
         await self.stop_sample_exposure()
 
+    @abstractmethod
     async def start_sample_exposure(self):
         """
         This function must implement in a way that the sample is exposed by radiation, like opening
         a shutter or starting an X-ray tube.
         """
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     async def stop_sample_exposure(self):
         """
         This function must implement in a way that the sample is not exposed by radiation, like
         closing a shutter or switching off an X-ray tube.
         """
-        raise NotImplementedError
+        ...

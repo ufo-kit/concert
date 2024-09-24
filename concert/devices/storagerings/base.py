@@ -1,6 +1,8 @@
 """Storage Ring Device"""
+from abc import abstractmethod
+
 from concert.quantities import q
-from concert.base import Quantity, AccessorNotImplementedError
+from concert.base import Quantity
 from concert.devices.base import Device
 
 
@@ -27,11 +29,14 @@ class StorageRing(Device):
     async def __ainit__(self):
         await super(StorageRing, self).__ainit__()
 
+    @abstractmethod
     async def _get_current(self):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _get_energy(self):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _get_lifetime(self):
-        raise AccessorNotImplementedError
+        ...

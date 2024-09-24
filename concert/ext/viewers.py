@@ -1,8 +1,10 @@
 """Opening images in external programs."""
+import abc
 import collections
 import multiprocessing as mp
 import time
 import logging
+from abc import abstractmethod
 from queue import Empty
 from typing import Callable
 import numpy as np
@@ -157,13 +159,15 @@ class ViewerBase(Parameterizable):
             while self._queue.qsize():
                 time.sleep(0.01)
 
+    @abstractmethod
     def _show(self, item):
         """Implementation of pushing *item* to the display queue."""
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     def _make_updater(self):
         """Updater factory method."""
-        raise NotImplementedError
+        ...
 
 
 class PyplotViewer(ViewerBase):
@@ -383,7 +387,7 @@ class PyplotImageViewer(ImageViewerBase):
         self._queue.put(('colormap', colormap))
 
 
-class _ImageUpdaterBase:
+class _ImageUpdaterBase(abc.ABC):
 
     """Image updated base."""
     def __init__(self):
@@ -585,7 +589,7 @@ class _PyQtGraphUpdater(_ImageUpdaterBase):
         app.exec_()
 
 
-class _PyplotUpdaterBase:
+class _PyplotUpdaterBase(abc.ABC):
 
     """
     Base class for animating a matploblib figure in a separate process.
@@ -805,9 +809,10 @@ class _PyplotImageUpdaterBase(_PyplotUpdaterBase, _ImageUpdaterBase):
         else:
             self.make_image(image)
 
+    @abstractmethod
     def make_image(self, image):
         """Setup everything and display *image* for the first time."""
-        raise NotImplementedError
+        ...
 
     def update_all(self, image):
         """Update everything which needs to be updated when new *image* arrives."""
@@ -836,9 +841,10 @@ class _PyplotImageUpdaterBase(_PyplotUpdaterBase, _ImageUpdaterBase):
 
         self.mpl_image.set_clim(clim)
 
+    @abstractmethod
     def update_colormap(self, colormap):
         """Update colormap."""
-        raise NotImplementedError
+        ...
 
     def reset(self, *args):
         """Reset state."""
