@@ -220,36 +220,32 @@ class RotationAxisEstimator(TangoMixin, base.Addon):
         await self._device.write_attribute("rot_angle", rot_angle)
         est_algo = kwargs.get("estimation_algorithm", EstimationAlgorithm.MT_SEGMENTATION)
         await self._device.write_attribute("estimation_algorithm", est_algo)
-        if est_algo in [EstimationAlgorithm.MT_SEGMENTATION,EstimationAlgorithm.MT_HOUGH_TRANSFORM]:
-            # Process meta attributes for marker tracking method
-            crop_top = kwargs.get("crop_top")
-            crop_bottom = kwargs.get("crop_bottom")
-            crop_left = kwargs.get("crop_left")
-            crop_right = kwargs.get("crop_right")
-            num_markers = kwargs.get("num_markers")
-            marker_diameter_px = kwargs.get("marker_diameter_px")
-            wait_window = kwargs.get("wait_window")
-            check_window = kwargs.get("check_window")
-            err_threshold = kwargs.get("err_threshold")
-            estm_offset = kwargs.get("estm_offset")
-            await self._device.write_attribute(
-                    "meta_attr_markers", np.array([crop_top, crop_bottom, crop_left, crop_right,
-                                                   num_markers, marker_diameter_px]))
-            await self._device.write_attribute(
-                    "meta_attr_mt_estm", np.array([wait_window, check_window, estm_offset,
-                                                   err_threshold], dtype=np.float32))
-            await self._device.prepare_angular_distribution()
-        if est_algo == EstimationAlgorithm.PHASE_CORRELATION:
-            # Process meta attributes for phase correlation method
-            reference_sino: ArrayLike = kwargs.get("reference_sino")
-            det_row_idx = kwargs.get("det_row_idx")
-            num_proj_corr = kwargs.get("num_proj_corr")
-            await self._device.write_attribute("reference_sino", reference_sino)
-            await self._device.write_attribute("meta_attr_phase_corr",
-                                               np.array([det_row_idx, num_proj_corr]))
-        if est_algo == EstimationAlgorithm.IMAGE_REGISTRATION:
-            # Process meta attributes for image registration method
-            raise NotImplementedError
+        # Process meta attributes for marker tracking method
+        crop_top = kwargs.get("crop_top", 0)
+        crop_bottom = kwargs.get("crop_bottom", 2016)
+        crop_left = kwargs.get("crop_left", 0)
+        crop_right = kwargs.get("crop_right", 2016)
+        num_markers = kwargs.get("num_markers", 0)
+        smoothing_window = kwargs.get("smoothing_window", 15)
+        wait_window = kwargs.get("wait_window", 75)
+        check_window = kwargs.get("check_window", 30)
+        err_threshold = kwargs.get("err_threshold", 0.01)
+        estm_offset = kwargs.get("estm_offset", 5)
+        await self._device.write_attribute(
+                "meta_attr_mt", np.array(
+                    [crop_top, crop_bottom, crop_left, crop_right, num_markers, smoothing_window]))
+        await self._device.write_attribute(
+                "meta_attr_mt_estm", np.array(
+                    [wait_window, check_window, estm_offset, err_threshold], dtype=np.float32))
+        await self._device.prepare_angular_distribution()
+        # Process meta attributes for phase correlation method
+        # TODO: In the real implementation we won't supply the reference sinogram like this, rather
+        # we would specify the rotation axis estimation to keep the reference sinogram from the
+        # phantom scan.
+        det_row_idx = kwargs.get("det_row_idx", 0)
+        num_proj_corr = kwargs.get("num_proj_corr", 200)
+        await self._device.write_attribute("meta_attr_phase_corr",
+                                           np.array([det_row_idx, num_proj_corr]))
         await base.Addon.__ainit__(self, experiment, acquisitions)
 
     async def _get_center_of_rotation(self) -> float:
