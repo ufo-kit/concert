@@ -8,7 +8,8 @@ from concert.networking.base import (
     ZmqSender,
     ZmqReceiver,
     ZmqBroadcaster,
-    zmq_create_image_metadata
+    zmq_create_image_metadata,
+    NetworkingError
 )
 from concert.tests import assert_almost_equal, TestCase
 
@@ -64,7 +65,7 @@ class TestZmq(TestCase):
 
     async def test_close(self):
         self.sender.close()
-        with self.assertRaises(ValueError):
+        with self.assertRaises(NetworkingError):
             await self.sender.send_image(self.image)
 
     async def test_contextmanager(self):
@@ -72,7 +73,7 @@ class TestZmq(TestCase):
         with ZmqSender(SERVER) as sender:
             pass
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(NetworkingError):
             await sender.send_image(self.image)
 
     def test_sndhwm(self):
@@ -81,13 +82,13 @@ class TestZmq(TestCase):
             sender = ZmqSender(endpoint=SERVER, sndhwm=-1)
 
     async def test_is_message_available(self):
-        self.assertFalse(await self.receiver.is_message_available(polling_timeout=10))
+        self.assertFalse(await self.receiver.is_message_available(polling_timeout=10 * q.ms))
         await self.sender.send_image(self.image)
-        self.assertTrue(await self.receiver.is_message_available(polling_timeout=10))
+        self.assertTrue(await self.receiver.is_message_available(polling_timeout=10 * q.ms))
 
     async def test_send_receive(self):
-        await self.sender.send_image(self.image)
-        meta, image = await self.receiver.receive_image()
+        await start(self.sender.send_image(self.image))
+        meta, image = await start(self.receiver.receive_image())
         np.testing.assert_equal(self.image, image)
 
     async def test_publish_subscribe(self):
@@ -99,22 +100,22 @@ class TestZmq(TestCase):
         receiver = ZmqReceiver(endpoint=CLIENT, reliable=False, rcvhwm=1)
         # Start ahead to make sure we catch the image
         f = start(receiver.receive_image())
-        await sender.send_image(self.image)
+        await start(sender.send_image(self.image))
         meta, image = await f
         np.testing.assert_equal(self.image, image)
 
     async def test_subscribe(self):
         # Normal operation
-        await self.sender.send_image(self.image)
-        await self.sender.send_image(None)
+        await start(self.sender.send_image(self.image))
+        await start(self.sender.send_image(None))
 
         async for _ in self.receiver.subscribe(return_metadata=False):
             pass
 
         # Stop requested
-        await self.sender.send_image(self.image)
-        await self.sender.send_image(self.image)
-        await self.sender.send_image(None)
+        await start(self.sender.send_image(self.image))
+        await start(self.sender.send_image(self.image))
+        await start(self.sender.send_image(None))
 
         i = 0
         async for _ in self.receiver.subscribe(return_metadata=False):
@@ -136,10 +137,20 @@ class TestZmq(TestCase):
         # Start ahead to make sure we catch the image
         f_sub = start(receiver_2.receive_image())
 
-        await sender.send_image(self.image)
-        meta, image = await receiver_1.receive_image()
+        await start(sender.send_image(self.image))
+        meta, image = await start(receiver_1.receive_image())
         np.testing.assert_equal(self.image, image)
         meta, image = await f_sub
         np.testing.assert_equal(self.image, image)
         await broadcast.shutdown()
         await f
+
+    async def test_receiver_timeout(self):
+        receiver = ZmqReceiver(endpoint=CLIENT, reliable=True, timeout=0.3 * q.s)
+        with self.assertRaises(TimeoutError):
+            await receiver.receive_image()
+
+    async def test_sender_timeout(self):
+        sender = ZmqSender(endpoint="tcp://*:19999", timeout=0.3 * q.s)
+        with self.assertRaises(TimeoutError):
+            await sender.send_image(self.image)

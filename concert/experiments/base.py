@@ -33,9 +33,11 @@ class Consumer:
     :param corofunc: a consumer coroutine function
     :param corofunc_args: a list or tuple of *corofunc* arguemnts
     :param corofunc_kwargs: a list or tuple of *corofunc* keyword arguemnts
+    :param addon: a :class:`~concert.experiments.addons.Addon` object
     """
-    def __init__(self, corofunc, corofunc_args=(), corofunc_kwargs=None):
+    def __init__(self, corofunc, corofunc_args=(), corofunc_kwargs=None, addon=None):
         self._corofunc = corofunc
+        self.addon = addon
         self.args = corofunc_args
         self.kwargs = {} if corofunc_kwargs is None else corofunc_kwargs
 
@@ -66,6 +68,10 @@ class Acquisition(Parameterizable):
 
         a callable with no arguments which returns a generator yielding data items once called.
 
+    .. py:attribute:: producer
+        data producer (usually a :class:`~concert.devices.cameras.base.Camera` class), must be
+        specified for remote acquisitions.
+
     .. py:attribute:: acquire
 
         a coroutine function which acquires the data, takes no arguments, can be None.
@@ -73,15 +79,18 @@ class Acquisition(Parameterizable):
     """
     state = State(default='standby')
 
-    async def __ainit__(self, name, producer_corofunc, acquire=None):
+    async def __ainit__(self, name, producer_corofunc, producer=None, acquire=None):
         self.name = name
+        self.producer = producer
         if producer_corofunc.remote:
+            if producer is None:
+                raise ValueError("producer must be specified for remote acquisitions")
             self._connect = self._connect_remote
             self.remote = True
         else:
             self.remote = False
             self._connect = self._connect_local
-        self.producer = producer_corofunc
+        self.producer_corofunc = producer_corofunc
         self._consumers = []
         self._workers = []
         # Don't bother with checking this for None later
@@ -124,7 +133,7 @@ class Acquisition(Parameterizable):
         consumers.
         """
         consumers = self._consumers + [count]
-        coros = broadcast(self.producer(), *consumers)
+        coros = broadcast(self.producer_corofunc(), *consumers)
         num = (await asyncio.gather(*coros, return_exceptions=False))[-1]
         # await asyncio.gather(*(consumer.proxy.wait(num) for consumer in self._consumers))
 
@@ -135,7 +144,7 @@ class Acquisition(Parameterizable):
         """
         async def producer_coro():
             st = time.perf_counter()
-            producer = self.producer()
+            producer = self.producer_corofunc()
 
             # There are two scenarios:
             # 1. async generator inside which every image is sent explicitly (for fine-level
@@ -155,14 +164,21 @@ class Acquisition(Parameterizable):
                 task.cancel()
             return await asyncio.gather(*tasks, return_exceptions=True)
 
+        # Connect the producer to all consumers
+        for consumer in self._consumers:
+            await self.producer.register_endpoint(consumer.addon.endpoint)
+            await consumer.addon.connect_endpoint()
+
         tasks = [start(producer_coro())]
         self._producer_task = tasks[0]
         tasks += [start(consumer(None)) for consumer in self._consumers]
         LOG.debug(
             "`%s': starting producer `%s' and consumers %s",
             self.name,
-            self.producer.__qualname__,
+            self.producer_corofunc.__qualname__,
             [consumer.corofunc.__qualname__ for consumer in self._consumers])
+
+        self.tasks = tasks
 
         try:
             # What can happen while awaiting *task*:
@@ -194,6 +210,11 @@ class Acquisition(Parameterizable):
                 pending_result
             )
             raise
+        finally:
+            # No matter what happens disconnect the producers and consumers to have a clean state
+            for consumer in self._consumers:
+                await self.producer.unregister_endpoint(consumer.addon.endpoint)
+                await consumer.addon.disconnect_endpoint()
 
     @background
     @check(source=['standby', 'error', 'cancelled'], target=['standby', 'cancelled'])

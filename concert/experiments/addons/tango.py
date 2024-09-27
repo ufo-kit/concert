@@ -4,10 +4,9 @@ import functools
 import inspect
 import logging
 import os
-from typing import Set, Dict
+from typing import Set, Dict, Awaitable
 import numpy as np
 import tango
-
 from concert.experiments.addons import base
 from concert.experiments.base import remote, Acquisition, Experiment
 from concert.quantities import q
@@ -15,6 +14,9 @@ from concert.experiments.addons.typing import AbstractRAEDevice
 from concert.experiments.addons.base import AcquisitionConsumer
 from concert.base import Parameter
 from concert.ext.tangoservers.rae import EstimationAlgorithm
+from concert.experiments.base import remote
+from concert.helpers import CommData
+
 
 LOG = logging.getLogger(__name__)
 
@@ -45,23 +47,28 @@ class TangoMixin:
 
         return wrapper
 
-    async def __ainit__(self, device):
+    async def __ainit__(self, device, endpoint: CommData) -> None:
         self._device = device
+        self.endpoint = endpoint
+        await self._device.write_attribute('endpoint', self.endpoint.client_endpoint)
+
+    async def connect_endpoint(self):
+        await self._device.connect_endpoint()
+
+    async def disconnect_endpoint(self):
+        await self._device.disconnect_endpoint()
 
     async def cancel(self):
         await self._device.cancel()
 
-    async def _setup(self):
-        await self._device.reset_connection()
-
     async def _teardown(self):
-        await self._device.teardown()
+        await self._device.disconnect_endpoint()
 
 
 class Benchmarker(TangoMixin, base.Benchmarker):
 
-    async def __ainit__(self, experiment, device, acquisitions=None):
-        await TangoMixin.__ainit__(self, device)
+    async def __ainit__(self, experiment, device, endpoint, acquisitions=None):
+        await TangoMixin.__ainit__(self, device, endpoint)
         await base.Benchmarker.__ainit__(self, experiment=experiment, acquisitions=acquisitions)
 
     @TangoMixin.cancel_remote
@@ -79,8 +86,8 @@ class Benchmarker(TangoMixin, base.Benchmarker):
 
 class ImageWriter(TangoMixin, base.ImageWriter):
 
-    async def __ainit__(self, experiment, acquisitions=None):
-        await TangoMixin.__ainit__(self, experiment.walker.device)
+    async def __ainit__(self, experiment, endpoint, acquisitions=None):
+        await TangoMixin.__ainit__(self, experiment.walker.device, endpoint)
         await base.ImageWriter.__ainit__(self, experiment=experiment, acquisitions=acquisitions)
 
     @TangoMixin.cancel_remote
@@ -92,9 +99,15 @@ class ImageWriter(TangoMixin, base.ImageWriter):
 class LiveView(base.LiveView):
 
     async def __ainit__(self, viewer, endpoint, experiment, acquisitions=None):
+        self.endpoint = endpoint
         await base.LiveView.__ainit__(self, viewer, experiment=experiment, acquisitions=acquisitions)
-        self._endpoint = endpoint
         self._orig_limits = await viewer.get_limits()
+
+    async def connect_endpoint(self):
+        self._viewer.subscribe(self.endpoint.client_endpoint)
+
+    async def disconnect_endpoint(self):
+        self._viewer.unsubscribe()
 
     @remote
     async def consume(self):
@@ -104,13 +117,9 @@ class LiveView(base.LiveView):
                 # Force viewer to update the limits by unsubscribing and re-subscribing after
                 # setting limits to stream
                 await self._viewer.set_limits('stream')
-                self._viewer.subscribe(self._endpoint)
+                self._viewer.subscribe(self.endpoint.client_endpoint)
         finally:
             self._orig_limits = await self._viewer.get_limits()
-
-    async def _teardown(self):
-        await super()._teardown()
-        self._viewer.unsubscribe()
 
 
 class _TangoProxyArgs:
@@ -125,10 +134,19 @@ class _TangoProxyArgs:
 
 
 class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
-    async def __ainit__(self, device, experiment, acquisitions=None, do_normalization=True,
-                        average_normalization=True, slice_directory='online-slices',
-                        viewer=None):
-        await TangoMixin.__ainit__(self, device)
+    
+    async def __ainit__(
+        self,
+        device,
+        experiment,
+        endpoint,
+        acquisitions=None,
+        do_normalization=True,
+        average_normalization=True,
+        slice_directory='online-slices',
+        viewer=None
+    ):
+        await TangoMixin.__ainit__(self, device, endpoint)
 
         # Lock the device to prevent other processes from using it
         try:
@@ -208,12 +226,10 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
 
 class RotationAxisEstimator(TangoMixin, base.Addon):
 
-    _device: AbstractRAEDevice
-
-    async def __ainit__(self, device: AbstractRAEDevice, experiment: Experiment,
+    async def __ainit__(self, device: AbstractRAEDevice, endpoint: CommData, experiment: Experiment,
                         acquisitions: Set[Acquisition], num_darks: int, num_flats: int,
                         num_radios: int, rot_angle: float = np.pi, **kwargs)  -> None:
-        await TangoMixin.__ainit__(self, device)
+        await TangoMixin.__ainit__(self, device, endpoint)
         await self._device.write_attribute("num_darks", num_darks)
         await self._device.write_attribute("num_flats", num_flats)
         await self._device.write_attribute("num_radios", num_radios)
@@ -239,9 +255,6 @@ class RotationAxisEstimator(TangoMixin, base.Addon):
                     [wait_window, check_window, estm_offset, err_threshold], dtype=np.float32))
         await self._device.prepare_angular_distribution()
         # Process meta attributes for phase correlation method
-        # TODO: In the real implementation we won't supply the reference sinogram like this, rather
-        # we would specify the rotation axis estimation to keep the reference sinogram from the
-        # phantom scan.
         det_row_idx = kwargs.get("det_row_idx", 0)
         num_proj_corr = kwargs.get("num_proj_corr", 200)
         await self._device.write_attribute("meta_attr_phase_corr",
@@ -254,16 +267,13 @@ class RotationAxisEstimator(TangoMixin, base.Addon):
     def _make_consumers(self,
                         acquisitions: Set[Acquisition]) -> Dict[Acquisition, AcquisitionConsumer]:
         """Accumulates consumers for expected acquisitions"""
-        # NOTE: For now we process darks, flats and radios as individual acquiitions and it leads
-        # to the device server averaging them and storing them in memory. It would later be used for
-        # flat field correction of incoming projections on the fly. However, as next revision of
-        # quality assurance we want to refactor our implementation in such a way that we don't need
-        # to run flat-field correction separately for QA and reconstruction.
         consumers: [Acquisition, AcquisitionConsumer] = {}
-        consumers[base.get_acq_by_name(acquisitions, "darks")] = AcquisitionConsumer(self.update_darks)
-        consumers[base.get_acq_by_name(acquisitions, "flats")] = AcquisitionConsumer(self.update_flats)
+        consumers[base.get_acq_by_name(acquisitions, "darks")] = AcquisitionConsumer(
+                self.update_darks, addon=self)
+        consumers[base.get_acq_by_name(acquisitions, "flats")] = AcquisitionConsumer(
+                self.update_flats, addon=self)
         consumers[base.get_acq_by_name(acquisitions, "radios")] = AcquisitionConsumer(
-                self.estimate_center_of_rotation)
+                self.estimate_center_of_rotation, addon=self)
         return consumers
     
     @TangoMixin.cancel_remote
