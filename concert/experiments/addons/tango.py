@@ -242,14 +242,14 @@ class RotationAxisEstimator(TangoMixin, base.Addon):
         crop_left = kwargs.get("crop_left", 0)
         crop_right = kwargs.get("crop_right", 2016)
         num_markers = kwargs.get("num_markers", 0)
-        smoothing_window = kwargs.get("smoothing_window", 15)
-        wait_window = kwargs.get("wait_window", 75)
+        avg_window = kwargs.get("avg_window", 15)
+        wait_window = kwargs.get("wait_window", 100)
         check_window = kwargs.get("check_window", 30)
         err_threshold = kwargs.get("err_threshold", 0.01)
         estm_offset = kwargs.get("estm_offset", 5)
         await self._device.write_attribute(
                 "meta_attr_mt", np.array(
-                    [crop_top, crop_bottom, crop_left, crop_right, num_markers, smoothing_window]))
+                    [crop_top, crop_bottom, crop_left, crop_right, num_markers, avg_window]))
         await self._device.write_attribute(
                 "meta_attr_mt_estm", np.array(
                     [wait_window, check_window, estm_offset, err_threshold], dtype=np.float32))

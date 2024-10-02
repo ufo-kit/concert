@@ -88,7 +88,7 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         access=AttrWriteType.WRITE,
         fset="set_meta_attr_mt",
         doc="encapsulates meta attributes for marker tracking i.e. crop_top, crop_bottom, \
-        crop_left, crop_right, num_markers, smoothing_window"
+        crop_left, crop_right, num_markers, avg_window"
     )
 
     meta_attr_mt_estm = attribute(
@@ -245,44 +245,50 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         """Defines the model function for nonlinear polynomial fit"""
         return center_p1 + radius_p2 * np.cos(angle_x + phase_p3)
 
-    def _extract_marker_centroids(self, patch: ArrayLike, num_markers: int, smoothing_window: int,
-                                  bins: int = 128, nan_guard: float = 0.1) -> ArrayLike:
+    def _extract_marker_centroids(self, patch: ArrayLike, num_markers: int, avg_window: int,
+                                  bins: int = 128) -> ArrayLike:
         """
         Uses histogram segmentation to extract marker centroids.
         Log transform and subsequent smoothing are used to make the histogram of the patch
         approximately normal. Patch is selected to localize the markers along with a limited part
-        of the projection, where relatively low absorption has taken place. This results into the
-        histogram having at least two local maximas and minimas.
+        of the projection where absorption is relatively lower compared to the markers. This results
+        into the histogram having at least two local maximas and minimas.
 
         Local minima and maxima towards the right edge associated with higher signal intensities
         correspond to the markers, since we are working with absorption projections. We are
         interested with bin edge intensity associated with this local minima, because it can be
         used as a threshold to create a mask that separates the markers from everything else based
-        their higher absorption. For each iteration we store the last detected marker centroids
-        to deal with the occassional anomalies during segmentation.
+        their higher absorption. For each iteration we store the last detected marker centroids to
+        deal with the occassional anomalies during segmentation. If segmentation does not result
+        into optimal marker centroids, we simply reuse the last observed centroids. This can be done
+        because marker displacement for two subsequent projections is very small, usually less than
+        one pixel.
         """
         centroids: List[ArrayLike] = []
-        hist, bin_edges = np.histogram(patch, bins=bins)
-        # Nan_guard is a small value to prevent NaN values during log transform.
-        log_hist: ArrayLike = np.log2(hist + nan_guard)
-        smoothed_log_hist: ArrayLike = pd.Series(log_hist).rolling(window=smoothing_window,
-                                                                   center=True).mean().values
-        loc_min_idx: ArrayLike = scs.argrelextrema(smoothed_log_hist, np.less)[0]
-        mask: ArrayLike = patch < bin_edges[loc_min_idx[-1]]
-        labels: ArrayLike = sms.label(~mask)
-        regions: List[RegionProperties] = sms.regionprops(label_image=labels)
-        centroids = [region.centroid for region in regions]
-        # Markers centroids are sorted according to vertical location for consistency across
-        # projections.
-        centroids: ArrayLike = np.array(sorted(centroids, key=lambda centroid: centroid[0]))
-        if len(centroids) != num_markers:
-            if self._last_detected_marker_centroids is None:
-                raise RuntimeError("marker segmentation anomaly on first projection")
+        try:
+            hist, bin_edges = np.histogram(patch, bins=bins)
+            # We constrain the log transform to non-zero values only to avoid runtime issues.
+            log_hist: ArrayLike = np.log2(hist, where=hist > 0)
+            avg_log_hist: ArrayLike = pd.Series(log_hist).rolling(window=avg_window,
+                                                                  center=True).mean().values
+            loc_min_idx: ArrayLike = scs.argrelextrema(avg_log_hist, np.less)[0]
+            mask: ArrayLike = patch < bin_edges[loc_min_idx[-1]]
+            labels: ArrayLike = sms.label(~mask)
+            regions: List[RegionProperties] = sms.regionprops(label_image=labels)
+            centroids = [region.centroid for region in regions]
+            # Markers centroids are sorted according to vertical location for consistency across
+            # projections.
+            centroids: ArrayLike = np.array(sorted(centroids, key=lambda centroid: centroid[0]))
+            if len(centroids) != num_markers:
+                if self._last_detected_marker_centroids is None:
+                    raise RuntimeError("marker segmentation anomaly on first projection")
+                centroids = self._last_detected_marker_centroids
+            else:
+                self._last_detected_marker_centroids = centroids
+            assert(len(centroids) == num_markers)
+        except IndexError:
             centroids = self._last_detected_marker_centroids
-        else:
-            self._last_detected_marker_centroids = centroids
-        assert(len(centroids) == num_markers)
-        return centroids[:, 1]
+        return centroids
 
     async def _estimate_marker_tracking(self, producer: AsyncIterator[ArrayLike]) -> None:
         """
@@ -292,8 +298,9 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         marker_centroids: List[ArrayLike] = []
         estm_rot_axis: List[float] = []
         event_triggered = False
-        crop_top, crop_bottom, crop_left, crop_right, num_markers, smoothing_window = self._meta_attr_mt
+        crop_top, crop_bottom, crop_left, crop_right, num_markers, avg_window = self._meta_attr_mt
         wait_window, check_window, estm_offset = self._meta_attr_mt_estm[:-1].astype(int)
+        optimal_marker = -1
         err_threshold = self._meta_attr_mt_estm[-1]
         det_row_idx, _ = self._meta_attr_phase_corr
         ffc = FlatCorrect(dark=self._dark, flat=self._flat, absorptivity=True)
@@ -303,13 +310,11 @@ class RotationAxisEstimator(TangoRemoteProcessing):
             ref_sino_buffer.append(projection[det_row_idx, :])
             if not event_triggered:
                 patch: ArrayLike = projection[crop_top:crop_bottom, crop_left: crop_right]
-                centroids_x: ArrayLike = self._extract_marker_centroids(patch, num_markers,
-                                                                        smoothing_window)
-                marker_centroids.append(centroids_x)
-                # We start curve-fit after initial wait window is passed. This is required for the
-                # optimization method to be able to yield some values for the parameters. This wait
-                # window is experimental and we take a conservative approach to choose one to avoid
-                # RuntimeError during curve-fit.
+                marker_centroids.append(self._extract_marker_centroids(patch, num_markers,
+                                                                       avg_window))
+                # Initial wait window is introduced for the optimization method to be able to yield
+                # some values for the parameters. We also use this wait window to evaluate an
+                # optimal marker to limit the scope of curve fit.
                 if projection_count < wait_window:
                     self.info_stream(
                         "%s: Skipping estimation until [%d/%d]",
@@ -318,35 +323,36 @@ class RotationAxisEstimator(TangoRemoteProcessing):
                         wait_window
                     )
                 else:
+                    if optimal_marker < 0:
+                        vrt_dsp_stderr: List[float] = []
+                        for mix in range(num_markers):
+                            vrt_dsp_stderr.append(np.std(np.array(marker_centroids)[:, mix, 0]))
+                            optimal_marker = np.argmin(vrt_dsp_stderr)
                     # We start curve-fit after wait window is passed, however we do that with a
                     # configurable offset of projections to gain momentum.
                     if projection_count % estm_offset == 0:
                         try:
-                            rot_axes:  List[np.float64] = []
-                            for mix in range(num_markers):
-                                x: ArrayLike = self._angle_dist[:projection_count + 1]
-                                y: ArrayLike = np.array(marker_centroids)[:, mix]
-                                params, _ = sop.curve_fit(f=self.opt_func,
-                                                          xdata=np.squeeze(x),
-                                                          ydata=np.squeeze(y))
-                                # params[0] from curve-fit is the estimated axis of rotation w.r.t
-                                # each marker. It depends upon the order of optimizable parameters,
-                                # which is used to define the optimization function.
-                                rot_axes.append(params[0])
+                            x: ArrayLike = self._angle_dist[:projection_count + 1]
+                            y: ArrayLike = np.array(marker_centroids)[:, optimal_marker, 1]
+                            params, _ = sop.curve_fit(f=self.opt_func,
+                                                      xdata=np.squeeze(x),
+                                                      ydata=np.squeeze(y))
+                            # Params[0] from curve-fit is the estimated axis of rotation w.r.t
+                            # each marker. It depends upon the order of optimizable parameters,
+                            # which is used to define the optimization function.
                             self.info_stream(
-                                "%s: Estimated rotation axis with projections [%d/%d]: %f",
-                                self.__class__.__name__,
-                                projection_count + 1,
-                                self._num_radios,
-                                np.median(rot_axes)
-                            )
-                            # We accumulate the median of the rotation axes with respect to all
-                            # markers as our estimated target value. We observe the change in this
-                            # value w.r.t a configurable error threshold over a time frame in terms
-                            # of number of projections, given by check window.
+                                    "%s: Estimated rotation axis with projections [%d/%d]: %f",
+                                    self.__class__.__name__,
+                                    projection_count + 1,
+                                    self._num_radios,
+                                    crop_left + params[0]
+                                )
+                            # We observe the change in this value w.r.t a configurable error
+                            # threshold over a time frame in terms of number of projections, given
+                            # by check window.
                             # The _monitor_window property is used only for logging purpose.
                             # Ideally, we would remove it upon reaching a stable implementation.
-                            estm_rot_axis.append(np.median(rot_axes))
+                            estm_rot_axis.append(crop_left + params[0])
                             if projection_count % self._monitor_window == 0:
                                 self.info_stream(
                                         "Estimated gradient:\n%s\nEstimated difference:\n%s",
@@ -363,10 +369,9 @@ class RotationAxisEstimator(TangoRemoteProcessing):
                                     np.gradient(estm_rot_axis[-check_window:]) - err_threshold),
                                                                 decimals=0)
                                 if np.allclose(grad_diff, 0.):
-                                    # We set the last estimated value as the final center of
-                                    # rotation along with the correction for left side cropping.
-                                    self._center_of_rotation = estm_rot_axis[-1] + crop_left
-                                    self.info_stream("%s:corrected center of rotation %f.",
+                                    # Set the last estimated value as the final center of rotation
+                                    self._center_of_rotation = estm_rot_axis[-1]
+                                    self.info_stream("%s:estimated center of rotation %f.",
                                                      self.__class__.__name__,
                                                      self._center_of_rotation)
                                     self.push_event("center_of_rotation", [], [],
