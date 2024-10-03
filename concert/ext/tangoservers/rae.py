@@ -99,9 +99,9 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         fset="set_meta_attr_mt_estm",
         doc="encapsulates attributes for axis estimation using marker tracking i.e., initial \
         number of projections to wait before starting estimation (wait_window), number of \
-        projections to check the stability in estimated value(check_window), an offset of \
-        projections to run estimation algorithm on(estm_offset), estimation error threshold \
-        (err_threshold)"
+        projections to check the stability in estimated value(check_window), a projection offset \
+        to run curve fitting (offset) and a threshold for the absolute gradient to detect the \
+        plateau(grad_thresh) in estimated values"
     )
 
     meta_attr_phase_corr = attribute(
@@ -296,17 +296,18 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         """
         projection_count = 0
         marker_centroids: List[ArrayLike] = []
-        estm_rot_axis: List[float] = []
+        estm_axis: List[float] = []
         event_triggered = False
         crop_top, crop_bottom, crop_left, crop_right, num_markers, avg_window = self._meta_attr_mt
-        wait_window, check_window, estm_offset = self._meta_attr_mt_estm[:-1].astype(int)
-        optimal_marker = -1
+        wait_window, check_window, offset = self._meta_attr_mt_estm[:-1].astype(int)
         err_threshold = self._meta_attr_mt_estm[-1]
+        optimal_marker = -1
         det_row_idx, _ = self._meta_attr_phase_corr
         ffc = FlatCorrect(dark=self._dark, flat=self._flat, absorptivity=True)
         ref_sino_buffer: List[ArrayLike] = []
         async for projection in ffc(producer):
-            # Prepare for phase correlation for the next scan
+            projection_count += 1
+            # Prepare for phase correlation for the next scan for all projections.
             ref_sino_buffer.append(projection[det_row_idx, :])
             if not event_triggered:
                 patch: ArrayLike = projection[crop_top:crop_bottom, crop_left: crop_right]
@@ -319,7 +320,7 @@ class RotationAxisEstimator(TangoRemoteProcessing):
                     self.info_stream(
                         "%s: Skipping estimation until [%d/%d]",
                         self.__class__.__name__,
-                        projection_count + 1,
+                        projection_count,
                         wait_window
                     )
                 else:
@@ -328,11 +329,9 @@ class RotationAxisEstimator(TangoRemoteProcessing):
                         for mix in range(num_markers):
                             vrt_dsp_stderr.append(np.std(np.array(marker_centroids)[:, mix, 0]))
                             optimal_marker = np.argmin(vrt_dsp_stderr)
-                    # We start curve-fit after wait window is passed, however we do that with a
-                    # configurable offset of projections to gain momentum.
-                    if projection_count % estm_offset == 0:
+                    if projection_count % offset == 0:
                         try:
-                            x: ArrayLike = self._angle_dist[:projection_count + 1]
+                            x: ArrayLike = self._angle_dist[:projection_count]
                             y: ArrayLike = np.array(marker_centroids)[:, optimal_marker, 1]
                             params, _ = sop.curve_fit(f=self.opt_func,
                                                       xdata=np.squeeze(x),
@@ -343,7 +342,7 @@ class RotationAxisEstimator(TangoRemoteProcessing):
                             self.info_stream(
                                     "%s: Estimated rotation axis with projections [%d/%d]: %f",
                                     self.__class__.__name__,
-                                    projection_count + 1,
+                                    projection_count,
                                     self._num_radios,
                                     crop_left + params[0]
                                 )
@@ -352,40 +351,29 @@ class RotationAxisEstimator(TangoRemoteProcessing):
                             # by check window.
                             # The _monitor_window property is used only for logging purpose.
                             # Ideally, we would remove it upon reaching a stable implementation.
-                            estm_rot_axis.append(crop_left + params[0])
-                            if projection_count % self._monitor_window == 0:
-                                self.info_stream(
-                                        "Estimated gradient:\n%s\nEstimated difference:\n%s",
-                                        np.round(np.abs(np.gradient(estm_rot_axis)), decimals=4),
-                                        np.round(np.abs(np.gradient(estm_rot_axis) - err_threshold),
-                                                 decimals=1))
-                            if len(estm_rot_axis) > check_window and not event_triggered:
-                                # We compute gradient of the estimated centers of rotation and take
-                                # the rounded value of the difference between gradient and error
-                                # threshold. If the rounded difference is close to 0. for the
-                                # duration stipulated by check window then we have landed on a
-                                # stable value for the center of rotation.
-                                grad_diff: ArrayLike = np.round(np.abs(
-                                    np.gradient(estm_rot_axis[-check_window:]) - err_threshold),
-                                                                decimals=0)
-                                if np.allclose(grad_diff, 0.):
+                            estm_axis.append(crop_left + params[0])
+                            if len(estm_axis) > check_window:
+                                # TODO: Remove following if condition entirely before merge along with
+                                # self._monitor_window
+                                if projection_count % self._monitor_window == 0:
+                                    self.info_stream("absolute gradient:\n%s", np.abs(
+                                        np.gradient(estm_axis)))
+                                abs_grad: ArrayLike = np.abs(np.gradient(estm_axis[-check_window:]))
+                                if np.all(abs_grad < err_threshold):
                                     # Set the last estimated value as the final center of rotation
-                                    self._center_of_rotation = estm_rot_axis[-1]
-                                    self.info_stream("%s:estimated center of rotation %f.",
+                                    self._center_of_rotation = estm_axis[-1]
+                                    self.info_stream("%s:estimated final center of rotation %f.",
                                                      self.__class__.__name__,
                                                      self._center_of_rotation)
                                     self.push_event("center_of_rotation", [], [],
                                                            self._center_of_rotation)
                                     event_triggered = True
                                     self._last_detected_marker_centroids = None
-                                    # Iteration over incoming projections continues hereafter to
-                                    # derive the reference sinogram for subsequent phase correlation.
                         except RuntimeError:
                             self.info_stream(
                                 "%s could not find optimal parameters with projection: [%d/%d]",
                                 self.__class__.__name__, projection_count, self._num_radios)
-            projection_count += 1
-        # Store the reference sinogram to be used for phase correlation during subsequent scan
+            # Store the reference sinogram to be used for phase correlation during subsequent scan
         self._reference_sinogram = np.vstack(ref_sino_buffer)
         self.info_stream("%s: stored reference sinogram for phase correlation.",
                          self.__class__.__name__)
