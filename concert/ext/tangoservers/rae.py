@@ -92,16 +92,25 @@ class RotationAxisEstimator(TangoRemoteProcessing):
     )
 
     meta_attr_mt_estm = attribute(
-        label="Meta attributes for axis estimation from marker tracking",
-        dtype=(float,),
-        max_dim_x=4,
+        label="Meta attributes for axis estimation",
+        dtype=(int,),
+        max_dim_x=3,
         access=AttrWriteType.WRITE,
         fset="set_meta_attr_mt_estm",
         doc="encapsulates attributes for axis estimation using marker tracking i.e., initial \
         number of projections to wait before starting estimation (wait_window), number of \
         projections to check the stability in estimated value(check_window), a projection offset \
-        to run curve fitting (offset) and a threshold for the absolute gradient to detect the \
-        plateau(grad_thresh) in estimated values"
+        to run curve fitting (offset)"
+    )
+
+    meta_attr_mt_eval = attribute(
+        label="Meta attributes for evaluation",
+        dtype=(float,),
+        max_dim_x=2,
+        access=AttrWriteType.WRITE,
+        fset="set_meta_attr_mt_eval",
+        doc="beta parameter for smoothing estimated axis values(beta), threshold for the absolute \
+        gradient to detect the plateau in estimated axis values(grad_thresh)"
     )
 
     meta_attr_phase_corr = attribute(
@@ -193,6 +202,9 @@ class RotationAxisEstimator(TangoRemoteProcessing):
 
     def set_meta_attr_mt_estm(self, mame: ArrayLike) -> None:
         self._meta_attr_mt_estm = mame
+
+    def set_meta_attr_mt_eval(self, mamv: ArrayLike) -> None:
+        self._meta_attr_mt_eval = mamv
 
     def set_meta_attr_phase_corr(self, mapc: ArrayLike) -> None:
         self._meta_attr_phase_corr = mapc
@@ -299,8 +311,8 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         estm_axis: List[float] = []
         event_triggered = False
         crop_top, crop_bottom, crop_left, crop_right, num_markers, avg_window = self._meta_attr_mt
-        wait_window, check_window, offset = self._meta_attr_mt_estm[:-1].astype(int)
-        err_threshold = self._meta_attr_mt_estm[-1]
+        wait_window, check_window, offset = self._meta_attr_mt_estm
+        beta, grad_thresh = self._meta_attr_mt_eval
         optimal_marker = -1
         det_row_idx, _ = self._meta_attr_phase_corr
         ffc = FlatCorrect(dark=self._dark, flat=self._flat, absorptivity=True)
@@ -351,7 +363,13 @@ class RotationAxisEstimator(TangoRemoteProcessing):
                             # by check window.
                             # The _monitor_window property is used only for logging purpose.
                             # Ideally, we would remove it upon reaching a stable implementation.
-                            estm_axis.append(crop_left + params[0])
+                            if len(estm_axis) == 0:
+                                estm_axis.append(crop_left + params[0])
+                            else:
+                                avg_estm: float = (beta * estm_axis[-1]) + (
+                                        (1 - beta) * (crop_left + params[0]))
+                                avg_estm /= (1 - beta**projection_count)
+                                estm_axis.append(avg_estm)
                             if len(estm_axis) > check_window:
                                 # TODO: Remove following if condition entirely before merge along with
                                 # self._monitor_window
@@ -359,7 +377,7 @@ class RotationAxisEstimator(TangoRemoteProcessing):
                                     self.info_stream("absolute gradient:\n%s", np.abs(
                                         np.gradient(estm_axis)))
                                 abs_grad: ArrayLike = np.abs(np.gradient(estm_axis[-check_window:]))
-                                if np.all(abs_grad < err_threshold):
+                                if np.all(abs_grad < grad_thresh):
                                     # Set the last estimated value as the final center of rotation
                                     self._center_of_rotation = estm_axis[-1]
                                     self.info_stream("%s:estimated final center of rotation %f.",
@@ -368,6 +386,7 @@ class RotationAxisEstimator(TangoRemoteProcessing):
                                     self.push_event("center_of_rotation", [], [],
                                                            self._center_of_rotation)
                                     event_triggered = True
+                                    # Reset the marker centroids for subsequent estimation.
                                     self._last_detected_marker_centroids = None
                         except RuntimeError:
                             self.info_stream(

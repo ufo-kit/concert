@@ -246,13 +246,14 @@ class RotationAxisEstimator(TangoMixin, base.Addon):
         wait_window = kwargs.get("wait_window", 100)
         check_window = kwargs.get("check_window", 30)
         offset = kwargs.get("offset", 5)
+        beta = kwargs.get("beta", 0.9)
         grad_thresh = kwargs.get("grad_thresh", 0.1)
         await self._device.write_attribute(
                 "meta_attr_mt", np.array(
                     [crop_top, crop_bottom, crop_left, crop_right, num_markers, avg_window]))
         await self._device.write_attribute(
-                "meta_attr_mt_estm", np.array(
-                    [wait_window, check_window, offset, grad_thresh], dtype=np.float32))
+                "meta_attr_mt_estm", np.array([wait_window, check_window, offset]))
+        await self._device.write_attribute("meta_attr_mt_eval", np.array([beta, grad_thresh]))
         await self._device.prepare_angular_distribution()
         # Process meta attributes for phase correlation method
         det_row_idx = kwargs.get("det_row_idx", 0)
