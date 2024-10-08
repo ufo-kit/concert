@@ -21,6 +21,7 @@ from tango import DebugIt, DevState, CmdArgType, EventType, ArgType, AttrDataFor
 from tango.server import attribute, command, AttrWriteType, pipe, PipeWriteType
 from concert.ext.tangoservers.base import TangoRemoteProcessing
 from concert.ext.ufo import FlatCorrect, GaussianFilter, MedianFilter
+from concert.measures import rotation_axis
 
 
 class EstimationAlgorithm(IntEnum):
@@ -71,14 +72,15 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         doc="overall number of projections to be acquired"
     )
 
-    center_of_rotation = attribute(
-        label="Center of rotation",
-        dtype=float,
+    axis_of_rotation = attribute(
+        label="Axis of rotation",
+        dtype=(float,),
+        max_dim_x=3,
         access=AttrWriteType.READ_WRITE,
-        fget="get_center_of_rotation",
-        fset="set_center_of_rotation",
-        doc="estimated or known center of rotation, when phase correlation or image registration \
-        methods are used to estimate a shift in center, we need previously known value to correct"
+        fget="get_axis_of_rotation",
+        fset="set_axis_of_rotation",
+        doc="encapsulates center of rotation and the angular corrections along y-axis(roll_angle) \
+        and x-axis(tilt_angle), [center_of_rotation, roll_angle, tilt_agle]"
     )
 
     meta_attr_mt = attribute(
@@ -135,7 +137,7 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         self._norm_buffer = []
         self._reference_sinogram = np.array([])
         self._estimation_algorithm = EstimationAlgorithm.MT_SEGMENTATION
-        self._center_of_rotation = None
+        self._axis_of_rotation = np.zeros((3,))
         self._last_detected_marker_centroids = None
         self.set_state(DevState.STANDBY)
         self.info_stream("%s initialized device with state: %s",
@@ -191,11 +193,11 @@ class RotationAxisEstimator(TangoRemoteProcessing):
             self.__class__.__name__, self._num_radios, self.get_state()
         )
 
-    def get_center_of_rotation(self) -> float:
-        return self._center_of_rotation
+    def get_axis_of_rotation(self) -> ArrayLike:
+        return self._axis_of_rotation
 
-    def set_center_of_rotation(self, new_value: float) -> None:
-        self._center_of_rotation = new_value
+    def set_axis_of_rotation(self, new_value: ArrayLike) -> None:
+        self._axis_of_rotation = new_value
 
     def set_meta_attr_mt(self, mam: ArrayLike) -> None:
         self._meta_attr_mt = mam
@@ -242,7 +244,7 @@ class RotationAxisEstimator(TangoRemoteProcessing):
 
     @DebugIt()
     @command()
-    async def estimate_center_of_rotation(self) -> None:
+    async def estimate_axis_of_rotation(self) -> None:
         """Estimates the center of rotation"""
         if self._estimation_algorithm == EstimationAlgorithm.MT_SEGMENTATION:
             await self._process_stream(self._estimate_marker_tracking(self._receiver.subscribe()))
@@ -309,6 +311,8 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         projection_count = 0
         marker_centroids: List[ArrayLike] = []
         estm_axis: List[float] = []
+        estm_axis_angle_y: List[float] = []
+        estm_axis_angle_x: List[float] = []
         event_triggered = False
         crop_top, crop_bottom, crop_left, crop_right, num_markers, avg_window = self._meta_attr_mt
         wait_window, check_window, offset = self._meta_attr_mt_estm
@@ -345,31 +349,39 @@ class RotationAxisEstimator(TangoRemoteProcessing):
                         try:
                             x: ArrayLike = self._angle_dist[:projection_count]
                             y: ArrayLike = np.array(marker_centroids)[:, optimal_marker, 1]
-                            params, _ = sop.curve_fit(f=self.opt_func,
-                                                      xdata=np.squeeze(x),
+                            params, _ = sop.curve_fit(f=self.opt_func, xdata=np.squeeze(x),
                                                       ydata=np.squeeze(y))
                             # Params[0] from curve-fit is the estimated axis of rotation w.r.t
                             # each marker. It depends upon the order of optimizable parameters,
                             # which is used to define the optimization function.
+                            roll_y, tilt_x, _ = rotation_axis(
+                                    np.array(marker_centroids)[:, optimal_marker])
                             self.info_stream(
-                                    "%s: Estimated rotation axis with projections [%d/%d]: %f",
+                                    "%s: [%d/%d] estimated: [center: %f, roll_y: %f, tilt_x: %f]",
                                     self.__class__.__name__,
                                     projection_count,
                                     self._num_radios,
-                                    crop_left + params[0]
+                                    crop_left + params[0],
+                                    roll_y,
+                                    tilt_x
                                 )
-                            # We observe the change in this value w.r.t a configurable error
-                            # threshold over a time frame in terms of number of projections, given
-                            # by check window.
-                            # The _monitor_window property is used only for logging purpose.
-                            # Ideally, we would remove it upon reaching a stable implementation.
                             if len(estm_axis) == 0:
                                 estm_axis.append(crop_left + params[0])
+                                estm_axis_angle_y.append(roll_y)
+                                estm_axis_angle_x.append(tilt_x)
                             else:
                                 avg_estm: float = (beta * estm_axis[-1]) + (
                                         (1 - beta) * (crop_left + params[0]))
+                                avg_axis_angle_y: float = (beta * estm_axis_angle_y[-1]) + (
+                                        (1 - beta) * roll_y)
+                                avg_axis_angle_x: float = (beta * estm_axis_angle_x[-1]) + (
+                                        (1 - beta) * tilt_x)
                                 avg_estm /= (1 - beta**projection_count)
+                                avg_axis_angle_y /= (1 - beta**projection_count)
+                                avg_axis_angle_x /= (1 - beta**projection_count)
                                 estm_axis.append(avg_estm)
+                                estm_axis_angle_y.append(avg_axis_angle_y)
+                                estm_axis_angle_x.append(avg_axis_angle_x)
                             if len(estm_axis) > check_window:
                                 # TODO: Remove following if condition entirely before merge along with
                                 # self._monitor_window
@@ -379,12 +391,14 @@ class RotationAxisEstimator(TangoRemoteProcessing):
                                 abs_grad: ArrayLike = np.abs(np.gradient(estm_axis[-check_window:]))
                                 if np.all(abs_grad < grad_thresh):
                                     # Set the last estimated value as the final center of rotation
-                                    self._center_of_rotation = estm_axis[-1]
-                                    self.info_stream("%s:estimated final center of rotation %f.",
+                                    self._axis_of_rotation = np.array([estm_axis[-1],
+                                                                       estm_axis_angle_y[-1],
+                                                                       estm_axis_angle_x[-1]])
+                                    self.info_stream("%s:final estimates: %s",
                                                      self.__class__.__name__,
-                                                     self._center_of_rotation)
-                                    self.push_event("center_of_rotation", [], [],
-                                                           self._center_of_rotation)
+                                                     self._axis_of_rotation)
+                                    self.push_event("axis_of_rotation", [], [],
+                                                           self._axis_of_rotation)
                                     event_triggered = True
                                     # Reset the marker centroids for subsequent estimation.
                                     self._last_detected_marker_centroids = None
@@ -392,7 +406,7 @@ class RotationAxisEstimator(TangoRemoteProcessing):
                             self.info_stream(
                                 "%s could not find optimal parameters with projection: [%d/%d]",
                                 self.__class__.__name__, projection_count, self._num_radios)
-            # Store the reference sinogram to be used for phase correlation during subsequent scan
+        # Store the reference sinogram to be used for phase correlation during subsequent scan
         self._reference_sinogram = np.vstack(ref_sino_buffer)
         self.info_stream("%s: stored reference sinogram for phase correlation.",
                          self.__class__.__name__)
@@ -401,7 +415,7 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         """Estimates center of rotation with correlation with phase correlation"""
         # We assert, that there is a pre-computed known value exists for the center of rotation
         # because this method estimates the potential error for the same.
-        assert(self._center_of_rotation is not None and self._center_of_rotation != 0.)
+        assert(self._axis_of_rotation is not None and self._axis_of_rotation != 0.)
         # We assert that the reference sinogram from previous measurement is available for the
         # cross correlation.
         assert(self._reference_sinogram is not None)
@@ -427,10 +441,10 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         # Phase correlation using normalized cross correlation yields a signal peak value in spatial
         # domain. Horizontal coordinate of this peak is the error from previous estimate, which we
         # need to correct.
-        self._center_of_rotation += corr_peak_loc[1]
+        self._axis_of_rotation += corr_peak_loc[1]
         self.info_stream("%s: estimated axis error %d pixles, revised center of rotation: %d",
-                         self.__class__.__name__, axis_correction, self._center_of_rotation)
-        self.push_event("center_of_rotation", [], [], self._center_of_rotation)
+                         self.__class__.__name__, axis_correction, self._axis_of_rotation)
+        self.push_event("axis_of_rotation", [], [], self._axis_of_rotation)
 
     async def _derive_reference_sinogram(self, producer: AsyncIterator[ArrayLike]) -> None:
         """Estimates center of rotation with image registration and gradient descent optimization"""
@@ -442,8 +456,8 @@ class RotationAxisEstimator(TangoRemoteProcessing):
             ref_sino_buffer.append(projection[det_row_idx, :])
         self._reference_sinogram = np.vstack(ref_sino_buffer)
         self.info_stream("%s:triggering event with precomputed center of rotation%f.",
-                         self.__class__.__name__, self._center_of_rotation)
-        self.push_event("center_of_rotation", [], [], self._center_of_rotation)
+                         self.__class__.__name__, self._axis_of_rotation)
+        self.push_event("axis_of_rotation", [], [], self._axis_of_rotation)
 
 
 if __name__ == "__main__":

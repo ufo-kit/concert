@@ -274,7 +274,7 @@ class RotationAxisEstimator(TangoMixin, base.Addon):
         consumers[base.get_acq_by_name(acquisitions, "flats")] = AcquisitionConsumer(
                 self.update_flats, addon=self)
         consumers[base.get_acq_by_name(acquisitions, "radios")] = AcquisitionConsumer(
-                self.estimate_center_of_rotation, addon=self)
+                self.estimate_axis_of_rotation, addon=self)
         return consumers
     
     @TangoMixin.cancel_remote
@@ -289,6 +289,6 @@ class RotationAxisEstimator(TangoMixin, base.Addon):
 
     @TangoMixin.cancel_remote
     @remote
-    async def estimate_center_of_rotation(self) -> None:
-        await self._device.estimate_center_of_rotation()
+    async def estimate_axis_of_rotation(self) -> None:
+        await self._device.estimate_axis_of_rotation()
 

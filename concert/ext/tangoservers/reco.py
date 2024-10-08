@@ -1,6 +1,7 @@
 """Tango device for online 3D reconstruction from zmq image stream."""
 import asyncio
 import os
+from typing import List
 import numpy as np
 from tango import DebugIt, CmdArgType, EventType, EventData, GreenMode
 from tango.server import command
@@ -138,10 +139,10 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
         # Get the device proxy reference for RotationAxisEstimator device and subscribe for event
         self._rae_device = await DeviceProxy(rae_dev_ref)
         self._rae_subscription = await self._rae_device.subscribe_event(
-                "center_of_rotation", EventType.USER_EVENT, self._on_center_of_rotation_estimated,
+                "axis_of_rotation", EventType.USER_EVENT, self._on_axis_of_rotation,
                 green_mode=GreenMode.Asyncio)
 
-    def _on_center_of_rotation_estimated(self, event: EventData) -> None:
+    def _on_axis_of_rotation(self, event: EventData) -> None:
         """
         Defines the callback function upon receiving estimated center of rotation by the QA
         device
@@ -150,12 +151,16 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
         # and reraise.
         try:
             if event.attr_value.value is not None:
-                self.info_stream("%s: Received estimated center of rotation: %f",
-                                 self.__class__.__name__, event.attr_value.value)
-                self._manager.args.center_position_x = [event.attr_value.value]
-                self._found_rotation_axis.set()
+                extracted_arr: ArrayLike = np.vectorize(np.float_)(event.attr_value.value)
+                if not np.all(np.isclose(extracted_arr, np.zeros((3,)), atol=1e-5)):
+                    self.info_stream("%s: received: %s", self.__class__.__name__, extracted_arr)
+                    estm_center, estm_axis_angle_y, estm_axis_angle_x = extracted_arr.tolist()
+                    self._manager.args.center_position_x = [estm_center]
+                    self._manager.args.axis_angle_y = [-estm_axis_angle_y]
+                    self._manager.args.axis_angle_x = [estm_axis_angle_x]
+                    self._found_rotation_axis.set()
         except Exception as err:
-            self.error_stream("%s: Encountered error: %s", self.__class__.__name__, str(err))
+            self.error_stream("%s: encountered error: %s", self.__class__.__name__, str(err))
             raise
 
     @DebugIt()
