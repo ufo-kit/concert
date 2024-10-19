@@ -136,6 +136,12 @@ class RemoteDirectoryWalkerTangoDevice(
         consists of log path as identifier for logger, logging level and log message.
         """
         ...
+
+    async def log_to_json(self, payload: str) -> None:
+        """
+        Writes serialized parameters and metadata for an experiment as a dictionary.
+        """
+        ...
 #####################################################################
 
 

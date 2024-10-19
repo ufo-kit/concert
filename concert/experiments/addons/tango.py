@@ -1,16 +1,21 @@
 import asyncio
+from dataclasses import dataclass
 import functools
 import inspect
 import logging
 import os
+from typing import Set, Dict, Awaitable
 import numpy as np
 import tango
-
 from concert.experiments.addons import base
+from concert.experiments.base import remote, Acquisition, Experiment
+from concert.quantities import q
+from concert.experiments.addons.typing import AbstractRAEDevice
+from concert.experiments.addons.base import AcquisitionConsumer
+from concert.base import Parameter
+from concert.ext.tangoservers.rae import EstimationAlgorithm
 from concert.experiments.base import remote
 from concert.helpers import CommData
-from concert.quantities import q
-from typing import Awaitable
 
 
 LOG = logging.getLogger(__name__)
@@ -42,7 +47,7 @@ class TangoMixin:
 
         return wrapper
 
-    async def __ainit__(self, device, endpoint: CommData) -> Awaitable:
+    async def __ainit__(self, device, endpoint: CommData) -> None:
         self._device = device
         self.endpoint = endpoint
         await self._device.write_attribute('endpoint', self.endpoint.client_endpoint)
@@ -129,6 +134,7 @@ class _TangoProxyArgs:
 
 
 class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
+    
     async def __ainit__(
         self,
         device,
@@ -216,3 +222,74 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
     async def _get_slice_z(self, index):
         shape = await self._device.get_volume_shape()
         return (await self._device.get_slice_z(index)).reshape(shape[1], shape[2])
+
+
+class RotationAxisEstimator(TangoMixin, base.Addon):
+
+    async def __ainit__(self, device: AbstractRAEDevice, endpoint: CommData, experiment: Experiment,
+                        acquisitions: Set[Acquisition], num_darks: int, num_flats: int,
+                        num_radios: int, rot_angle: float = np.pi, **kwargs)  -> None:
+        await TangoMixin.__ainit__(self, device, endpoint)
+        await self._device.write_attribute("num_darks", num_darks)
+        await self._device.write_attribute("num_flats", num_flats)
+        await self._device.write_attribute("num_radios", num_radios)
+        await self._device.write_attribute("rot_angle", rot_angle)
+        est_algo = kwargs.get("estimation_algorithm", EstimationAlgorithm.MARKER_TRACKING)
+        await self._device.write_attribute("estimation_algorithm", est_algo)
+        # Process meta attributes for markers and patch
+        crop_vertical = kwargs.get("crop_vertical", 4)
+        crop_left = kwargs.get("crop_left", 0)
+        crop_right = kwargs.get("crop_right", 0)
+        num_markers = kwargs.get("num_markers", 0)
+        marker_radius = kwargs.get("marker_radius", 8)
+        patch_width = kwargs.get("patch_width", 15)
+        await self._device.write_attribute("meta_attr_mt", np.array([
+            crop_vertical, crop_left, crop_right, num_markers, marker_radius, patch_width]))
+        # Process meta attributes for tracking and estimation
+        wait_window = kwargs.get("wait_window", 100)
+        check_window = kwargs.get("check_window", 30)
+        offset = kwargs.get("offset", 5)
+        await self._device.write_attribute("meta_attr_mt_estm", np.array([
+            wait_window, check_window, offset]))
+        # Process meta attributes for evaluation
+        beta = kwargs.get("beta", 0.9)
+        grad_thresh = kwargs.get("grad_thresh", 0.1)
+        await self._device.write_attribute("meta_attr_mt_eval", np.array([beta, grad_thresh]))
+        await self._device.prepare_angular_distribution()
+        # Process meta attributes for phase correlation method
+        det_row_idx = kwargs.get("det_row_idx", 0)
+        num_proj_corr = kwargs.get("num_proj_corr", 200)
+        await self._device.write_attribute("meta_attr_phase_corr",np.array([
+            det_row_idx, num_proj_corr]))
+        await base.Addon.__ainit__(self, experiment, acquisitions)
+
+    async def _get_center_of_rotation(self) -> float:
+        return await(self._device["center_of_rotation"]).value
+
+    def _make_consumers(self,
+                        acquisitions: Set[Acquisition]) -> Dict[Acquisition, AcquisitionConsumer]:
+        """Accumulates consumers for expected acquisitions"""
+        consumers: [Acquisition, AcquisitionConsumer] = {}
+        consumers[base.get_acq_by_name(acquisitions, "darks")] = AcquisitionConsumer(
+                self.update_darks, addon=self)
+        consumers[base.get_acq_by_name(acquisitions, "flats")] = AcquisitionConsumer(
+                self.update_flats, addon=self)
+        consumers[base.get_acq_by_name(acquisitions, "radios")] = AcquisitionConsumer(
+                self.estimate_axis_of_rotation, addon=self)
+        return consumers
+    
+    @TangoMixin.cancel_remote
+    @remote
+    async def update_darks(self) -> None:
+        await self._device.update_darks()
+
+    @TangoMixin.cancel_remote
+    @remote
+    async def update_flats(self) -> None:
+        await self._device.update_flats()
+
+    @TangoMixin.cancel_remote
+    @remote
+    async def estimate_axis_of_rotation(self) -> None:
+        await self._device.estimate_axis_of_rotation()
+

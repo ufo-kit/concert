@@ -1,7 +1,11 @@
 """Tango device for online 3D reconstruction from zmq image stream."""
+import asyncio
+import os
+from typing import List
 import numpy as np
-from tango import DebugIt, CmdArgType
+from tango import DebugIt, CmdArgType, EventType, EventData, GreenMode
 from tango.server import command
+from tango.asyncio import DeviceProxy
 from .base import TangoRemoteProcessing
 from concert.coroutines.base import async_generate
 from concert.ext.ufo import GeneralBackprojectManager, GeneralBackprojectArgs
@@ -89,16 +93,75 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     # Do not infect the class with temp variables
     del arg, dtype, settings
 
+    _rae_device: DeviceProxy
+    _rae_subscription: int
+    _slice_directory: str
+    _cached: bool
+    _found_rotation_axis: asyncio.Event
+
     async def init_device(self):
         """Inits device and communciation"""
         await super().init_device()
-
+        # Rotation axis event signals GeneralBackprojectManager to start backprojector. We trigger
+        # this event from the callback response upon having required parameters estimated.
+        self._found_rotation_axis = asyncio.Event()
         self._manager = await GeneralBackprojectManager(
             self._args,
-            average_normalization=True
+            average_normalization=True,
+            found_rotation_axis=self._found_rotation_axis
         )
         self._walker = None
         self._sender = None
+
+    @DebugIt()
+    @command(
+        dtype_in=str,
+        doc_in="absolute path of the directory to write online slices"
+    )
+    async def set_slice_directory(self, slice_directory: str) -> None:
+        self._slice_directory = slice_directory
+
+    @DebugIt()
+    @command(
+        dtype_in=bool,
+        doc_in="whether to reconstruct from cache"
+    )
+    async def set_cached(self, cached: bool) -> None:
+        self._cached = cached
+
+    @DebugIt()
+    @command(
+        dtype_in=str,
+        doc_in="device proxy reference for axis of rotation estimator"
+    )
+    async def register_rotation_axis_feedback(self, rae_dev_ref: str) -> None:
+        """Subscribes for event concerning axis of rotation estimation"""
+        # Get the device proxy reference for RotationAxisEstimator device and subscribe for event
+        self._rae_device = await DeviceProxy(rae_dev_ref)
+        self._rae_subscription = await self._rae_device.subscribe_event(
+                "axis_of_rotation", EventType.USER_EVENT, self._on_axis_of_rotation,
+                green_mode=GreenMode.Asyncio)
+
+    def _on_axis_of_rotation(self, event: EventData) -> None:
+        """
+        Defines the callback function upon receiving estimated center of rotation by the QA
+        device
+        """
+        # We wrap the implementation within exception handling to catch transparent issues in Tango
+        # and reraise.
+        try:
+            if event.attr_value.value is not None:
+                extracted_arr: ArrayLike = np.vectorize(np.float_)(event.attr_value.value)
+                if not np.all(np.isclose(extracted_arr, np.zeros((3,)), atol=1e-5)):
+                    self.info_stream("%s: received: %s", self.__class__.__name__, extracted_arr)
+                    estm_center, estm_axis_angle_y, estm_axis_angle_x = extracted_arr.tolist()
+                    self._manager.args.center_position_x = [estm_center]
+#                    self._manager.args.axis_angle_y = [-estm_axis_angle_y]
+#                    self._manager.args.axis_angle_x = [estm_axis_angle_x]
+                    self._found_rotation_axis.set()
+        except Exception as err:
+            self.error_stream("%s: encountered error: %s", self.__class__.__name__, str(err))
+            raise
 
     @DebugIt()
     @command()

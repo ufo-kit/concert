@@ -250,6 +250,7 @@ class Camera(Device):
         :type endpoint: concert.helpers.CommData
         """
         if endpoint in self._senders:
+            self._senders[endpoint].close()
             del self._senders[endpoint]
 
     async def register_endpoint(self, endpoint: CommData) -> None:
@@ -267,6 +268,12 @@ class Camera(Device):
             reliable=endpoint.socket_type == zmq.PUSH,
             sndhwm=endpoint.sndhwm
         )
+
+    async def unregister_all_endpoints(self) -> None:
+        """Unregister all register endpoints"""
+        for endpoint in self._senders:
+            self._senders[endpoint].close()
+            del self._senders[endpoint]
 
     async def _get_trigger_source(self):
         raise AccessorNotImplementedError

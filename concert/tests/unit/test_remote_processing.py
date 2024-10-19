@@ -1,17 +1,18 @@
+import asyncio
+import os
 import signal
 import subprocess
 import time
-
+import tango
 from concert.coroutines.base import start
 from concert.quantities import q
 from concert.tests import TestCase
 from concert.ext.cmd.tango import TangoCommand
-import asyncio
 from concert.networking.base import get_tango_device
 from concert.storage import RemoteDirectoryWalker
-from multiprocessing import Process
-import os
-import tango
+
+
+
 
 test_with_tofu = False
 
@@ -100,3 +101,22 @@ class TestRemoteProcessingStartup(TestCase):
                 tango_dev = get_tango_device('tango://localhost:1247/concert/tango/reco#dbase=no')
                 f = await tango_dev.state()
                 self.assertNotEqual(f, None)
+
+    async def test_rae_startup(self) -> None:
+        async with tango_run_concert('rae', 1248):
+            await asyncio.sleep(2)
+            tango_dev: tango.DeviceProxy = get_tango_device(
+                    'tango://localhost:1248/concert/tango/rae#dbase=no')
+            f: tango.DevState = await tango_dev.state()
+            self.assertNotEqual(f, None)
+
+        async with tango_run_standalone('rae', 1248, "concert/tango/rae"):
+            await asyncio.sleep(2)
+            tango_dev: tango.DeviceProxy = get_tango_device(
+                    'tango://localhost:1248/concert/tango/rae#dbase=no')
+            f: tango.DevState = await tango_dev.state()
+            self.assertNotEqual(f, None)
+
+
+if __name__ == "__main__":
+    pass
