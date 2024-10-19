@@ -3,6 +3,7 @@ qa.py
 -----
 Implements a device server to execute quality assurance routines during acquisition.
 """
+import copy
 from enum import IntEnum
 from typing import List, AsyncIterator, Tuple, Dict, Awaitable, Optional
 import numpy as np
@@ -25,11 +26,9 @@ from concert.measures import rotation_axis
 
 
 class EstimationAlgorithm(IntEnum):
-    """Enumerates among the choices for the estimation strategies"""
-
-    MT_SEGMENTATION = 0
+    """Enumerates among the choices for the estimation algorithm"""
+    MARKER_TRACKING = 0
     PHASE_CORRELATION = 1
-    REF_SINOGRAM = 2
 
 
 class RotationAxisEstimator(TangoRemoteProcessing):
@@ -89,8 +88,8 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         max_dim_x=6,
         access=AttrWriteType.WRITE,
         fset="set_meta_attr_mt",
-        doc="encapsulates meta attributes for marker tracking i.e. crop_top, crop_bottom, \
-        crop_left, crop_right, num_markers, avg_window"
+        doc="encapsulates meta attributes for marker tracking i.e. crop_vertical, crop_left, \
+        crop_right, num_markers, marker_radius, patch_width"
     )
 
     meta_attr_mt_estm = attribute(
@@ -130,18 +129,15 @@ class RotationAxisEstimator(TangoRemoteProcessing):
     _estimation_algorithm: EstimationAlgorithm
     _reference_sinogram: ArrayLike
     _monitor_window: int = 200 # TODO: Temporary internal attribute, remove when ready
-    _last_detected_marker_centroids: Optional[ArrayLike]
 
     async def init_device(self) -> None:
         await super().init_device()
         self._norm_buffer = []
         self._reference_sinogram = np.array([])
-        self._estimation_algorithm = EstimationAlgorithm.MT_SEGMENTATION
+        self._estimation_algorithm = EstimationAlgorithm.MARKER_TRACKING
         self._axis_of_rotation = np.zeros((3,))
-        self._last_detected_marker_centroids = None
         self.set_state(DevState.STANDBY)
-        self.info_stream("%s initialized device with state: %s",
-                         self.__class__.__name__, self.get_state())
+        self.info_stream("%s: init_device: %s", self.__class__.__name__, self.get_state())
 
     @attribute
     def estimation_algorithm(self) -> EstimationAlgorithm:
@@ -223,14 +219,22 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         Accumulates dark and flat fields, average them and store as dynamic class members, _dark,
         _flat
         """
-        num_proj = 0
+        num_frame = 0
         buffer: List[ArrayLike] = []
+        crop_vertical, left, crop_right = self._meta_attr_mt[:3]
         async for projection in producer:
-            buffer.append(projection)
-            num_proj += 1
+            right: int = projection.shape[1] - crop_right
+            if crop_vertical > 0:
+                top: int = 0
+                bottom: int = projection.shape[0] // crop_vertical 
+            else:
+                top: int = projection.shape[0] // crop_vertical
+                bottom: int = -1
+            patch: ArrayLike = projection[top:bottom, left:right]
+            buffer.append(patch)
+            num_frame += 1
         setattr(self, name, np.array(buffer).mean(axis=0))
-        self.info_stream(
-                "%s: processed %d %s projections", self.__class__.__name__, num_proj, name[1:])
+        self.info_stream("%s:processed %d %s frames", self.__class__.__name__, num_frame, name[1:])
 
     @DebugIt()
     @command()
@@ -246,12 +250,10 @@ class RotationAxisEstimator(TangoRemoteProcessing):
     @command()
     async def estimate_axis_of_rotation(self) -> None:
         """Estimates the center of rotation"""
-        if self._estimation_algorithm == EstimationAlgorithm.MT_SEGMENTATION:
+        if self._estimation_algorithm == EstimationAlgorithm.MARKER_TRACKING:
             await self._process_stream(self._estimate_marker_tracking(self._receiver.subscribe()))
-        elif self._estimation_algorithm == EstimationAlgorithm.PHASE_CORRELATION:
-            await self._process_stream(self._estimate_phase_corr(self._receiver.subscribe()))
         else:
-            await self._process_stream(self._derive_reference_sinogram(self._receiver.subscribe()))
+            await self._process_stream(self._estimate_phase_corr(self._receiver.subscribe()))
 
     @staticmethod
     def opt_func(angle_x: np.float64, center_p1: np.float64, radius_p2: np.float64,
@@ -259,119 +261,119 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         """Defines the model function for nonlinear polynomial fit"""
         return center_p1 + radius_p2 * np.cos(angle_x + phase_p3)
 
-    def _extract_marker_centroids(self, patch: ArrayLike, num_markers: int, avg_window: int,
-                                  bins: int = 128) -> ArrayLike:
+    def _track_merkers(self, patch: ArrayLike, up_samp_corr: bool = False, **kwargs) -> ArrayLike:
         """
-        Uses histogram segmentation to extract marker centroids.
-        Log transform and subsequent smoothing are used to make the histogram of the patch
-        approximately normal. Patch is selected to localize the markers along with a limited part
-        of the projection where absorption is relatively lower compared to the markers. This results
-        into the histogram having at least two local maximas and minimas.
-
-        Local minima and maxima towards the right edge associated with higher signal intensities
-        correspond to the markers, since we are working with absorption projections. We are
-        interested with bin edge intensity associated with this local minima, because it can be
-        used as a threshold to create a mask that separates the markers from everything else based
-        their higher absorption. For each iteration we store the last detected marker centroids to
-        deal with the occassional anomalies during segmentation. If segmentation does not result
-        into optimal marker centroids, we simply reuse the last observed centroids. This can be done
-        because marker displacement for two subsequent projections is very small, usually less than
-        one pixel.
+        We use normalized cross correlation to determine the highest signal response with respect to
+        pre-defined absorption pattern of a sphere.
+        We simulate this absorption pattern with the assumption that it is not uniform everywhere.
+        Highest absorption takes place in the middle, where we encounter the whole diametric width
+        along the path of the beam and it reduces as we move away from the center.
+        
+        Meshgrid gives us with incremental range of values, which when squared tend to be maximum at
+        the edge gradually reducing to minimum as we move to the middle. This can then be used to
+        simulate approximate absorption pattern by a sphere. We can then perform a normalized
+        cross-correlation and track the locations having highest signal response.
         """
+        patch: ArrayLike = copy.deepcopy(patch)
         centroids: List[ArrayLike] = []
+        if up_samp_corr:
+            up_sample_by: float = kwargs.get("up_sampled_by", 1.25)
+            patch = smt.rescale(image=patch, scale=up_sample_by)
         try:
-            hist, bin_edges = np.histogram(patch, bins=bins)
-            # We constrain the log transform to non-zero values only to avoid runtime issues.
-            log_hist: ArrayLike = np.log2(hist, where=hist > 0)
-            avg_log_hist: ArrayLike = pd.Series(log_hist).rolling(window=avg_window,
-                                                                  center=True).mean().values
-            loc_min_idx: ArrayLike = scs.argrelextrema(avg_log_hist, np.less)[0]
-            mask: ArrayLike = patch < bin_edges[loc_min_idx[-1]]
-            labels: ArrayLike = sms.label(~mask)
-            regions: List[RegionProperties] = sms.regionprops(label_image=labels)
-            centroids = [region.centroid for region in regions]
-            # Markers centroids are sorted according to vertical location for consistency across
-            # projections.
+            radius, width = self._meta_attr_mt[-2:]
+            y, x = np.mgrid[-radius:radius+1, -radius:radius+1]
+            mask = np.where(radius ** 2 - x ** 2 - y ** 2 >= 0)
+            sphere = np.zeros((2 * radius + 1, 2 * radius + 1))
+            sphere[mask] = 2 * np.sqrt(radius ** 2 - x[mask] ** 2 - y[mask] ** 2)
+            corr: ArrayLike = nft.ifft2(nft.fft2(patch - patch.mean()) * np.conjugate(
+                nft.fft2(sphere - sphere.mean(), s=patch.shape))).real
+            ym_1, xm_1 = np.unravel_index(np.argmax(corr), corr.shape)
+            corr[ym_1-width:ym_1+width, xm_1-width:xm_1+width] = 0
+            ym_2, xm_2 = np.unravel_index(np.argmax(corr), corr.shape)
+            ym_1 += radius
+            xm_1 += radius
+            ym_2 += radius
+            xm_2 += radius
+            centroids: List[List[int]] = [[ym_1, xm_1], [ym_2, xm_2]]
             centroids: ArrayLike = np.array(sorted(centroids, key=lambda centroid: centroid[0]))
-            if len(centroids) != num_markers:
-                if self._last_detected_marker_centroids is None:
-                    raise RuntimeError("marker segmentation anomaly on first projection")
-                centroids = self._last_detected_marker_centroids
-            else:
-                self._last_detected_marker_centroids = centroids
-            assert(len(centroids) == num_markers)
-        except IndexError:
-            centroids = self._last_detected_marker_centroids
-        return centroids
+            mp1: ArrayLike = patch[centroids[0,0]-width:centroids[0,0]+width,
+                                   centroids[0,1]-width:centroids[0,1]+width]
+            mp2: ArrayLike = patch[centroids[1,0]-width:centroids[1,0]+width,
+                                   centroids[1,1]-width:centroids[1,1]+width]
+        except Exception as e:
+            self.info_stream("%s:runtime tracking error: %s", self.__class__.__name__, e.__str__())
+            raise e
+        return centroids, mp1, mp2
 
     async def _estimate_marker_tracking(self, producer: AsyncIterator[ArrayLike]) -> None:
         """
         Estimates the center of rotation with marker tracking and nonlinear polynomial fit.
         """
+        # Extract all tracking and estimation parameters
+        crop_vertical, left, crop_right, num_markers, _, _ = self._meta_attr_mt
+        wait_window, check_window, offset = self._meta_attr_mt_estm
+        beta, grad_thresh = self._meta_attr_mt_eval
+        det_row_idx, _ = self._meta_attr_phase_corr
+        # Initialize local variables
         projection_count = 0
+        ref_sino_buffer: List[ArrayLike] = []
         marker_centroids: List[ArrayLike] = []
         estm_axis: List[float] = []
         estm_axis_angle_y: List[float] = []
         estm_axis_angle_x: List[float] = []
         event_triggered = False
-        crop_top, crop_bottom, crop_left, crop_right, num_markers, avg_window = self._meta_attr_mt
-        wait_window, check_window, offset = self._meta_attr_mt_estm
-        beta, grad_thresh = self._meta_attr_mt_eval
         optimal_marker = -1
-        det_row_idx, _ = self._meta_attr_phase_corr
         ffc = FlatCorrect(dark=self._dark, flat=self._flat, absorptivity=True)
-        ref_sino_buffer: List[ArrayLike] = []
         async for projection in ffc(producer):
+            right: int = projection.shape[1] - crop_right
+            if crop_vertical > 0:
+                top: int = 0
+                bottom: int = projection.shape[0] // crop_vertical 
+            else:
+                top: int = projection.shape[0] // crop_vertical
+                bottom: int = -1
             projection_count += 1
             # Prepare for phase correlation for the next scan for all projections.
             ref_sino_buffer.append(projection[det_row_idx, :])
             if not event_triggered:
-                patch: ArrayLike = projection[crop_top:crop_bottom, crop_left: crop_right]
-                marker_centroids.append(self._extract_marker_centroids(patch, num_markers,
-                                                                       avg_window))
-                # Initial wait window is introduced for the optimization method to be able to yield
-                # some values for the parameters. We also use this wait window to evaluate an
-                # optimal marker to limit the scope of curve fit.
+                patch: ArrayLike = projection[top:bottom, left:right]
+                centroids, _, _ = self._track_merkers(patch)
+                marker_centroids.append(centroids)
+                # Initial wait window is used to select an optimal marker and prevent runtime error
+                # in polynomial fit
                 if projection_count < wait_window:
                     self.info_stream(
-                        "%s: Skipping estimation until [%d/%d]",
-                        self.__class__.__name__,
-                        projection_count,
-                        wait_window
-                    )
+                        "%s:skipping estimation [%d/%d]",self.__class__.__name__, projection_count,
+                        wait_window)
                 else:
                     if optimal_marker < 0:
-                        vrt_dsp_stderr: List[float] = []
+                        vert_disp_err: List[float] = []
                         for mix in range(num_markers):
-                            vrt_dsp_stderr.append(np.std(np.array(marker_centroids)[:, mix, 0]))
-                            optimal_marker = np.argmin(vrt_dsp_stderr)
+                            vert_disp_err.append(np.std(np.array(marker_centroids)[:, mix, 0]))
+                        optimal_marker = np.argmin(vert_disp_err)
+                        self.info_stream("%s:optimal marker idx: %d", self.__class__.__name__,
+                                         optimal_marker)
                     if projection_count % offset == 0:
                         try:
                             x: ArrayLike = self._angle_dist[:projection_count]
                             y: ArrayLike = np.array(marker_centroids)[:, optimal_marker, 1]
                             params, _ = sop.curve_fit(f=self.opt_func, xdata=np.squeeze(x),
                                                       ydata=np.squeeze(y))
-                            # Params[0] from curve-fit is the estimated axis of rotation w.r.t
-                            # each marker. It depends upon the order of optimizable parameters,
-                            # which is used to define the optimization function.
+                            # Params[0] from curve-fit is the estimated axis w.r.t cropped patch.
                             roll_y, tilt_x, _ = rotation_axis(
                                     np.array(marker_centroids)[:, optimal_marker])
                             self.info_stream(
-                                    "%s: [%d/%d] estimated: [center: %f, roll_y: %f, tilt_x: %f]",
-                                    self.__class__.__name__,
-                                    projection_count,
-                                    self._num_radios,
-                                    crop_left + params[0],
-                                    roll_y,
-                                    tilt_x
-                                )
+                                    "%s:[%d/%d] estimated: [center: %f, roll_y: %f, tilt_x: %f]",
+                                    self.__class__.__name__, projection_count, self._num_radios,
+                                    left + params[0], roll_y, tilt_x)
+                            # Use runtime averaging on the estimated values.
                             if len(estm_axis) == 0:
-                                estm_axis.append(crop_left + params[0])
+                                estm_axis.append(left + params[0])
                                 estm_axis_angle_y.append(roll_y)
                                 estm_axis_angle_x.append(tilt_x)
                             else:
-                                avg_estm: float = (beta * estm_axis[-1]) + (
-                                        (1 - beta) * (crop_left + params[0]))
+                                avg_estm: float = (beta * estm_axis[-1]) + ((1 - beta) * (
+                                    left + params[0]))
                                 avg_axis_angle_y: float = (beta * estm_axis_angle_y[-1]) + (
                                         (1 - beta) * roll_y)
                                 avg_axis_angle_x: float = (beta * estm_axis_angle_x[-1]) + (
@@ -383,33 +385,27 @@ class RotationAxisEstimator(TangoRemoteProcessing):
                                 estm_axis_angle_y.append(avg_axis_angle_y)
                                 estm_axis_angle_x.append(avg_axis_angle_x)
                             if len(estm_axis) > check_window:
-                                # TODO: Remove following if condition entirely before merge along with
-                                # self._monitor_window
+                                # TODO: Monitor window is used for troubleshooting. Remove later.
                                 if projection_count % self._monitor_window == 0:
-                                    self.info_stream("absolute gradient:\n%s", np.abs(
-                                        np.gradient(estm_axis)))
+                                    self.info_stream("absolute gradient:\n%s", np.abs(np.gradient(estm_axis)))
                                 abs_grad: ArrayLike = np.abs(np.gradient(estm_axis[-check_window:]))
                                 if np.all(abs_grad < grad_thresh):
                                     # Set the last estimated value as the final center of rotation
                                     self._axis_of_rotation = np.array([estm_axis[-1],
                                                                        estm_axis_angle_y[-1],
                                                                        estm_axis_angle_x[-1]])
-                                    self.info_stream("%s:final estimates: %s",
-                                                     self.__class__.__name__,
+                                    self.info_stream("%s:final: %s", self.__class__.__name__,
                                                      self._axis_of_rotation)
                                     self.push_event("axis_of_rotation", [], [],
-                                                           self._axis_of_rotation)
+                                                    self._axis_of_rotation)
                                     event_triggered = True
-                                    # Reset the marker centroids for subsequent estimation.
-                                    self._last_detected_marker_centroids = None
                         except RuntimeError:
                             self.info_stream(
                                 "%s could not find optimal parameters with projection: [%d/%d]",
                                 self.__class__.__name__, projection_count, self._num_radios)
         # Store the reference sinogram to be used for phase correlation during subsequent scan
         self._reference_sinogram = np.vstack(ref_sino_buffer)
-        self.info_stream("%s: stored reference sinogram for phase correlation.",
-                         self.__class__.__name__)
+        self.info_stream("%s:generated reference sinogram", self.__class__.__name__)
 
     async def _estimate_phase_corr(self, producer: AsyncIterator[ArrayLike]) -> None:
         """Estimates center of rotation with correlation with phase correlation"""
@@ -423,7 +419,7 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         moving_sino: List[ArrayLike] = []
         ffc = FlatCorrect(dark=self._dark, flat=self._flat, absorptivity=True)
         projection_count = 0
-        self.info_stream("%s: commencing axis correction estimation with phase correlation",
+        self.info_stream("%s:commencing axis correction estimation with phase correlation",
                          self.__class__.__name__)
         async for projection in ffc(producer):
             projection_count += 1
@@ -444,19 +440,6 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         self._axis_of_rotation += corr_peak_loc[1]
         self.info_stream("%s: estimated axis error %d pixles, revised center of rotation: %d",
                          self.__class__.__name__, axis_correction, self._axis_of_rotation)
-        self.push_event("axis_of_rotation", [], [], self._axis_of_rotation)
-
-    async def _derive_reference_sinogram(self, producer: AsyncIterator[ArrayLike]) -> None:
-        """Estimates center of rotation with image registration and gradient descent optimization"""
-        det_row_idx, _ = self._meta_attr_phase_corr
-        ffc = FlatCorrect(dark=self._dark, flat=self._flat, absorptivity=True)
-        ref_sino_buffer: List[ArrayLike] = []
-        self.info_stream("%s: deriving reference sinogram", self.__class__.__name__)
-        async for projection in ffc(producer):
-            ref_sino_buffer.append(projection[det_row_idx, :])
-        self._reference_sinogram = np.vstack(ref_sino_buffer)
-        self.info_stream("%s:triggering event with precomputed center of rotation%f.",
-                         self.__class__.__name__, self._axis_of_rotation)
         self.push_event("axis_of_rotation", [], [], self._axis_of_rotation)
 
 

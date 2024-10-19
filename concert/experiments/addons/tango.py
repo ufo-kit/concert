@@ -234,32 +234,33 @@ class RotationAxisEstimator(TangoMixin, base.Addon):
         await self._device.write_attribute("num_flats", num_flats)
         await self._device.write_attribute("num_radios", num_radios)
         await self._device.write_attribute("rot_angle", rot_angle)
-        est_algo = kwargs.get("estimation_algorithm", EstimationAlgorithm.MT_SEGMENTATION)
+        est_algo = kwargs.get("estimation_algorithm", EstimationAlgorithm.MARKER_TRACKING)
         await self._device.write_attribute("estimation_algorithm", est_algo)
-        # Process meta attributes for marker tracking method
-        crop_top = kwargs.get("crop_top", 0)
-        crop_bottom = kwargs.get("crop_bottom", 2016)
+        # Process meta attributes for markers and patch
+        crop_vertical = kwargs.get("crop_vertical", 4)
         crop_left = kwargs.get("crop_left", 0)
-        crop_right = kwargs.get("crop_right", 2016)
+        crop_right = kwargs.get("crop_right", 0)
         num_markers = kwargs.get("num_markers", 0)
-        avg_window = kwargs.get("avg_window", 15)
+        marker_radius = kwargs.get("marker_radius", 8)
+        patch_width = kwargs.get("patch_width", 15)
+        await self._device.write_attribute("meta_attr_mt", np.array([
+            crop_vertical, crop_left, crop_right, num_markers, marker_radius, patch_width]))
+        # Process meta attributes for tracking and estimation
         wait_window = kwargs.get("wait_window", 100)
         check_window = kwargs.get("check_window", 30)
         offset = kwargs.get("offset", 5)
+        await self._device.write_attribute("meta_attr_mt_estm", np.array([
+            wait_window, check_window, offset]))
+        # Process meta attributes for evaluation
         beta = kwargs.get("beta", 0.9)
         grad_thresh = kwargs.get("grad_thresh", 0.1)
-        await self._device.write_attribute(
-                "meta_attr_mt", np.array(
-                    [crop_top, crop_bottom, crop_left, crop_right, num_markers, avg_window]))
-        await self._device.write_attribute(
-                "meta_attr_mt_estm", np.array([wait_window, check_window, offset]))
         await self._device.write_attribute("meta_attr_mt_eval", np.array([beta, grad_thresh]))
         await self._device.prepare_angular_distribution()
         # Process meta attributes for phase correlation method
         det_row_idx = kwargs.get("det_row_idx", 0)
         num_proj_corr = kwargs.get("num_proj_corr", 200)
-        await self._device.write_attribute("meta_attr_phase_corr",
-                                           np.array([det_row_idx, num_proj_corr]))
+        await self._device.write_attribute("meta_attr_phase_corr",np.array([
+            det_row_idx, num_proj_corr]))
         await base.Addon.__ainit__(self, experiment, acquisitions)
 
     async def _get_center_of_rotation(self) -> float:
