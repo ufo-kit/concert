@@ -324,7 +324,8 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         event_triggered = False
         optimal_marker = -1
         ffc = FlatCorrect(dark=self._dark, flat=self._flat, absorptivity=True)
-        async for projection in ffc(producer):
+        # TODO: Bring back ffc(producer)
+        async for projection in producer:
             right: int = projection.shape[1] - crop_right
             if crop_vertical > 0:
                 top: int = 0
@@ -337,6 +338,10 @@ class RotationAxisEstimator(TangoRemoteProcessing):
             ref_sino_buffer.append(projection[det_row_idx, :])
             if not event_triggered:
                 patch: ArrayLike = projection[top:bottom, left:right]
+                # TODO: Remove manual flat field correction
+                trans = np.nan_to_num((patch - self._dark) / (self._flat - self._dark), nan=0.0,
+                                      posinf=0.0, neginf=0.0)
+                patch = -np.log2(trans, where=trans>0)
                 centroids, _, _ = self._track_merkers(patch)
                 marker_centroids.append(centroids)
                 # Initial wait window is used to select an optimal marker and prevent runtime error
@@ -351,6 +356,8 @@ class RotationAxisEstimator(TangoRemoteProcessing):
                         for mix in range(num_markers):
                             vert_disp_err.append(np.std(np.array(marker_centroids)[:, mix, 0]))
                         optimal_marker = np.argmin(vert_disp_err)
+                        #TODO: Remove optimal marker later
+                        optimal_marker = 0
                         self.info_stream("%s:optimal marker idx: %d", self.__class__.__name__,
                                          optimal_marker)
                     if projection_count % offset == 0:
