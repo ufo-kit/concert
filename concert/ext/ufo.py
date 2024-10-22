@@ -1,10 +1,13 @@
 import asyncio
+from typing import AsyncIterator, Set, Optional, List
 import copy
 import logging
+import sys
 import threading
 import time
-import sys
 import numpy as np
+from numpy.typing import ArrayLike
+
 
 try:
     import gi
@@ -202,9 +205,12 @@ class InjectProcess(object):
 
 
 class FlatCorrect(InjectProcess):
-    """
-    Flat-field correction.
-    """
+    """Flat-field correction"""
+
+    dark: ArrayLike
+    flat: ArrayLike
+    ffc: object
+
     def __init__(self, dark, flat, absorptivity=True, fix_nan_and_inf=True, copy_inputs=False):
         self.dark = dark
         self.flat = flat
@@ -230,6 +236,49 @@ class FlatCorrect(InjectProcess):
             await self.insert(self.flat.astype(np.float32) if first else None, index=2)
             yield await self.result(leave_index=0)
             first = False
+
+
+class MedianFilter(InjectProcess):
+    """Encapsulates UFO median filtering implementation"""
+
+    _mf: object
+
+    def __init__(self, kernel_size: int, copy_inputs: bool = False) -> None:
+        self._mf = get_task('median-filter')
+        self._mf.props.size = kernel_size
+        super().__init__(self._mf, get_output=True, output_dims=2, copy_inputs=copy_inputs)
+
+    async def __call__(self, producer: AsyncIterator[ArrayLike]) -> AsyncIterator[ArrayLike]:
+        """Co-routine compatible consumer."""
+        if not self._started:
+            self.start()
+        async for projection in producer:
+            if projection.dtype != np.float32:
+                projection: ArrayLike = projection.astype(np.float32)
+            await self.insert(projection, index=0)
+            yield await self.result(leave_index=0)
+
+
+class GaussianFilter(InjectProcess):
+    """Encapsulates UFO Gaussian blur implementation"""
+
+    _gb: object
+
+    def __init__(self, kernel_size: int, sigma: float, copy_inputs: bool = False) -> None:
+        self._gb = get_task('blur')
+        self._gb.props.size = kernel_size
+        self._gb.props.sigma = sigma
+        super().__init__(self._gb, get_output=True, output_dims=2, copy_inputs=copy_inputs)
+
+    async def __call__(self, producer: AsyncIterator[ArrayLike]) -> AsyncIterator[ArrayLike]:
+        """Co-routine compatible consumer."""
+        if not self._started:
+            self.start()
+        async for projection in producer:
+            if projection.dtype != np.float32:
+                projection: ArrayLike = projection.astype(np.float32)
+            await self.insert(projection, index=0)
+            yield await self.result(leave_index=0)
 
 
 class GeneralBackprojectArgs(object):
@@ -523,7 +572,11 @@ class GeneralBackprojectManager(Parameterizable):
 
     state = State(default='standby')
 
-    async def __ainit__(self, args, average_normalization=True, regions=None, copy_inputs=False):
+    _found_rotation_axis: asyncio.Event
+
+    async def __ainit__(self, args: GeneralBackprojectArgs, average_normalization: bool = True,
+                        regions: Optional[Set[float]] = None, copy_inputs: bool = False,
+                        **kwargs) -> None:
         await super().__ainit__()
         self.args = args
         self.regions = regions
@@ -545,6 +598,7 @@ class GeneralBackprojectManager(Parameterizable):
         self._producer_condition = asyncio.Condition()
         self._processing_task = None
         self._regions = None
+        self._found_rotation_axis = kwargs.get("found_rotation_axis", None)
 
     @property
     def num_received_projections(self):
@@ -592,6 +646,7 @@ class GeneralBackprojectManager(Parameterizable):
 
     async def _produce(self):
         """Produce projections for backprojectors."""
+        # We wait for the readiness event from the Tango device server to start the back projection.
         for i in range(self.args.number):
             async with self._producer_condition:
                 await self._producer_condition.wait_for(lambda: self._num_received_projections > i)
@@ -754,7 +809,10 @@ class GeneralBackprojectManager(Parameterizable):
             consume_task = start(self._consume(offset, bp(self._produce())))
             consume_task.add_done_callback(consume_cb)
             await consume_task
-
+        # We wait for the event to be set from the reco device server, that the axis of rotation
+        # is estimated before starting any backprojector task.
+        if self._found_rotation_axis:
+            await self._found_rotation_axis.wait()
         LOG.debug('Reconstructing %d batches: %s', len(self._regions), self._regions)
         try:
             self._state_value = 'running'
