@@ -91,6 +91,7 @@ class Camera(Device):
     trigger_sources = Bunch(['AUTO', 'SOFTWARE', 'EXTERNAL'])
     trigger_types = Bunch(['EDGE', 'LEVEL'])
     state = State(default='standby')
+    live_state = State(default='standby')
     frame_rate = Quantity(1 / q.second, help="Frame frequency")
     trigger_source = Parameter(help="Trigger source")
 
@@ -118,6 +119,26 @@ class Camera(Device):
         """
         await self._stop_real()
 
+    @background
+    @check(source='standby', target='recording', device_state='live_state')
+    async def start_recording_live(self):
+        """
+        start_recording()
+
+        Start recording frames.
+        """
+        await self._record_live_real()
+
+    @background
+    @check(source='recording', target='standby', device_state='live_state')
+    async def stop_recording_live(self):
+        """
+        stop_recording()
+
+        Stop recording frames.
+        """
+        await self._stop_live_real()
+
     @contextlib.asynccontextmanager
     async def recording(self):
         """
@@ -143,10 +164,19 @@ class Camera(Device):
         await self._trigger_real()
 
     @background
+    @check(source='recording')
     async def grab(self) -> ImageWithMetadata:
         """Return a concert.storage.ImageWithMetadata (subclass of np.ndarray) with data of the
         current frame."""
         img = self.convert(await self._grab_real())
+        return img.view(ImageWithMetadata)
+
+    @background
+    @check(source='recording', device_state='live_state')
+    async def grab_live(self) -> ImageWithMetadata:
+        """Return a concert.storage.ImageWithMetadata (subclass of np.ndarray) with data of the
+        current frame."""
+        img = self.convert(await self._grab_live_real())
         return img.view(ImageWithMetadata)
 
     async def stream(self):
@@ -157,9 +187,29 @@ class Camera(Device):
         """
         await self.set_trigger_source(self.trigger_sources.AUTO)
         await self.start_recording()
+        async for f in self.yield_frames():
+            yield f
 
+    async def stream_live(self):
+        """
+        stream_live()
+
+        Grab live frames and continuously yield them. This is an async generator.
+        """
+        # Assuming that the live_view is always some kind of auto-trigger mode I would remove this
+        # await self.set_trigger_source(self.trigger_sources.AUTO)
+        await self.start_recording_live()
+
+        async for f in self.yield_frames_live():
+            yield f
+
+    async def yield_frames(self):
         while await self.get_state() == 'recording':
             yield await self.grab()
+
+    async def yield_frames_live(self):
+        while await self.get_live_state() == 'recording':
+            yield await self.grab_live()
 
     async def _get_trigger_source(self):
         raise AccessorNotImplementedError
@@ -173,10 +223,19 @@ class Camera(Device):
     async def _stop_real(self):
         raise AccessorNotImplementedError
 
+    async def _record_live_real(self):
+        raise AccessorNotImplementedError
+
+    async def _stop_live_real(self):
+        raise AccessorNotImplementedError
+
     async def _trigger_real(self):
         raise AccessorNotImplementedError
 
     async def _grab_real(self):
+        raise AccessorNotImplementedError
+
+    async def _grab_live_real(self):
         raise AccessorNotImplementedError
 
 
