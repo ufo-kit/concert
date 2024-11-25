@@ -21,7 +21,7 @@ from skimage.measure._regionprops import RegionProperties
 from tango import DebugIt, DevState, CmdArgType, EventType, ArgType, AttrDataFormat
 from tango.server import attribute, command, AttrWriteType, pipe, PipeWriteType
 from concert.ext.tangoservers.base import TangoRemoteProcessing
-from concert.ext.ufo import FlatCorrect, GaussianFilter, MedianFilter
+from concert.ext.ufo import FlatCorrect
 from concert.measures import rotation_axis
 
 
