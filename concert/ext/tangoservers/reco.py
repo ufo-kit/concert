@@ -156,7 +156,8 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
                     self.info_stream("%s: received: %s", self.__class__.__name__, extracted_arr)
                     estm_center, estm_axis_angle_y, estm_axis_angle_x = extracted_arr.tolist()
                     self._manager.args.center_position_x = [estm_center]
-                    self._manager.args.axis_angle_y = [-estm_axis_angle_y]
+                    # TODO: Determine what is the correct way to deal with angular corrections.
+                    self._manager.args.axis_angle_y = [estm_axis_angle_y]
                     self._manager.args.axis_angle_x = [estm_axis_angle_x]
                     self._found_rotation_axis.set()
         except Exception as err:
