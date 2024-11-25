@@ -6,14 +6,10 @@ typing.py
 Facilitates type annotations for concert
 """
 from typing import Protocol, Any, NewType, Sequence, Tuple
-import numpy
-
-# Defines ArrayLike as a new type
-# NOTE: We take this approach because NumPy>=1.20 offers ArrayLike as a
-# concrete type. At this point Tango has some discrepancy when it comes to
-# NumPy versions. In future this can(should) be replaced with
-# from numpy.typing import ArrayLike
-ArrayLike = NewType("ArrayLike", numpy.ndarray)
+try:
+    from numpy.typing import ArrayLike
+except ModuleNotFoundError:
+    from numpy import ndarray as ArrayLike
 
 
 #####################################################################

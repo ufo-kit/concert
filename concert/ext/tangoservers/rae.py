@@ -8,7 +8,10 @@ from typing import List, AsyncIterator, Tuple, Dict, Awaitable, Optional
 import warnings
 import numpy as np
 import numpy.fft as nft
-from numpy.typing import ArrayLike
+try:
+    from numpy.typing import ArrayLike
+except ModuleNotFoundError:
+    from numpy import ndarray as ArrayLike
 import scipy.ndimage as snd
 import scipy.optimize as sop
 import skimage.filters as skf

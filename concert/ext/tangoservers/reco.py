@@ -3,6 +3,10 @@ import asyncio
 import os
 from typing import List
 import numpy as np
+try:
+    from numpy.typing import ArrayLike
+except ModuleNotFoundError:
+    from numpy import ndarray as ArrayLike
 from tango import DebugIt, CmdArgType, EventType, EventData, GreenMode
 from tango.server import command
 from tango.asyncio import DeviceProxy

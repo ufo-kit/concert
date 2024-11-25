@@ -6,8 +6,10 @@ import sys
 import threading
 import time
 import numpy as np
-from numpy.typing import ArrayLike
-
+try:
+    from numpy.typing import ArrayLike
+except ModuleNotFoundError:
+    from numpy import ndarray as ArrayLike
 
 try:
     import gi
