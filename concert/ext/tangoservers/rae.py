@@ -9,7 +9,6 @@ import warnings
 import numpy as np
 import numpy.fft as nft
 from numpy.typing import ArrayLike
-import pandas as pd
 import scipy.ndimage as snd
 import scipy.optimize as sop
 import skimage.filters as skf
