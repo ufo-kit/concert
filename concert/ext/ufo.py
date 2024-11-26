@@ -18,6 +18,8 @@ try:
     import ufo.numpy
 except ImportError as e:
     print(str(e))
+except ValueError as e:
+    print(str(e))
 
 try:
     from tofu.config import SECTIONS, GEN_RECO_PARAMS
