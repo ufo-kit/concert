@@ -1,7 +1,7 @@
 """
-qa.py
+rae.py
 -----
-Implements a device server to execute quality assurance routines during acquisition.
+Implements a device server to execute rotation axis estimation routines during acquisition.
 """
 from enum import IntEnum
 from typing import List, AsyncIterator, Tuple, Dict, Awaitable, Optional
@@ -150,8 +150,8 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         await super().init_device()
         self._algorithm = Algorithm.MARKER_TRACKING
         self._tracking = Tracking.SINGLE_MARKER_MSE
-        self._angles = np.array([])
-        self._axis_of_rotation = 0.
+        self._angles = np.empty(self._num_radios, dtype=np.float_)
+        self._axis_of_rotation = np.empty(3, dtype=np.float_)
         self.set_state(DevState.STANDBY)
         self.info_stream("%s initialized device with state: %s", self.__class__.__name__,\
                 self.get_state())
@@ -412,132 +412,138 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         est_axes: List[float] = []
         evaluated: bool = False
         converged: bool = False
-        async for projection in ffc(producer):
-            # Crop projection to reduce tracking complexity.
-            height: int = projection.shape[0] // vert_crop
-            crop_right: int = projection.shape[1] - crop_right_px
-            if height > 0:
-                patch: ArrayLike = projection[:height, crop_left_px:crop_right]
-            else:
-                patch: ArrayLike = projection[height:, crop_left_px:crop_right]
-            # Tracking: use normalized cross correlation to localize the markers on first
-            # projection and use segmentation on individual marker strips thereafter.
-            if proj_count == 0:
-                cnt, mp1, mp2 = self._find_centroids_corr(patch=patch)
-                if not self._is_valid(patch=mp1) or not self._is_valid(patch=mp2):
-                    cnt, mp1, mp2 = self._find_centroids_corr(patch=skf.laplace(skf.gaussian(
-                        patch, sigma=4)))
-                centroids_x.append([cnt[0,1], cnt[1,1]])
-            else:
-                # Define two marker strips with two pixels of offset on top of radius
-                strip1: ArrayLike = patch[cnt[0,0]-(radius+2):cnt[0,0]+(radius+2), :]
-                strip2: ArrayLike = patch[cnt[1,0]-(radius+2):cnt[1,0]+(radius+2), :]
-                _, mx1 = self._find_centroids_otsu(strip=strip1)
-                _, mx2 = self._find_centroids_otsu(strip=strip2)
-                centroids_x.append([mx1, mx2])
-            if proj_count > init_wait:
-                # Evaluation: compare tracking quality of the markers based on provided criteria or
-                # decide to use a single static marker for estimation. Evaluation happens a single
-                # time and result would be used thereafter.
-                if not evaluated:
-                    if self._tracking in [Tracking.MEAN_MSE, Tracking.SINGLE_MARKER_MSE]:
-                        # Compute MSE for both markers using evaluation function.
-                        ang_x: ArrayLike = self._angles[:proj_count]
-                        m1_cnt: ArrayLike = np.array(centroids_x)[:proj_count, 0]
-                        m2_cnt: ArrayLike = np.array(centroids_x)[:proj_count, 1]
-                        eval_params_m1, _ = sop.curve_fit(f=self._eval_func, xdata=ang_x,
-                                                          ydata=np.squeeze(m1_cnt))
-                        eval_params_m2, _ = sop.curve_fit(f=self._eval_func, xdata=ang_x,
-                                                          ydata=np.squeeze(m2_cnt))
-                        m1_pred: ArrayLike = self._eval_func(ang_x, *eval_params_m1)
-                        m2_pred: ArrayLike = self._eval_func(ang_x, *eval_params_m2)
-                        m1_mse: float = np.mean((m1_cnt - m1_pred)**2)
-                        m2_mse: float = np.mean((m2_cnt - m2_pred)**2)
-                        # Is both cases if abs diff of MSE values remain within threshold, it means
-                        # that tracking quality of both markers are identical to each other. We can
-                        # take the mean. Since optimal_marker is initialized as -1 we do nothing.
-                        if self._tracking == Tracking.MEAN_MSE:
-                            if np.abs(m1_mse - m2_mse) > mse_thresh:
-                                optimal_marker = np.argmin([m1_mse, m2_mse])
-                                self.info_stream("%s: (using MSE) chosen marker: %d",
-                                                 self.__class__.__name__, optimal_marker)
-                        elif self._tracking == Tracking.SINGLE_MARKER_MSE:
-                            if np.abs(m1_mse - m2_mse) > mse_thresh:
-                                # use_marker must have a valid marker index when tracking method is
-                                # chosen as Tracking.SINGLE_MARKER_*
-                                assert(use_marker in [0, 1])
+        try:
+            async for projection in ffc(producer):
+                # Crop projection to reduce tracking complexity.
+                height: int = projection.shape[0] // vert_crop
+                crop_right: int = projection.shape[1] - crop_right_px
+                if height > 0:
+                    patch: ArrayLike = projection[:height, crop_left_px:crop_right]
+                else:
+                    patch: ArrayLike = projection[height:, crop_left_px:crop_right]
+                # Tracking: use normalized cross correlation to localize the markers on first
+                # projection and use segmentation on individual marker strips thereafter.
+                if proj_count == 0:
+                    cnt, mp1, mp2 = self._find_centroids_corr(patch=patch)
+                    if not self._is_valid(patch=mp1) or not self._is_valid(patch=mp2):
+                        cnt, mp1, mp2 = self._find_centroids_corr(patch=skf.laplace(skf.gaussian(
+                            patch, sigma=4)))
+                    centroids_x.append([cnt[0,1], cnt[1,1]])
+                else:
+                    # Define two marker strips with two pixels of offset on top of radius
+                    strip1: ArrayLike = patch[cnt[0,0]-(radius+2):cnt[0,0]+(radius+2), :]
+                    strip2: ArrayLike = patch[cnt[1,0]-(radius+2):cnt[1,0]+(radius+2), :]
+                    _, mx1 = self._find_centroids_otsu(strip=strip1)
+                    _, mx2 = self._find_centroids_otsu(strip=strip2)
+                    centroids_x.append([mx1, mx2])
+                if proj_count > init_wait:
+                    # Evaluation: compare tracking quality of the markers based on provided criteria or
+                    # decide to use a single static marker for estimation. Evaluation happens a single
+                    # time and result would be used thereafter.
+                    if not evaluated:
+                        if self._tracking in [Tracking.MEAN_MSE, Tracking.SINGLE_MARKER_MSE]:
+                            # Compute MSE for both markers using evaluation function.
+                            ang_x: ArrayLike = self._angles[:proj_count]
+                            m1_cnt: ArrayLike = np.array(centroids_x)[:proj_count, 0]
+                            m2_cnt: ArrayLike = np.array(centroids_x)[:proj_count, 1]
+                            eval_params_m1, _ = sop.curve_fit(f=self._eval_func, xdata=ang_x,
+                                                              ydata=np.squeeze(m1_cnt))
+                            eval_params_m2, _ = sop.curve_fit(f=self._eval_func, xdata=ang_x,
+                                                              ydata=np.squeeze(m2_cnt))
+                            m1_pred: ArrayLike = self._eval_func(ang_x, *eval_params_m1)
+                            m2_pred: ArrayLike = self._eval_func(ang_x, *eval_params_m2)
+                            m1_mse: float = np.mean((m1_cnt - m1_pred)**2)
+                            m2_mse: float = np.mean((m2_cnt - m2_pred)**2)
+                            # Is both cases if abs diff of MSE values remain within threshold, it means
+                            # that tracking quality of both markers are identical to each other. We can
+                            # take the mean. Since optimal_marker is initialized as -1 we do nothing.
+                            if self._tracking == Tracking.MEAN_MSE:
+                                if np.abs(m1_mse - m2_mse) > mse_thresh:
+                                    optimal_marker = np.argmin([m1_mse, m2_mse])
+                                    self.info_stream("%s: (using MSE) chosen marker: %d",
+                                                     self.__class__.__name__, optimal_marker)
+                            elif self._tracking == Tracking.SINGLE_MARKER_MSE:
+                                if np.abs(m1_mse - m2_mse) > mse_thresh:
+                                    # use_marker must have a valid marker index when tracking method is
+                                    # chosen as Tracking.SINGLE_MARKER_*
+                                    assert(use_marker in [0, 1])
+                                    optimal_marker = use_marker
+                                    self.info_stream("%s: (using MSE) selected marker: %d",
+                                                     self.__class__.__name__, optimal_marker)
+                        else:
+                            if self._tracking == Tracking.MEAN_STATIC:
+                                # Do nothing as the optimal marker is initialized to -1, which means
+                                # estimation mean would be used.
+                                pass
+                            elif self._tracking == Tracking.SINGLE_MARKER_STATIC:
+                                # Set optimal marker value by the provided use_marker configuration,
+                                # either 0 or 1. We must have a valid marker index as use_marker when
+                                # tracking method is chosen as Tracking.SINGLE_MARKER_*
+                                assert (use_marker in [0, 1])
                                 optimal_marker = use_marker
-                                self.info_stream("%s: (using MSE) selected marker: %d",
-                                                 self.__class__.__name__, optimal_marker)
-                    else:
-                        if self._tracking == Tracking.MEAN_STATIC:
-                            # Do nothing as the optimal marker is initialized to -1, which means
-                            # estimation mean would be used.
-                            pass
-                        elif self._tracking == Tracking.SINGLE_MARKER_STATIC:
-                            # Set optimal marker value by the provided use_marker configuration,
-                            # either 0 or 1. We must have a valid marker index as use_marker when
-                            # tracking method is chosen as Tracking.SINGLE_MARKER_*
-                            assert (use_marker in [0, 1])
-                            optimal_marker = use_marker
-                    if optimal_marker == -1:
-                        self.info_stream("%s: estimations from both markers will be combined",
-                                         self.__class__.__name__)
-                    evaluated = True
-                # Estimation: perform curve-fit to estimate the axis of rotation. Estimation happens
-                # either for each projection or with an offset. Based on the provided configuration
-                # and evaluation estimation is performed on a single marker or mean from both.
-                if proj_count % offset == 0:
-                    x: ArrayLike = self._angles[:proj_count:offset]
-                    if optimal_marker != -1:
-                        y_m: ArrayLike = np.array(centroids_x)[:proj_count:offset, optimal_marker]
-                        params, _ = sop.curve_fit(f=self._opt_func, xdata=np.squeeze(x),
-                                                  ydata=np.squeeze(y_m))
-                        est_axis: float = crop_left_px + params[0]
-                    else:
-                        y_m1: ArrayLike = np.array(centroids_x)[:proj_count:offset, 0]
-                        y_m2: ArrayLike = np.array(centroids_x)[:proj_count:offset, 1]
-                        params_m1, _ = sop.curve_fit(f=self._opt_func, xdata=np.squeeze(x),
-                                                     ydata=np.squeeze(y_m1))
-                        params_m2, _ = sop.curve_fit(f=self._opt_func, xdata=np.squeeze(x),
-                                                     ydata=np.squeeze(y_m2))
-                        est_axis: float = crop_left_px + np.mean([params_m1[0], params_m2[0]])
-                    if len(est_axes) == 0:
-                        est_axes.append(np.round(est_axis, decimals=3))
-                    else:
-                        avg_est: float = (avg_beta * est_axes[-1]) + ((1 - avg_beta) * est_axis)
-                        avg_est /= (1 - avg_beta**proj_count)
-                        est_axes.append(np.round(avg_est, decimals=3))
-                # Convergence: check if we have landed on a stable value. This check happens for
-                # each projection after a number of past values were estimated, defined by the
-                # evaluation window.
-                if not converged:
-                    if len(est_axes) > conv_window:
-                        # TODO: Debug log, remove when ready
-                        if proj_count % conv_window == 0:
-                            self.info_stream("%s estimated axis: %.3f", self.__class__.__name__,
-                                             est_axes[-1])
-                        if np.all(np.round(np.abs(np.diff(est_axes[-conv_window:])),
-                                           decimals=3) <= diff_thresh):
-                            # Attribute axis_of_rotation encapsulates axis_angle_y(roll) and
-                            # axis_angle_x(tilt) angles.
-                            self._axis_of_rotation = np.array([est_axes[-1], 0, 0])
-                            self.info_stream("%s: converged at: %s", self.__class__.__name__,
-                                             self._axis_of_rotation)
-                            self.push_event("axis_of_rotation", [], [], self._axis_of_rotation)
-                            converged = True
-            proj_count += 1
-        # If not converged final estimate is used to carry out the reconstruction.
-        if not converged:
-            self._axis_of_rotation = np.array([est_axes[-1], 0, 0])
-            self.info_stream("%s: estimated: %s", self.__class__.__name__, self._axis_of_rotation)
+                        if optimal_marker == -1:
+                            self.info_stream("%s: estimations from both markers will be combined",
+                                             self.__class__.__name__)
+                        evaluated = True
+                    # Estimation: perform curve-fit to estimate the axis of rotation. Estimation happens
+                    # either for each projection or with an offset. Based on the provided configuration
+                    # and evaluation estimation is performed on a single marker or mean from both.
+                    if proj_count % offset == 0:
+                        x: ArrayLike = self._angles[:proj_count:offset]
+                        if optimal_marker != -1:
+                            y_m: ArrayLike = np.array(centroids_x)[:proj_count:offset, optimal_marker]
+                            params, _ = sop.curve_fit(f=self._opt_func, xdata=np.squeeze(x),
+                                                      ydata=np.squeeze(y_m))
+                            est_axis: float = crop_left_px + params[0]
+                        else:
+                            y_m1: ArrayLike = np.array(centroids_x)[:proj_count:offset, 0]
+                            y_m2: ArrayLike = np.array(centroids_x)[:proj_count:offset, 1]
+                            params_m1, _ = sop.curve_fit(f=self._opt_func, xdata=np.squeeze(x),
+                                                         ydata=np.squeeze(y_m1))
+                            params_m2, _ = sop.curve_fit(f=self._opt_func, xdata=np.squeeze(x),
+                                                         ydata=np.squeeze(y_m2))
+                            est_axis: float = crop_left_px + np.mean([params_m1[0], params_m2[0]])
+                        if len(est_axes) == 0:
+                            est_axes.append(np.round(est_axis, decimals=3))
+                        else:
+                            avg_est: float = (avg_beta * est_axes[-1]) + ((1 - avg_beta) * est_axis)
+                            avg_est /= (1 - avg_beta**proj_count)
+                            est_axes.append(np.round(avg_est, decimals=3))
+                    # Convergence: check if we have landed on a stable value. This check happens for
+                    # each projection after a number of past values were estimated, defined by the
+                    # evaluation window.
+                    if not converged:
+                        if len(est_axes) > conv_window:
+                            # TODO: Debug log, remove when ready
+                            if proj_count % conv_window == 0:
+                                self.info_stream("%s estimated axis: %.3f", self.__class__.__name__,
+                                                 est_axes[-1])
+                            if np.all(np.round(np.abs(np.diff(est_axes[-conv_window:])),
+                                               decimals=3) <= diff_thresh):
+                                # Attribute axis_of_rotation encapsulates axis_angle_y(roll) and
+                                # axis_angle_x(tilt) angles, which are not in effect at this point
+                                # int time.
+                                self._axis_of_rotation = np.array([est_axes[-1], 0., 0.])
+                                self.info_stream("%s: converged at: %s", self.__class__.__name__,
+                                                 self._axis_of_rotation)
+                                self.push_event("axis_of_rotation", [], [], self._axis_of_rotation)
+                                converged = True
+                proj_count += 1
+            # If not converged final estimate is used to carry out the reconstruction.
+            if not converged:
+                self._axis_of_rotation = np.array([est_axes[-1], 0, 0])
+                self.info_stream("%s: estimated: %s", self.__class__.__name__, self._axis_of_rotation)
+                self.push_event("axis_of_rotation", [], [], self._axis_of_rotation)
+        except Exception as e:
+            self.info_stream("%s encountered runtime error: %s", self.__class__.__name__, str(e))
+            # Unblock reco device server
             self.push_event("axis_of_rotation", [], [], self._axis_of_rotation)
 
     async def _estimate_motion(self, producer: AsyncIterator[ArrayLike]) -> None:
         """Estimates center of rotation with correlation with phase correlation"""
         # We assert, that there is a pre-computed known value exists for the center of rotation
         # because this method estimates the potential error for the same.
-        assert(self._axis_of_rotation is not None and self._axis_of_rotation != 0.)
+        assert(np.count_nonzero(self._axis_of_rotation) != 0)
         # We assert that the reference sinogram from previous measurement is available for the
         # cross correlation.
         assert(self._reference_sinogram is not None)
@@ -563,7 +569,7 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         # Phase correlation using normalized cross correlation yields a signal peak value in spatial
         # domain. Horizontal coordinate of this peak is the error from previous estimate, which we
         # need to correct.
-        self._axis_of_rotation += corr_peak_loc[1]
+        self._axis_of_rotation[0] += corr_peak_loc[1]
         self.info_stream("%s: estimated axis error %d pixles, revised center of rotation: %d",
                          self.__class__.__name__, axis_correction, self._axis_of_rotation)
         self.push_event("axis_of_rotation", [], [], self._axis_of_rotation)
