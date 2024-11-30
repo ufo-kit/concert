@@ -4,7 +4,7 @@ rae.py
 Implements a device server to execute rotation axis estimation routines during acquisition.
 """
 from enum import IntEnum
-from typing import List, AsyncIterator, Tuple, Dict, Awaitable, Optional
+from typing import List, AsyncIterator, Tuple
 import warnings
 import numpy as np
 import numpy.fft as nft
@@ -18,8 +18,8 @@ import skimage.filters as skf
 import skimage.measure as sms
 import skimage.feature as smf
 from skimage.measure._regionprops import RegionProperties
-from tango import DebugIt, DevState, CmdArgType, EventType, ArgType, AttrDataFormat
-from tango.server import attribute, command, AttrWriteType, pipe, PipeWriteType
+from tango import DebugIt, DevState
+from tango.server import attribute, command, AttrWriteType
 from concert.ext.tangoservers.base import TangoRemoteProcessing
 from concert.ext.ufo import FlatCorrect
 from concert.measures import rotation_axis
@@ -93,13 +93,11 @@ class RotationAxisEstimator(TangoRemoteProcessing):
 
     axis_of_rotation = attribute(
         label="Axis of rotation",
-        dtype=(float,),
-        max_dim_x=3,
+        dtype=float,
         access=AttrWriteType.READ_WRITE,
         fget="get_axis_of_rotation",
         fset="set_axis_of_rotation",
-        doc="encapsulates center of rotation and the angular corrections along y-axis(roll_angle) \
-        and x-axis(tilt_angle), [center_of_rotation, roll_angle, tilt_agle]"
+        doc="axis of rotation to be estimated from incoming projections"
     )
 
     attr_track = attribute(
@@ -151,8 +149,9 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         self._algorithm = Algorithm.MARKER_TRACKING
         self._tracking = Tracking.SINGLE_MARKER_MSE
         self._angles = np.array([])
-        self._axis_of_rotation = np.empty(3, dtype=np.float_)
         self.set_state(DevState.STANDBY)
+        self._axis_of_rotation = -1
+        self.set_change_event("axis_of_rotation", True, False)
         self.info_stream("%s initialized device with state: %s", self.__class__.__name__,\
                 self.get_state())
 
@@ -206,10 +205,10 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         self.info_stream(
             "%s has set number of projections to: %d", self.__class__.__name__, self._num_radios)
 
-    def get_axis_of_rotation(self) -> ArrayLike:
+    def get_axis_of_rotation(self) -> float:
         return self._axis_of_rotation
 
-    def set_axis_of_rotation(self, new_value: ArrayLike) -> None:
+    def set_axis_of_rotation(self, new_value: float) -> None:
         self._axis_of_rotation = new_value
 
     def set_attr_track(self, at: ArrayLike) -> None:
@@ -523,22 +522,23 @@ class RotationAxisEstimator(TangoRemoteProcessing):
                                 # Attribute axis_of_rotation encapsulates axis_angle_y(roll) and
                                 # axis_angle_x(tilt) angles, which are not in effect at this point
                                 # int time.
-                                self._axis_of_rotation = np.array([est_axes[-1], 0., 0.])
+                                self._axis_of_rotation = est_axes[-1]
                                 self.info_stream("%s: converged at: %s", self.__class__.__name__,
                                                  self._axis_of_rotation)
-                                self.push_event("axis_of_rotation", [], [], self._axis_of_rotation)
+                                self.push_change_event("axis_of_rotation", self._axis_of_rotation)
                                 converged = True
                 proj_count += 1
             # If not converged final estimate is used to carry out the reconstruction.
             if not converged:
-                self._axis_of_rotation = np.array([est_axes[-1], 0, 0])
+                self._axis_of_rotation = est_axes[-1]
                 self.info_stream("%s: estimated: %s", self.__class__.__name__, self._axis_of_rotation)
-                self.push_event("axis_of_rotation", [], [], self._axis_of_rotation)
+                self.push_change_event("axis_of_rotation", self._axis_of_rotation)
         except Exception as e:
-            self.info_stream("%s encountered runtime error: %s, unblocking reco",
+            self.info_stream("%s encountered runtime error: %s, unblocking reco with generic value",
                              self.__class__.__name__, str(e))
-            # Unblock reco device server
-            self.push_event("axis_of_rotation", [], [], self._axis_of_rotation)
+            # Unblock reco device server with a generic value
+            self._axis_of_rotation = 0.
+            self.push_change_event("axis_of_rotation", self._axis_of_rotation)
 
     async def _estimate_motion(self, producer: AsyncIterator[ArrayLike]) -> None:
         """Estimates center of rotation with correlation with phase correlation"""
@@ -570,10 +570,10 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         # Phase correlation using normalized cross correlation yields a signal peak value in spatial
         # domain. Horizontal coordinate of this peak is the error from previous estimate, which we
         # need to correct.
-        self._axis_of_rotation[0] += corr_peak_loc[1]
+        self._axis_of_rotation += corr_peak_loc[1]
         self.info_stream("%s: estimated axis error %d pixles, revised center of rotation: %d",
                          self.__class__.__name__, axis_correction, self._axis_of_rotation)
-        self.push_event("axis_of_rotation", [], [], self._axis_of_rotation)
+        self.push_change_event("axis_of_rotation", self._axis_of_rotation)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 """Tango device for online 3D reconstruction from zmq image stream."""
 import asyncio
 import os
-from typing import List
+from typing import Tuple
 import numpy as np
 try:
     from numpy.typing import ArrayLike
@@ -136,7 +136,7 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     @DebugIt()
     @command(
         dtype_in=(str,),
-        doc_in="device proxy reference for axis of rotation estimator"
+        doc_in="port and domain namespace for rotation axis estimator device"
     )
     async def register_rotation_axis_feedback(self, args: Tuple[str, str]) -> None:
         """
@@ -144,10 +144,10 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
         Arguments include port number and domain namespace for rotation axis estimator device.
         """
         # Get the device proxy reference for RotationAxisEstimator device and subscribe for event
-        self._rae_device = await DeviceProxy(f"{os.uname()[1]}:{args[0]}/{args[1]}#dbase=no")
+        rae_dev_ref = f"{os.uname()[1]}:{args[0]}/{args[1]}#dbase=no"
+        self._rae_device = get_tango_device(rae_dev_ref, timeout=1000 * q.s)
         self._rae_subscription = await self._rae_device.subscribe_event(
-                "axis_of_rotation", EventType.USER_EVENT, self._on_axis_of_rotation,
-                green_mode=GreenMode.Asyncio)
+                "axis_of_rotation", EventType.CHANGE_EVENT, self._on_axis_of_rotation)
 
     def _on_axis_of_rotation(self, event: EventData) -> None:
         """
@@ -157,16 +157,14 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
         # We wrap the implementation within exception handling to catch transparent issues in Tango
         # and reraise.
         try:
-            if event.attr_value.value is not None:
-                extracted_arr: ArrayLike = np.vectorize(np.float_)(event.attr_value.value)
-                if not np.all(np.isclose(extracted_arr, np.zeros((3,)), atol=1e-5)):
-                    self.info_stream("%s: received: %s", self.__class__.__name__, extracted_arr)
-                    estm_center, estm_axis_angle_y, estm_axis_angle_x = extracted_arr.tolist()
-                    self._manager.args.center_position_x = [estm_center]
-                    # TODO: Determine what is the correct way to deal with angular corrections.
-                    self._manager.args.axis_angle_y = [estm_axis_angle_y]
-                    self._manager.args.axis_angle_x = [estm_axis_angle_x]
-                    self._found_rotation_axis.set()
+            # TODO: checking the value against -1 is a makeshift solution in times of urgency. This
+            # is a weak countermeasure against the erratic behavior of tango events. We need to find
+            # better alternatives to safeguard against receipt of unnecessary events.
+            if event.attr_value.value is not None and event.attr_value.value != -1.:
+                estm_center: float = event.attr_value.value
+                self.info_stream("%s: received axis: %s", self.__class__.__name__, estm_center)
+                self._manager.args.center_position_x = [estm_center]
+                self._found_rotation_axis.set()
         except Exception as err:
             self.error_stream("%s: encountered error: %s", self.__class__.__name__, str(err))
             raise
