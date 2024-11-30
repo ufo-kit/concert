@@ -135,13 +135,16 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
 
     @DebugIt()
     @command(
-        dtype_in=str,
+        dtype_in=(str,),
         doc_in="device proxy reference for axis of rotation estimator"
     )
-    async def register_rotation_axis_feedback(self, rae_dev_ref: str) -> None:
-        """Subscribes for event concerning axis of rotation estimation"""
+    async def register_rotation_axis_feedback(self, args: Tuple[str, str]) -> None:
+        """
+        Subscribes for event concerning axis of rotation estimation.
+        Arguments include port number and domain namespace for rotation axis estimator device.
+        """
         # Get the device proxy reference for RotationAxisEstimator device and subscribe for event
-        self._rae_device = await DeviceProxy(rae_dev_ref)
+        self._rae_device = await DeviceProxy(f"{os.uname()[1]}:{args[0]}/{args[1]}#dbase=no")
         self._rae_subscription = await self._rae_device.subscribe_event(
                 "axis_of_rotation", EventType.USER_EVENT, self._on_axis_of_rotation,
                 green_mode=GreenMode.Asyncio)
