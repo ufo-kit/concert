@@ -535,7 +535,8 @@ class RotationAxisEstimator(TangoRemoteProcessing):
                 self.info_stream("%s: estimated: %s", self.__class__.__name__, self._axis_of_rotation)
                 self.push_event("axis_of_rotation", [], [], self._axis_of_rotation)
         except Exception as e:
-            self.info_stream("%s encountered runtime error: %s", self.__class__.__name__, str(e))
+            self.info_stream("%s encountered runtime error: %s, unblocking reco",
+                             self.__class__.__name__, str(e))
             # Unblock reco device server
             self.push_event("axis_of_rotation", [], [], self._axis_of_rotation)
 
