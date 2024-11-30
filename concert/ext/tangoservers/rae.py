@@ -150,7 +150,7 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         await super().init_device()
         self._algorithm = Algorithm.MARKER_TRACKING
         self._tracking = Tracking.SINGLE_MARKER_MSE
-        self._angles = np.empty(self._num_radios, dtype=np.float_)
+        self._angles = np.array([])
         self._axis_of_rotation = np.empty(3, dtype=np.float_)
         self.set_state(DevState.STANDBY)
         self.info_stream("%s initialized device with state: %s", self.__class__.__name__,\
