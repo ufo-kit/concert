@@ -357,7 +357,7 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         mask: ArrayLike = patch < threshold
         labels: ArrayLike = sms.label(~mask)
         region: RegionProperties = sorted(
-            sms.regionprops(label_image=labels), key=lambda r: r.area_filled, reverse=True)[0]
+            sms.regionprops(label_image=labels), key=lambda r: r.filled_area, reverse=True)[0]
         if self._circularity_of(region=region) < circ:
             return False
         return True
@@ -390,7 +390,7 @@ class RotationAxisEstimator(TangoRemoteProcessing):
             regions = list(filter(
                 lambda region: self._circularity_of(region=region) not in [-np.inf, np.inf],
                 regions))
-        regions = sorted(regions, key=lambda r: r.area_filled, reverse=True)
+        regions = sorted(regions, key=lambda r: r.filled_area, reverse=True)
         return regions[0].centroid
 
     async def _track_markers(self, producer: AsyncIterator[ArrayLike]) -> None:
