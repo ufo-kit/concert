@@ -170,6 +170,16 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
             raise
 
     @DebugIt()
+    @command(
+        dtype_in=float,
+        doc_in="value for axis of rotation"
+    )
+    async def inject_rotation_axis(self, value: float) -> None:
+        self._manager.args.center_position_x = [value]
+        self._found_rotation_axis.set()
+        self.info_stream("%s injected axis value: %.2f", self.__class__.__name__, value)
+
+    @DebugIt()
     @command()
     async def reset_manager(self):
         return await self._manager.reset()

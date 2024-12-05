@@ -4,9 +4,19 @@ backprojection, flat field correction and other operations on images.
 """
 
 import asyncio
-import numpy as np
 import logging
+from typing import AsyncIterator, List, Awaitable, Tuple
+import warnings
+try:
+    from numpy.typing import ArrayLike
+except ModuleNotFoundError:
+    from numpy import ndarray as ArrayLike
+import numpy as np
+import numpy.fft as nft
 from scipy.signal import fftconvolve
+from skimage import filters as skf
+from skimage import measure as sms
+from skimage.measure._regionprops import RegionProperties
 from concert.coroutines.base import background, run_in_executor
 from concert.quantities import q
 
@@ -78,6 +88,83 @@ def find_needle_tip(image):
 
     return np.mean(coords, axis=0) if coords else None
 
+
+@background
+async def find_sphere_centers_new(producer: AsyncIterator[ArrayLike], strategy: str = "correlation",
+                              **kwargs) -> List[ArrayLike]:
+    """
+    Finds sphere center from absorption projection with a given strategy, which could be one
+    of ['correlation', 'segmentation']. We can optionally provide a cropping criteria to be
+    efficient with computation. This implementation assumes 155-190 q.um Tungsten Carbide spheres
+    having an approximate radius of 65 pixels with 5x magnification as default. Users are advised
+    to be more or less accurate with sphere radius if correlation is used as strategy.
+
+    :param producer: asynchronous source of projection data
+    :type producer: AsyncIterator[ArrayLike]
+    :param strategy: sphere finding strategy, must be in ['correlation', 'segmentation']
+    :type strategy: str
+    :param: kwargs:
+        crop_left_px: left side cropping by pixels, default 0
+        crop_right_px: right side cropping by pixels, default 0
+        crop_vertical_prop: cropping by proportion along vertical axis, default 1 (whole 
+        projection)
+        radius: radius of the sphere, default 65 (155-190 q.um Tungsten Carbide) with 5x
+        magnification
+    """
+    def _circularity_of(region: RegionProperties) -> float:
+        return (4 * np.pi * region.area)/(region.perimeter * region.perimeter)
+
+    def _find_with_seg(patch: ArrayLike) -> Tuple[int, int]:
+        global_threshold: float = skf.threshold_otsu(patch)
+        global_mask: ArrayLike = patch[patch > global_threshold]
+        local_threshold: float = skf.threshold_otsu(global_mask)
+        local_mask: ArrayLike = patch < local_threshold
+        labels: ArrayLike = sms.label(~local_mask)
+        regions: List[RegionProperties] = sms.regionprops(label_image=labels)
+        with warnings.catch_warnings():
+            warnings.simplefilter(action="ignore")
+            regions = list(filter(
+                lambda region: circularity_of(region=region) != np.inf \
+                        and _circularity_of(region=region) != -np.inf, regions))
+        regions = sorted(regions, key=lambda r: r.area_filled, reverse=True)
+        centroid: ArrayLike = regions[0].centroid
+        return int(centroid[0]), int(centroid[1])
+
+    def _find_with_corr(patch: ArrayLike, radius: int) -> Tuple[int, int]:
+        y, x = np.mgrid[-radius:radius+1, -radius:radius+1]
+        mask: ArrayLike = np.where(radius ** 2 - x ** 2 - y ** 2 >= 0)
+        sphere: ArrayLike = np.zeros((2 * radius + 1, 2 * radius + 1))
+        sphere[mask] = 2 * np.sqrt(radius ** 2 - x[mask] ** 2 - y[mask] ** 2)
+        corr: ArrayLike = nft.ifft2(nft.fft2(patch - patch.mean()) * np.conjugate(
+            nft.fft2(sphere - sphere.mean(), s=patch.shape))).real
+        ym, xm = np.unravel_index(np.argmax(corr), corr.shape)
+        ym += radius
+        xm += radius
+        return ym, xm
+
+    def _process_one(proj: ArrayLike) -> Tuple[int, int]:
+        crop_left_px: int = kwargs.get("crop_left_px", 0)
+        assert(crop_left_px >= 0)
+        crop_right_px: int = kwargs.get("crop_right_px", 0)
+        assert(crop_right_px >= 0)
+        crop_vertical_prop: int = kwargs.get("crop_vertical_prop", 1)
+        assert(crop_vertical_prop != 0)
+        radius: int = kwargs.get("radius", 65)
+        assert (strategy in ["correlation", "segmentation"])
+        if crop_vertical_prop > 0:
+            patch: ArrayLike = proj[:abs(proj.shape[0]//crop_vertical_prop), 
+                                        crop_left_px:proj.shape[1] - crop_right_px]
+        else:
+            patch: ArrayLike = proj[proj.shape[0]//crop_vertical_prop:,
+                                        crop_left_px:proj.shape[1] - crop_right_px]
+        yc, xc = _find_with_corr(patch=patch, radius=radius) if strategy == "correlation" else \
+                _find_with_seg(patch=patch)
+        return yc, xc
+
+    coros: List[Awaitable] = []
+    async for projection in producer:
+        coros.append(run_in_executor(_process_one, projection))
+    return [np.array([yc, xc]) for yc, xc in await asyncio.gather(*coros)]
 
 @background
 async def find_sphere_centers_by_mass(producer, border_crossing_ok=True):
