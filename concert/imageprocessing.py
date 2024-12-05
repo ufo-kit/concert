@@ -5,7 +5,7 @@ backprojection, flat field correction and other operations on images.
 
 import asyncio
 import logging
-from typing import AsyncIterator, List, Awaitable
+from typing import AsyncIterator, List, Awaitable, Tuple
 import warnings
 try:
     from numpy.typing import ArrayLike
@@ -124,10 +124,10 @@ async def find_sphere_centers_new(producer: AsyncIterator[ArrayLike], strategy: 
         centroid: ArrayLike = regions[0].centroid
         return int(centroid[0]), int(centroid[1])
 
-    def _find_with_corr(patch: ArrayLike, radius: int) -> Tuple[int: int]:
+    def _find_with_corr(patch: ArrayLike, radius: int) -> Tuple[int, int]:
         y, x = np.mgrid[-radius:radius+1, -radius:radius+1]
-            mask = np.where(radius ** 2 - x ** 2 - y ** 2 >= 0)
-            sphere = np.zeros((2 * radius + 1, 2 * radius + 1))
+        mask = np.where(radius ** 2 - x ** 2 - y ** 2 >= 0)
+        sphere = np.zeros((2 * radius + 1, 2 * radius + 1))
         sphere[mask] = 2 * np.sqrt(radius ** 2 - x[mask] ** 2 - y[mask] ** 2)
         corr: ArrayLike = nft.ifft2(nft.fft2(patch - patch.mean()) * np.conjugate(
             nft.fft2(sphere - sphere.mean(), s=patch.shape))).real
@@ -146,10 +146,10 @@ async def find_sphere_centers_new(producer: AsyncIterator[ArrayLike], strategy: 
         radius: int = kwargs.get("radius", 65)
         assert (strategy in ["correlation", "segmentation"])
         if crop_vertical_prop > 0:
-                patch: ArrayLike = proj[:abs(proj.shape[0]//crop_vertical), 
+            patch: ArrayLike = proj[:abs(proj.shape[0]//crop_vertical_prop), 
                                         crop_left_px:proj.shape[1] - crop_right_px]
-            else:
-                patch: ArrayLike = proj[proj.shape[0]//crop_vertical:,
+        else:
+            patch: ArrayLike = proj[proj.shape[0]//crop_vertical_prop:,
                                         crop_left_px:proj.shape[1] - crop_right_px]
         yc, xc = _find_with_corr(patch=patch, radius=radius) if strategy == "correlation" else \
                 _find_with_seg(patch=patch)
@@ -158,7 +158,7 @@ async def find_sphere_centers_new(producer: AsyncIterator[ArrayLike], strategy: 
     coros: List[Awaitable] = []
     async for projection in producer:
         coros.append(run_in_executor(_process_one, projection))
-    return [np.array([yc, wx]) for yc, xc in await asyncio.gather(*coros)]
+    return [np.array([yc, xc]) for yc, xc in await asyncio.gather(*coros)]
 
 @background
 async def find_sphere_centers_by_mass(producer, border_crossing_ok=True):
