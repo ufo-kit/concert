@@ -171,7 +171,7 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
 
     @DebugIt()
     @command(
-        dtype_in=foat,
+        dtype_in=float,
         doc_in="value for axis of rotation"
     )
     async def inject_rotation_axis(self, value: float) -> None:
