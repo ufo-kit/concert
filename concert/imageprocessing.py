@@ -89,12 +89,60 @@ def find_needle_tip(image):
 
     return np.mean(coords, axis=0) if coords else None
 
+def find_with_seg(patch: ArrayLike) -> Tuple[int, int]:
+    """
+    Finds single sphere center inside a patch with segmentation. For this approach a cropped
+    projection with reduced area is preferable.
+
+    :param patch: absorption projection (preferably cropped)
+    :type patch: ArrayLike
+    """
+    def _circularity_of(region: RegionProperties) -> float:
+        return (4 * np.pi * region.area)/(region.perimeter * region.perimeter)
+
+    global_threshold: float = skf.threshold_otsu(patch)
+    global_mask: ArrayLike = patch[patch > global_threshold]
+    local_threshold: float = skf.threshold_otsu(global_mask)
+    local_mask: ArrayLike = patch < local_threshold
+    labels: ArrayLike = sms.label(~local_mask)
+    regions: List[RegionProperties] = sms.regionprops(label_image=labels)
+    with warnings.catch_warnings():
+        warnings.simplefilter(action="ignore")
+        regions = list(filter(
+            lambda region: _circularity_of(region=region) != np.inf \
+                    and _circularity_of(region=region) != -np.inf, regions))
+    if skimage.__version__ < "0.19":
+        regions = sorted(regions, key=lambda r: r.filled_area, reverse=True)
+    else:
+        regions = sorted(regions, key=lambda r: r.area_filled, reverse=True)
+    centroid: ArrayLike = regions[0].centroid
+    return int(centroid[0]), int(centroid[1])
+
+def find_with_corr(patch: ArrayLike, radius: int) -> Tuple[int, int]:
+    """
+    Finds single sphere center inside a patch with correlation.
+
+    :param patch: absorption projection
+    :type patch: ArrayLike
+    :param radius: radius of the sphere in pixels
+    :type radius: int
+    """
+    y, x = np.mgrid[-radius:radius+1, -radius:radius+1]
+    mask: ArrayLike = np.where(radius ** 2 - x ** 2 - y ** 2 >= 0)
+    sphere: ArrayLike = np.zeros((2 * radius + 1, 2 * radius + 1))
+    sphere[mask] = 2 * np.sqrt(radius ** 2 - x[mask] ** 2 - y[mask] ** 2)
+    corr: ArrayLike = nft.ifft2(nft.fft2(patch - patch.mean()) * np.conjugate(
+        nft.fft2(sphere - sphere.mean(), s=patch.shape))).real
+    ym, xm = np.unravel_index(np.argmax(corr), corr.shape)
+    ym += radius
+    xm += radius
+    return ym, xm
 
 @background
 async def find_sphere_centers_new(producer: AsyncIterator[ArrayLike], strategy: str = "correlation",
                               **kwargs) -> List[ArrayLike]:
     """
-    Finds sphere center from absorption projection with a given strategy, which could be one
+    Finds single sphere center from absorption projection with a given strategy, which could be one
     of ['correlation', 'segmentation']. We can optionally provide a cropping criteria to be
     efficient with computation. This implementation assumes 155-190 q.um Tungsten Carbide spheres
     having an approximate radius of 65 pixels with 5x magnification as default. Users are advised
@@ -112,40 +160,6 @@ async def find_sphere_centers_new(producer: AsyncIterator[ArrayLike], strategy: 
         radius: radius of the sphere, default 65 (155-190 q.um Tungsten Carbide) with 5x
         magnification
     """
-    def _circularity_of(region: RegionProperties) -> float:
-        return (4 * np.pi * region.area)/(region.perimeter * region.perimeter)
-
-    def _find_with_seg(patch: ArrayLike) -> Tuple[int, int]:
-        global_threshold: float = skf.threshold_otsu(patch)
-        global_mask: ArrayLike = patch[patch > global_threshold]
-        local_threshold: float = skf.threshold_otsu(global_mask)
-        local_mask: ArrayLike = patch < local_threshold
-        labels: ArrayLike = sms.label(~local_mask)
-        regions: List[RegionProperties] = sms.regionprops(label_image=labels)
-        with warnings.catch_warnings():
-            warnings.simplefilter(action="ignore")
-            regions = list(filter(
-                lambda region: _circularity_of(region=region) != np.inf \
-                        and _circularity_of(region=region) != -np.inf, regions))
-        if skimage.__version__ < "0.19":
-            regions = sorted(regions, key=lambda r: r.filled_area, reverse=True)
-        else:
-            regions = sorted(regions, key=lambda r: r.area_filled, reverse=True)
-        centroid: ArrayLike = regions[0].centroid
-        return int(centroid[0]), int(centroid[1])
-
-    def _find_with_corr(patch: ArrayLike, radius: int) -> Tuple[int, int]:
-        y, x = np.mgrid[-radius:radius+1, -radius:radius+1]
-        mask: ArrayLike = np.where(radius ** 2 - x ** 2 - y ** 2 >= 0)
-        sphere: ArrayLike = np.zeros((2 * radius + 1, 2 * radius + 1))
-        sphere[mask] = 2 * np.sqrt(radius ** 2 - x[mask] ** 2 - y[mask] ** 2)
-        corr: ArrayLike = nft.ifft2(nft.fft2(patch - patch.mean()) * np.conjugate(
-            nft.fft2(sphere - sphere.mean(), s=patch.shape))).real
-        ym, xm = np.unravel_index(np.argmax(corr), corr.shape)
-        ym += radius
-        xm += radius
-        return ym, xm
-
     def _process_one(proj: ArrayLike) -> Tuple[int, int]:
         crop_left_px: int = kwargs.get("crop_left_px", 0)
         assert(crop_left_px >= 0)
@@ -161,8 +175,8 @@ async def find_sphere_centers_new(producer: AsyncIterator[ArrayLike], strategy: 
         else:
             patch: ArrayLike = proj[proj.shape[0]//crop_vertical_prop:,
                                         crop_left_px:proj.shape[1] - crop_right_px]
-        yc, xc = _find_with_corr(patch=patch, radius=radius) if strategy == "correlation" else \
-                _find_with_seg(patch=patch)
+        yc, xc = find_with_corr(patch=patch, radius=radius) if strategy == "correlation" else \
+                find_with_seg(patch=patch)
         return yc, xc
 
     coros: List[Awaitable] = []
