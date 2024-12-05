@@ -93,17 +93,23 @@ def find_needle_tip(image):
 async def find_sphere_centers_new(producer: AsyncIterator[ArrayLike], strategy: str = "correlation",
                               **kwargs) -> List[ArrayLike]:
     """
+    Finds sphere center from absorption projection with a given strategy, which could be one
+    of ['correlation', 'segmentation']. We can optionally provide a cropping criteria to be
+    efficient with computation. This implementation assumes 155-190 q.um Tungsten Carbide spheres
+    having an approximate radius of 65 pixels with 5x magnification as default. Users are advised
+    to be more or less accurate with sphere radius if correlation is used as strategy.
 
-    :param producer:
-    :type producer:
-    :param strategy:
-    :type strategy:
+    :param producer: asynchronous source of projection data
+    :type producer: AsyncIterator[ArrayLike]
+    :param strategy: sphere finding strategy, must be in ['correlation', 'segmentation']
+    :type strategy: str
     :param: kwargs:
         crop_left_px: left side cropping by pixels, default 0
         crop_right_px: right side cropping by pixels, default 0
         crop_vertical_prop: cropping by proportion along vertical axis, default 1 (whole 
         projection)
-        radius: radius of the sphere, default 65 (155-190 q.um Tungsten Carbide)
+        radius: radius of the sphere, default 65 (155-190 q.um Tungsten Carbide) with 5x
+        magnification
     """
     def _circularity_of(region: RegionProperties) -> float:
         return (4 * np.pi * region.area)/(region.perimeter * region.perimeter)
