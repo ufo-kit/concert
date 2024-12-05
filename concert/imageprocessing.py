@@ -106,7 +106,7 @@ async def find_sphere_centers_new(producer: AsyncIterator[ArrayLike], strategy: 
         radius: radius of the sphere, default 65 (155-190 q.um Tungsten Carbide)
     """
     def _circularity_of(region: RegionProperties) -> float:
-    return (4 * np.pi * region.area)/(region.perimeter * region.perimeter)
+        return (4 * np.pi * region.area)/(region.perimeter * region.perimeter)
 
     def _find_with_seg(patch: ArrayLike) -> Tuple[int, int]:
         global_threshold: float = skf.threshold_otsu(patch)
