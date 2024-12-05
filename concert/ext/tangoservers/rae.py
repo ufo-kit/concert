@@ -24,6 +24,7 @@ from tango.server import attribute, command, AttrWriteType
 from concert.ext.tangoservers.base import TangoRemoteProcessing
 from concert.ext.ufo import FlatCorrect
 from concert.measures import rotation_axis
+from concert.imageprocessing import find_with_corr
 
 
 class Algorithm(IntEnum):
@@ -34,7 +35,8 @@ class Algorithm(IntEnum):
     """
 
     MARKER_TRACKING = 0
-    MOTION_ESTIMATION = 1
+    MARKER_TRACKING_SINGLE = 1
+    MOTION_ESTIMATION = 2
 
 
 class Tracking(IntEnum):
@@ -258,6 +260,8 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         """Estimates the center of rotation"""
         if self._algorithm == Algorithm.MARKER_TRACKING:
             await self._process_stream(self._track_markers(self._receiver.subscribe()))
+        elif self._algorithm == Algorithm.MARKER_TRACKING_SINGLE:
+            await self._process_stream(self._track_markers_single(self._receiver.subscribe()))
         elif self._algorithm == Algorithm.MOTION_ESTIMATION:
             await self._process_stream(self._estimate_motion(self._receiver.subscribe()))
         else:
@@ -540,6 +544,79 @@ class RotationAxisEstimator(TangoRemoteProcessing):
             if not converged:
                 self._axis_of_rotation = est_axes[-1]
                 self.info_stream("%s: estimated: %s", self.__class__.__name__, self._axis_of_rotation)
+                self.push_change_event("axis_of_rotation", self._axis_of_rotation)
+        except Exception as e:
+            self.info_stream("%s encountered runtime error: %s, unblocking reco with generic value",
+                             self.__class__.__name__, str(e))
+            # Unblock reco device server with a generic value
+            self._axis_of_rotation = 0.
+            self.push_change_event("axis_of_rotation", self._axis_of_rotation)
+
+    async def _track_markers_single(self, producer: AsyncIterator[ArrayLike]) -> None:
+        """
+        Estimates the center of rotation with marker tracking and nonlinear polynomial fit.
+
+        :param: producer: asynchronous generator of projections.
+        :type producer: AsyncIterator[ArrayLike]
+        """
+        vert_crop, crop_left_px, crop_right_px, radius, _ = self._attr_track
+        offset, _, init_wait, avg_beta, diff_thresh, conv_window = self._attr_estm
+        offset, init_wait, conv_window = int(offset), int(init_wait), int(conv_window)
+        proj_count = 0
+        centers: List[List[int]] = []
+        ffc = FlatCorrect(dark=self._dark, flat=self._flat, absorptivity=True)
+        est_axes: List[float] = []
+        converged: bool = False
+        try:
+            async for projection in ffc(producer):
+                # Crop projection if applicable
+                height: int = projection.shape[0] // vert_crop
+                crop_right: int = projection.shape[1] - crop_right_px
+                if height > 0:
+                    patch: ArrayLike = projection[:height, crop_left_px:crop_right]
+                else:
+                    patch: ArrayLike = projection[height:, crop_left_px:crop_right]
+                ym, xm = find_with_corr(patch=patch, radius=radius)
+                centroids_x.append([ym, xm])
+                if proj_count > init_wait:
+                    # Estimation: perform curve-fit to estimate the axis of rotation. Estimation
+                    # happens either for each projection or with an offset.
+                    if proj_count % offset == 0:
+                        x: ArrayLike = self._angles[:proj_count:offset]
+                        y: ArrayLike = np.array(centers)[:proj_count:offset, 1]
+                        params, _ = sop.curve_fit(f=self._opt_func, xdata=np.squeeze(x),
+                                                  ydata=np.squeeze(y))
+                        est_axis: float = crop_left_px + params[0]
+                       if len(est_axes) == 0:
+                            est_axes.append(np.round(est_axis, decimals=3))
+                        else:
+                            avg_est: float = (avg_beta * est_axes[-1]) + ((1 - avg_beta) * est_axis)
+                            avg_est /= (1 - avg_beta**proj_count)
+                            est_axes.append(np.round(avg_est, decimals=3))
+                # Convergence: check if we have landed on a stable value. This check happens for
+                # each projection after a number of past values were estimated, defined by the
+                # evaluation window.
+                if not converged:
+                    if len(est_axes) > conv_window:
+                        if proj_count % conv_window == 0:
+                            self.info_stream("%s estimated axis: %.3f", self.__class__.__name__,
+                                             est_axes[-1])
+                        if np.all(np.round(np.abs(np.diff(est_axes[-conv_window:])),
+                                           decimals=3) <= diff_thresh):
+                            # Attribute axis_of_rotation encapsulates axis_angle_y(roll) and
+                            # axis_angle_x(tilt) angles, which are not in effect at this point
+                            # int time.
+                            self._axis_of_rotation = est_axes[-1]
+                            self.info_stream("%s: converged at: %s", self.__class__.__name__,
+                                             self._axis_of_rotation)
+                            self.push_change_event("axis_of_rotation", self._axis_of_rotation)
+                            converged = True
+                proj_count += 1
+            # If not converged final estimate is used to carry out the reconstruction.
+            if not converged:
+                self._axis_of_rotation = est_axes[-1]
+                self.info_stream("%s: estimated: %s", self.__class__.__name__,
+                                 self._axis_of_rotation)
                 self.push_change_event("axis_of_rotation", self._axis_of_rotation)
         except Exception as e:
             self.info_stream("%s encountered runtime error: %s, unblocking reco with generic value",

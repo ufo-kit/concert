@@ -15,6 +15,7 @@ from concert.experiments.addons.base import AcquisitionConsumer
 from concert.base import Parameter
 from concert.experiments.base import remote
 from concert.helpers import CommData
+from concert.ext.tangoservers.rae import Tracking, Algorithm
 
 
 LOG = logging.getLogger(__name__)
@@ -225,15 +226,6 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
 
 class RotationAxisEstimator(TangoMixin, base.Addon):
 
-    # Enum values for marker tracking to avoid import
-    MARKER_TRACKING = 0
-    MOTION_ESTIMATION = 1
-
-    MEAN_STATIC = 0  # Track both markers individually and take the mean of the estimation
-    SINGLE_MARKER_STATIC = 1  # Estimate from a given single marker
-    MEAN_MSE = 2  # Determine whether to take the mean or choose and optimal marker
-    SINGLE_MARKER_MSE = 3  # Determine whether to take the mean or use a given single marker
-
     async def __ainit__(self, device: AbstractRAEDevice, endpoint: CommData, experiment: Experiment,
                         acquisitions: Set[Acquisition], num_darks: int, num_flats: int,
                         num_radios: int, rot_angle: float = np.pi, **kwargs)  -> None:
@@ -243,14 +235,14 @@ class RotationAxisEstimator(TangoMixin, base.Addon):
         await self._device.write_attribute("num_radios", num_radios)
         await self._device.write_attribute("rot_angle", rot_angle)
         # Process feature flags
-        algo: Algorithm = kwargs.get("algorithm", self.MARKER_TRACKING)
+        algo: Algorithm = kwargs.get("algorithm", Tracking.MARKER_TRACKING)
         await self._device.write_attribute("algorithm", algo)
-        tracking: Tracking = kwargs.get("tracking", self.SINGLE_MARKER_MSE)
+        tracking: Tracking = kwargs.get("tracking", Algorithm.SINGLE_MARKER_MSE)
         await self._device.write_attribute("tracking", tracking)
         # Process meta attributes for tracking
-        vert_crop: int = kwargs.get("vert_crop", 6)
-        crop_left_px: int = kwargs.get("crop_left_px", 150)
-        crop_right_px: int = kwargs.get("crop_right_px", 50)
+        vert_crop: int = kwargs.get("vert_crop", 3)
+        crop_left_px: int = kwargs.get("crop_left_px", 0)
+        crop_right_px: int = kwargs.get("crop_right_px", 0)
         radius: int = kwargs.get("radius", 8)
         use_marker: int = kwargs.get("use_marker", 0)
         await self._device.write_attribute("attr_track", np.array([
