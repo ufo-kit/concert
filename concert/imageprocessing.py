@@ -132,8 +132,8 @@ async def find_sphere_centers_new(producer: AsyncIterator[ArrayLike], strategy: 
 
     def _find_with_corr(patch: ArrayLike, radius: int) -> Tuple[int, int]:
         y, x = np.mgrid[-radius:radius+1, -radius:radius+1]
-        mask = np.where(radius ** 2 - x ** 2 - y ** 2 >= 0)
-        sphere = np.zeros((2 * radius + 1, 2 * radius + 1))
+        mask: ArrayLike = np.where(radius ** 2 - x ** 2 - y ** 2 >= 0)
+        sphere: ArrayLike = np.zeros((2 * radius + 1, 2 * radius + 1))
         sphere[mask] = 2 * np.sqrt(radius ** 2 - x[mask] ** 2 - y[mask] ** 2)
         corr: ArrayLike = nft.ifft2(nft.fft2(patch - patch.mean()) * np.conjugate(
             nft.fft2(sphere - sphere.mean(), s=patch.shape))).real
