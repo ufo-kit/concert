@@ -14,6 +14,7 @@ except ModuleNotFoundError:
 import numpy as np
 import numpy.fft as nft
 from scipy.signal import fftconvolve
+import skimage
 from skimage import filters as skf
 from skimage import measure as sms
 from skimage.measure._regionprops import RegionProperties
@@ -124,9 +125,12 @@ async def find_sphere_centers_new(producer: AsyncIterator[ArrayLike], strategy: 
         with warnings.catch_warnings():
             warnings.simplefilter(action="ignore")
             regions = list(filter(
-                lambda region: circularity_of(region=region) != np.inf \
+                lambda region: _circularity_of(region=region) != np.inf \
                         and _circularity_of(region=region) != -np.inf, regions))
-        regions = sorted(regions, key=lambda r: r.area_filled, reverse=True)
+        if skimage.__version__ < "0.19":
+            regions = sorted(regions, key=lambda r: r.filled_area, reverse=True)
+        else:
+            regions = sorted(regions, key=lambda r: r.area_filled, reverse=True)
         centroid: ArrayLike = regions[0].centroid
         return int(centroid[0]), int(centroid[1])
 
