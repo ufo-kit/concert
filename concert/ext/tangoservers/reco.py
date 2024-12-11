@@ -101,18 +101,18 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     _rae_subscription: int
     _slice_directory: str
     _cached: bool
-    _found_rotation_axis: asyncio.Event
+    _axis_estimated: asyncio.Event
 
     async def init_device(self):
         """Inits device and communciation"""
         await super().init_device()
         # Rotation axis event signals GeneralBackprojectManager to start backprojector. We trigger
         # this event from the callback response upon having required parameters estimated.
-        self._found_rotation_axis = asyncio.Event()
+        self._axis_estimated = asyncio.Event()
         self._manager = await GeneralBackprojectManager(
             self._args,
             average_normalization=True,
-            found_rotation_axis=self._found_rotation_axis
+            axis_estimated=self._axis_estimated
         )
         self._walker = None
         self._sender = None
@@ -157,16 +157,13 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
         # We wrap the implementation within exception handling to catch transparent issues in Tango
         # and reraise.
         try:
-            # TODO: checking the value against -1 is a makeshift solution in times of urgency. This
-            # is a weak countermeasure against the erratic behavior of tango events. We need to find
-            # better alternatives to safeguard against receipt of unnecessary events.
-            if event.attr_value.value is not None and event.attr_value.value != -1.:
-                estm_center: float = event.attr_value.value
-                self.info_stream("%s: received axis: %s", self.__class__.__name__, estm_center)
-                self._manager.args.center_position_x = [estm_center]
-                self._found_rotation_axis.set()
+            if event.attr_value.value and event.attr_value.value != None:
+                estm_axis: float = event.attr_value.value
+                self.info_stream("%s: estimated axis: %s", self.__class__.__name__, estm_axis)
+                self._manager.args.center_position_x = [estm_axis]
+                self._axis_estimated.set()
         except Exception as err:
-            self.error_stream("%s: encountered error: %s", self.__class__.__name__, str(err))
+            self.error_stream("%s: axis estimation error: %s", self.__class__.__name__, str(err))
             raise
 
     @DebugIt()
@@ -176,7 +173,7 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     )
     async def inject_rotation_axis(self, value: float) -> None:
         self._manager.args.center_position_x = [value]
-        self._found_rotation_axis.set()
+        self._axis_estimated.set()
         self.info_stream("%s injected axis value: %.2f", self.__class__.__name__, value)
 
     @DebugIt()
@@ -243,6 +240,9 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     @command(dtype_in=str)
     async def reconstruct(self, slice_directory):
         await self._reconstruct(cached=False, slice_directory=slice_directory)
+        # Enable waiting for next reconstruction
+        self._axis_estimated = asyncio.Event()
+        self._manager.axis_estimated = self._axis_estimated
 
     @DebugIt(show_args=True)
     @command(dtype_in=str)

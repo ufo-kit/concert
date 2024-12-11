@@ -15,7 +15,6 @@ from concert.experiments.addons.base import AcquisitionConsumer
 from concert.base import Parameter
 from concert.experiments.base import remote
 from concert.helpers import CommData
-from concert.ext.tangoservers.rae import Tracking, Algorithm
 
 
 LOG = logging.getLogger(__name__)
@@ -230,37 +229,26 @@ class RotationAxisEstimator(TangoMixin, base.Addon):
                         acquisitions: Set[Acquisition], num_darks: int, num_flats: int,
                         num_radios: int, rot_angle: float = np.pi, **kwargs)  -> None:
         await TangoMixin.__ainit__(self, device, endpoint)
-        await self._device.write_attribute("num_darks", num_darks)
-        await self._device.write_attribute("num_flats", num_flats)
-        await self._device.write_attribute("num_radios", num_radios)
         await self._device.write_attribute("rot_angle", rot_angle)
-        # Process feature flags
-        algo: Algorithm = kwargs.get("algorithm", Tracking.MARKER_TRACKING)
-        await self._device.write_attribute("algorithm", algo)
-        tracking: Tracking = kwargs.get("tracking", Algorithm.SINGLE_MARKER_MSE)
-        await self._device.write_attribute("tracking", tracking)
-        # Process meta attributes for tracking
-        vert_crop: int = kwargs.get("vert_crop", 3)
+        # Meta attributes for acquisition
+        await self._device.write_attribute(
+                "attr_acq", np.array([num_darks, num_flats, num_radios], dtype=np.int_))
+        # Meta attributes for tracking
+        crop_vert_prop: int = kwargs.get("crop_vert_prop", 1)
         crop_left_px: int = kwargs.get("crop_left_px", 0)
         crop_right_px: int = kwargs.get("crop_right_px", 0)
-        radius: int = kwargs.get("radius", 8)
-        use_marker: int = kwargs.get("use_marker", 0)
-        await self._device.write_attribute("attr_track", np.array([
-            vert_crop, crop_left_px, crop_right_px, radius, use_marker]))
-        # Process meta attributes for estimation
-        offset: int = kwargs.get("offset", 2)
-        mse_thresh: float = kwargs.get("mse_thresh", 0.01)
-        init_wait: int = kwargs.get("init_wait", 80)
-        avg_beta: float = kwargs.get("avg_beta", 0.8)
-        diff_thresh: float = kwargs.get("diff_thresh", 0.001)
-        conv_window: int = kwargs.get("conv_window", 100)
-        await self._device.write_attribute("attr_estm", np.array([
-            offset, mse_thresh, init_wait, avg_beta, diff_thresh, conv_window]))
-        await self._device.prepare_angular_distribution()
-        # Process meta attributes for phase correlation method
-        det_row_idx = kwargs.get("det_row_idx", 0)
-        num_proj_corr = kwargs.get("num_proj_corr", 200)
-        await self._device.write_attribute("attr_mot_estm", np.array([det_row_idx, num_proj_corr]))
+        radius: int = kwargs.get("radius", 65)
+        await self._device.write_attribute(
+                "attr_track", np.array([crop_vert_prop, crop_left_px, crop_right_px, radius],
+                                       dtype=np.int_))
+        # Meta attributes for estimation
+        init_wait: int = kwargs.get("init_wait", 50)
+        avg_beta: float = kwargs.get("avg_beta", 0.9)
+        diff_thresh: float = kwargs.get("diff_thresh", 0.1)
+        conv_window: int = kwargs.get("conv_window", 50)
+        roi_width: int = kwargs.get("roi_width", 1008)
+        await self._device.write_attribute(
+                "attr_estm", np.array([init_wait, avg_beta, diff_thresh, conv_window, roi_width]))
         await base.Addon.__ainit__(self, experiment, acquisitions)
 
     async def _get_center_of_rotation(self) -> float:

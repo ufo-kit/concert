@@ -576,7 +576,7 @@ class GeneralBackprojectManager(Parameterizable):
 
     state = State(default='standby')
 
-    _found_rotation_axis: asyncio.Event
+    axis_estimated: asyncio.Event
 
     async def __ainit__(self, args: GeneralBackprojectArgs, average_normalization: bool = True,
                         regions: Optional[Set[float]] = None, copy_inputs: bool = False,
@@ -602,7 +602,7 @@ class GeneralBackprojectManager(Parameterizable):
         self._producer_condition = asyncio.Condition()
         self._processing_task = None
         self._regions = None
-        self._found_rotation_axis = kwargs.get("found_rotation_axis", None)
+        self.axis_estimated = kwargs.get("axis_estimated", None)
 
     @property
     def num_received_projections(self):
@@ -815,8 +815,8 @@ class GeneralBackprojectManager(Parameterizable):
             await consume_task
         # We wait for the event to be set from the reco device server, that the axis of rotation
         # is estimated before starting any backprojector task.
-        if self._found_rotation_axis:
-            await self._found_rotation_axis.wait()
+        if self.axis_estimated:
+            await self.axis_estimated.wait()
         LOG.debug('Reconstructing %d batches: %s', len(self._regions), self._regions)
         try:
             self._state_value = 'running'
