@@ -5,20 +5,15 @@ typing.py
 ---------
 Facilitates type annotations for concert
 """
-from typing import Protocol, Any, NewType, Sequence, Tuple
-try:
-    from numpy.typing import ArrayLike
-except ModuleNotFoundError:
-    from numpy import ndarray as ArrayLike
+from typing import Protocol, Any, Sequence, Tuple
 
 
 #####################################################################
 # Abstract Tango Device Types
 class AbstractStreamHandler(Protocol):
     """
-    Encapsulates specific stream handling utilities provided by the
-    TangoRemoteProcessing base class to control the incoming data streams over
-    the ZmqReceiver socket endpoint.
+    Encapsulates specific stream handling utilities provided by the TangoRemoteProcessing base
+    class to control the incoming data streams over the ZmqReceiver socket endpoint.
     """
 
     async def cancel(self) -> None:

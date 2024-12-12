@@ -1,13 +1,9 @@
 from datetime import datetime
-from unittest import mock
 import numpy as np 
-import zmq
 from concert.tests import TestCase
 from concert.quantities import q
 from concert.devices.cameras.dummy import Camera, BufferedCamera
 from concert.devices.cameras.pco import Timestamp, TimestampError
-from concert.helpers import CommData
-from concert.networking.base import ZmqSender
 
 
 class TestDummyCamera(TestCase):

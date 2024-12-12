@@ -3,8 +3,7 @@ rae.py
 -----
 Implements a device server to execute rotation axis estimation routines during acquisition.
 """
-from enum import IntEnum
-from typing import List, AsyncIterator, Tuple
+from typing import List, AsyncIterator
 import numpy as np
 try:
     from numpy.typing import ArrayLike
@@ -125,8 +124,8 @@ class RotationAxisEstimator(TangoRemoteProcessing):
             buffer.append(projection)
             num_proj += 1
         setattr(self, name, np.array(buffer).mean(axis=0))
-        self.info_stream(
-                "%s: processed %d %s projections", self.__class__.__name__, num_proj, name[1:])
+        self.info_stream("%s: processed %d %s projections", self.__class__.__name__, num_proj,
+                         name[1:])
 
     @DebugIt()
     @command()
@@ -171,10 +170,10 @@ class RotationAxisEstimator(TangoRemoteProcessing):
         converged: bool = False
         try:
             async for proj in ffc(producer):
-                yc, xc = get_sphere_center_corr(
-                        proj=proj, sphere=self._sphere, radius=radius,
-                        crop_vert_prop=crop_vert_prop, crop_left_px=crop_left_px,
-                        crop_right_px=crop_right_px)
+                yc, xc = get_sphere_center_corr(proj=proj, sphere=self._sphere, radius=radius,
+                                                crop_vert_prop=crop_vert_prop,
+                                                crop_left_px=crop_left_px,
+                                                crop_right_px=crop_right_px)
                 centers.append([yc, xc])
                 if proj_count > init_wait:
                     x: ArrayLike = self._angles[:proj_count]
@@ -194,7 +193,7 @@ class RotationAxisEstimator(TangoRemoteProcessing):
                 # each projection after given number of estimations are available. Since we want to
                 # achieve less than half-pixel error in estimation, we round the estimated values
                 # to 1 decimal position and compare against a threshold value, which should be less
-                # or equal to 0.5.
+                # than configured diff_thresh.
                 if not converged and len(est_axes) > conv_window:
                     if proj_count % 10 == 0:
                         self.debug_stream(

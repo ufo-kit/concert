@@ -3,7 +3,7 @@ typing.py
 ---------
 Encapsulates type definitions for concert.experiments.addon.
 """
-from typing import Protocol, Tuple
+from typing import Protocol
 
 
 class AbstractRAEDevice(Protocol):
@@ -17,8 +17,9 @@ class AbstractRAEDevice(Protocol):
         ...
 
     async def estimate_axis_of_rotation(self) -> None:
-        """Executes axis of rotation estimation from radio projections"""
+        """Executes axis of rotation estimation from radiogram projections"""
         ...
+
 
 if __name__ == "__main__":
     pass

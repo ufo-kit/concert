@@ -17,7 +17,10 @@ from concert.coroutines.base import background
 from concert.networking.base import ZmqSender
 from concert.writers import TiffWriter
 from concert.typing import RemoteDirectoryWalkerTangoDevice
-from concert.typing import ArrayLike
+try:
+    from numpy.typing import ArrayLike
+except ModuleNotFoundError:
+    from numpy import ndarray as ArrayLike
 from concert.loghandler import AsyncLoggingHandlerCloser, NoOpLoggingHandler
 from concert.loghandler import LoggingHandler, RemoteLoggingHandler
 

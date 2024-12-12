@@ -1,5 +1,5 @@
 import asyncio
-from typing import AsyncIterator, Set, Optional, List
+from typing import AsyncIterator, Set, Optional
 import copy
 import logging
 import sys

@@ -1,10 +1,9 @@
 import asyncio
-from dataclasses import dataclass
 import functools
 import inspect
 import logging
 import os
-from typing import Set, Dict, Awaitable
+from typing import Set, Dict
 import numpy as np
 import tango
 from concert.experiments.addons import base
@@ -12,8 +11,6 @@ from concert.experiments.base import remote, Acquisition, Experiment
 from concert.quantities import q
 from concert.experiments.addons.typing import AbstractRAEDevice
 from concert.experiments.addons.base import AcquisitionConsumer
-from concert.base import Parameter
-from concert.experiments.base import remote
 from concert.helpers import CommData
 
 
@@ -99,7 +96,8 @@ class LiveView(base.LiveView):
 
     async def __ainit__(self, viewer, endpoint, experiment, acquisitions=None):
         self.endpoint = endpoint
-        await base.LiveView.__ainit__(self, viewer, experiment=experiment, acquisitions=acquisitions)
+        await base.LiveView.__ainit__(self, viewer, experiment=experiment,
+                                      acquisitions=acquisitions)
         self._orig_limits = await viewer.get_limits()
 
     async def connect_endpoint(self):
@@ -164,7 +162,6 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
             viewer=viewer
         )
 
-
     @TangoMixin.cancel_remote
     @remote
     async def update_darks(self):
@@ -186,7 +183,8 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
                 async with self.walker:
                     path = os.path.join(
                         await self.walker.get_current(),
-                        await self.get_slice_directory() if slice_directory is None else slice_directory
+                        await self.get_slice_directory() if slice_directory is None \
+                                else slice_directory
                     )
         if cached:
             await self._device.rereconstruct(path)
@@ -224,38 +222,81 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
 
 
 class RotationAxisEstimator(TangoMixin, base.Addon):
+    """
+    Tango addon for estimating axis of rotation during acquisition. It relies on a highly
+    absorbing sphere being present at an appropriate position and a known approximate radius for
+    the same.
+
+    It encapsulates Tango device server, where remote processing of the incoming projections,
+    tracking of the spheres and subsequenly estimation with curve-fitting from accumulated sphere
+    centroids takes place.
+    """
 
     async def __ainit__(self, device: AbstractRAEDevice, endpoint: CommData, experiment: Experiment,
                         acquisitions: Set[Acquisition], num_darks: int, num_flats: int,
                         num_radios: int, rot_angle: float = np.pi, **kwargs)  -> None:
+        """
+        :param device: tango device server proxy for rotation axis estimation.
+        :type device: `concert.experiments.addons.typing.AbstractRAEDevice`
+        :param endpoint: remote communication endpoint to receive stream.
+        :type endpoint: `concert.helpers.CommData`
+        :param experiment: concert experiment subclass.
+        :type experiment: `concert.experiments.base.Experiment`
+        :param acquisitions: acquisitions encapsulated by esperiment.
+        :type acquisitions: Set[`concert.experiments.base.Acquisition`]
+        :param num_darks: number of dark field projections.
+        :type num_darks: int
+        :param num_flats: number of flat field projections.
+        :type num_flats: int
+        :param num_radios: number of radiogram projections.
+        :type num_radios: int
+        :param rot_angle: overall rotation angle.
+        :type rot_angle: float, defaults to `np.pi`
+        :kwargs:
+        crop_vert_prop(int): vertical proportion to find the sphere, negative value denotes towards
+        bottom, positive value denotes towards top, defaults 1, means whole projection.
+        crop_left_px: left side cropping by pixels, defaults to 0, means no cropping.
+        crop_right_px: right side cropping by pixels, defaults to 0, means no cropping.
+        radius: approximate radius of the sphere by pixels, defaults to 65 for 5x magnification.
+        init_wait: initial wait time before estimation starts, defaults to an experimental value of
+        50 projections.
+        avg_beta: smoothing factor to smooth out the estimated value to ensure a faster convergence,
+        defaults to 0.9.
+        diff_thresh: threshold value for the difference in consecutive projections to evaluate
+        convergence, defaults to 0.1.
+        conv_window: number of past estimation, on which convergence should be evaluated, defaults
+        to 50 projections.
+        roi_width: to calculate a default axis of rotation and unblock the reco device, defaults to
+        1008 for detector size of (2016, 2016).
+        """
         await TangoMixin.__ainit__(self, device, endpoint)
         await self._device.write_attribute("rot_angle", rot_angle)
         # Meta attributes for acquisition
-        await self._device.write_attribute(
-                "attr_acq", np.array([num_darks, num_flats, num_radios], dtype=np.int_))
+        await self._device.write_attribute("attr_acq", np.array([num_darks, num_flats, num_radios],
+                                                                dtype=np.int_))
         # Meta attributes for tracking
         crop_vert_prop: int = kwargs.get("crop_vert_prop", 1)
         crop_left_px: int = kwargs.get("crop_left_px", 0)
         crop_right_px: int = kwargs.get("crop_right_px", 0)
         radius: int = kwargs.get("radius", 65)
-        await self._device.write_attribute(
-                "attr_track", np.array([crop_vert_prop, crop_left_px, crop_right_px, radius],
-                                       dtype=np.int_))
+        await self._device.write_attribute("attr_track", np.array([crop_vert_prop, crop_left_px,
+                                                                   crop_right_px, radius],
+                                                                  dtype=np.int_))
         # Meta attributes for estimation
         init_wait: int = kwargs.get("init_wait", 50)
         avg_beta: float = kwargs.get("avg_beta", 0.9)
         diff_thresh: float = kwargs.get("diff_thresh", 0.1)
         conv_window: int = kwargs.get("conv_window", 50)
         roi_width: int = kwargs.get("roi_width", 1008)
-        await self._device.write_attribute(
-                "attr_estm", np.array([init_wait, avg_beta, diff_thresh, conv_window, roi_width]))
+        await self._device.write_attribute("attr_estm", np.array([init_wait, avg_beta, diff_thresh,
+                                                                  conv_window, roi_width]))
         await base.Addon.__ainit__(self, experiment, acquisitions)
 
     async def _get_center_of_rotation(self) -> float:
         return await(self._device["center_of_rotation"]).value
 
-    def _make_consumers(self,
-                        acquisitions: Set[Acquisition]) -> Dict[Acquisition, AcquisitionConsumer]:
+    def _make_consumers(self, acquisitions: Set[Acquisition]) -> Dict[Acquisition,
+                                                                      AcquisitionConsumer]:
         """Accumulates consumers for expected acquisitions"""
         consumers: [Acquisition, AcquisitionConsumer] = {}
         consumers[base.get_acq_by_name(acquisitions, "darks")] = AcquisitionConsumer(
@@ -280,4 +321,3 @@ class RotationAxisEstimator(TangoMixin, base.Addon):
     @remote
     async def estimate_axis_of_rotation(self) -> None:
         await self._device.estimate_axis_of_rotation()
-

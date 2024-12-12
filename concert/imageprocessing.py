@@ -4,11 +4,11 @@ backprojection, flat field correction and other operations on images.
 """
 
 import asyncio
+import functools
 import logging
 from typing import AsyncIterator, List, Awaitable, Tuple
 import numpy as np
 from scipy.signal import fftconvolve
-from skimage import filters as skf
 try:
     import cupy as xp
     import cupy.fft as xft
@@ -89,6 +89,7 @@ def find_needle_tip(image):
 
     return np.mean(coords, axis=0) if coords else None
 
+
 def get_sphere_absorption_pattern(radius: int) -> ArrayLike:
     """
     Returns a generic spherical absorption pattern
@@ -98,11 +99,12 @@ def get_sphere_absorption_pattern(radius: int) -> ArrayLike:
     :return: absorption pattern
     :rtype: ArrayLike
     """
-    y, x = xp.mgrid[-radius:radius+1, -radius:radius+1]
+    y, x = xp.mgrid[-radius:radius + 1, -radius:radius + 1]
     mask: ArrayLike = xp.where(radius ** 2 - x ** 2 - y ** 2 >= 0)
     sphere: ArrayLike = xp.zeros((2 * radius + 1, 2 * radius + 1))
     sphere[mask] = 2 * xp.sqrt(radius ** 2 - x[mask] ** 2 - y[mask] ** 2)
     return sphere
+
 
 def get_sphere_center_corr(proj: ArrayLike, sphere: ArrayLike,
                            radius: int, **kwargs) -> Tuple[int, int]:
@@ -121,21 +123,22 @@ def get_sphere_center_corr(proj: ArrayLike, sphere: ArrayLike,
         crop_vertical_prop: cropping by proportion along vertical axis, default 1 (whole projection)
     """
     clp: int = kwargs.get("crop_left_px", 0)
-    assert(clp >= 0)
+    assert (clp >= 0)
     crp: int = kwargs.get("crop_right_px", 0)
-    assert(crp >= 0)
+    assert (crp >= 0)
     cvp: int = kwargs.get("crop_vertical_prop", 1)
-    assert(cvp != 0)
+    assert (cvp != 0)
     if cvp > 0:
-        patch: ArrayLike = xp.asarray(proj[:abs(proj.shape[0]//cvp), clp:proj.shape[1] - crp])
+        patch: ArrayLike = xp.asarray(proj[:abs(proj.shape[0] // cvp), clp:proj.shape[1] - crp])
     else:
-        patch: ArrayLike = xp.asarray(proj[proj.shape[0]//cvp:,clp:proj.shape[1] - crp])
-    corr: ArrayLike = xft.ifft2(xft.fft2(patch - patch.mean()) * xp.conjugate(
-    xft.fft2(sphere - sphere.mean(), s=patch.shape))).real
+        patch: ArrayLike = xp.asarray(proj[proj.shape[0] // cvp:, clp:proj.shape[1] - crp])
+    corr: ArrayLike = xft.ifft2(xft.fft2(patch - patch.mean()) * xp.conjugate(xft.fft2(
+        sphere - sphere.mean(), s=patch.shape))).real
     yc, xc = xp.unravel_index(xp.argmax(corr), corr.shape)
     yc += radius
     xc += radius
     return yc.item(), xc.item()
+
 
 @background
 async def find_sphere_centers_corr(producer: AsyncIterator[ArrayLike], radius: int = 65,
@@ -158,9 +161,10 @@ async def find_sphere_centers_corr(producer: AsyncIterator[ArrayLike], radius: i
     sphere: ArrayLike = get_sphere_absorption_pattern(radius=radius)
     coros: List[Awaitable] = []
     async for projection in producer:
-        coros.append(
-                run_in_executor(get_sphere_center_corr, projection, sphere, radius, **kwargs))
+        coros.append(run_in_executor(
+            functools.partial(get_sphere_center_corr, projection, sphere, radius, **kwargs)))
     return [np.array([yc, xc]) for yc, xc in await asyncio.gather(*coros)]
+
 
 @background
 async def find_sphere_centers_by_mass(producer, border_crossing_ok=True):
