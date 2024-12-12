@@ -48,3 +48,4 @@ jobs:
         files: ./coverage.xml
         token: ${{ secrets.CODECOV_TOKEN }}
         verbose: true
+        codecov_yml_path: ./codecov.yml
