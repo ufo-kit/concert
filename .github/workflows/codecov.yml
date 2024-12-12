@@ -1,2 +1,3 @@
 ignore:
-  - "**/typing.py"
+  - "concert/typing.py"
+  - "concert/experiments/addons/typing.py"
