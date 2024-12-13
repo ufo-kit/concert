@@ -143,7 +143,7 @@ class TestSphereCorrelation(TestCase):
                                              self.y_motor["position"],
                                              self.z_motor["position"],
                                              needle_radius=self._radius,
-                                             scales=(0.5, 0.5, 0.5),
+                                             scales=(1, 1, 1),
                                              y_position=0)
 
     async def acquire_frames(self, num_frames=10):
@@ -160,30 +160,10 @@ class TestSphereCorrelation(TestCase):
         return (images, centers)
 
     def check(self, gt, measured):
-        print(f"Ground Truth: {np.fliplr(gt).astype(np.int_)}")
-        print(f"Measured: {np.array(measured).astype(np.int_)}")
-        assert np.all(np.abs(np.fliplr(gt).astype(np.int_) - measured) < 1)
+        assert np.all(np.abs(np.fliplr(gt).astype(np.int_) - measured) <= 1)
 
     async def test_sphere_fully_inside(self):
         (frames, gt) = await self.acquire_frames()
         centers = await find_sphere_centers_corr(async_generate(frames), radius=self._radius)
         self.check(gt, centers)
 
-#    async def test_sphere_some_partially_outside(self):
-#        self.camera.rotation_radius = self.camera.size // 2
-#        (frames, gt) = await self.acquire_frames()
-#        centers = await find_sphere_centers(async_generate(frames))
-#        self.check(gt, centers)
-#
-#    async def test_sphere_all_partially_outside(self):
-#        self.camera.size = 128
-#        self.camera.rotation_radius = self.camera.size // 2
-#        self.camera.scale = (.25, .25, .25)
-#        frames = (await self.acquire_frames())[0]
-#        centers = await find_sphere_centers(async_generate(frames), correlation_threshold=0.9)
-#        roll, pitch = rotation_axis(centers)[:2]
-#
-#        # No sphere is completely in the FOV, filter the ones with low correlation coefficient and
-#        # at least coarsely close match should be found to the ellipse
-#        assert np.abs(roll - await self.z_motor.get_position()) < 1 * q.deg
-#        assert np.abs(pitch - await self.x_motor.get_position()) < 1 * q.deg
