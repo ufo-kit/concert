@@ -137,6 +137,9 @@ def get_sphere_center_corr(proj: ArrayLike, sphere: ArrayLike,
     yc, xc = xp.unravel_index(xp.argmax(corr), corr.shape)
     yc += radius
     xc += radius
+    # If CuPy is used this statement ensures, that the reference count of the object is reduced
+    # and GPU memory can be cleaned up by device servers.
+    del patch
     return yc.item(), xc.item()
 
 

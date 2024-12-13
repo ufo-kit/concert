@@ -78,7 +78,6 @@ class TangoRotationAxisEstimator(TangoRemoteProcessing):
 
     async def init_device(self) -> None:
         await super().init_device()
-        self.set_state(DevState.STANDBY)
         # We initialize axis_of_rotation attribute with None as a safeguard against mis-fire of the
         # tango events. Reco device should only take a non-None value of axis of rotation into
         # account.
@@ -223,6 +222,14 @@ class TangoRotationAxisEstimator(TangoRemoteProcessing):
         # Set axis_of_rotation attribute back to None to safe-guard against mis-fire of tango
         # events.
         self._axis_of_rotation = None
+        try:
+            import cupy as cp
+            cp._default_memory_pool.free_all_blocks()
+            self.info_stream("%s: attempted to release unused GPU memory")
+        except ModuleNotFoundError:
+            # If cupy is available we ensure to release all allocated GPU memory for current
+            # stream. We don't need to do anything specific otherwise.
+            pass
 
 
 if __name__ == "__main__":
