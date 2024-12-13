@@ -17,7 +17,7 @@ from concert.ext.ufo import FlatCorrect
 from concert.imageprocessing import get_sphere_absorption_pattern, get_sphere_center_corr
 
 
-class RotationAxisEstimator(TangoRemoteProcessing):
+class TangoRotationAxisEstimator(TangoRemoteProcessing):
     """
     Implements Tango device server to estimate axis of rotation.
     """

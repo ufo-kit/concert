@@ -70,7 +70,7 @@ class TangoCommand(SubCommand):
             server_class = {'class': walker.TangoRemoteWalker}
         if server == "rae":
             from concert.ext.tangoservers import rae
-            server_class = {'class': rae.RotationAxisEstimator}
+            server_class = {'class': rae.TangoRotationAxisEstimator}
 
         setup_logging(server, to_stream=True, filename=logfile, loglevel=loglevel)
 
