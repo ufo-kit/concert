@@ -10,7 +10,7 @@ import zmq.asyncio
 from concert.quantities import q
 from concert.config import AIODEBUG, PERFDEBUG
 from concert.helpers import ImageWithMetadata
-
+from concert.helpers import convert_image
 
 LOG = logging.getLogger(__name__)
 
@@ -141,6 +141,15 @@ async def zmq_receive_image(socket):
 
     msg = await socket.recv(copy=False)
     array = np.frombuffer(msg, dtype=metadata['dtype']).reshape(metadata['shape'])
+
+    mirror = False
+    rotate = 0
+    if 'mirror' in metadata:
+        mirror = metadata['mirror']
+    if 'rotate' in metadata:
+        rotate = metadata['rotate']
+
+    array = convert_image(array, mirror, rotate)
 
     return (metadata, array)
 

@@ -43,7 +43,6 @@ class Camera(UcaCamera):
             except TimestampError as e:
                 LOG.error("Can not extract timestamp from frame.")
                 raise e
-            img = self.convert(img)
             img = img.view(ImageWithMetadata)
             img.metadata['frame_number'] = timestamp.number
             img.metadata['timestamp'] = timestamp.time.isoformat()

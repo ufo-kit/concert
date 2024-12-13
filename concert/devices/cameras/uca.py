@@ -10,7 +10,7 @@ import weakref
 from concert.coroutines.base import background, run_in_executor
 from concert.quantities import q
 from concert.base import check, Parameter, Quantity
-from concert.helpers import Bunch, CommData
+from concert.helpers import Bunch, CommData, convert_image
 from concert.devices.cameras import base
 
 
@@ -168,12 +168,6 @@ class Camera(base.Camera):
     async def _stop_readout_real(self):
         await run_in_executor(self.uca.stop_readout)
 
-    @background
-    @check(source=['recording', 'readout'])
-    async def grab(self, index=None):
-        async with self._grab_lock:
-            return self.convert(await self._grab_real(index))
-
     async def write(self, name, data):
         """Write NumPy array *data* for *name*."""
         raw = data.__array_interface__['data'][0]
@@ -209,17 +203,18 @@ class Camera(base.Camera):
 
     @_translate_gerror
     async def _grab_real(self, index=None):
-        if self._record_shape is None:
-            await self._determine_shape_for_grab()
-        array = np.empty(self._record_shape, dtype=self._record_dtype)
-        data = array.__array_interface__['data'][0]
+        async with self._grab_lock:
+            if self._record_shape is None:
+                await self._determine_shape_for_grab()
+            array = np.empty(self._record_shape, dtype=self._record_dtype)
+            data = array.__array_interface__['data'][0]
 
-        if index is None:
-            await run_in_executor(self.uca.grab, data)
-        else:
-            await run_in_executor(self.uca.readout, data, index)
+            if index is None:
+                await run_in_executor(self.uca.grab, data)
+            else:
+                await run_in_executor(self.uca.readout, data, index)
 
-        return array
+            return array
 
     async def _determine_shape_for_grab(self):
         self._record_shape = ((await self.get_roi_height()).magnitude,
