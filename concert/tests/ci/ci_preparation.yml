@@ -1,0 +1,25 @@
+services:
+  concert_uca_camera:
+    networks:
+      concert_ci_net:
+    container_name: uca_camera
+    build: ../../..
+    restart: on-failure
+    ports:
+      - '8989:8989'
+    expose:
+      - '8989'
+    command: ["ucad", "mock"]
+  concert_remote_walker:
+    networks:
+      concert_ci_net:
+    container_name: remote_walker
+    build: ../../..
+    restart: on-failure
+    ports:
+      - '7001:7001'
+    depends_on:
+      - concert_uca_camera
+    command: ["concert", "tango", "walker", "--loglevel", "perfdebug", "--port", "7001"]
+networks:
+  concert_ci_net:
