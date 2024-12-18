@@ -1,0 +1,44 @@
+services:
+  uca_camera:
+    container_name: uca_camera
+    build: ../../../..
+    restart: on-failure
+    expose:
+      - '8989'
+      - '8993'
+    command: ["ucad", "mock"]
+    networks:
+      concert_net:
+
+  remote_walker:
+    volumes:
+      - /home/ws/nj4412/workspace/projects/sink/test:/mnt/image_mnt
+    container_name: remote_walker
+    build: ../../../..
+    restart: on-failure
+    expose:
+      - '7001'
+      - '8993'
+    command: ["concert", "tango", "walker", "--loglevel", "perfdebug", "--port", "7001"]
+    depends_on:
+      - uca_camera
+    networks:
+      concert_net:
+
+  remote_experiment:
+    volumes:
+      - /home/ws/nj4412/workspace/projects/sink/test:/mnt/image_mnt
+      - .:/root/.local/share/concert/
+    container_name: remote_experiment
+    build: ../../../..
+    restart: "no"
+    environment:
+      UCA_NET_HOST: "uca_camera"
+    command: ["concert", "tango", "walker", "--loglevel", "perfdebug", "--port", "7002"]
+    depends_on:
+      - remote_walker
+    networks:
+      concert_net:
+
+networks:
+  concert_net:
