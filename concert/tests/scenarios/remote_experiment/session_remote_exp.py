@@ -12,9 +12,13 @@ from concert.experiments.synchrotron import RemoteContinuousTomography
 from concert.devices.cameras.uca import RemoteNetCamera
 from concert.helpers import CommData
 
-# Docker daemon creates a DNS entry inside the specified network with the service name. Therefore,
-# we need to specify that domain name to reach the walker on exposed port. In this case device_remote_walker
-# is the service, which was defined in the compose file and DNS entry would be creaed accordingly.
+############################################################################################################
+# Docker daemon creates a DNS entry inside the specified network with the service name. We need to specify
+# this domain name to communicate with a service on a given exposed port. In the compose.yml we have specified
+# `uca_camera` and `remote_walker` as service names for the mock camera and walker tango servicer processes
+# running inside their respective containers. Hence, in the session we'd have to use these domain names.
+############################################################################################################
+
 walker_dev_uri = f"remote_walker:7001/concert/tango/walker#dbase=no"
 
 # Experimental configurations
@@ -33,7 +37,7 @@ if await camera.get_state() == 'recording':
     await camera.stop_recording()
 
 # Walker | Writer Configuration
-root = "/mnt/image_mnt"
+root = "/mnt/ips_image_mnt"
 walker_device = get_tango_device(walker_dev_uri, timeout=30 * 60 * q.s)
 walker = await RemoteDirectoryWalker(device=walker_device, root=root, bytes_per_file=2**40)
 
@@ -53,4 +57,5 @@ exp = await RemoteContinuousTomography(walker=walker,
                                        num_projections=num_radios)
 _ = await tango_addons.ImageWriter(exp, SERVERS["walker"], exp.acquisitions)
 
+# Run Experiment
 _ = await exp.run()

@@ -12,7 +12,7 @@ services:
 
   remote_walker:
     volumes:
-      - /home/ws/nj4412/workspace/projects/sink/test:/mnt/image_mnt
+      - /mnt:/mnt/ips_image_mnt
     container_name: remote_walker
     build: ../../../..
     restart: on-failure
@@ -27,14 +27,19 @@ services:
 
   remote_experiment:
     volumes:
-      - /home/ws/nj4412/workspace/projects/sink/test:/mnt/image_mnt
+      - /mnt:/mnt/ips_image_mnt
       - .:/root/.local/share/concert/
     container_name: remote_experiment
     build: ../../../..
     restart: "no"
     environment:
       UCA_NET_HOST: "uca_camera"
-    command: ["concert", "tango", "walker", "--loglevel", "perfdebug", "--port", "7002"]
+      TARGET_LOCATION: "/mnt/ips_image_mnt"
+    command: >
+      bash -c "python3 /root/.local/share/concert/setup.py
+      && concert start session_remote_exp 
+      && python3 /root/.local/share/concert/assert.py
+      && python3 /root/.local/share/concert/teardown.py"
     depends_on:
       - remote_walker
     networks:
