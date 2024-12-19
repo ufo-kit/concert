@@ -1,0 +1,17 @@
+name: concert-scenarios
+on:
+    push:
+      branches: [ master ]
+    pull_request:
+      branches: [ master, decentralize]
+permissions:
+  contents: write
+jobs:
+    scenarios:
+        runs-on: ubuntu-22.04
+        steps:
+            - uses: actions/checkout@v3
+            - name: execute_remote_experiment
+              run: docker compose -f concert/tests/scenarios/remote_experiment/compose.yml up -d
+            - name: teardown_remote_experiment
+              run: docker compose -f concert/tests/scenarios/remote_experiment/compose.yml down -v
