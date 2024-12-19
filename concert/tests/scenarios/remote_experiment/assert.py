@@ -28,9 +28,12 @@ if __name__ == "__main__":
             assert(os.path.exists(abs_path.joinpath("radios")))
             assert(os.path.exists(abs_path.joinpath("experiment.log")))
             assert(os.path.exists(abs_path.joinpath("experiment.json")))
-            darks: ArrayLike = skio.ImageCollection(abs_path.joinpath("darks/frame_000000.tif").__str__())
-            flats: ArrayLike = skio.ImageCollection(abs_path.joinpath("flats/frame_000000.tif").__str__())
-            radios: ArrayLike = skio.ImageCollection(abs_path.joinpath("radios/frame_000000.tif").__str__())
+            darks: ArrayLike = skio.ImageCollection(abs_path.joinpath("darks/frame_000000.tif"
+                                                                      ).__str__())
+            flats: ArrayLike = skio.ImageCollection(abs_path.joinpath("flats/frame_000000.tif"
+                                                                      ).__str__())
+            radios: ArrayLike = skio.ImageCollection(abs_path.joinpath("radios/frame_000000.tif"
+                                                                       ).__str__())
             print(f"Num Darks: {len(darks)}")
             print(f"Num flats: {len(flats)}")
             print(f"Num radios: {len(radios)}")

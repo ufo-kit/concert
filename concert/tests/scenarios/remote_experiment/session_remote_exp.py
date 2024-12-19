@@ -12,12 +12,13 @@ from concert.experiments.synchrotron import RemoteContinuousTomography
 from concert.devices.cameras.uca import RemoteNetCamera
 from concert.helpers import CommData
 
-############################################################################################################
-# Docker daemon creates a DNS entry inside the specified network with the service name. We need to specify
-# this domain name to communicate with a service on a given exposed port. In the compose.yml we have specified
-# `uca_camera` and `remote_walker` as service names for the mock camera and walker tango servicer processes
-# running inside their respective containers. Hence, in the session we'd have to use these domain names.
-############################################################################################################
+####################################################################################################
+# Docker daemon creates a DNS entry inside the specified network with the service name. We need to 
+# specify this domain name to communicate with a service on a given exposed port. In the compose.yml
+# we have specified `uca_camera` and `remote_walker` as service names for the mock camera and walker
+# tango servicer processes running inside their respective containers. Hence, in the session we'd
+# have to use these domain names.
+####################################################################################################
 
 walker_dev_uri = f"remote_walker:7001/concert/tango/walker#dbase=no"
 
