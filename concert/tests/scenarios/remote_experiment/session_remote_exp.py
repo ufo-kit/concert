@@ -60,3 +60,6 @@ _ = await tango_addons.ImageWriter(exp, SERVERS["walker"], exp.acquisitions)
 
 # Run Experiment
 _ = await exp.run()
+
+# Unregister all camera endpoints
+await camera.unregister_all()
