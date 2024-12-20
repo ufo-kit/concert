@@ -37,7 +37,7 @@ services:
       TARGET_LOCATION: "/mnt/ips_image_mnt"
     command: >
       bash -c "python3 /root/.local/share/concert/setup.py
-      && concert start session_remote_exp 
+      && concert start --non-interactive session_remote_exp 
       && python3 /root/.local/share/concert/assert.py
       && python3 /root/.local/share/concert/teardown.py"
     depends_on:
