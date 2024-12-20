@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import sys
 from typing import List, Any, Dict
 import json
 from numpy import ndarray as ArrayLike
@@ -19,28 +20,33 @@ def list_files(startpath: str) -> None:
 if __name__ == "__main__":
     base_path: Path = Path(os.environ["TARGET_LOCATION"])
     items: List[str] = os.listdir(base_path)
-    if len(items) > 0:
-        for item in items:
-            assert(item == "scan_0000")
-            abs_path: Path = base_path.joinpath(item)
-            assert(os.path.exists(abs_path.joinpath("darks")))
-            assert(os.path.exists(abs_path.joinpath("flats")))
-            assert(os.path.exists(abs_path.joinpath("radios")))
-            assert(os.path.exists(abs_path.joinpath("experiment.log")))
-            assert(os.path.exists(abs_path.joinpath("experiment.json")))
-            darks: ArrayLike = skio.ImageCollection(abs_path.joinpath("darks/frame_000000.tif"
-                                                                      ).__str__())
-            flats: ArrayLike = skio.ImageCollection(abs_path.joinpath("flats/frame_000000.tif"
-                                                                      ).__str__())
-            radios: ArrayLike = skio.ImageCollection(abs_path.joinpath("radios/frame_000000.tif"
-                                                                       ).__str__())
-            print(f"Num Darks: {len(darks)}")
-            print(f"Num flats: {len(flats)}")
-            print(f"Num radios: {len(radios)}")
-            with open(abs_path.joinpath("experiment.json")) as log:
-                exp_log: Dict[str, Any] = json.load(log)["experiment"]
-                assert(len(darks) == int(exp_log["num_darks"]))
-                assert(len(flats) == int(exp_log["num_flats"]))
-                assert(len(radios) == int(exp_log["num_projections"]))
-            list_files(abs_path.__str__())
-        print("Assertions succeeded, cleaning up")
+    try:
+        if len(items) > 0:
+            for item in items:
+                assert(item == "scan_0000")
+                abs_path: Path = base_path.joinpath(item)
+                assert(os.path.exists(abs_path.joinpath("darks")))
+                assert(os.path.exists(abs_path.joinpath("flats")))
+                assert(os.path.exists(abs_path.joinpath("radios")))
+                assert(os.path.exists(abs_path.joinpath("experiment.log")))
+                assert(os.path.exists(abs_path.joinpath("experiment.json")))
+                darks: ArrayLike = skio.ImageCollection(abs_path.joinpath("darks/frame_000000.tif"
+                                                                        ).__str__())
+                flats: ArrayLike = skio.ImageCollection(abs_path.joinpath("flats/frame_000000.tif"
+                                                                        ).__str__())
+                radios: ArrayLike = skio.ImageCollection(abs_path.joinpath("radios/frame_000000.tif"
+                                                                        ).__str__())
+                print(f"Num Darks: {len(darks)}")
+                print(f"Num flats: {len(flats)}")
+                print(f"Num radios: {len(radios)}")
+                with open(abs_path.joinpath("experiment.json")) as log:
+                    exp_log: Dict[str, Any] = json.load(log)["experiment"]
+                    assert(len(darks) == int(exp_log["num_darks"]))
+                    assert(len(flats) == int(exp_log["num_flats"]))
+                    assert(len(radios) == int(exp_log["num_projections"]))
+                list_files(abs_path.__str__())
+    except FileNotFoundError:
+        sys.exit(1)
+    except AssertionError:
+        sys.exit(1)
+    print("Assertions succeeded, cleaning up")

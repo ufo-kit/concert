@@ -41,7 +41,8 @@ RUN pip install --upgrade pip && pip install \
     numpy \
     pytango==9.5.0 \
     scikit-image \
-    imageio
+    imageio \
+    pytest
 
 WORKDIR /home
 
