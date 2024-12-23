@@ -106,6 +106,7 @@ class TestRemoteExperiment(TestCase):
     async def test_run(self) -> None:
         _ = await self._exp.run()
         base_path: Path = Path(self._root)
+        self.list_files(base_path.__str__())
         items: List[str] = os.listdir(base_path)
         if len(items) > 0:
             for item in items:
