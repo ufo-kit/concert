@@ -10,7 +10,8 @@ ENV LD_LIBRARY_PATH=/usr/local/lib
 ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
 ENV GI_TYPELIB_PATH=/usr/local/lib/girepository-1.0
 
-# Install build dependencies
+# Install build dependencies. Packages iputils-ping, iproute2, netcat-traditional and tree
+# are included for the ease of troubleshooting.
 RUN apt-get update && apt-get install -y \
     build-essential \
     git \
@@ -24,7 +25,8 @@ RUN apt-get update && apt-get install -y \
     libjson-glib-dev \
     iputils-ping \
     iproute2 \
-    netcat-traditional
+    netcat-traditional \
+    tree
 
 # Install Python 3.9 (Encountered issues with uca-net and Python 3.10)
 RUN apt-get install -y software-properties-common && \
@@ -75,5 +77,4 @@ COPY . .
 
 RUN pip install -e .
 
-# NOTE: Concert session location inside the container: /root/.local/share/concert/. This
-# contatiner location would be mapped to test directory.
+# NOTE: Concert session location inside the container: /root/.local/share/concert/.

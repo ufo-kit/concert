@@ -1,32 +1,35 @@
 # CI Scenarios
 
-Continuous integration scenarios provide a way to validate expected outcomes from different
-experimental setups within reasonable scope. For instance, we can develop workflows needing GPU
-workload scheduling. Such scenarios can be executed locally but will not work remotely with GitHub
-Actions runners. We use `docker compose` as small-scale container orchestration utility to simulate
-a decentralized compute infrastructure, which concert is being developed for. Following is the
-proposed semantic of scenarios.
+Scenarios provide a way to validate expected outcomes from different measurement setups. We use
+`docker compose` as small-scale container orchestration utility to simulate a decentralized compute
+infrastructure, which concert is being developed for. Basic semantic for a scenario execution is to,
 
-```text
-concert/tests/scenarios/
-    scenario/ => Name of a given scenario.
-        setup.py => Any required activity before running the scenario.
-        session_*.py => Concert session where the scenario is described.
-        assert.py => Assertions on the expected behavior upon running the scenario.
-        teardown.py => Any cleanup activity after running the scenario.
-        compose.yml => Simulates decentralized compute processes and run assertions.
-```
+1. spin up a simulated decentralized infrastructure using containers running inside a virtual
+private network.
+2. run test and assert using `pytest`.
+3. teardown the simulated decentralized infrastructure.
+
+GitHub Actions scenarios can be executed locally using the [act](https://nektosact.com/) tool, which
+in turn requires docker.
+
+## Image
+
+[Dockerfile](https://github.com/ufo-kit/concert/blob/master/Dockerfile) at the root of the repository
+is built before scenario execution. This image specification incorporates all necessary building
+blocks to run a test setup excluding GPU workload scheduling. GitHub Actions runner does not support
+GPU workload scheduling for the free-tier repositories.
+
 ## Container Orchestration
 
 Simulating decentralized infrastructure is done by small-scale container orchestration, which should
-be described in a yml file to use `docker compose` utility. Following is an example from remote
-experiment scenario.
+be described in a yaml file to use `docker compose` utility. Following is an example of bare minimum
+yaml specification required to run an experiment.
 
 ```yaml
 services:
   uca_camera:
     container_name: uca_camera
-    build: ../../../..
+    image: concert-docker
     restart: on-failure
     expose:
       - '8989'
@@ -36,11 +39,11 @@ services:
       concert_net:
 
   remote_walker:
+    container_name: remote_walker
+    image: concert-docker
+    restart: on-failure
     volumes:
       - /mnt:/mnt/ips_image_mnt
-    container_name: remote_walker
-    build: ../../../..
-    restart: on-failure
     expose:
       - '7001'
       - '8993'
@@ -50,48 +53,58 @@ services:
     networks:
       concert_net:
 
-  remote_experiment:
-    volumes:
-      - /mnt:/mnt/ips_image_mnt
-      - .:/root/.local/share/concert/
-    container_name: remote_experiment
-    build: ../../../..
-    restart: "no"
-    environment:
-      UCA_NET_HOST: "uca_camera"
-      TARGET_LOCATION: "/mnt/ips_image_mnt"
-    command: >
-      bash -c "python3 /root/.local/share/concert/setup.py
-      && concert start session_remote_exp 
-      && python3 /root/.local/share/concert/assert.py
-      && python3 /root/.local/share/concert/teardown.py"
-    depends_on:
-      - remote_walker
-    networks:
-      concert_net:
-
 networks:
   concert_net:
 ```
 
-It instructs `docker` to do the following **main** things for us, among others.
+It instructs `docker` to do the following before we can run tests.
 
-- Build an image from `concert/Dockerfile`, which encapsulates the recipe to installing libuca,
-uca-net and concert from current branch.
-- Create a virtual bridge network `concert_net` and run three containers (`uca_camera`,
-`remote_walker`, `remote_experiment`) from built image. Compose will exclusively add these containers
-to the specified network by allocating private IP addresses to them and creating DNS entries with the
-same names. It means, we can resolve these domain names using the respective service names, which is particularly relevant for the concert session. Additionally, set the required environment variables
-for running the session and additional Python routines.
-- Containers (`uca_camera`, `remote_walker`) expose few specific ports, as needed for the concert
-session, so that we can communicate with the tango server, mock uca camera and establish the stream.
-- Mount files from scenario directory `.` to `/root/.local/share/concert/` for `remote_experiment`
-container, so that we can call `concert start` on the session and execute other Python routines.
-- Mount `/mnt` from host to `/mnt/ips_image_mnt` inside (`remote_walker`,`remote_experiment`)
-so that 1) `remote_walker` container can write to it 2) `remote_experiment` can run setup, assertions
-and cleanup routines.
+- Create a virtual private bridge network `concert_net` and run two containers (`uca_camera`,
+`remote_walker`) from the image built from
+[Dockerfile](https://github.com/ufo-kit/concert/blob/master/Dockerfile). Compose will exclusively 
+add these containers to the network by allocating private IP addresses and creating respective DNS
+entries. It means, we can resolve these domain names using the respective service names within this
+network. These details are important for writing a functional test case.
 
-## TODOs
+- Containers expose few specific ports, as needed for the test case, so that we can communicate with
+the tango server, mock uca camera and establish the stream.
 
-- Add health-check so that experiment service deterministically waits for walker device server
-removing any uncertainty.
+- Mount location `/mnt` from host to `/mnt/ips_image_mnt` inside running container as volume. Latter
+is the location which would be used by the remote walker to write data. We map the directory `/mnt`
+from host because this same location would also be mounted to the container running the test setup
+and we need to be able to assert based on the data written to this location. Hence, this volume
+mapping bridges the gap between two containers and enables us to do the necessary assertions as part
+of the test case.
+
+## TestCase Execution
+
+As described in the [workflow](https://github.com/ufo-kit/concert/blob/master/.github/workflows/ci.yml)
+a testcase is executed inside a docker container and invoked by a command like below.
+
+```bash
+docker run \
+--network scenarios_concert_net \
+--volume /mnt:/mnt/ips_image_mnt \
+--env-file concert/tests/integration/scenarios/scenarios.env \
+concert-docker \
+make scenarios
+```
+
+Following aspects of this container execution are especially noteworthy.
+
+- `--network scenarios_concert_net` specifies that the container would attached to the same network
+orchestrated by the docker compose earlier. Only then, processes running inside this container would
+be able to communicate with the containers running inside that network on exposed ports. The name of
+the network created by docker compose follows the convention `<directory_name>_<network_name>`, where
+directory refers to the parent directory of the compose file and network name is the one specified
+in the compose file.
+
+- `--volume /mnt:/mnt/ips_image_mnt` specifies that the location, where remote walker writes data
+is also available to this container where assertions would be made by reading the written data.
+
+- `--env-file concert/tests/integration/scenarios/scenarios.env` consolidates and injects the relevant
+details of the compose orchestration to this container as environment variables, enabling us to write
+a functional testcase leveraging the simulated decentralized infrastructure.
+
+- `make scenarios` designates the command to run inside the container, which in turn executes the
+test case.

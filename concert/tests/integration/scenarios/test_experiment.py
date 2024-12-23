@@ -78,6 +78,8 @@ class TestRemoteExperiment(TestCase):
                                        num_projections=self._num_radios)
         _ = await tango_addons.ImageWriter(self._exp, self._servers["walker"],
                                            self._exp.acquisitions)
+        # Run some cleanups in the mounted location before running the
+        # experiment.
         base_path: Path = Path(self._root)
         items: List[str] = os.listdir(base_path)
         items = list(filter(lambda name: "scan" in name, items))
