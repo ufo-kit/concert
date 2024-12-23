@@ -11,13 +11,17 @@ jobs:
         runs-on: ubuntu-22.04
         steps:
             - uses: actions/checkout@v3
-            - name: execute_remote_experiment
-              run: docker compose -f concert/tests/scenarios/remote_experiment/compose.yml up --abort-on-container-exit
-            - name: assert_remote_experiment
+            - name: Build Image
+              run: docker build -t concert-docker .
+            - name: Setup Decentralized Infrastructure
+              run: docker compose -f concert/tests/integration/scenarios/compose.yml up -d
+            - name: Run Scenarios
               run: |
-                cont_id=$(docker container ls -a --filter label=com.docker.compose.project --filter name=remote_experiment --format "{{.ID}}")
-                exit_code=$(docker inspect $cont_id --format='{{.State.ExitCode}}')
-                chmod +x concert/tests/scenarios/check.sh
-                ./concert/tests/scenarios/check.sh $exit_code
-            - name: cleanup_remote_experiment
-              run: docker compose -f concert/tests/scenarios/remote_experiment/compose.yml down -v
+                docker run \
+                --network scenarios_concert_net \
+                --volume /mnt:/mnt/ips_image_mnt \
+                --env-file concert/tests/integration/scenarios/scenarios.env \
+                concert-docker \
+                make scenarios
+            - name: Teardown Decentralized Infrastructure
+              run: docker compose -f concert/tests/integration/scenarios/compose.yml down -v

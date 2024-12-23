@@ -1,6 +1,7 @@
 PYTHON = python
 SETUP = $(PYTHON) setup.py
-RUNTEST = pytest concert/tests
+RUNTEST = pytest concert/tests --ignore=concert/tests/integration/scenarios
+RUNSCENARIOS = pytest -s concert/tests/integration/scenarios
 
 .PHONY: build clean check check-fast dist init install html
 
@@ -29,3 +30,6 @@ html:
 
 init:
 	pip install -r ./requirements.txt
+
+scenarios:
+	$(RUNSCENARIOS)
