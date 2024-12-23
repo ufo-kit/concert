@@ -84,9 +84,6 @@ try:
     ip.set_custom_exc(_custom_exceptions, _handler)
     # ctrl-k (abort everything, also background awaitables)
     ip.loop_runner = ConcertAsyncioRunner()
-    # Following guard condition is added taking reference from advanced configuration example:
-    # https://ipython.readthedocs.io/en/stable/config/details.html#advanced-configuration
-    if getattr(ip, 'pt_app', None):
-        ip.pt_app.key_bindings.add('c-k')(_abort_all_awaiting)
+    ip.pt_app.key_bindings.add('c-k')(_abort_all_awaiting)
 except NameError as err:
     raise NameError("This module must be run after concert start") from err
