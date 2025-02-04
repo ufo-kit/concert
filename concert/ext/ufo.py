@@ -242,49 +242,6 @@ class FlatCorrect(InjectProcess):
             first = False
 
 
-class MedianFilter(InjectProcess):
-    """Encapsulates UFO median filtering implementation"""
-
-    _mf: object
-
-    def __init__(self, kernel_size: int, copy_inputs: bool = False) -> None:
-        self._mf = get_task('median-filter')
-        self._mf.props.size = kernel_size
-        super().__init__(self._mf, get_output=True, output_dims=2, copy_inputs=copy_inputs)
-
-    async def __call__(self, producer: AsyncIterator[ArrayLike]) -> AsyncIterator[ArrayLike]:
-        """Co-routine compatible consumer."""
-        if not self._started:
-            self.start()
-        async for projection in producer:
-            if projection.dtype != np.float32:
-                projection: ArrayLike = projection.astype(np.float32)
-            await self.insert(projection, index=0)
-            yield await self.result(leave_index=0)
-
-
-class GaussianFilter(InjectProcess):
-    """Encapsulates UFO Gaussian blur implementation"""
-
-    _gb: object
-
-    def __init__(self, kernel_size: int, sigma: float, copy_inputs: bool = False) -> None:
-        self._gb = get_task('blur')
-        self._gb.props.size = kernel_size
-        self._gb.props.sigma = sigma
-        super().__init__(self._gb, get_output=True, output_dims=2, copy_inputs=copy_inputs)
-
-    async def __call__(self, producer: AsyncIterator[ArrayLike]) -> AsyncIterator[ArrayLike]:
-        """Co-routine compatible consumer."""
-        if not self._started:
-            self.start()
-        async for projection in producer:
-            if projection.dtype != np.float32:
-                projection: ArrayLike = projection.astype(np.float32)
-            await self.insert(projection, index=0)
-            yield await self.result(leave_index=0)
-
-
 class GeneralBackprojectArgs(object):
 
     """Data class holding arguments for tofu."""
