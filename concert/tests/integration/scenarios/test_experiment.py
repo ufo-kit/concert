@@ -24,11 +24,13 @@ from concert.devices.cameras.uca import RemoteNetCamera
 from concert.helpers import CommData
 from concert.tests import TestCase
 ####################################################################################################
-# Docker daemon creates a DNS entry inside the specified network with the service name. We need to 
-# specify this domain name to communicate with a service on a given exposed port. In the compose.yml
+# Docker daemon creates a DNS entries inside the specified network with the service names. We need to 
+# specify these domain names to communicate with a services on a given exposed port. In the compose.yml
 # we have specified `uca_camera` and `remote_walker` as service names for the mock camera and walker
-# tango servicer processes running inside their respective containers. Hence, in the session we'd
-# have to use these domain names.
+# tango server processes running inside their respective containers. Hence, in the session we'd
+# have to use these domain names. Moreover, we will use the environment variables, which were injected
+# to conainer process. These environment variables encapsulate relevant metadata from container
+# orchestration, which are necessary to write the test cases.
 ####################################################################################################
 
 class TestRemoteExperiment(TestCase):

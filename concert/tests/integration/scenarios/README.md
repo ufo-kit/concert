@@ -92,19 +92,18 @@ make scenarios
 
 Following aspects of this container execution are especially noteworthy.
 
-- `--network scenarios_concert_net` specifies that the container would attached to the same network
+- `--network scenarios_concert_net` specifies that the container should be attached to the same network
 orchestrated by the docker compose earlier. Only then, processes running inside this container would
 be able to communicate with the containers running inside that network on exposed ports. The name of
 the network created by docker compose follows the convention `<directory_name>_<network_name>`, where
-directory refers to the parent directory of the compose file and network name is the one specified
-in the compose file.
+directory refers to the parent directory of the compose file and network name is the one specified there.
 
-- `--volume /mnt:/mnt/ips_image_mnt` specifies that the location, where remote walker writes data
-is also available to this container where assertions would be made by reading the written data.
+- `--volume /mnt:/mnt/ips_image_mnt` specifies that the location, where remote walker writes data,
+is also available to this container so that assertions could be made by reading the written data.
 
 - `--env-file concert/tests/integration/scenarios/scenarios.env` consolidates and injects the relevant
 details of the compose orchestration to this container as environment variables, enabling us to write
 a functional testcase leveraging the simulated decentralized infrastructure.
 
 - `make scenarios` designates the command to run inside the container, which in turn executes the
-test case.
+test cases.
