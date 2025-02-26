@@ -271,6 +271,9 @@ class Camera(Device):
             sndhwm=endpoint.sndhwm
         )
 
+    async def unregister_all(self) -> None:
+        self._senders = {}
+
     @abstractmethod
     async def _get_trigger_source(self):
         ...
