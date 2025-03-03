@@ -34,6 +34,9 @@ except Exception as e:
     print("\\nAn error occured while starting session `{0}':")
     print("-------------------------------------------" + "-" * len('{0}'))
     print(traceback.format_exc(), file=sys.stderr)
+    if os.path.exists("{1}"):
+        os.remove("{1}")
+        print("Removed lock file {1}")
     os.kill(os.getpid(), signal.SIGTERM)
 """
 
@@ -402,8 +405,8 @@ class StartCommand(SubCommand):
 
         ip_config = traitlets.config.Config()
         if path and path.endswith('.py'):
+            lockfile = os.path.join(os.path.dirname(path), '.' + os.path.basename(path))
             if not cs.is_multiinstance(session):
-                lockfile = os.path.join(os.path.dirname(path), '.' + os.path.basename(path))
                 if os.path.exists(lockfile):
                     print(f"An instance of `{session}' seems to be already running.")
                     print(
@@ -423,7 +426,7 @@ class StartCommand(SubCommand):
                 # --filename must have been specified
                 session = os.path.splitext(os.path.basename(path))[0]
                 sys.path.append(os.path.dirname(path))
-            ip_config.InteractiveShellApp.exec_lines = [STARTUP_FMT.format(session)]
+            ip_config.InteractiveShellApp.exec_lines = [STARTUP_FMT.format(session, lockfile)]
         else:
             session_code = 'from concert.quantities import q'
             ip_config.InteractiveShellApp.exec_lines = [session_code]
