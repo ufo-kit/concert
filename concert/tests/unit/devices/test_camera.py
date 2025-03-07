@@ -6,8 +6,8 @@ from concert.tests import TestCase
 from concert.quantities import q
 from concert.devices.cameras.dummy import Camera, BufferedCamera
 from concert.devices.cameras.pco import Timestamp, TimestampError
-from concert.helpers import CommData
-from concert.networking.base import ZmqSender
+from concert.helpers import CommData, convert_image, ImageWithMetadata
+from concert.networking.base import ZmqSender, ZmqReceiver
 
 
 class TestDummyCamera(TestCase):
@@ -77,10 +77,37 @@ class TestDummyCamera(TestCase):
             return np.mgrid[:5, :5][1]
 
         self.camera._grab_real = grab
-        self.camera.convert = np.fliplr
-        async with self.camera.recording():
-            image = await self.camera.grab()
-        np.testing.assert_equal(image, (await grab())[:, ::-1])
+
+        for mirrored in (True, False):
+            for rotated in (0, 1, 2, 3):
+                self.camera.set_mirror(mirrored)
+                self.camera.set_rotate(rotated)
+                async with self.camera.recording():
+                    image = await self.camera.grab()
+                np.testing.assert_equal(image, convert_image(await grab(), mirrored, rotated))
+
+    async def test_grab_and_send_convert(self):
+        async def grab():
+            return np.mgrid[:5, :5][1]
+
+        self.camera._grab_real = grab
+
+        i = 0
+        for mirrored in (True, False):
+            for rotated in (0, 1, 2, 3):
+                await self.camera.unregister_all()
+                await self.camera.register_endpoint(CommData("localhost", 8991+i, "tcp", zmq.PUSH, 0))
+                receiver = ZmqReceiver(endpoint=f"tcp://localhost:{8991+i}")
+
+                self.camera.set_mirror(mirrored)
+                self.camera.set_rotate(rotated)
+                async with self.camera.recording():
+                    await self.camera.grab_send(1)
+                    (metadata, image) = await receiver.receive_image()
+                receiver.close()
+                i += 1
+                np.testing.assert_equal(image, convert_image(await grab(), mirrored, rotated))
+
 
     async def test_simulate(self):
         async with self.camera.recording():
