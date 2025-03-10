@@ -13,10 +13,10 @@ class Monochromator(base.Monochromator):
         await super(Monochromator, self).__ainit__()
         self._energy = 100 * q.keV
 
-    async def _get_energy_real(self):
+    async def _get_energy(self):
         return self._energy
 
-    async def _set_energy_real(self, energy):
+    async def _set_energy(self, energy):
         self._energy = energy
 
 
@@ -31,8 +31,8 @@ class DoubleMonochromator(doublemonochromator.Monochromator):
         await super().__ainit__(dummy_motor)
         self._energy = 100 * q.keV
 
-    async def _get_energy_real(self):
+    async def _get_energy(self):
         return self._energy
 
-    async def _set_energy_real(self, energy):
+    async def _set_energy(self, energy):
         self._energy = energy

@@ -1,4 +1,6 @@
 """Experiment automation based on on-line data analysis."""
+from abc import abstractmethod
+
 from concert.coroutines.base import background
 
 
@@ -27,11 +29,12 @@ class ClosedLoop(object):
         """React on the result of a measurement."""
         pass
 
+    @abstractmethod
     async def compare(self):
         """Return True if the metric is satisfied, False otherwise. This is the decision making
         process.
         """
-        raise NotImplementedError
+        ...
 
     @background
     async def run(self, max_iterations=10):

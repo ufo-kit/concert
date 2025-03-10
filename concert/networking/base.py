@@ -1,4 +1,6 @@
 """Connection protocols for network communication."""
+import abc
+from abc import abstractmethod
 import asyncio
 import logging
 import numpy as np
@@ -8,7 +10,7 @@ import zmq.asyncio
 from concert.quantities import q
 from concert.config import AIODEBUG, PERFDEBUG
 from concert.helpers import ImageWithMetadata
-
+from concert.helpers import convert_image
 
 LOG = logging.getLogger(__name__)
 
@@ -140,6 +142,15 @@ async def zmq_receive_image(socket):
     msg = await socket.recv(copy=False)
     array = np.frombuffer(msg, dtype=metadata['dtype']).reshape(metadata['shape'])
 
+    mirror = False
+    rotate = 0
+    if 'mirror' in metadata:
+        mirror = metadata['mirror']
+    if 'rotate' in metadata:
+        rotate = metadata['rotate']
+
+    array = convert_image(array, mirror, rotate)
+
     return (metadata, array)
 
 
@@ -176,7 +187,7 @@ def zmq_setup_sending_socket(context, endpoint, reliable, sndhwm):
     return socket
 
 
-class ZmqBase:
+class ZmqBase(abc.ABC):
 
     """
     Base for sending/receiving zmq image streams.
@@ -238,9 +249,10 @@ class ZmqBase:
         LOG.log(AIODEBUG, 'ZMQ Socket connection exit')
         self.close()
 
+    @abstractmethod
     def _setup_socket(self):
         """Create and connect zmq socket, implementation-specific."""
-        raise NotImplementedError
+        ...
 
 
 class ZmqSender(ZmqBase):
@@ -357,6 +369,7 @@ class ZmqReceiver(ZmqBase):
             self._socket.set(zmq.RCVHWM, self._rcvhwm)
             # Do not filter topics for now
             self._socket.setsockopt_string(zmq.SUBSCRIBE, "")
+
         self._socket.connect(self._endpoint)
         self._poller.register(self._socket, zmq.POLLIN)
 
@@ -472,7 +485,8 @@ class ZmqBroadcaster(ZmqReceiver):
     async def _forward_image(self, image, metadata):
         # Until zmq 23.2.1, this would take the whole *timeout* time even if there were events on
         # the sockets
-        sockets = dict(await self._poller_out.poll(timeout=self._polling_timeout.to(q.ms).magnitude))
+        sockets = dict(
+            await self._poller_out.poll(timeout=self._polling_timeout.to(q.ms).magnitude))
         if sockets.keys() != self._broadcast_sockets:
             dead_ends = [
                 socket.get(zmq.LAST_ENDPOINT) for socket in self._broadcast_sockets

@@ -140,7 +140,7 @@ class Camera(Base):
         if to_sleep > 0 * q.s:
             await asyncio.sleep(to_sleep.magnitude)
 
-        return np.cast[np.uint16](tmp)
+        return np.asarray(tmp, dtype=np.uint16)
 
 
 class FileCamera(Base):

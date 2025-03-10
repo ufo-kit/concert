@@ -124,7 +124,6 @@ class TestZmq(TestCase):
 
         self.assertEqual(i, 1)
 
-
     async def test_broadcast_immediate_shutdown(self):
         sender, broadcast, receiver_1, receiver_2 = setup_broadcaster()
         f = start(broadcast.serve())
