@@ -428,3 +428,10 @@ def get_basename(filename):
         filename = filename[:-1]
 
     return os.path.basename(filename)
+
+def convert_image(image, mirror: bool, rotate: int):
+    if mirror:
+        image = np.fliplr(image)
+    if rotate:
+        image = np.rot90(image, k=rotate)
+    return image

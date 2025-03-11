@@ -8,6 +8,7 @@ import asyncio
 import os
 import logging
 import re
+from abc import abstractmethod
 from typing import Optional, AsyncIterable, Awaitable, Type, Iterable, Set
 import tango
 import zmq
@@ -203,25 +204,29 @@ class Walker(Parameterizable):
     async def __aexit__(self, exc_type, exc, tb) -> None:
         self._lock.release()
 
+    @abstractmethod
     async def _descend(self, name: str) -> None:
         """Descend to *name*."""
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     async def _ascend(self) -> None:
         """Ascend from current depth."""
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     async def _create_writer(self, producer: AsyncIterable[ArrayLike],
                              dsetname: Optional[str] = None) -> Awaitable:
         """
         Subclass should provide the implementation for, how the writer should
         be created for asynchronously received data
         """
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     async def _get_current(self) -> str:
         """Fetches the current from internal contex"""
-        raise NotImplementedError
+        ...
 
     async def _get_root(self) -> str:
         """Fetches the root from internal context"""
@@ -239,16 +244,18 @@ class Walker(Parameterizable):
         """Return to root"""
         self._current = self._root
 
+    @abstractmethod
     async def exists(self, *paths) -> bool:
         """Return True if path from current position specified by a list of
         *paths* exists."""
-        raise NotImplementedError
 
+    @background
     async def descend(self, name: str) -> Walker:
         """Descend to *name* and return *self*."""
         await self._descend(name)
         return self
 
+    @background
     async def ascend(self) -> Walker:
         """Ascend from current depth and return *self*."""
         await self._ascend()
@@ -291,13 +298,15 @@ class Walker(Parameterizable):
         """
         return await self._create_writer(producer, dsetname=dsetname)
 
+    @abstractmethod
     async def register_logger(self, logger_name: str, log_level: int,
                               file_name: str) -> AsyncLoggingHandlerCloser:
         """Registers a logger with walker device server and provides a remote logging handler"""
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     @background
-    async def log_to_json(self, payload: str) -> None:
+    async def log_to_json(self, payload: str, filename: str = "experiment.json") -> None:
         """
         Provides local counterpart of the remote logging of experiment
         metadata. Writes the provided payload to a static file called
@@ -306,7 +315,7 @@ class Walker(Parameterizable):
         :param payload: content to write
         :type payload: str
         """
-        raise NotImplementedError
+        ...
 
 
 class DummyWalker(Walker):
@@ -317,6 +326,9 @@ class DummyWalker(Walker):
     async def __ainit__(self, root: str = "") -> None:
         await super().__ainit__(root)
         self._paths = set([])
+
+    async def log_to_json(self, payload: str, filename: str = "experiment.json") -> None:
+        pass
 
     @property
     async def paths(self) -> Iterable[str]:
@@ -446,7 +458,7 @@ class DirectoryWalker(Walker):
                               file_name: str) -> AsyncLoggingHandlerCloser:
         return LoggingHandler(os.path.join(await self.get_current(), file_name))
 
-    async def log_to_json(self, payload: str) -> None:
+    async def log_to_json(self, payload: str, filename: str = "experiment.json") -> None:
         """
         Logs experiment metadata as *payload* to a file called experiment.json
 
@@ -458,7 +470,7 @@ class DirectoryWalker(Walker):
         :type payload: str
         """
         with open(
-                file=os.path.join(await self.get_current(), "experiment.json"),
+                file=os.path.join(await self.get_current(), filename),
                 mode="w",
                 encoding="utf-8") as lgf:
             lgf.write(payload)
@@ -618,9 +630,9 @@ class RemoteDirectoryWalker(Walker):
         log_path: str = await self.device.register_logger((logger_name, str(log_level), file_name))
         return RemoteLoggingHandler(device=self.device, log_path=log_path)
 
-    async def log_to_json(self, payload: str) -> None:
+    async def log_to_json(self, payload: str, filename: str = "experiment.json") -> None:
         """Implements api layer for writing experiment metadata"""
-        await self.device.log_to_json(payload)
+        await self.device.log_to_json([payload, filename])
 
 
 class StorageError(Exception):

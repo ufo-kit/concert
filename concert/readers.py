@@ -3,11 +3,13 @@ import ast
 import glob
 import json
 import os
+import abc
+from abc import abstractmethod
 from concert.coroutines.base import run_in_executor
 from concert.helpers import ImageWithMetadata
 
 
-class FileSequenceReader:
+class FileSequenceReader(abc.ABC):
 
     """Image sequence reader optimized for reading consecutive images. One multi-page image file is
     not closed after an image is read so that it does not have to be re-opened for reading the next
@@ -88,19 +90,23 @@ class FileSequenceReader:
 
         return self._lengths[filename]
 
+    @abstractmethod
     def _open_real(self, filename):
         """Returns an open file."""
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     def _close_real(self):
         """Closes the open file."""
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     def _get_num_images_in_file_real(self):
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     def _read_real(self, index):
-        raise NotImplementedError
+        ...
 
 
 class TiffSequenceReader(FileSequenceReader):

@@ -49,18 +49,9 @@ To setup and use a camera in a typical environment, you would do::
 
     print("mean=%f, stddev=%f" % (np.mean(data), np.std(data)))
 
-You can apply primitive operations to the frames obtained by :meth:`Camera.grab` by setting up a
-:attr:`Camera.convert` attribute to some callable which takes just one argument which is the grabbed
-frame. The callable is applied to the frame and the converted one is returned by
-:meth:`Camera.grab`. You can do::
-
-    import numpy as np
-    from concert.devices.cameras.dummy import Camera
-
-    camera = Camera()
-    camera.convert = np.fliplr
-    # The frame is left-right flipped
-    grab(camera)
+The image can be mirrored by setting the parameter *mirror* to true.
+The Image can be rotated (0-3 times) be setting the parameter *rotate* to the number of rotations.
+In case of a remote camera, the raw frames and these parameters in the metadata are transmitted.
 
 Cameras can send images over a ZMQ stream by the :meth:`Camera.grab_send` method. Instead of giving
 the frames to the user, it sends the frames via the ZMQ stream. For this to work once must do the
@@ -73,9 +64,13 @@ competing methods like :meth:`Camera.grab` and :meth:`RemoteMixin.grab_send`.
 import asyncio
 import contextlib
 import logging
+from abc import abstractmethod
+
 from typing import Dict
 import zmq
-from concert.base import AccessorNotImplementedError, Parameter, Quantity, State, check, identity
+from concert.helpers import convert_image
+
+from concert.base import AccessorNotImplementedError, Parameter, Quantity, State, check
 from concert.config import AIODEBUG
 from concert.coroutines.base import background
 from concert.quantities import q
@@ -108,10 +103,13 @@ class Camera(Device):
     frame_rate = Quantity(1 / q.second, help="Frame frequency")
     trigger_source = Parameter(help="Trigger source")
     _senders: Dict[CommData, ZmqSender]
+    mirror = Parameter(help="Mirror the image")
+    rotate = Parameter(help="Rotate the image")
 
     async def __ainit__(self):
+        self._rotate = 0
+        self._mirror = False
         await super(Camera, self).__ainit__()
-        self.convert = identity
         self._grab_lock = asyncio.Lock()
         self._senders = {}
 
@@ -167,7 +165,8 @@ class Camera(Device):
         """Return a concert.storage.ImageWithMetadata (subclass of np.ndarray) with data of the
         current frame. Acquires grab lock."""
         async with self._grab_lock:
-            img = self.convert(await self._grab_real())
+            img = await self._grab_real()
+            img = convert_image(img, mirror=await self.get_mirror(), rotate=await self.get_rotate())
             return img.view(ImageWithMetadata)
 
     # Be strict, if the camera is recording an experiment might be in progress, so let's restrict
@@ -191,7 +190,8 @@ class Camera(Device):
                 # between the state is obtained and grab() is called.
                 async with self._grab_lock:
                     if await self.get_state() == 'recording':
-                        image = self.convert(await self._grab_real())
+                        image = await self._grab_real()
+                        image = convert_image(image, mirror=await self.get_mirror(), rotate=await self.get_rotate())
                         image = image.view(ImageWithMetadata)
                     else:
                         break
@@ -233,7 +233,10 @@ class Camera(Device):
             )
 
         for _ in range(num):
-            img = self.convert(await self._grab_real())
+            img = await self._grab_real()
+            img = img.view(ImageWithMetadata)
+            img.metadata['mirror'] = self._mirror
+            img.metadata['rotate'] = self._rotate
             await send_to_all(img)
 
         if end:
@@ -269,29 +272,47 @@ class Camera(Device):
             sndhwm=endpoint.sndhwm
         )
 
-    async def unregister_all_endpoints(self) -> None:
-        """Unregister all register endpoints"""
+    async def unregister_all(self) -> None:
+        """Unregister all registered endpoints"""
         for endpoint in self._senders:
             self._senders[endpoint].close()
-            del self._senders[endpoint]
+        self._senders.clear()
 
+    @abstractmethod
     async def _get_trigger_source(self):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _set_trigger_source(self, source):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _record_real(self):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _stop_real(self):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _trigger_real(self):
-        raise AccessorNotImplementedError
+        ...
 
-    async def _grab_real(self):
-        raise AccessorNotImplementedError
+    @abstractmethod
+    async def _grab_real(self) -> ImageWithMetadata:
+        ...
+
+    async def _set_mirror(self, mirror):
+        self._mirror = bool(mirror)
+
+    async def _get_mirror(self):
+        return self._mirror
+
+    async def _set_rotate(self, r):
+        self._rotate = int(r)
+
+    async def _get_rotate(self):
+        return self._rotate
 
 
 class BufferedMixin(Device):
@@ -344,11 +365,14 @@ class BufferedMixin(Device):
         async for item in self._readout_real(*args, **kwargs):
             yield item
 
+    @abstractmethod
     async def _start_readout_real(self):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _stop_readout_real(self):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _readout_real(self, *args, **kwargs):
-        raise AccessorNotImplementedError
+        ...

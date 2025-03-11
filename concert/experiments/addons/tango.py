@@ -96,7 +96,9 @@ class LiveView(base.LiveView):
 
     async def __ainit__(self, viewer, endpoint, experiment, acquisitions=None):
         self.endpoint = endpoint
-        await base.LiveView.__ainit__(self, viewer, experiment=experiment,
+        await base.LiveView.__ainit__(self,
+                                      viewer,
+                                      experiment=experiment,
                                       acquisitions=acquisitions)
         self._orig_limits = await viewer.get_limits()
 
@@ -298,7 +300,7 @@ class RotationAxisEstimator(TangoMixin, base.Addon):
     def _make_consumers(self, acquisitions: Set[Acquisition]) -> Dict[Acquisition,
                                                                       AcquisitionConsumer]:
         """Accumulates consumers for expected acquisitions"""
-        consumers: [Acquisition, AcquisitionConsumer] = {}
+        consumers: Dict[Acquisition, AcquisitionConsumer] = {}
         consumers[base.get_acq_by_name(acquisitions, "darks")] = AcquisitionConsumer(
                 self.update_darks, addon=self)
         consumers[base.get_acq_by_name(acquisitions, "flats")] = AcquisitionConsumer(

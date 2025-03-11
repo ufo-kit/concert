@@ -23,19 +23,14 @@ class BreakingMotor(ImproperlyImplemented):
     async def _get_state(self):
         return 'standby'
 
+    async def _home(self):
+        pass
+
+    async def _stop(self):
+        pass
+
 
 class TestIssue209(TestCase):
-
-    async def test_method_not_implemented(self):
-        """
-        Although required by base.RotationMotor, the BreakingMotor does not
-        implement _get_state but rather than telling us that, it says that the
-        parameter cannot be written.
-        """
-        fancy = await ImproperlyImplemented()
-
-        with self.assertRaises(NotImplementedError):
-            await fancy.set_position(20 * q.deg)
 
     async def test_shared_parameters(self):
         dummy = await RotationMotor()
