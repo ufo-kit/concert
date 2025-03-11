@@ -1,5 +1,5 @@
 import asyncio
-from typing import AsyncIterator, Set, Optional
+from typing import Set, Optional
 import copy
 import logging
 import sys
@@ -537,7 +537,7 @@ class GeneralBackprojectManager(Parameterizable):
 
     async def __ainit__(self, args: GeneralBackprojectArgs, average_normalization: bool = True,
                         regions: Optional[Set[float]] = None, copy_inputs: bool = False,
-                        **kwargs) -> None:
+                        axis_estimated: Optional[asyncio.Event] = None) -> None:
         await super().__ainit__()
         self.args = args
         self.regions = regions
@@ -559,7 +559,7 @@ class GeneralBackprojectManager(Parameterizable):
         self._producer_condition = asyncio.Condition()
         self._processing_task = None
         self._regions = None
-        self.axis_estimated = kwargs.get("axis_estimated", None)
+        self.axis_estimated = axis_estimated
 
     @property
     def num_received_projections(self):

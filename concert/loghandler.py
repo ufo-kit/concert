@@ -12,6 +12,8 @@ from concert.coroutines.base import get_event_loop
 #############
 # Protocols #
 ##############################################################################
+
+
 class AsyncLoggingHandlerCloser(Protocol):
     """Abstarct logging handler, which can be closed asynchronously"""
 
