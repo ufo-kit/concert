@@ -5,24 +5,15 @@ typing.py
 ---------
 Facilitates type annotations for concert
 """
-from typing import Protocol, Any, NewType, Sequence, Tuple
-import numpy
-
-# Defines ArrayLike as a new type
-# NOTE: We take this approach because NumPy>=1.20 offers ArrayLike as a
-# concrete type. At this point Tango has some discrepancy when it comes to
-# NumPy versions. In future this can(should) be replaced with
-# from numpy.typing import ArrayLike
-ArrayLike = NewType("ArrayLike", numpy.ndarray)
+from typing import Protocol, Any, Sequence, Tuple
 
 
 #####################################################################
 # Abstract Tango Device Types
 class AbstractStreamHandler(Protocol):
     """
-    Encapsulates specific stream handling utilities provided by the
-    TangoRemoteProcessing base class to control the incoming data streams over
-    the ZmqReceiver socket endpoint.
+    Encapsulates specific stream handling utilities provided by the TangoRemoteProcessing base
+    class to control the incoming data streams over the ZmqReceiver socket endpoint.
     """
 
     async def cancel(self) -> None:
@@ -134,6 +125,12 @@ class RemoteDirectoryWalkerTangoDevice(
         """
         Facilitates logging using a specific logger from the maintained loggers. Payload
         consists of log path as identifier for logger, logging level and log message.
+        """
+        ...
+
+    async def log_to_json(self, payload: str) -> None:
+        """
+        Writes serialized parameters and metadata for an experiment as a dictionary.
         """
         ...
 #####################################################################

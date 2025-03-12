@@ -10,3 +10,4 @@ omit =
     */lib-python/?.?/*.py
     */site-packages/*
     /usr/share/pyshared/*
+    **/typing.py

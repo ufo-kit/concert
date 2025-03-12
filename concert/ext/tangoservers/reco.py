@@ -1,7 +1,11 @@
 """Tango device for online 3D reconstruction from zmq image stream."""
+import asyncio
+import os
+from typing import Tuple
 import numpy as np
-from tango import DebugIt, CmdArgType
+from tango import DebugIt, CmdArgType, EventType, EventData
 from tango.server import command
+from tango.asyncio import DeviceProxy
 from .base import TangoRemoteProcessing
 from concert.coroutines.base import async_generate
 from concert.ext.ufo import GeneralBackprojectManager, GeneralBackprojectArgs
@@ -89,16 +93,84 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     # Do not infect the class with temp variables
     del arg, dtype, settings
 
+    _rae_device: DeviceProxy
+    _rae_subscription: int
+    _slice_directory: str
+    _cached: bool
+    _axis_estimated: asyncio.Event
+
     async def init_device(self):
         """Inits device and communciation"""
         await super().init_device()
-
+        # Rotation axis event signals GeneralBackprojectManager to start backprojector. We trigger
+        # this event from the callback response upon having required parameters estimated.
+        self._axis_estimated = asyncio.Event()
         self._manager = await GeneralBackprojectManager(
             self._args,
-            average_normalization=True
+            average_normalization=True,
+            axis_estimated=self._axis_estimated
         )
         self._walker = None
         self._sender = None
+
+    @DebugIt()
+    @command(
+        dtype_in=str,
+        doc_in="absolute path of the directory to write online slices"
+    )
+    async def set_slice_directory(self, slice_directory: str) -> None:
+        self._slice_directory = slice_directory
+
+    @DebugIt()
+    @command(
+        dtype_in=bool,
+        doc_in="whether to reconstruct from cache"
+    )
+    async def set_cached(self, cached: bool) -> None:
+        self._cached = cached
+
+    @DebugIt()
+    @command(
+        dtype_in=(str,),
+        doc_in="port and domain namespace for rotation axis estimator device"
+    )
+    async def register_rotation_axis_feedback(self, args: Tuple[str, str]) -> None:
+        """
+        Subscribes for event concerning axis of rotation estimation.
+        Arguments include port number and domain namespace for rotation axis estimator device.
+        """
+        # Get the device proxy reference for RotationAxisEstimator device and subscribe for event
+        rae_dev_ref = f"{os.uname()[1]}:{args[0]}/{args[1]}#dbase=no"
+        self._rae_device = get_tango_device(rae_dev_ref, timeout=1000 * q.s)
+        self._rae_subscription = await self._rae_device.subscribe_event(
+                "axis_of_rotation", EventType.CHANGE_EVENT, self._on_axis_of_rotation)
+
+    def _on_axis_of_rotation(self, event: EventData) -> None:
+        """
+        Defines the callback function upon receiving estimated center of rotation by the QA
+        device
+        """
+        # We wrap the implementation within exception handling to catch transparent issues in Tango
+        # and reraise.
+        try:
+            if event.attr_value.value and event.attr_value.value != None:
+                estm_axis: float = event.attr_value.value
+                self.info_stream("%s: estimated axis: %s", self.__class__.__name__, estm_axis)
+                self._manager.args.center_position_x = [estm_axis]
+                self._axis_estimated.set()
+        except Exception as err:
+            self.error_stream("%s: axis estimation error: %s", self.__class__.__name__, str(err))
+            raise
+
+    @DebugIt()
+    @command(
+        dtype_in=float,
+        doc_in="value for axis of rotation"
+    )
+    async def inject_rotation_axis(self, value: float) -> None:
+        self._manager.args.center_position_x = [value]
+        self._axis_estimated.set()
+        self.info_stream("%s injected axis value: %.2f", self.__class__.__name__, value)
 
     @DebugIt()
     @command()
@@ -164,6 +236,9 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     @command(dtype_in=str)
     async def reconstruct(self, slice_directory):
         await self._reconstruct(cached=False, slice_directory=slice_directory)
+        # Enable waiting for next reconstruction
+        self._axis_estimated = asyncio.Event()
+        self._manager.axis_estimated = self._axis_estimated
 
     @DebugIt(show_args=True)
     @command(dtype_in=str)

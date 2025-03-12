@@ -1,0 +1,7 @@
+#!/usr/bin/env python3
+
+from concert.ext.tangoservers.rae import TangoRotationAxisEstimator
+from tango import GreenMode
+
+if __name__ == '__main__':
+    TangoRotationAxisEstimator.run_server(green_mode=GreenMode.Asyncio)

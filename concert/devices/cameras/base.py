@@ -191,7 +191,8 @@ class Camera(Device):
                 async with self._grab_lock:
                     if await self.get_state() == 'recording':
                         image = await self._grab_real()
-                        image = convert_image(image, mirror=await self.get_mirror(), rotate=await self.get_rotate())
+                        image = convert_image(image, mirror=await self.get_mirror(),
+                                              rotate=await self.get_rotate())
                         image = image.view(ImageWithMetadata)
                     else:
                         break
@@ -253,6 +254,7 @@ class Camera(Device):
         :type endpoint: concert.helpers.CommData
         """
         if endpoint in self._senders:
+            self._senders[endpoint].close()
             del self._senders[endpoint]
 
     async def register_endpoint(self, endpoint: CommData) -> None:
@@ -272,7 +274,10 @@ class Camera(Device):
         )
 
     async def unregister_all(self) -> None:
-        self._senders = {}
+        """Unregister all registered endpoints"""
+        for endpoint in self._senders:
+            self._senders[endpoint].close()
+        self._senders.clear()
 
     @abstractmethod
     async def _get_trigger_source(self):

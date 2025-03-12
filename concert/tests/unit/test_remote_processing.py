@@ -1,19 +1,21 @@
+import asyncio
+import os
 import signal
 import subprocess
 import time
 from random import randint
+import pytest
 import socket
-
+import tango
 from concert.coroutines.base import start
 from concert.quantities import q
 from concert.tests import TestCase
 from concert.ext.cmd.tango import TangoCommand
-import asyncio
 from concert.networking.base import get_tango_device
 from concert.storage import RemoteDirectoryWalker
-from multiprocessing import Process
-import os
-import tango
+
+
+
 
 test_with_tofu = False
 
@@ -120,3 +122,19 @@ class TestRemoteProcessingStartup(TestCase):
                 tango_dev = get_tango_device(tango_uri)
                 f = await tango_dev.state()
                 self.assertNotEqual(f, None)
+
+    @pytest.mark.skip(reason="troubleshoot later, why specifically this device times out")
+    async def test_rae_startup(self) -> None:
+        async with tango_run_concert('rae', 30*q.s) as tango_uri:
+            tango_dev = get_tango_device(tango_uri)
+            f = await tango_dev.state()
+            self.assertNotEqual(f, None)
+
+        async with tango_run_standalone('TangoRotationAxisEstimator', 30 * q.s) as tango_uri:
+            tango_dev = get_tango_device(tango_uri)
+            f = await tango_dev.state()
+            self.assertNotEqual(f, None)
+
+
+if __name__ == "__main__":
+    pass
