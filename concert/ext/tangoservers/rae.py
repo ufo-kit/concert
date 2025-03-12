@@ -65,15 +65,14 @@ class TangoRotationAxisEstimator(TangoRemoteProcessing):
     attr_estm = attribute(
         label="Meta attributes for axis estimation",
         dtype=(float,),
-        max_dim_x=5,
+        max_dim_x=4,
         access=AttrWriteType.WRITE,
         fset="set_attr_estm",
         doc="encapsulates attributes for axis estimation.e., \
         init_wait, \
         avg_beta, \
         diff_thresh, \
-        conv_window, \
-        roi_width"
+        conv_window"
     )
 
     async def init_device(self) -> None:
@@ -160,7 +159,7 @@ class TangoRotationAxisEstimator(TangoRemoteProcessing):
         :type producer: AsyncIterator[ArrayLike]
         """
         crop_vert_prop, crop_left_px, crop_right_px, radius = self._attr_track
-        init_wait, avg_beta, diff_thresh, conv_window, roi_width = self._attr_estm
+        init_wait, avg_beta, diff_thresh, conv_window = self._attr_estm
         init_wait, conv_window = int(init_wait), int(conv_window)
         proj_count = 0
         centers: List[List[int]] = []
@@ -216,13 +215,17 @@ class TangoRotationAxisEstimator(TangoRemoteProcessing):
         except Exception as e:
             self.info_stream("%s: runtime error: %s, unblocking reco with generic value",
                              self.__class__.__name__, str(e))
-            # Unblock reco device server with a generic value of half of the roi width.
-            self._axis_of_rotation = roi_width / 2
+            # Unblock reco device server if the axis estimation routine is not successful for some
+            # reason. In that case we take half of the projection width as a generic value.
+            self._axis_of_rotation = proj.shape[1] / 2
             self.push_change_event("axis_of_rotation", self._axis_of_rotation)
         # Set axis_of_rotation attribute back to None to safe-guard against mis-fire of tango
         # events.
         self._axis_of_rotation = None
         try:
+            # NOTE: We need to put this strategy into test. Since this routine is supposed to be
+            # executed in the reconstruction server its implication on the reconstruction workflow
+            # needs to be understood.
             import cupy as cp
             cp._default_memory_pool.free_all_blocks()
             self.info_stream("%s: attempted to release unused GPU memory")

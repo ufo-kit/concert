@@ -254,22 +254,27 @@ class RotationAxisEstimator(TangoMixin, base.Addon):
         :type num_radios: int
         :param rot_angle: overall rotation angle.
         :type rot_angle: float, defaults to `np.pi`
-        :kwargs:
-        crop_vert_prop(int): vertical proportion to find the sphere, negative value denotes towards
-        bottom, positive value denotes towards top, defaults 1, means whole projection.
-        crop_left_px: left side cropping by pixels, defaults to 0, means no cropping.
-        crop_right_px: right side cropping by pixels, defaults to 0, means no cropping.
-        radius: approximate radius of the sphere by pixels, defaults to 65 for 5x magnification.
-        init_wait: initial wait time before estimation starts, defaults to an experimental value of
-        50 projections.
-        avg_beta: smoothing factor to smooth out the estimated value to ensure a faster convergence,
-        defaults to 0.9.
-        diff_thresh: threshold value for the difference in consecutive projections to evaluate
-        convergence, defaults to 0.1.
-        conv_window: number of past estimation, on which convergence should be evaluated, defaults
-        to 50 projections.
-        roi_width: to calculate a default axis of rotation and unblock the reco device, defaults to
-        1008 for detector size of (2016, 2016).
+        :param crop_vert_prop: (kwarg)vertical proportion to find the sphere, negative value denotes
+        towards bottom, positive value denotes towards top, default 1, means whole projection.
+        :type crop_vert_prop: int
+        :param crop_left_px: (kwarg)left side cropping by pixels, default 0, means no cropping.
+        :type crop_left_px: int
+        :param crop_right_px: (kwarg)right side cropping by pixels, default 0, means no cropping.
+        :type crop_right_px: int
+        :param radius: (kwarg)approximate radius of the sphere by pixels, default 65 for 5x
+        magnification (155-190 q.um Tungsten Carbide).
+        :type radius: int
+        :param init_wait: (kwarg)initial wait time before estimation starts, default 50 projections.
+        :type init_wait: int
+        :param avg_beta: (kwarg)smoothing factor to smooth out the estimated value to ensure a
+        faster convergence, default 0.9.
+        :param avg_beta: float
+        :param diff_thresh: (kwarg)threshold diff value in estimated center of rotation from
+        successive projections, default 0.1.
+        :type diff_thresh: float
+        :param conv_window: (kwarg)number of past estimations, based on which convergence should be
+        evaluated, default 50 projections.
+        :type conv_window: int
         """
         await TangoMixin.__ainit__(self, device, endpoint)
         await self._device.write_attribute("rot_angle", rot_angle)
@@ -289,9 +294,8 @@ class RotationAxisEstimator(TangoMixin, base.Addon):
         avg_beta: float = kwargs.get("avg_beta", 0.9)
         diff_thresh: float = kwargs.get("diff_thresh", 0.1)
         conv_window: int = kwargs.get("conv_window", 50)
-        roi_width: int = kwargs.get("roi_width", 1008)
         await self._device.write_attribute("attr_estm", np.array([init_wait, avg_beta, diff_thresh,
-                                                                  conv_window, roi_width]))
+                                                                  conv_window]))
         await base.Addon.__ainit__(self, experiment, acquisitions)
 
     async def _get_center_of_rotation(self) -> float:
