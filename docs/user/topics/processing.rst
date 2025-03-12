@@ -79,7 +79,10 @@ the UFO data processing framework. The simplest example could look like this::
     from concert.ext.ufo import InjectProcess
     from gi.repository import Ufo
     import numpy as np
-    import scipy.misc
+    try:
+        from scipy.misc import ascent
+    except ModuleNotFoundError:
+        from scipy.datasets import ascent
 
     pm = Ufo.PluginManager()
     writer = pm.get_task('write')
@@ -88,7 +91,7 @@ the UFO data processing framework. The simplest example could look like this::
     proc = InjectProcess(writer)
 
     proc.start()
-    await proc.insert(scipy.misc.ascent())
+    await proc.insert(ascent())
     proc.wait()
 
 
