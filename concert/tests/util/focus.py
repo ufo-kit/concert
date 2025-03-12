@@ -1,6 +1,6 @@
 try:
     from scipy.misc import ascent
-except ModuleNotFoundError:
+except ImportError:
     from scipy.datasets import ascent
 from scipy.ndimage import gaussian_filter
 from concert.quantities import q

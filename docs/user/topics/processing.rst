@@ -81,7 +81,7 @@ the UFO data processing framework. The simplest example could look like this::
     import numpy as np
     try:
         from scipy.misc import ascent
-    except ModuleNotFoundError:
+    except ImportError:
         from scipy.datasets import ascent
 
     pm = Ufo.PluginManager()
