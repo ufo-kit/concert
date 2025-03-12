@@ -42,6 +42,7 @@ setup(
         'prettytable',
         'pyqtgraph',
         'pyxdg',
+        'pooch',
         'scipy',
         'tifffile',
         'pyzmq>=23.2.1',
