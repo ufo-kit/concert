@@ -434,14 +434,6 @@ class OnlineReconstruction(Addon):
     async def update_flats(self, *args, **kwargs):
         ...
 
-    @abstractmethod
-    async def read_darks_from_file(self, path):
-        ...
-
-    @abstractmethod
-    async def read_flats_from_file(self, path):
-        ...
-
     async def reconstruct(self, *args, **kwargs):
         await self._reconstruct(*args, **kwargs)
         await self._show_slice()
