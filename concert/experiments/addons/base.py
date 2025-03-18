@@ -358,7 +358,7 @@ class OnlineReconstruction(Addon):
     async def register_args(self, **kwargs):
         params = {}
         from concert.ext.ufo import GeneralBackprojectArgs
-
+        self._reco_args = GeneralBackprojectArgs()
         for arg, settings in GeneralBackprojectArgs.parameters.items():
 
             if arg in self.UNITS:
@@ -409,16 +409,16 @@ class OnlineReconstruction(Addon):
             await self._params[arg].set(kwargs[arg])
 
     async def _get_z_parameters(self):
-        return self._proxy.z_parameters
+        return self._reco_args.z_parameters
 
     async def _get_slice_metrics(self):
-        return self._proxy.slice_metrics
+        return self._reco_args.slice_metrics
 
     async def _get_slice_metric(self):
-        return self._proxy.slice_metric
+        return self._reco_args.slice_metric
 
     async def _set_slice_metric(self, metric):
-        self._proxy.slice_metric = metric
+        self._reco_args.slice_metric = metric
 
     async def _get_z_parameter(self):
         return self._proxy.z_parameter
