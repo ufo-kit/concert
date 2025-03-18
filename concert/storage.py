@@ -14,6 +14,7 @@ import tango
 import zmq
 import tifffile
 from concert.base import Parameterizable, Parameter
+from concert.config import DISTRIBUTED_TANGO_TIMEOUT
 from concert.coroutines.base import background
 from concert.networking.base import ZmqSender
 from concert.writers import TiffWriter
@@ -513,6 +514,7 @@ class RemoteDirectoryWalker(Walker):
         :type bytes_per_file: int
         """
         self.device = device
+        self.device.set_timeout_millis(DISTRIBUTED_TANGO_TIMEOUT)
         # NOTE: The method get_attribute_list is not a coroutine, hence should not be
         # awaited.
         LOG.debug("device attributes: %s", self.device.get_attribute_list())
