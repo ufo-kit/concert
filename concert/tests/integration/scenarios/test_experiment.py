@@ -99,13 +99,15 @@ class TestRemoteExperiment(TestCase):
         items: List[str] = os.listdir(base_path)
         items = list(filter(lambda name: "scan" in name, items))
         self.assertTrue(len(items) > 0)
+        self.list_files(base_path.__str__())
         for item in items:
             abs_path: Path = base_path.joinpath(item)
             self.assertTrue(os.path.exists(abs_path.joinpath("darks")))
             self.assertTrue(os.path.exists(abs_path.joinpath("flats")))
             self.assertTrue(os.path.exists(abs_path.joinpath("radios")))
             self.assertTrue(os.path.exists(abs_path.joinpath("experiment.log")))
-            self.assertTrue(os.path.exists(abs_path.joinpath("experiment.json")))
+            self.assertTrue(os.path.exists(abs_path.joinpath("experiment_start.json")))
+            self.assertTrue(os.path.exists(abs_path.joinpath("experiment_finish.json")))
             darks: ArrayLike = skio.ImageCollection(abs_path.joinpath("darks/frame_000000.tif"
                                                                     ).__str__())
             flats: ArrayLike = skio.ImageCollection(abs_path.joinpath("flats/frame_000000.tif"
@@ -115,12 +117,11 @@ class TestRemoteExperiment(TestCase):
             print(f"Num Darks: {len(darks)}")
             print(f"Num flats: {len(flats)}")
             print(f"Num radios: {len(radios)}")
-            with open(abs_path.joinpath("experiment.json")) as log:
+            with open(abs_path.joinpath("experiment_finish.json")) as log:
                 exp_log: Dict[str, Any] = json.load(log)["experiment"]
                 self.assertTrue(len(darks) == int(exp_log["num_darks"]))
                 self.assertTrue(len(flats) == int(exp_log["num_flats"]))
                 self.assertTrue(len(radios) == int(exp_log["num_projections"]))
-            self.list_files(abs_path.__str__())
 
     async def asyncTearDown(self) -> None:
         await super().asyncTearDown()
