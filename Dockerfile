@@ -36,7 +36,7 @@ RUN apt install -y \
 # Install necessary Python packages
 RUN pip install --break-system-packages \
     numpy \
-    pytango==9.5.0 \
+    pytango \
     scikit-image \
     imageio \
     pytest
