@@ -39,7 +39,6 @@ RUN pip install --break-system-packages \
     pytango==9.5.0 \
     scikit-image \
     imageio \
-    pyzmq \
     pytest
 
 WORKDIR /home
