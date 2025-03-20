@@ -35,7 +35,7 @@ RUN apt install -y \
 
 # Install necessary Python packages
 RUN pip install --break-system-packages \
-    numpy==1.26.4 \
+    numpy \
     pytango==9.5.0 \
     scikit-image \
     imageio \
