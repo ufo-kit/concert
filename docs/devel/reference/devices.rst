@@ -9,9 +9,6 @@ Cameras
     :members:
 
 .. autoclass:: concert.devices.cameras.uca.Camera
-.. autoclass:: concert.devices.cameras.pco.Pco
-.. autoclass:: concert.devices.cameras.pco.Dimax
-.. autoclass:: concert.devices.cameras.pco.PCO4000
 
 .. autoclass:: concert.devices.cameras.dummy.Camera
 

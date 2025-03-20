@@ -10,13 +10,13 @@ logging output.
 Acquisition
 -----------
 
-Experiments consist of :class:`.LocalAcquisition` or :class:`.RemoteAcquisition`
-objects which encapsulate data generator and consumers for a particular
-experiment part (dark fields, radiographs, ...). This way the experiments can be
-broken up into smaller logical pieces. A single acquisition object needs to be
-reproducible in order to repeat an experiment more times, thus we specify its
-generator and consumers as callables which return the actual generator or
-consumer. We need to do this because generators cannot be "restarted".
+Experiments consist of :class:`.Acquisition` objects which encapsulate data
+generator and consumers for a particular experiment part (dark fields,
+radiographs, ...). This way the experiments can be broken up into smaller
+logical pieces. A single acquisition object needs to be reproducible in order to
+repeat an experiment more times, thus we specify its generator and consumers as
+callables which return the actual generator or consumer. We need to do this
+because generators cannot be "restarted".
 
 It is very important that you enclose the executive part of the production and
 consumption code in `try-finally` to ensure proper clean up. E.g. if a producer
@@ -25,7 +25,7 @@ starts rotating a motor, then in the `finally` clause there should be the call
 
 An example of an acquisition could look like this::
 
-    from concert.experiments.base import LocalAcquisition, LocalConsumer
+    from concert.experiments.base import Acquisition
 
     # This is a real generator, num_items is provided somewhere in our session
     async def produce():
@@ -50,17 +50,12 @@ An example of an acquisition could look like this::
     await acquisition()
 
 
-.. autoclass:: concert.experiments.base.LocalAcquisition
+.. autoclass:: concert.experiments.base.Acquisition
     :members:
 
-.. autoclass:: concert.experiments.base.RemoteAcquisition
+.. autoclass:: concert.experiments.base.Consumer
     :members:
 
-.. autoclass:: concert.experiments.base.LocalConsumer
-    :members:
-
-.. autoclass:: concert.experiments.base.RemoteConsumer
-    :members:
 
 Base
 ----
@@ -159,46 +154,101 @@ For detailed information how they are implemented, you can have a look at the ba
 In the standard configuration, all tomography and radiography experiments first acquire the dark images, then the flat images and the projection images of the sample at the end.
 This order can be adjusted by the :func:`~concert.experiments.base.Experiment.swap` command.
 
+
 Radiography
 """""""""""
 
-.. autoclass:: concert.experiments.synchrotron.Radiography
+.. autoclass:: concert.experiments.imaging.RadiographyLogic
+   :noindex:
+.. autoclass:: concert.experiments.synchrotron.RadiographyLogic
+   :noindex:
+.. autoclass:: concert.experiments.xraytube.RadiographyLogic
+   :noindex:
+.. autoclass:: concert.experiments.synchrotron.LocalRadiography
+   :noindex:
+.. autoclass:: concert.experiments.synchrotron.RemoteRadiography
+   :noindex:
+.. autoclass:: concert.experiments.xraytube.LocalRadiography
+   :noindex:
+.. autoclass:: concert.experiments.xraytube.RemoteRadiography
+   :noindex:
 
-.. autoclass:: concert.experiments.xraytube.Radiography
-    :members: flat_position, radio_position, num_darks, num_flats, num_projections
 
 SteppedTomography
 """""""""""""""""
 
-.. autoclass:: concert.experiments.synchrotron.SteppedTomography
-.. autoclass:: concert.experiments.xraytube.SteppedTomography
-    :members: flat_position, radio_position, num_darks, num_flats, num_projections, angular_range, start_angle
-
+.. autoclass:: concert.experiments.imaging.SteppedTomographyLogic
+   :noindex:
+.. autoclass:: concert.experiments.synchrotron.SteppedTomographyLogic
+   :noindex:
+.. autoclass:: concert.experiments.xraytube.SteppedTomographyLogic
+   :noindex:
+.. autoclass:: concert.experiments.synchrotron.LocalSteppedTomography
+   :noindex:
+.. autoclass:: concert.experiments.synchrotron.RemoteSteppedTomography
+   :noindex:
+.. autoclass:: concert.experiments.xraytube.LocalSteppedTomography
+   :noindex:
+.. autoclass:: concert.experiments.xraytube.RemoteSteppedTomography
+   :noindex:
 
 
 ContinuousTomography
 """"""""""""""""""""
 
-.. autoclass:: concert.experiments.synchrotron.ContinuousTomography
-.. autoclass:: concert.experiments.xraytube.ContinuousTomography
-    :members: flat_position, radio_position, num_darks, num_flats, num_projections, angular_range, start_angle, velocity
+.. autoclass:: concert.experiments.imaging.ContinuousTomographyLogic
+   :noindex:
+.. autoclass:: concert.experiments.synchrotron.ContinuousTomographyLogic
+   :noindex:
+.. autoclass:: concert.experiments.xraytube.ContinuousTomographyLogic
+   :noindex:
+.. autoclass:: concert.experiments.synchrotron.LocalContinuousTomography
+   :noindex:
+.. autoclass:: concert.experiments.synchrotron.RemoteContinuousTomography
+   :noindex:
+.. autoclass:: concert.experiments.xraytube.LocalContinuousTomography
+   :noindex:
+.. autoclass:: concert.experiments.xraytube.RemoteContinuousTomography
+   :noindex:
 
 
 
 SteppedSpiralTomography
 """""""""""""""""""""""
 
-.. autoclass:: concert.experiments.synchrotron.SteppedSpiralTomography
-.. autoclass:: concert.experiments.xraytube.SteppedSpiralTomography
-    :members: flat_position, radio_position, num_darks, num_flats, num_projections, angular_range, start_angle, start_position_vertical, vertical_shift_per_tomogram, sample_height
+.. autoclass:: concert.experiments.imaging.SteppedSpiralTomographyLogic
+   :noindex:
+.. autoclass:: concert.experiments.synchrotron.SteppedSpiralTomographyLogic
+   :noindex:
+.. autoclass:: concert.experiments.xraytube.SteppedSpiralTomographyLogic
+   :noindex:
+.. autoclass:: concert.experiments.synchrotron.LocalSteppedSpiralTomography
+   :noindex:
+.. autoclass:: concert.experiments.synchrotron.RemoteSteppedSpiralTomography
+   :noindex:
+.. autoclass:: concert.experiments.xraytube.LocalSteppedSpiralTomography
+   :noindex:
+.. autoclass:: concert.experiments.xraytube.RemoteSteppedSpiralTomography
+   :noindex:
 
 
 ContinuousSpiralTomography
 """"""""""""""""""""""""""
 
-.. autoclass:: concert.experiments.synchrotron.ContinuousSpiralTomography
-.. autoclass:: concert.experiments.xraytube.ContinuousSpiralTomography
-    :members: flat_position, radio_position, num_darks, num_flats, num_projections, angular_range, start_angle, velocity,  start_position_vertical, vertical_shift_per_tomogram, sample_height
+.. autoclass:: concert.experiments.imaging.ContinuousSpiralTomographyLogic
+   :noindex:
+.. autoclass:: concert.experiments.synchrotron.ContinuousSpiralTomographyLogic
+   :noindex:
+.. autoclass:: concert.experiments.xraytube.ContinuousSpiralTomographyLogic
+   :noindex:
+.. autoclass:: concert.experiments.synchrotron.LocalContinuousSpiralTomography
+   :noindex:
+.. autoclass:: concert.experiments.synchrotron.RemoteContinuousSpiralTomography
+   :noindex:
+.. autoclass:: concert.experiments.xraytube.LocalContinuousSpiralTomography
+   :noindex:
+.. autoclass:: concert.experiments.xraytube.RemoteContinuousSpiralTomography
+   :noindex:
 
 
 GratingInterferometryStepping
@@ -210,9 +260,10 @@ Dark images are also recorded.
 If the :class:`concert.experiments.addons.PhaseGratingSteppingFourierProcessing` addon is attached,
 directly the intensity, visibility and differential phase are reconstructed.
 
-.. autoclass:: concert.experiments.synchrotron.GratingInterferometryStepping
-.. autoclass:: concert.experiments.xraytube.GratingInterferometryStepping
-    :members: flat_position, radio_position, num_darks, grating_period, num_periods, num_steps_per_period, stepping_start_position, propagation_distance
+.. autoclass:: concert.experiments.synchrotron.LocalGratingInterferometryStepping
+   :noindex:
+.. autoclass:: concert.experiments.xraytube.LocalGratingInterferometryStepping
+   :noindex:
 
 
 Control

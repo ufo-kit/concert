@@ -21,45 +21,110 @@ For special cameras the generator :func:`~concert.experiments.imaging.Radiograph
 
 
 Radiography
------------
+"""""""""""
 
-.. autoclass:: concert.experiments.imaging.Radiography
+.. autoclass:: concert.experiments.imaging.RadiographyLogic
+   :show-inheritance:
+.. autoclass:: concert.experiments.synchrotron.RadiographyLogic
+   :show-inheritance:
+.. autoclass:: concert.experiments.xraytube.RadiographyLogic
+   :show-inheritance:
+.. autoclass:: concert.experiments.synchrotron.LocalRadiography
+   :show-inheritance:
+.. autoclass:: concert.experiments.synchrotron.RemoteRadiography
+   :show-inheritance:
+.. autoclass:: concert.experiments.xraytube.LocalRadiography
+   :show-inheritance:
+.. autoclass:: concert.experiments.xraytube.RemoteRadiography
+   :show-inheritance:
+
+
+SteppedTomography
+"""""""""""""""""
+
+.. autoclass:: concert.experiments.imaging.SteppedTomographyLogic
+   :show-inheritance:
+.. autoclass:: concert.experiments.synchrotron.SteppedTomographyLogic
+   :show-inheritance:
+.. autoclass:: concert.experiments.xraytube.SteppedTomographyLogic
+   :show-inheritance:
+.. autoclass:: concert.experiments.synchrotron.LocalSteppedTomography
+   :show-inheritance:
+.. autoclass:: concert.experiments.synchrotron.RemoteSteppedTomography
+   :show-inheritance:
+.. autoclass:: concert.experiments.xraytube.LocalSteppedTomography
+   :show-inheritance:
+.. autoclass:: concert.experiments.xraytube.RemoteSteppedTomography
+   :show-inheritance:
+
+
+ContinuousTomography
+""""""""""""""""""""
+
+.. autoclass:: concert.experiments.imaging.ContinuousTomographyLogic
+   :show-inheritance:
+.. autoclass:: concert.experiments.synchrotron.ContinuousTomographyLogic
+   :show-inheritance:
+.. autoclass:: concert.experiments.xraytube.ContinuousTomographyLogic
+   :show-inheritance:
+.. autoclass:: concert.experiments.synchrotron.LocalContinuousTomography
+   :show-inheritance:
+.. autoclass:: concert.experiments.synchrotron.RemoteContinuousTomography
+   :show-inheritance:
+.. autoclass:: concert.experiments.xraytube.LocalContinuousTomography
+   :show-inheritance:
+.. autoclass:: concert.experiments.xraytube.RemoteContinuousTomography
+   :show-inheritance:
+
+
+SteppedSpiralTomography
+"""""""""""""""""""""""
+
+.. autoclass:: concert.experiments.imaging.SteppedSpiralTomographyLogic
+   :show-inheritance:
+.. autoclass:: concert.experiments.synchrotron.SteppedSpiralTomographyLogic
+   :show-inheritance:
+.. autoclass:: concert.experiments.xraytube.SteppedSpiralTomographyLogic
+   :show-inheritance:
+.. autoclass:: concert.experiments.synchrotron.LocalSteppedSpiralTomography
+   :show-inheritance:
+.. autoclass:: concert.experiments.synchrotron.RemoteSteppedSpiralTomography
+   :show-inheritance:
+.. autoclass:: concert.experiments.xraytube.LocalSteppedSpiralTomography
+   :show-inheritance:
+.. autoclass:: concert.experiments.xraytube.RemoteSteppedSpiralTomography
+   :show-inheritance:
+
+
+ContinuousSpiralTomography
+""""""""""""""""""""""""""
+
+.. autoclass:: concert.experiments.imaging.ContinuousSpiralTomographyLogic
+   :show-inheritance:
+.. autoclass:: concert.experiments.synchrotron.ContinuousSpiralTomographyLogic
+   :show-inheritance:
+.. autoclass:: concert.experiments.xraytube.ContinuousSpiralTomographyLogic
+   :show-inheritance:
+.. autoclass:: concert.experiments.synchrotron.LocalContinuousSpiralTomography
+   :show-inheritance:
+.. autoclass:: concert.experiments.synchrotron.RemoteContinuousSpiralTomography
+   :show-inheritance:
+.. autoclass:: concert.experiments.xraytube.LocalContinuousSpiralTomography
+   :show-inheritance:
+.. autoclass:: concert.experiments.xraytube.RemoteContinuousSpiralTomography
+   :show-inheritance:
+
+
+GratingInterferometryStepping
+"""""""""""""""""""""""""""""
+
+In this grating based phase contrast imaging implementation a single projection is generated.
+The grating is stepped with and without the sample while images are recorded.
+Dark images are also recorded.
+If the :class:`concert.experiments.addons.PhaseGratingSteppingFourierProcessing` addon is attached,
+directly the intensity, visibility and differential phase are reconstructed.
+
+.. autoclass:: concert.experiments.synchrotron.LocalGratingInterferometryStepping
     :show-inheritance:
-    :members: start_sample_exposure, stop_sample_exposure, _produce_frames, _prepare_darks, _finish_darks, _prepare_flats, _finish_flats,  _prepare_radios, _finish_radios, _take_radios, _take_darks, _take_flats
-
-
-
-Tomography
-----------
-
-.. autoclass:: concert.experiments.imaging.Tomography
+.. autoclass:: concert.experiments.xraytube.LocalGratingInterferometryStepping
     :show-inheritance:
-    :members: flat_position, radio_position, num_darks, num_flats, num_projections, num_projections_total, angular_range, start_angle, start_sample_exposure, stop_sample_exposure, _produce_frames, _prepare_darks, _finish_darks, _prepare_flats, _finish_flats,  _prepare_radios, _finish_radios, _take_radios, _take_darks, _take_flats
-
-Stepped tomography
-------------------
-
-.. autoclass:: concert.experiments.imaging.SteppedTomography
-    :show-inheritance:
-    :members: flat_position, radio_position, num_darks, num_flats, num_projections, num_projections_total, angular_range, start_angle, start_sample_exposure, stop_sample_exposure, _produce_frames, _prepare_darks, _finish_darks, _prepare_flats, _finish_flats,  _prepare_radios, _finish_radios, _take_radios, _take_darks, _take_flats
-
-Continuous tomography
----------------------
-
-.. autoclass:: concert.experiments.imaging.ContinuousTomography
-    :show-inheritance:
-    :members: flat_position, radio_position, num_darks, num_flats, num_projections, num_projections_total, angular_range, start_angle, velocity, start_sample_exposure, stop_sample_exposure, _produce_frames, _prepare_darks, _finish_darks, _prepare_flats, _finish_flats,  _prepare_radios, _finish_radios, _take_radios, _take_darks, _take_flats
-
-Stepped spiral tomography
--------------------------
-
-.. autoclass:: concert.experiments.imaging.SteppedSpiralTomography
-    :show-inheritance:
-    :members: flat_position, radio_position, num_darks, num_flats, num_projections, num_projections_total, angular_range, start_angle, start_position_vertical, vertical_shift_per_tomogram, sample_height, start_sample_exposure, stop_sample_exposure, _produce_frames, _prepare_darks, _finish_darks, _prepare_flats, _finish_flats,  _prepare_radios, _finish_radios, _take_radios, _take_darks, _take_flats
-
-Continuous spiral tomography
-----------------------------
-
-.. autoclass:: concert.experiments.imaging.ContinuousSpiralTomography
-    :show-inheritance:
-    :members: flat_position, radio_position, num_darks, num_flats, num_projections, num_projections_total, angular_range, start_angle, velocity,  start_position_vertical, vertical_shift_per_tomogram, sample_height, start_sample_exposure, stop_sample_exposure, _produce_frames, _prepare_darks, _finish_darks, _prepare_flats, _finish_flats,  _prepare_radios, _finish_radios, _take_radios, _take_darks, _take_flats
