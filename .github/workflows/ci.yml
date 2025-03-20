@@ -1,0 +1,27 @@
+name: concert-scenarios
+on:
+    push:
+      branches: [ master ]
+    pull_request:
+      branches: [ master, decentralize]
+permissions:
+  contents: write
+jobs:
+    scenarios:
+        runs-on: ubuntu-22.04
+        steps:
+            - uses: actions/checkout@v3
+            - name: Build Image
+              run: docker build -t concert-docker .
+            - name: Setup Decentralized Infrastructure
+              run: docker compose -f concert/tests/integration/scenarios/compose.yml up -d
+            - name: Run Scenarios
+              run: |
+                docker run \
+                --network scenarios_concert_net \
+                --volume /mnt:/mnt/ips_image_mnt \
+                --env-file concert/tests/integration/scenarios/scenarios.env \
+                concert-docker \
+                make scenarios
+            - name: Teardown Decentralized Infrastructure
+              run: docker compose -f concert/tests/integration/scenarios/compose.yml down -v

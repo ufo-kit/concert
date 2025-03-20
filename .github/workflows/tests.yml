@@ -43,7 +43,7 @@ jobs:
         # run_server_detached TangoOnlineReco test -nodb --port 1205 --dlist concert/tango/reco
     - name: Test with pytest
       run: |
-        coverage run --source=concert -m pytest -m "not skip_ci"
+        coverage run --source=concert -m pytest --ignore=concert/tests/integration/scenarios -m "not skip_ci" 
     - name: Convert coverage to xml
       if: matrix.python-version == '3.12'
       run: |
