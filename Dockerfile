@@ -1,9 +1,8 @@
-FROM ubuntu:22.04
-
-# Do not allow interactive terminal prompts
-ARG DEBIAN_FRONTEND=noninteractive
+FROM ubuntu:24.04
 
 # Set necessary environment variables
+ENV TZ=DE
+ENV DEBIAN_FRONTEND=noninteractive
 ENV PIP_ROOT_USER_ACTION=ignore
 ENV G_MESSAGES_DEBUG=all
 ENV LD_LIBRARY_PATH=/usr/local/lib
@@ -19,7 +18,7 @@ RUN apt-get update && apt-get install -y \
     cmake \
     libglib2.0-0 \
     libgtk+2.0-dev \
-    libgirepository1.0-dev \
+    libgirepository-1.0-dev \
     ninja-build \
     libzmq5-dev \
     libjson-glib-dev \
@@ -28,22 +27,19 @@ RUN apt-get update && apt-get install -y \
     netcat-traditional \
     tree
 
-# Install Python 3.9 (Encountered issues with uca-net and Python 3.10)
-RUN apt-get install -y software-properties-common && \
-    add-apt-repository -y ppa:deadsnakes/ppa && \
-    apt-get update && \
-    apt install -y python3.9 \
+RUN apt install -y \
     python3-pip \
     python3-setuptools \
-    python3-wheel
+    python3-wheel \
+    python3-gi
 
 # Install necessary Python packages
-RUN pip install --upgrade pip && pip install \
-    PyGObject==3.38.0 \
-    numpy \
+RUN pip install --break-system-packages \
+    numpy==1.26.4 \
     pytango==9.5.0 \
     scikit-image \
     imageio \
+    pyzmq \
     pytest
 
 WORKDIR /home
@@ -75,6 +71,6 @@ WORKDIR /home/concert
 
 COPY . .
 
-RUN pip install -e .
+RUN pip install --break-system-packages -e .
 
 # NOTE: Concert session location inside the container: /root/.local/share/concert/.
