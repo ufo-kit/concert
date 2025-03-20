@@ -302,6 +302,6 @@ class TestDirectorLogging(unittest.IsolatedAsyncioTestCase):
                                                               expected_log_paths))
         mock_device.deregister_logger.assert_has_calls(expected_deregister_calls)
         self.assertEqual(mock_device.deregister_logger.call_count, expected_deregister_call_count)
-        # JSON logging takes place ones for each iteration
-        expected_json_logging_call_count = self._director_iter
+        # JSON logging takes place twice for each iteration
+        expected_json_logging_call_count = self._director_iter * 2
         self.assertTrue(mock_device.log_to_json.call_count == expected_json_logging_call_count)

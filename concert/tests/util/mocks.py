@@ -101,6 +101,9 @@ class MockWalkerDevice:
     async def log_to_json(self, payload: str) -> None:
         await self.mock_device.log_to_json(payload)
 
+    def set_timeout_millis(self, timeout: int) -> None:
+        pass
+
 
 if __name__ == "__main__":
     pass

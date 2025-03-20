@@ -2,6 +2,7 @@
 the acquired data, e.g. write images to disk, do tomographic reconstruction etc.
 """
 import logging
+from abc import abstractmethod
 
 import numpy as np
 
@@ -357,7 +358,7 @@ class OnlineReconstruction(Addon):
     async def register_args(self, **kwargs):
         params = {}
         from concert.ext.ufo import GeneralBackprojectArgs
-
+        self._reco_args = GeneralBackprojectArgs()
         for arg, settings in GeneralBackprojectArgs.parameters.items():
 
             if arg in self.UNITS:
@@ -377,6 +378,7 @@ class OnlineReconstruction(Addon):
 
         self.install_parameters(params)
         await self._set_args(**kwargs)
+
     def _make_getter(self, arg, unit=None):
         async def getter(instance):
             value = await self._proxy.get_reco_arg(arg)
@@ -407,16 +409,16 @@ class OnlineReconstruction(Addon):
             await self._params[arg].set(kwargs[arg])
 
     async def _get_z_parameters(self):
-        return self._proxy.z_parameters
+        return self._reco_args.z_parameters
 
     async def _get_slice_metrics(self):
-        return self._proxy.slice_metrics
+        return self._reco_args.slice_metrics
 
     async def _get_slice_metric(self):
-        return self._proxy.slice_metric
+        return self._reco_args.slice_metric
 
     async def _set_slice_metric(self, metric):
-        self._proxy.slice_metric = metric
+        self._reco_args.slice_metric = metric
 
     async def _get_z_parameter(self):
         return self._proxy.z_parameter
@@ -424,11 +426,13 @@ class OnlineReconstruction(Addon):
     async def _set_z_parameter(self, name):
         self._proxy.z_parameter = name
 
+    @abstractmethod
     async def update_darks(self, *args, **kwargs):
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     async def update_flats(self, *args, **kwargs):
-        raise NotImplementedError
+        ...
 
     async def reconstruct(self, *args, **kwargs):
         await self._reconstruct(*args, **kwargs)
@@ -447,21 +451,26 @@ class OnlineReconstruction(Addon):
             await self.viewer.show(await self.get_slice(z=index))
             await self.viewer.set_title(await self.experiment.get_current_name())
 
+    @abstractmethod
     async def find_axis(self, region, z=0, store=False):
         """Find the rotation axis in the *region* as [from, to, step] and return it."""
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     async def get_volume(self):
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     async def _get_slice_x(self, index):
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     async def _get_slice_y(self, index):
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     async def _get_slice_z(self, index):
-        raise NotImplementedError
+        ...
 
     async def _get_slice_directory(self):
         return self._slice_directory

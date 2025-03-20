@@ -6,6 +6,7 @@ import os
 import numpy as np
 import tango
 
+from concert.config import DISTRIBUTED_TANGO_TIMEOUT
 from concert.experiments.addons import base
 from concert.experiments.base import remote
 from concert.helpers import CommData
@@ -44,6 +45,7 @@ class TangoMixin:
 
     async def __ainit__(self, device, endpoint: CommData) -> Awaitable:
         self._device = device
+        self._device.set_timeout_millis(DISTRIBUTED_TANGO_TIMEOUT)
         self.endpoint = endpoint
         await self._device.write_attribute('endpoint', self.endpoint.client_endpoint)
 
@@ -95,7 +97,10 @@ class LiveView(base.LiveView):
 
     async def __ainit__(self, viewer, endpoint, experiment, acquisitions=None):
         self.endpoint = endpoint
-        await base.LiveView.__ainit__(self, viewer, experiment=experiment, acquisitions=acquisitions)
+        await base.LiveView.__ainit__(self,
+                                      viewer,
+                                      experiment=experiment,
+                                      acquisitions=acquisitions)
         self._orig_limits = await viewer.get_limits()
 
     async def connect_endpoint(self):

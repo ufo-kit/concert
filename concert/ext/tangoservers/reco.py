@@ -8,7 +8,7 @@ from concert.ext.ufo import GeneralBackprojectManager, GeneralBackprojectArgs
 from concert.quantities import q
 from concert.networking.base import get_tango_device, ZmqSender
 from concert.storage import RemoteDirectoryWalker
-
+from ...config import DISTRIBUTED_TANGO_TIMEOUT
 
 MAX_DIM = 100000
 
@@ -137,7 +137,8 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
         host = args[3]
         port = args[4]
 
-        walker_device = get_tango_device(tango_remote, timeout=1000 * q.s)
+        walker_device = get_tango_device(tango_remote)
+        walker_device.set_timeout_millis(DISTRIBUTED_TANGO_TIMEOUT)
         await walker_device.write_attribute('endpoint', f"{protocol}://{host}:{port}")
         self._walker = await RemoteDirectoryWalker(
             device=walker_device,

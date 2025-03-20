@@ -88,14 +88,14 @@ class TestPCOTimestampAddon(TestCase):
         flat_motor = await LinearMotor()
         shutter = await Shutter()
         self.exp = await LocalRadiography(walker=self.walker,
-                                     camera=self.camera,
-                                     flat_motor=flat_motor,
-                                     shutter=shutter,
-                                     radio_position=0 * q.mm,
-                                     flat_position=10*q.mm,
-                                     num_projections=10,
-                                     num_flats=5,
-                                     num_darks=5)
+                                          camera=self.camera,
+                                          flat_motor=flat_motor,
+                                          shutter=shutter,
+                                          radio_position=0 * q.mm,
+                                          flat_position=10 * q.mm,
+                                          num_projections=10,
+                                          num_flats=5,
+                                          num_darks=5)
         self.addon = await PCOTimestampCheck(self.exp)
         self.writer = await ImageWriter(experiment=self.exp)
 
