@@ -253,6 +253,7 @@ class Camera(Device):
         :type endpoint: concert.helpers.CommData
         """
         if endpoint in self._senders:
+            self._senders[endpoint].close()
             del self._senders[endpoint]
 
     async def register_endpoint(self, endpoint: CommData) -> None:
@@ -272,6 +273,8 @@ class Camera(Device):
         )
 
     async def unregister_all(self) -> None:
+        for endpoint in self._senders:
+            await self.unregister_endpoint(endpoint)
         self._senders = {}
 
     @abstractmethod
