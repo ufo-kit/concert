@@ -23,8 +23,6 @@ setup(
     scripts=['bin/concert',
              'bin/concert-server',
              'bin/concert-connect',
-             'concert/ext/tangoservers/bin/TangoDummyCamera',
-             'concert/ext/tangoservers/bin/TangoFileCamera',
              'concert/ext/tangoservers/bin/TangoOnlineReconstruction',
              'concert/ext/tangoservers/bin/TangoRemoteWalker',
              'concert/ext/tangoservers/bin/TangoBenchmarker',
