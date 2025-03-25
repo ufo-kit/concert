@@ -405,7 +405,9 @@ class StartCommand(SubCommand):
 
         ip_config = traitlets.config.Config()
         if path and path.endswith('.py'):
-            lockfile = os.path.join(os.path.dirname(path), '.' + os.path.basename(path))
+            lockdir = os.path.join(os.path.expanduser("~"), ".concert")
+            os.makedirs(lockdir, mode=0o755, exist_ok=True)
+            lockfile = os.path.join(lockdir, '.' + os.path.basename(path))
             if not cs.is_multiinstance(session):
                 if os.path.exists(lockfile):
                     print(f"An instance of `{session}' seems to be already running.")
