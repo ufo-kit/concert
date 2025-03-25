@@ -273,8 +273,8 @@ class Camera(Device):
         )
 
     async def unregister_all(self) -> None:
-        for endpoint in self._senders:
-            await self.unregister_endpoint(endpoint)
+        for sender in self._senders.values():
+            sender.close()
         self._senders = {}
 
     @abstractmethod
