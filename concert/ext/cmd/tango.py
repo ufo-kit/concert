@@ -1,6 +1,6 @@
 from concert.session.utils import setup_logging, SubCommand
 
-SERVER_NAMES = ['benchmarker', 'dummycamera', 'filecamera', 'reco', 'writer', 'walker']
+SERVER_NAMES = ['benchmarker', 'dummycamera', 'filecamera', 'reco', 'walker']
 
 
 class TangoCommand(SubCommand):
@@ -34,7 +34,7 @@ class TangoCommand(SubCommand):
         Run a Tango server
 
         :param server: String defining the server type. Can be one of 'benchmarker', 'dummycamera',
-        'filecamera', 'reco', 'writer', 'walker'.
+        'filecamera', 'reco', 'walker'.
         :type server: str
         :param port: Port to run the server on. If *database* is True, this will be ignored.
         :type port: int
@@ -61,9 +61,6 @@ class TangoCommand(SubCommand):
         if server == "reco":
             from concert.ext.tangoservers import reco
             server_class = {'class': reco.TangoOnlineReconstruction}
-        if server == "writer":
-            from concert.ext.tangoservers import writer
-            server_class = {'class': writer.TangoWriter}
         if server == "walker":
             from concert.ext.tangoservers import walker
             server_class = {'class': walker.TangoRemoteWalker}
