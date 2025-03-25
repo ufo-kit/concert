@@ -1,8 +1,0 @@
-#!/usr/bin/env python3
-
-from concert.ext.tangoservers.camera import TangoFileCamera
-from tango import GreenMode
-
-
-if __name__ == '__main__':
-    TangoFileCamera.run_server(green_mode=GreenMode.Asyncio)

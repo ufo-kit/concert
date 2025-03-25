@@ -104,11 +104,6 @@ class TestRemoteProcessingStartup(TestCase):
             f = await tango_dev.state()
             self.assertNotEqual(f, None)
 
-        async with tango_run_standalone('TangoDummyCamera',  10*q.s) as tango_uri:
-            tango_dev = get_tango_device(tango_uri)
-            f = await tango_dev.state()
-            self.assertNotEqual(f, None)
-
     async def test_reco_startup(self):
         if test_with_tofu:
             async with tango_run_concert('reco', 10*q.s) as tango_uri:
