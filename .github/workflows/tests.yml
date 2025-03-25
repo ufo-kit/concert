@@ -36,10 +36,8 @@ jobs:
     - name: Start tango servers for tests in background
       run: |
         run_server_detached concert tango walker --port 1200
-        run_server_detached concert tango dummycamera --port 1202
         # run_server_detached concert tango reco --port 1204
         run_server_detached TangoRemoteWalker test -nodb --port 1201 --dlist concert/tango/walker
-        run_server_detached TangoDummyCamera test -nodb --port 1203 --dlist concert/tango/dummycamera
         # run_server_detached TangoOnlineReco test -nodb --port 1205 --dlist concert/tango/reco
     - name: Test with pytest
       run: |
