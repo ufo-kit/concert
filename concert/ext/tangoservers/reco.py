@@ -1,7 +1,7 @@
 """Tango device for online 3D reconstruction from zmq image stream."""
 import numpy as np
-from tango import DebugIt, CmdArgType
-from tango.server import command
+from tango import DebugIt, CmdArgType, PipeWriteType
+from tango.server import command, pipe
 from .base import TangoRemoteProcessing
 from concert.coroutines.base import async_generate
 from concert.ext.ufo import GeneralBackprojectManager, GeneralBackprojectArgs
@@ -89,6 +89,12 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     # Do not infect the class with temp variables
     del arg, dtype, settings
 
+    find_parameter_args = pipe(
+        label="find_parameter_args",
+        doc="Arguments for finding 3D reconstruction parameters",
+        access=PipeWriteType.PIPE_READ_WRITE
+    )
+
     async def init_device(self):
         """Inits device and communciation"""
         await super().init_device()
@@ -99,6 +105,7 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
         )
         self._walker = None
         self._sender = None
+        self._find_args = None
 
     @DebugIt()
     @command()
@@ -171,27 +178,31 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     async def rereconstruct(self, slice_directory):
         await self._reconstruct(cached=True, slice_directory=slice_directory)
 
-    @DebugIt(show_args=True, show_ret=True)
-    @command(
-        dtype_in=(float,),
-        doc_in="1. region start (float), "
-               "2. region end (float), "
-               "3. region step (float), "
-               "4. z position (int), "
-               "5. store (bool) ",
-        dtype_out=float,
-        doc_out="Found rotation axis"
-    )
-    async def find_axis(self, args):
-        region = [float(args[i]) for i in range(3)]
-        z = int(args[3])
-        store = bool(args[4])
+    @DebugIt()
+    async def write_find_parameter_args(self, args):
+        name, blob = args
+        self._find_args = dict([(arg["name"], arg["value"]) for arg in blob])
+        self.debug_stream("find arguemnts: %s", self._find_args)
+
+    @DebugIt(show_ret=True)
+    async def read_find_parameter_args(self):
+        if not self._find_args:
+            raise RuntimeError("Arguemnts not set")
+        return "find_parameter_args", self._find_args
+
+    @DebugIt(show_ret=True)
+    @command(dtype_out=float, doc_out="Found rotation axis")
+    async def find_parameter(self):
+        if not self._find_args:
+            raise RuntimeError("Arguemnts not set")
+
         return (
             await self._manager.find_parameters(
-                ["center-position-x"],
-                regions=[region],
-                z=z,
-                store=store
+                [self._find_args["parameter"]],
+                regions=[self._find_args["region"].astype(float).tolist()],
+                metrics=[self._find_args["metric"]],
+                store=self._find_args["store"],
+                z=self._find_args["z"],
             )
         )[0]
 

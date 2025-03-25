@@ -148,13 +148,17 @@ class OnlineReconstruction(base.OnlineReconstruction):
     async def _rereconstruct(self, slice_directory=None):
         await self._reconstruct(producer=None, slice_directory=slice_directory)
 
-    async def find_axis(self, region, z=0, store=False):
+    async def find_parameter(self, parameter, region, metric='sag', z=None, store=False):
+        # Unit conversion and simple list creation
+        region = region.to(self.UNITS[parameter.replace('-', '_')]).magnitude.tolist()
+
         return (
             await self._manager.find_parameters(
-                ["center-position-x"],
+                [parameter],
                 regions=[region],
+                metrics=[metric],
                 store=store,
-                z=z
+                z=0 if z is None else z.magnitude,
             )
         )[0]
 

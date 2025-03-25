@@ -53,7 +53,7 @@ class TangoCamera(Device, metaclass=DeviceMeta):
 
     async def init_device(self):
         if self.camera is None:
-            self.camera = await Base()
+            self.camera = await Camera()
         self.info_stream('%s init_device', self.__class__.__name__)
         await super().init_device()
         self._index = 0

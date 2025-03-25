@@ -200,8 +200,20 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
     async def _rereconstruct(self, slice_directory=None):
         await self._reconstruct(cached=True, slice_directory=slice_directory)
 
-    async def find_axis(self, region, z=0, store=False):
-        return await self._device.find_axis([region[0], region[1], region[2], z, float(store)])
+    async def find_parameter(self, parameter, region, metric='sag', z=None, store=False):
+        region = region.to(self.UNITS[parameter.replace('-', '_')]).magnitude.tolist()
+        blob = (
+            "find_parameter_args",
+            {
+                "parameter": parameter,
+                "region": region,
+                "z": 0 if z is None else z.magnitude,
+                "store": store,
+                "metric": metric,
+            }
+        )
+        await self._device.write_pipe("find_parameter_args", blob)
+        return await self._device.find_parameter()
 
     async def get_volume(self):
         volume = np.empty(await self._device.get_volume_shape(), dtype=np.float32)

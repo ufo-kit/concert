@@ -452,9 +452,14 @@ class OnlineReconstruction(Addon):
             await self.viewer.set_title(await self.experiment.get_current_name())
 
     @abstractmethod
-    async def find_axis(self, region, z=0, store=False):
-        """Find the rotation axis in the *region* as [from, to, step] and return it."""
+    async def find_parameter(self, parameter, region, metric='sag', z=None, store=False):
+        """Find optimal parameter value in the *region* as [from, to, step] based on *metric* at
+        height *z* and return it. If *store* is True, save the found value."""
         ...
+
+    async def find_axis(self, region, z=None, store=False):
+        """Find tomographic rotation axis."""
+        return await self.find_parameter("center-position-x", region, z=z, store=store)
 
     @abstractmethod
     async def get_volume(self):
