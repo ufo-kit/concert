@@ -4,7 +4,7 @@ from tango import DebugIt, CmdArgType, PipeWriteType
 from tango.server import command, pipe
 from .base import TangoRemoteProcessing
 from concert.coroutines.base import async_generate
-from concert.ext.ufo import GeneralBackprojectManager, GeneralBackprojectArgs
+from concert.ext.ufo import GeneralBackprojectManager, LocalGeneralBackprojectArgs
 from concert.quantities import q
 from concert.networking.base import get_tango_device, ZmqSender
 from concert.storage import RemoteDirectoryWalker
@@ -30,8 +30,8 @@ from tango.server import AttrWriteType
 )
 
 @DebugIt()
-def get_{0}(self):
-    arg = self._args.{0}
+async def get_{0}(self):
+    arg = await self._args.get_reco_arg("{0}")
     if arg is None:
         arg = self._default['{0}']
 
@@ -39,13 +39,13 @@ def get_{0}(self):
 
 @DebugIt()
 @command(dtype_in={1})
-def set_{0}(self, values):
+async def set_{0}(self, values):
     try:
         {1}[0]
         # For some reason tango converts normal 'float' to np.float64 which glib doesn't like
-        self._args.{0} = [{1}[0](value) for value in values]
+        await self._args.set_reco_arg("{0}", [{1}[0](value) for value in values])
     except TypeError:
-        self._args.{0} = values
+        await self._args.set_reco_arg("{0}", values)
 """
 
 
@@ -53,7 +53,7 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     """
     Tango device for online 3D reconstruction from zmq image stream.
     """
-    _args = GeneralBackprojectArgs()
+    _args = LocalGeneralBackprojectArgs()
     _default = {}
 
     for arg, settings in _args.parameters.items():
@@ -225,3 +225,13 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     @command(dtype_in=int, dtype_out=(np.float32,))
     def get_slice_z(self, index):
         return self._manager.volume[index].flatten()
+
+    @DebugIt()
+    @command(dtype_out=(str,))
+    async def get_z_parameters(self):
+        return await self._args.get_reco_arg("z_parameters")
+
+    @DebugIt()
+    @command(dtype_out=(str,))
+    async def get_slice_metrics(self):
+        return await self._args.get_reco_arg("slice_metrics")

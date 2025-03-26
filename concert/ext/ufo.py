@@ -246,12 +246,16 @@ class GeneralBackprojectArgs(object):
     parameters['height'] = SECTIONS['reading']['height']
     parameters['width'] = SECTIONS['general']['width']
     parameters['number'] = SECTIONS['reading']['number']
+    parameters['slice_metric'] = {
+        "default": None,
+        "type": str,
+        "help": "Slice metric for finding reconstruction parameters"
+    }
 
     def __init__(self, **kwargs):
-        self._slice_metric = None
-        self._slice_metrics = ['min', 'max', 'sum', 'mean', 'var', 'std', 'skew',
+        self.slice_metrics = ['min', 'max', 'sum', 'mean', 'var', 'std', 'skew',
                                'kurtosis', 'sag']
-        self._z_parameters = SECTIONS['general-reconstruction']['z-parameter']['choices']
+        self.z_parameters = SECTIONS['general-reconstruction']['z-parameter']['choices']
         for arg, settings in self.parameters.items():
             default = settings['default']
             if default is not None and 'type' in settings:
@@ -267,40 +271,20 @@ class GeneralBackprojectArgs(object):
                 raise AttributeError(f"GeneralBackprojectArgs do not have attribute `{arg}'")
             setattr(self, arg, kwargs[arg])
 
-    @property
-    def z_parameters(self):
-        return self._z_parameters
-
-    @property
-    def slice_metrics(self):
-        return self._slice_metrics
-
-    @property
-    def slice_metric(self):
-        return self._slice_metric
-
-    @slice_metric.setter
-    def slice_metric(self, metric):
-        if metric not in [None] + self.slice_metrics:
-            raise GeneralBackprojectArgsError("Metric '{}' not known".format(metric))
-        self._slice_metric = metric
-
-    @property
-    def z_parameter(self):
-        return self._z_parameter
-
-    @z_parameter.setter
-    def z_parameter(self, name):
-        if name not in self.z_parameters:
-            raise GeneralBackprojectArgsError("Unknown z parameter '{}'".format(name))
-        self._z_parameter = name
-
 
 class LocalGeneralBackprojectArgs(GeneralBackprojectArgs):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
     async def set_reco_arg(self, arg, value):
+        if arg in ["slice_metrics", "z_parameters"]:
+            raise AttributeError(f"`{arg}' cannot be set")
+        if arg == "slice_metric":
+            if value not in [None] + self.slice_metrics:
+                raise GeneralBackprojectArgsError("Metric '{}' not known".format(value))
+        elif arg == "z_parameter":
+            if value not in self.z_parameters:
+                raise GeneralBackprojectArgsError("Unknown z parameter '{}'".format(value))
         if not hasattr(self, arg):
             raise AttributeError(f"LocalGeneralBackprojectArgs do not have attribute `{arg}'")
         setattr(self, arg, value)

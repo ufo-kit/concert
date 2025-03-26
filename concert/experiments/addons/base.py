@@ -304,10 +304,6 @@ class OnlineReconstruction(Addon):
     }
 
     slice_directory = Parameter()
-    z_parameters = Parameter()
-    slice_metrics = Parameter()
-    slice_metric = Parameter()
-    z_parameter = Parameter()
 
     async def __ainit__(self, experiment, acquisitions=None, do_normalization=True,
                         average_normalization=True, slice_directory='online-slices',
@@ -376,6 +372,9 @@ class OnlineReconstruction(Addon):
                     help=settings['help']
                 )
 
+        params["z_parameters"] = Parameter(fget=self._make_getter("z_parameters"))
+        params["slice_metrics"] = Parameter(fget=self._make_getter("slice_metrics"))
+
         self.install_parameters(params)
         await self._set_args(**kwargs)
 
@@ -407,24 +406,6 @@ class OnlineReconstruction(Addon):
                     f"QuantifiedGeneralBackprojectArgs do not have attribute `{arg}'"
                 )
             await self._params[arg].set(kwargs[arg])
-
-    async def _get_z_parameters(self):
-        return self._reco_args.z_parameters
-
-    async def _get_slice_metrics(self):
-        return self._reco_args.slice_metrics
-
-    async def _get_slice_metric(self):
-        return self._reco_args.slice_metric
-
-    async def _set_slice_metric(self, metric):
-        self._reco_args.slice_metric = metric
-
-    async def _get_z_parameter(self):
-        return self._proxy.z_parameter
-
-    async def _set_z_parameter(self, name):
-        self._proxy.z_parameter = name
 
     @abstractmethod
     async def update_darks(self, *args, **kwargs):

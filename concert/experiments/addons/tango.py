@@ -130,6 +130,9 @@ class _TangoProxyArgs:
         self._device.write_attribute(arg, value)
 
     async def get_reco_arg(self, arg):
+        if arg in ["z_parameters", "slice_metrics"]:
+            func = getattr(self._device, "get_" + arg)
+            return await func()
         return (await self._device[arg]).value
 
 
