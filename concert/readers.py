@@ -135,6 +135,10 @@ class TiffSequenceReader(FileSequenceReader):
         else:
             try:
                 image.metadata = ast.literal_eval(self._file.pages[index].description)
+                # Discard shape information, this will be handled later (e.g. FileCamera grab)
+                # Multitiffs also have this often wrong in a way that first page carries the 3D
+                # shape and the rest of the pages carry nothing, which is not what we want.
+                image.metadata.pop("shape", None)
             except SyntaxError:
                 # No metadata in file
                 pass
