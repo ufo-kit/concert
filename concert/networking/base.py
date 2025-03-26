@@ -120,12 +120,13 @@ def zmq_create_image_metadata(image):
     if image is None:
         return {'end': True}
     else:
-        result = {
-            'dtype': str(image.dtype),
-            'shape': image.shape,
-        }
-        if isinstance(image, ImageWithMetadata):
-            result.update(image.metadata)
+        result = image.metadata if isinstance(image, ImageWithMetadata) else {}
+        result.update(
+            {
+                'dtype': str(image.dtype),
+                'shape': image.shape,
+            }
+        )
 
         return result
 
