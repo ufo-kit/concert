@@ -429,9 +429,16 @@ def get_basename(filename):
 
     return os.path.basename(filename)
 
+
 def convert_image(image, mirror: bool, rotate: int):
     if mirror:
         image = np.fliplr(image)
+        # Reset in case we get called again not to do the operation on already processed image
+        if isinstance(image, ImageWithMetadata):
+            image.metadata.pop("mirror", None)
     if rotate:
         image = np.rot90(image, k=rotate)
+        # Reset in case we get called again not to do the operation on already processed image
+        if isinstance(image, ImageWithMetadata):
+            image.metadata.pop("rotate", None)
     return image

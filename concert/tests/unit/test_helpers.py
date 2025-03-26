@@ -4,8 +4,10 @@ import zmq
 from concert.tests import TestCase, suppressed_logging
 from concert.quantities import q
 from concert.helpers import (
+    convert_image,
     get_basename,
     get_state_from_awaitable,
+    ImageWithMetadata,
     is_iterable,
     measure,
     memoize,
@@ -97,6 +99,19 @@ def test_is_iterable():
 
     for item in noniterables:
         assert not is_iterable(item)
+
+
+@suppressed_logging
+def test_convert_image():
+    import numpy as np
+    image = np.empty((2, 8))
+    image = image.view(ImageWithMetadata)
+    image.metadata["rotate"] = 1
+    conv = convert_image(image, False, 1)
+
+    assert conv.shape == image.shape[::-1]
+    # Rotation must be reset, otherwise second call would rotate it once more
+    assert conv.metadata.get("rotate", 0) != 1
 
 
 def test_performance_tracker(caplog):
