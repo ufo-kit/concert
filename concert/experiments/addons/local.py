@@ -128,7 +128,7 @@ class OnlineReconstruction(base.OnlineReconstruction):
         else:
             await self._manager.backproject(producer)
 
-        if self.walker:
+        if self.walker and not await self.get_slice_metric():
             if (
                 producer is not None and await self.get_slice_directory()
                 or producer is None and slice_directory

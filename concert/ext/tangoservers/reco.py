@@ -208,22 +208,38 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     @DebugIt(show_ret=True)
     @command(dtype_out=(int,))
     def get_volume_shape(self):
+        if self._manager.volume is None:
+            raise RuntimeError("Volume not available yet")
         return self._manager.volume.shape
 
     @DebugIt()
     @command(dtype_in=int, dtype_out=(np.float32,))
     def get_slice_x(self, index):
+        if self._args.slice_metric:
+            raise RuntimeError("x slice accessible only when slice_metric is not specified")
         return self._manager.volume[:, :, index].flatten()
 
     @DebugIt()
     @command(dtype_in=int, dtype_out=(np.float32,))
     def get_slice_y(self, index):
+        if self._args.slice_metric:
+            raise RuntimeError("y slice accessible only when slice_metric is not specified")
         return self._manager.volume[:, index, :].flatten()
 
     @DebugIt()
     @command(dtype_in=int, dtype_out=(np.float32,))
     def get_slice_z(self, index):
+        if self._args.slice_metric:
+            raise RuntimeError("z slice accessible only when slice_metric is not specified")
         return self._manager.volume[index].flatten()
+
+    @DebugIt()
+    @command(dtype_out=(np.float32,))
+    def get_volume_line(self):
+        """This is called when slice_metric is specified and the result is a line."""
+        if not self._args.slice_metric:
+            raise RuntimeError("slice_metric must be specified")
+        return self._manager.volume
 
     @DebugIt()
     @command(dtype_out=(str,))

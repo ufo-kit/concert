@@ -339,6 +339,8 @@ class OnlineReconstruction(Addon):
         return consumers
 
     async def get_slice(self, x=None, y=None, z=None):
+        if await self.get_slice_metric():
+            raise RuntimeError("slices are accessible only when slice_metric is not specified")
         if [x, y, z].count(None) != 2:
             raise ValueError('Exactly one dimension must be specified')
         if x is not None:
@@ -425,7 +427,7 @@ class OnlineReconstruction(Addon):
         await self._show_slice()
 
     async def _show_slice(self):
-        if self.viewer:
+        if self.viewer and not await self.get_slice_metric():
             index = len(np.arange(*await self.get_region())) // 2
             await self.viewer.show(await self.get_slice(z=index))
             await self.viewer.set_title(await self.experiment.get_current_name())

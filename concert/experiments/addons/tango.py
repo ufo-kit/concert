@@ -183,7 +183,7 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
     @TangoMixin.cancel_remote
     async def _reconstruct(self, cached=False, slice_directory=None):
         path = ""
-        if self.walker:
+        if self.walker and not await self.get_slice_metric():
             if (
                 cached is False and await self.get_slice_directory()
                 or cached is True and slice_directory
@@ -221,9 +221,12 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
         return await self._device.find_parameter()
 
     async def get_volume(self):
-        volume = np.empty(await self._device.get_volume_shape(), dtype=np.float32)
-        for i in range(volume.shape[0]):
-            volume[i] = await self._get_slice_z(i)
+        if await self.get_slice_metric():
+            volume = await self._device.get_volume_line()
+        else:
+            volume = np.empty(await self._device.get_volume_shape(), dtype=np.float32)
+            for i in range(volume.shape[0]):
+                volume[i] = await self._get_slice_z(i)
 
         return volume
 
