@@ -38,7 +38,6 @@ async def get_{0}(self):
     return arg
 
 @DebugIt()
-@command(dtype_in={1})
 async def set_{0}(self, values):
     try:
         {1}[0]
