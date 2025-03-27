@@ -305,9 +305,10 @@ class OnlineReconstruction(Addon):
 
     slice_directory = Parameter()
 
-    async def __ainit__(self, experiment, acquisitions=None, do_normalization=True,
+    async def __ainit__(self, proxy, experiment, acquisitions=None, do_normalization=True,
                         average_normalization=True, slice_directory='online-slices',
                         viewer=None):
+        self._proxy = proxy
         self._do_normalization = do_normalization
         self.walker = experiment.walker
         self._slice_directory = None
@@ -353,23 +354,20 @@ class OnlineReconstruction(Addon):
 
     async def register_args(self, **kwargs):
         params = {}
-        from concert.ext.ufo import GeneralBackprojectArgs
-        self._reco_args = GeneralBackprojectArgs()
-        for arg, settings in GeneralBackprojectArgs.parameters.items():
-
+        for arg, doc in await self._proxy.get_parameters():
             if arg in self.UNITS:
                 unit = self.UNITS[arg]
                 params[arg] = Quantity(
                     unit,
                     fget=self._make_getter(arg, unit=unit),
                     fset=self._make_setter(arg, unit=unit),
-                    help=settings['help']
+                    help=doc
                 )
             else:
                 params[arg] = Parameter(
                     fget=self._make_getter(arg),
                     fset=self._make_setter(arg),
-                    help=settings['help']
+                    help=doc
                 )
 
         params["z_parameters"] = Parameter(fget=self._make_getter("z_parameters"))

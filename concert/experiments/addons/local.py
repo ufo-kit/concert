@@ -96,9 +96,10 @@ class OnlineReconstruction(base.OnlineReconstruction):
                         average_normalization=True, slice_directory='online-slices',
                         viewer=None):
         from concert.ext.ufo import LocalGeneralBackprojectArgs
-        self._proxy = LocalGeneralBackprojectArgs()
+
         await base.OnlineReconstruction.__ainit__(
             self,
+            LocalGeneralBackprojectArgs(),
             experiment=experiment,
             acquisitions=acquisitions,
             do_normalization=do_normalization,

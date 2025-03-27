@@ -235,3 +235,15 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     @command(dtype_out=(str,))
     async def get_slice_metrics(self):
         return await self._args.get_reco_arg("slice_metrics")
+
+    @DebugIt()
+    @command(dtype_out=(str,))
+    async def get_parameters(self):
+        result = []
+        for param, doc in await self._args.get_parameters():
+            print(param)
+            print(doc)
+            result.append(param)
+            result.append(doc)
+
+        return result

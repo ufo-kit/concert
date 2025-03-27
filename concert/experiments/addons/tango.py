@@ -135,6 +135,14 @@ class _TangoProxyArgs:
             return await func()
         return (await self._device[arg]).value
 
+    async def get_parameters(self):
+        flattened = await self._device.get_parameters()
+        result = []
+        for i in range(len(flattened) // 2):
+            result.append((flattened[2 * i], flattened[2 * i + 1]))
+
+        return tuple(result)
+
 
 class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
     async def __ainit__(
@@ -156,9 +164,9 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
         except tango.NonDbDevice:
             pass
 
-        self._proxy = _TangoProxyArgs(self._device)
         await base.OnlineReconstruction.__ainit__(
             self,
+            _TangoProxyArgs(self._device),
             experiment=experiment,
             acquisitions=acquisitions,
             do_normalization=do_normalization,

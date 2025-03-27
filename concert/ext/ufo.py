@@ -280,7 +280,7 @@ class LocalGeneralBackprojectArgs(GeneralBackprojectArgs):
         if arg in ["slice_metrics", "z_parameters"]:
             raise AttributeError(f"`{arg}' cannot be set")
         if arg == "slice_metric":
-            if value not in [None] + self.slice_metrics:
+            if value not in [None, ''] + self.slice_metrics:
                 raise GeneralBackprojectArgsError("Metric '{}' not known".format(value))
         elif arg == "z_parameter":
             if value not in self.z_parameters:
@@ -291,6 +291,9 @@ class LocalGeneralBackprojectArgs(GeneralBackprojectArgs):
 
     async def get_reco_arg(self, arg):
         return getattr(self, arg)
+
+    async def get_parameters(self):
+        return tuple([(key, self.parameters[key]["help"]) for key in self.parameters])
 
 
 class GeneralBackproject(InjectProcess):
