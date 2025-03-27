@@ -158,12 +158,6 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
     ):
         await TangoMixin.__ainit__(self, device, endpoint)
 
-        # Lock the device to prevent other processes from using it
-        try:
-            self._device.lock()
-        except tango.NonDbDevice:
-            pass
-
         await base.OnlineReconstruction.__ainit__(
             self,
             _TangoProxyArgs(self._device),

@@ -519,12 +519,6 @@ class RemoteDirectoryWalker(Walker):
         # awaited.
         LOG.debug("device attributes: %s", self.device.get_attribute_list())
 
-        # Prevent the device from being accessed by other clients
-        try:
-            self.device.lock()
-        except tango.NonDbDevice:
-            pass
-
         # The 'root' is either explicitly specified or initialized using the
         # value from the remote server where the Tango device is initialized
         # with reasonable defaults.
