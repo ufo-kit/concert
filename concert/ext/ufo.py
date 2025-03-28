@@ -254,7 +254,7 @@ class GeneralBackprojectArgs(object):
 
     def __init__(self, **kwargs):
         self.slice_metrics = ['min', 'max', 'sum', 'mean', 'var', 'std', 'skew',
-                               'kurtosis', 'sag']
+                               'kurtosis', 'sag', '']
         self.z_parameters = SECTIONS['general-reconstruction']['z-parameter']['choices']
         for arg, settings in self.parameters.items():
             default = settings['default']
@@ -280,7 +280,7 @@ class LocalGeneralBackprojectArgs(GeneralBackprojectArgs):
         if arg in ["slice_metrics", "z_parameters"]:
             raise AttributeError(f"`{arg}' cannot be set")
         if arg == "slice_metric":
-            if value not in [None, ''] + self.slice_metrics:
+            if value not in self.slice_metrics:
                 raise GeneralBackprojectArgsError("Metric '{}' not known".format(value))
         elif arg == "z_parameter":
             if value not in self.z_parameters:

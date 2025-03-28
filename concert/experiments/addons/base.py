@@ -6,7 +6,7 @@ from abc import abstractmethod
 
 import numpy as np
 
-from concert.base import AsyncObject, Parameterizable, Parameter, Quantity
+from concert.base import AsyncObject, Parameterizable, Parameter, Quantity, Selection
 from concert.experiments.base import Consumer as AcquisitionConsumer
 from concert.quantities import q
 
@@ -339,8 +339,11 @@ class OnlineReconstruction(Addon):
         return consumers
 
     async def get_slice(self, x=None, y=None, z=None):
-        if await self.get_slice_metric():
-            raise RuntimeError("slices are accessible only when slice_metric is not specified")
+        if len(await self.get_volume_shape()) != 3:
+            raise RuntimeError(
+                "slices are accessible only when volume is reconstructed "
+                "(slice_metric must not be specified)"
+            )
         if [x, y, z].count(None) != 2:
             raise ValueError('Exactly one dimension must be specified')
         if x is not None:
@@ -357,7 +360,15 @@ class OnlineReconstruction(Addon):
     async def register_args(self, **kwargs):
         params = {}
         for arg, doc in await self._proxy.get_parameters():
-            if arg in self.UNITS:
+            if arg in ["slice_metric", "z_parameter"]:
+                # Ask proxies for allowed values stored as slice_metrcics or z_parameters
+                params[arg] = Selection(
+                    await self._proxy.get_reco_arg(arg + "s"),
+                    fget=self._make_getter(arg),
+                    fset=self._make_setter(arg),
+                    help=doc
+                )
+            elif arg in self.UNITS:
                 unit = self.UNITS[arg]
                 params[arg] = Quantity(
                     unit,
@@ -415,6 +426,10 @@ class OnlineReconstruction(Addon):
     async def update_flats(self, *args, **kwargs):
         ...
 
+    @abstractmethod
+    async def get_volume_shape(self):
+        ...
+
     async def reconstruct(self, *args, **kwargs):
         await self._reconstruct(*args, **kwargs)
         await self._show_slice()
@@ -427,7 +442,7 @@ class OnlineReconstruction(Addon):
         await self._show_slice()
 
     async def _show_slice(self):
-        if self.viewer and not await self.get_slice_metric():
+        if self.viewer and len(await self.get_volume_shape()) == 3:
             index = len(np.arange(*await self.get_region())) // 2
             await self.viewer.show(await self.get_slice(z=index))
             await self.viewer.set_title(await self.experiment.get_current_name())

@@ -180,6 +180,9 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
     async def update_flats(self):
         await self._device.update_flats()
 
+    async def get_volume_shape(self):
+        return await self._device.get_volume_shape()
+
     @TangoMixin.cancel_remote
     async def _reconstruct(self, cached=False, slice_directory=None):
         path = ""
@@ -221,23 +224,23 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
         return await self._device.find_parameter()
 
     async def get_volume(self):
-        if await self.get_slice_metric():
+        if len(await self.get_volume_shape()) == 1:
             volume = await self._device.get_volume_line()
         else:
-            volume = np.empty(await self._device.get_volume_shape(), dtype=np.float32)
+            volume = np.empty(await self.get_volume_shape(), dtype=np.float32)
             for i in range(volume.shape[0]):
                 volume[i] = await self._get_slice_z(i)
 
         return volume
 
     async def _get_slice_x(self, index):
-        shape = await self._device.get_volume_shape()
+        shape = await self.get_volume_shape()
         return (await self._device.get_slice_x(index)).reshape(shape[0], shape[1])
 
     async def _get_slice_y(self, index):
-        shape = await self._device.get_volume_shape()
+        shape = await self.get_volume_shape()
         return (await self._device.get_slice_y(index)).reshape(shape[0], shape[2])
 
     async def _get_slice_z(self, index):
-        shape = await self._device.get_volume_shape()
+        shape = await self.get_volume_shape()
         return (await self._device.get_slice_z(index)).reshape(shape[1], shape[2])

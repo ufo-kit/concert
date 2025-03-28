@@ -122,6 +122,11 @@ class OnlineReconstruction(base.OnlineReconstruction):
     async def update_flats(self, producer):
         return await self._manager.update_flats(producer)
 
+    async def get_volume_shape(self):
+        if self._manager.volume is None:
+            raise RuntimeError("Volume not available yet")
+        return self._manager.volume.shape
+
     async def _reconstruct(self, producer=None, slice_directory=None):
         if producer is None:
             await self._manager.backproject(async_generate(self._manager.projections))
