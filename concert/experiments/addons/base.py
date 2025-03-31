@@ -8,6 +8,7 @@ import numpy as np
 
 from concert.base import AsyncObject, Parameterizable, Parameter, Quantity, Selection
 from concert.experiments.base import Consumer as AcquisitionConsumer
+from concert.coroutines.base import background
 from concert.quantities import q
 
 LOG = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ class Addon(Parameterizable):
             await self.attach(experiment.acquisitions)
         await super().__ainit__()
 
+    @background
     async def attach(self, acquisitions):
         """Attach the addon to *acquisitions*."""
         unattached = set(acquisitions)
@@ -50,6 +52,7 @@ class Addon(Parameterizable):
 
         await self._setup()
 
+    @background
     async def detach(self, acquisitions):
         """Detach the addon from *acquisitions*."""
         for acq in acquisitions:
@@ -434,6 +437,7 @@ class OnlineReconstruction(Addon):
         await self._reconstruct(*args, **kwargs)
         await self._show_slice()
 
+    @background
     async def rereconstruct(self, slice_directory=None):
         """Rereconstruct cached projections and saved them to *slice_directory*, which is a full
         path.
@@ -448,11 +452,13 @@ class OnlineReconstruction(Addon):
             await self.viewer.set_title(await self.experiment.get_current_name())
 
     @abstractmethod
+    @background
     async def find_parameter(self, parameter, region, metric='sag', z=None, store=False):
         """Find optimal parameter value in the *region* as [from, to, step] based on *metric* at
         height *z* and return it. If *store* is True, save the found value."""
         ...
 
+    @background
     async def find_axis(self, region, z=None, store=False):
         """Find tomographic rotation axis."""
         return await self.find_parameter("center-position-x", region, z=z, store=store)

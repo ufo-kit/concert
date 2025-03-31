@@ -1,6 +1,6 @@
 import os
 import numpy as np
-from concert.coroutines.base import async_generate
+from concert.coroutines.base import async_generate, background
 from concert.coroutines.sinks import Accumulate
 from concert.experiments.addons import base
 from concert.experiments.base import Consumer as AcquisitionConsumer, local
@@ -154,6 +154,7 @@ class OnlineReconstruction(base.OnlineReconstruction):
     async def _rereconstruct(self, slice_directory=None):
         await self._reconstruct(producer=None, slice_directory=slice_directory)
 
+    @background
     async def find_parameter(self, parameter, region, metric='sag', z=None, store=False):
         # Unit conversion and simple list creation
         region = region.to(self.UNITS[parameter.replace('-', '_')]).magnitude.tolist()

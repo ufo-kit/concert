@@ -7,6 +7,7 @@ import numpy as np
 import tango
 
 from concert.config import DISTRIBUTED_TANGO_TIMEOUT
+from concert.coroutines.base import background
 from concert.experiments.addons import base
 from concert.experiments.base import remote
 from concert.helpers import CommData
@@ -208,6 +209,7 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
     async def _rereconstruct(self, slice_directory=None):
         await self._reconstruct(cached=True, slice_directory=slice_directory)
 
+    @background
     async def find_parameter(self, parameter, region, metric='sag', z=None, store=False):
         region = region.to(self.UNITS[parameter.replace('-', '_')]).magnitude.tolist()
         blob = (
