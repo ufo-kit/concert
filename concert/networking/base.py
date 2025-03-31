@@ -150,7 +150,7 @@ async def zmq_receive_image(socket):
     if 'rotate' in metadata:
         rotate = metadata['rotate']
 
-    array = convert_image(array, mirror, rotate)
+    array = ImageWithMetadata(convert_image(array, mirror, rotate), metadata=metadata)
 
     return (metadata, array)
 
