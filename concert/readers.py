@@ -1,5 +1,4 @@
 """Image readers for convenient work with multi-page image sequences."""
-import ast
 import glob
 import json
 import os
@@ -134,7 +133,7 @@ class TiffSequenceReader(FileSequenceReader):
             image.metadata = self._json_metadata[str(index)]
         else:
             try:
-                image.metadata = ast.literal_eval(self._file.pages[index].description)
+                image.metadata = json.loads(self._file.pages[index].description)
                 # Discard shape information, this will be handled later (e.g. FileCamera grab)
                 # Multitiffs also have this often wrong in a way that first page carries the 3D
                 # shape and the rest of the pages carry nothing, which is not what we want.

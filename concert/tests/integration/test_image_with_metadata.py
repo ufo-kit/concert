@@ -1,8 +1,8 @@
+import json
 import shutil
 import tifffile
 import os
 import tempfile
-import ast
 import numpy as np
 from concert.coroutines.base import background
 from concert.base import check
@@ -75,9 +75,9 @@ class TestMetadataExperiment(TestCase):
         radio_images = tifffile.TiffReader(
             os.path.join(await self.walker.get_current(), "radios", "frame_000000.tif"))
         for i in range(await self.exp.get_num_projections()):
-            self.assertEqual(ast.literal_eval(radio_images.pages[i].description)['index_int'],
+            self.assertEqual(json.loads(radio_images.pages[i].description)['index_int'],
                              int(i))
-            self.assertEqual(ast.literal_eval(radio_images.pages[i].description)['index_float'],
+            self.assertEqual(json.loads(radio_images.pages[i].description)['index_float'],
                              float(i))
-            self.assertEqual(ast.literal_eval(radio_images.pages[i].description)['index_string'],
+            self.assertEqual(json.loads(radio_images.pages[i].description)['index_string'],
                              str(i))
