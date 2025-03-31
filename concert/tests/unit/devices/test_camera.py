@@ -6,7 +6,7 @@ from concert.tests import TestCase
 from concert.quantities import q
 from concert.devices.cameras.dummy import Camera, BufferedCamera
 from concert.devices.cameras.pco import Timestamp, TimestampError
-from concert.helpers import CommData, convert_image, ImageWithMetadata
+from concert.helpers import CommData, ImageWithMetadata
 from concert.networking.base import ZmqSender, ZmqReceiver
 
 
@@ -84,7 +84,8 @@ class TestDummyCamera(TestCase):
                 self.camera.set_rotate(rotated)
                 async with self.camera.recording():
                     image = await self.camera.grab()
-                np.testing.assert_equal(image, convert_image(await grab(), mirrored, rotated))
+                meta = {"mirror": mirrored, "rotate": rotated}
+                np.testing.assert_equal(image, ImageWithMetadata(await grab(), metadata=meta))
 
     async def test_grab_and_send_convert(self):
         async def grab():
@@ -106,7 +107,8 @@ class TestDummyCamera(TestCase):
                     (metadata, image) = await receiver.receive_image()
                 receiver.close()
                 i += 1
-                np.testing.assert_equal(image, convert_image(await grab(), mirrored, rotated))
+                meta = {"mirror": mirrored, "rotate": rotated}
+                np.testing.assert_equal(image, ImageWithMetadata(await grab(), metadata=meta))
 
 
     async def test_simulate(self):

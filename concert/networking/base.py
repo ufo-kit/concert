@@ -10,7 +10,6 @@ import zmq.asyncio
 from concert.quantities import q
 from concert.config import AIODEBUG, PERFDEBUG
 from concert.helpers import ImageWithMetadata
-from concert.helpers import convert_image
 
 LOG = logging.getLogger(__name__)
 
@@ -150,7 +149,7 @@ async def zmq_receive_image(socket):
     if 'rotate' in metadata:
         rotate = metadata['rotate']
 
-    array = ImageWithMetadata(convert_image(array, mirror, rotate), metadata=metadata)
+    array = ImageWithMetadata(array, metadata=metadata)
 
     return (metadata, array)
 
@@ -164,6 +163,8 @@ async def zmq_send_image(socket, image, metadata=None):
 
     if image is None or not metadata:
         metadata = zmq_create_image_metadata(image)
+        if metadata.get("conversion_applied", False):
+            raise RuntimeError("zmq_image_send needs and image without applied conversions")
 
     try:
         if image is None:

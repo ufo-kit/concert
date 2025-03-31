@@ -316,11 +316,23 @@ class ImageWithMetadata(np.ndarray):
     """
     Subclass of numpy.ndarray with a metadata dictionary to hold images its metadata.
     """
-    def __new__(cls, input_array, metadata: dict | None = None):
+    def __new__(cls, input_array, metadata: dict | None = None, apply_conversion=True):
+        if isinstance(input_array, ImageWithMetadata) and metadata is None:
+            metadata = input_array.metadata
+
         obj = np.asarray(input_array).view(cls)
         if metadata is None:
             metadata = {}
         obj.metadata = metadata
+
+        if apply_conversion and not metadata.get("conversion_applied", False):
+            if metadata.get("mirror", False):
+                obj = np.fliplr(obj)
+                obj.metadata["conversion_applied"] = True
+            if metadata.get("rotate", 0):
+                obj = np.rot90(obj, k=metadata["rotate"])
+                obj.metadata["conversion_applied"] = True
+
         return obj
 
     def __array_finalize__(self, obj):
@@ -428,17 +440,3 @@ def get_basename(filename):
         filename = filename[:-1]
 
     return os.path.basename(filename)
-
-
-def convert_image(image, mirror: bool, rotate: int):
-    if mirror:
-        image = np.fliplr(image)
-        # Reset in case we get called again not to do the operation on already processed image
-        if isinstance(image, ImageWithMetadata):
-            image.metadata.pop("mirror", None)
-    if rotate:
-        image = np.rot90(image, k=rotate)
-        # Reset in case we get called again not to do the operation on already processed image
-        if isinstance(image, ImageWithMetadata):
-            image.metadata.pop("rotate", None)
-    return image

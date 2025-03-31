@@ -68,7 +68,7 @@ from abc import abstractmethod
 
 from typing import Dict
 import zmq
-from concert.helpers import convert_image
+from concert.helpers import ImageWithMetadata
 
 from concert.base import AccessorNotImplementedError, Parameter, Quantity, State, check
 from concert.config import AIODEBUG
@@ -166,8 +166,8 @@ class Camera(Device):
         current frame. Acquires grab lock."""
         async with self._grab_lock:
             img = await self._grab_real()
-            img = convert_image(img, mirror=await self.get_mirror(), rotate=await self.get_rotate())
-            return img.view(ImageWithMetadata)
+            meta = {"mirror": await self.get_mirror(), "rotate": await self.get_rotate()}
+            return ImageWithMetadata(img, metadata=meta)
 
     # Be strict, if the camera is recording an experiment might be in progress, so let's restrict
     # this to 'standby'
@@ -191,8 +191,8 @@ class Camera(Device):
                 async with self._grab_lock:
                     if await self.get_state() == 'recording':
                         image = await self._grab_real()
-                        image = convert_image(image, mirror=await self.get_mirror(), rotate=await self.get_rotate())
-                        image = image.view(ImageWithMetadata)
+                        meta = {"mirror": await self.get_mirror(), "rotate": await self.get_rotate()}
+                        image = ImageWithMetadata(image, metadata=meta)
                     else:
                         break
                 yield image
@@ -227,16 +227,14 @@ class Camera(Device):
 
     async def _grab_send_real(self, num, end=True):
         async def send_to_all(image):
-            image = image if image is None else image.view(ImageWithMetadata)
             await asyncio.gather(
                 *(sender.send_image(image) for sender in self._senders.values())
             )
 
         for _ in range(num):
             img = await self._grab_real()
-            img = img.view(ImageWithMetadata)
-            img.metadata['mirror'] = self._mirror
-            img.metadata['rotate'] = self._rotate
+            meta = {"mirror": await self.get_mirror(), "rotate": await self.get_rotate()}
+            img = ImageWithMetadata(img, metadata=meta, apply_conversion=False)
             await send_to_all(img)
 
         if end:

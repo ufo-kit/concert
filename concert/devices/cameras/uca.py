@@ -10,7 +10,7 @@ import weakref
 from concert.coroutines.base import background, run_in_executor
 from concert.quantities import q
 from concert.base import check, Parameter, Quantity
-from concert.helpers import Bunch, CommData, convert_image
+from concert.helpers import Bunch, CommData
 from concert.devices.cameras import base
 
 
