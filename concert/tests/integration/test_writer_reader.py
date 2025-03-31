@@ -18,7 +18,13 @@ def generate_frames(number=10, dimensions=(10, 10)) -> [ImageWithMetadata]:
     for i in range(number):
         image = np.random.random(dimensions)
         image = image.astype(np.float32)
-        metadata = {"time": datetime.now().isoformat(), "random_value": np.random.random()}
+        metadata = {
+            "time": datetime.now().isoformat(),
+            "random_value": np.random.random(),
+            "shape": dimensions,
+            "mirror": False,
+            "rotate": 0
+        }
         image = ImageWithMetadata(image, metadata=metadata)
         frames.append(image)
     return frames
