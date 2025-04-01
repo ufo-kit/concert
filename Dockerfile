@@ -45,9 +45,7 @@ WORKDIR /home
 
 # Install libuca and uca-net binaries
 RUN git clone https://github.com/ufo-kit/libuca.git && \
-    # For uca-net repository it is temporarily required to checkout to uca_net_grab_send branch
-    # until the same is merged to base branch.
-    git clone -b uca_net_camera_grab_send https://github.com/ufo-kit/uca-net.git
+    git clone https://github.com/ufo-kit/uca-net.git
 
 WORKDIR /home/libuca
 
