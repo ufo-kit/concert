@@ -312,3 +312,9 @@ class TestImageWithMetadata(TestCase):
             view_2 = view[:, ::2]
             rotated = np.rot90(self.image[:, ::2], k=i)
             self._test_conversions(view_2, rotated, orig=self.image[:, ::2])
+
+        for mirror in [True, False]:
+            view = ImageWithMetadata(self.image, metadata={"mirror": mirror})
+            view_2 = view[:, ::2]
+            mirrored = np.fliplr(self.image[:, ::2]) if mirror else self.image[:, ::2]
+            self._test_conversions(view_2, mirrored, orig=self.image[:, ::2])
