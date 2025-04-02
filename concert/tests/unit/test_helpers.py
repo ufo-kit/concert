@@ -1,4 +1,5 @@
 import inspect
+import numpy as np
 import time
 import zmq
 from concert.tests import TestCase, suppressed_logging
@@ -259,3 +260,55 @@ class TestCommData(TestCase):
                          sndhwm=-1)
         self.assertTrue(hash(comm1) == hash(("localhost", 8991, "tcp", zmq.PUB, -1)))
         self.assertFalse(hash(comm1) == hash(("localhost", 8991, "tcp", zmq.PUSH, -1)))
+
+
+class TestImageWithMetadata(TestCase):
+    def setUp(self):
+        self.image = np.arange((15)).reshape(3, 5)
+
+    def _test_conversions(self, view, converted, orig=None):
+        if orig is None:
+            orig = self.image
+
+        # no op
+        np.testing.assert_equal(view, orig)
+
+        # One time forward or backward
+        np.testing.assert_equal(view.convert(), converted)
+        np.testing.assert_equal(view.convert_back(), orig)
+
+        # Forward and backward combinations
+        np.testing.assert_equal(view.convert().convert(), converted)
+        np.testing.assert_equal(view.convert().convert_back(), orig)
+        np.testing.assert_equal(view.convert_back().convert(), converted)
+        np.testing.assert_equal(view.convert_back().convert_back(), orig)
+
+    def test_construction(self):
+        # Explicit creation of new object
+        for i in range(4):
+            view = ImageWithMetadata(self.image, metadata={"rotate": i})
+            self._test_conversions(view, np.rot90(self.image, k=i))
+
+        for mirror in [True, False]:
+            view = ImageWithMetadata(self.image, metadata={"mirror": mirror})
+            self._test_conversions(view, np.fliplr(self.image) if mirror else self.image)
+
+    def test_view(self):
+        # View-casting
+        for i in range(4):
+            view = self.image.view(ImageWithMetadata)
+            view.metadata["rotate"] = i
+            self._test_conversions(view, np.rot90(self.image, k=i))
+
+        for mirror in [True, False]:
+            view = self.image.view(ImageWithMetadata)
+            view.metadata["mirror"] = mirror
+            self._test_conversions(view, np.fliplr(self.image) if mirror else self.image)
+
+    def test_template(self):
+        # Creating new instance from template
+        for i in range(4):
+            view = ImageWithMetadata(self.image, metadata={"rotate": i})
+            view_2 = view[:, ::2]
+            rotated = np.rot90(self.image[:, ::2], k=i)
+            self._test_conversions(view_2, rotated, orig=self.image[:, ::2])

@@ -85,7 +85,10 @@ class TestDummyCamera(TestCase):
                 async with self.camera.recording():
                     image = await self.camera.grab()
                 meta = {"mirror": mirrored, "rotate": rotated}
-                np.testing.assert_equal(image, ImageWithMetadata(await grab(), metadata=meta))
+                np.testing.assert_equal(
+                    image,
+                    ImageWithMetadata(await grab(), metadata=meta).convert()
+                )
 
     async def test_grab_and_send_convert(self):
         async def grab():
@@ -108,7 +111,10 @@ class TestDummyCamera(TestCase):
                 receiver.close()
                 i += 1
                 meta = {"mirror": mirrored, "rotate": rotated}
-                np.testing.assert_equal(image, ImageWithMetadata(await grab(), metadata=meta))
+                np.testing.assert_equal(
+                    image,
+                    ImageWithMetadata(await grab(), metadata=meta).convert()
+                )
 
 
     async def test_simulate(self):

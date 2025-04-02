@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import os
 import time
 import inspect
@@ -316,22 +317,9 @@ class ImageWithMetadata(np.ndarray):
     """
     Subclass of numpy.ndarray with a metadata dictionary to hold images its metadata.
     """
-    def __new__(cls, input_array, metadata: dict | None = None, apply_conversion=True):
-        if isinstance(input_array, ImageWithMetadata) and metadata is None:
-            metadata = input_array.metadata
-
+    def __new__(cls, input_array, metadata: dict | None = None):
         obj = np.asarray(input_array).view(cls)
-        if metadata is None:
-            metadata = {}
-        obj.metadata = metadata
-
-        if apply_conversion and not metadata.get("conversion_applied", False):
-            if metadata.get("mirror", False):
-                obj = np.fliplr(obj)
-                obj.metadata["conversion_applied"] = True
-            if metadata.get("rotate", 0):
-                obj = np.rot90(obj, k=metadata["rotate"])
-                obj.metadata["conversion_applied"] = True
+        obj.metadata.update(metadata)
 
         return obj
 
@@ -339,7 +327,34 @@ class ImageWithMetadata(np.ndarray):
         # see InfoArray.__array_finalize__ for comments
         if obj is None:
             return
-        self.metadata = getattr(obj, 'metadata', {})
+
+        self.metadata = copy.deepcopy(getattr(obj, "metadata", {}))
+        if "conversion_applied" not in self.metadata:
+            self.metadata["conversion_applied"] = False
+
+    def _convert(self, forward):
+        """
+        Convert image and return a numpy ndarray, not ImageWithMetadata anymore in order to avoid
+        nesting issues.
+        """
+        obj = self
+        if self.metadata["conversion_applied"] ^ forward:
+            for (operation, arg) in self.metadata.items():
+                # If we have ordered dict the order of operations is preserved
+                if operation == "mirror" and arg:
+                    obj = np.fliplr(obj)
+                if operation == "rotate":
+                    obj = np.rot90(obj, k=arg if forward else -arg)
+
+            obj.metadata["conversion_applied"] = forward
+
+        return obj
+
+    def convert(self):
+        return self._convert(True)
+
+    def convert_back(self):
+        return self._convert(False)
 
 
 class PerformanceTracker:

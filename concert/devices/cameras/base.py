@@ -68,7 +68,6 @@ from abc import abstractmethod
 
 from typing import Dict
 import zmq
-from concert.helpers import ImageWithMetadata
 
 from concert.base import AccessorNotImplementedError, Parameter, Quantity, State, check
 from concert.config import AIODEBUG
@@ -167,7 +166,7 @@ class Camera(Device):
         async with self._grab_lock:
             img = await self._grab_real()
             meta = {"mirror": await self.get_mirror(), "rotate": await self.get_rotate()}
-            return ImageWithMetadata(img, metadata=meta)
+            return ImageWithMetadata(img, metadata=meta).convert()
 
     # Be strict, if the camera is recording an experiment might be in progress, so let's restrict
     # this to 'standby'
@@ -192,7 +191,7 @@ class Camera(Device):
                     if await self.get_state() == 'recording':
                         image = await self._grab_real()
                         meta = {"mirror": await self.get_mirror(), "rotate": await self.get_rotate()}
-                        image = ImageWithMetadata(image, metadata=meta)
+                        image = ImageWithMetadata(image, metadata=meta).convert()
                     else:
                         break
                 yield image
@@ -234,7 +233,7 @@ class Camera(Device):
         for _ in range(num):
             img = await self._grab_real()
             meta = {"mirror": await self.get_mirror(), "rotate": await self.get_rotate()}
-            img = ImageWithMetadata(img, metadata=meta, apply_conversion=False)
+            img = ImageWithMetadata(img, metadata=meta)
             await send_to_all(img)
 
         if end:
