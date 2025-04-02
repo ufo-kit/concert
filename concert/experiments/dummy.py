@@ -116,9 +116,9 @@ class ImagingFileExperiment(Experiment):
     A typical imaging experiment which consists of acquiring dark, flat and radiographic images, in
     this case located on a disk.
 
-    .. py:attribute:: directory
+    .. py:attribute:: camera
 
-       Top directory with subdirectories containing the individual images
+       A :class:`~concert.devices.cameras.dummy.FileCamera` object
 
     .. py:attribute:: num_darks
 
@@ -132,51 +132,30 @@ class ImagingFileExperiment(Experiment):
 
         Number of radiographic images
 
-    .. py:attribute:: darks_dir
+    .. py:attribute:: darks_pattern
 
-        Subdirectory name with dark images
+        Dark images file name pattern
 
-    .. py:attribute:: flats_dir
+    .. py:attribute:: flats_pattern
 
-        Subdirectory name with flat images
+        Flat images file name pattern
 
-    .. py:attribute:: radio_dir
+    .. py:attribute:: radios_pattern
 
-        Subdirectory name with radiographic images
+        Projection images file name pattern
 
-    .. py:attribute:: roi_x0
-
-        First read column
-
-    .. py:attribute:: roi_width
-
-        Number of read columns
-
-    .. py:attribute:: roi_y0
-
-        First read row
-
-    .. py:attribute:: roi_height
-
-        Number of read rows
     """
 
-    async def __ainit__(self, directory, num_darks, num_flats, num_radios, darks_pattern='darks',
-                        flats_pattern='flats', radios_pattern='projections', roi_x0=None,
-                        roi_width=None, roi_y0=None, roi_height=None, walker=None,
-                        separate_scans=True, name_fmt='scan_{:>04}', camera_class=FileCamera):
-        self.directory = directory
-        self.num_darks = num_darks
-        self.num_flats = num_flats
-        self.num_radios = num_radios
+    async def __ainit__(self, camera, num_darks, num_flats, num_radios, darks_pattern='darks',
+                        flats_pattern='flats', radios_pattern='projections', walker=None,
+                        separate_scans=True, name_fmt='scan_{:>04}'):
         self.darks_pattern = darks_pattern
         self.flats_pattern = flats_pattern
         self.radios_pattern = radios_pattern
-        self.roi_x0 = roi_x0
-        self.roi_width = roi_width
-        self.roi_y0 = roi_y0
-        self.roi_height = roi_height
-        self._camera_class = camera_class
+        self.num_darks = num_darks
+        self.num_flats = num_flats
+        self.num_radios = num_radios
+        self.camera = camera
         darks = await Acquisition('darks', self.take_darks)
         flats = await Acquisition('flats', self.take_flats)
         radios = await Acquisition('radios', self.take_radios)
@@ -188,19 +167,10 @@ class ImagingFileExperiment(Experiment):
         )
 
     async def _produce_images(self, pattern, num):
-        camera = await self._camera_class(os.path.join(self.directory, pattern))
-        if self.roi_x0 is not None:
-            await camera.set_roi_x0(self.roi_x0)
-        if self.roi_width is not None:
-            await camera.set_roi_width(self.roi_width)
-        if self.roi_y0 is not None:
-            await camera.set_roi_y0(self.roi_y0)
-        if self.roi_height is not None:
-            await camera.set_roi_height(self.roi_height)
-
-        async with camera.recording():
+        await self.camera.set_pattern(pattern)
+        async with self.camera.recording():
             for i in wrap_iterable(list(range(num))):
-                yield await camera.grab()
+                yield await self.camera.grab()
 
     @local
     async def take_darks(self):
@@ -223,6 +193,35 @@ class RemoteFileImagingExperiment(Experiment):
     """
     Uses a client camera and instead of yielding frames just tells the remote file camera to send
     them via network.
+
+    .. py:attribute:: camera
+
+       A :class:`~concert.devices.cameras.dummy.FileCamera` object
+
+    .. py:attribute:: num_darks
+
+        Number of dark images (no beam, just dark current)
+
+    .. py:attribute:: num_flats
+
+        Number of flat images (beam present, sample not)
+
+    .. py:attribute:: num_radios
+
+        Number of radiographic images
+
+    .. py:attribute:: darks_pattern
+
+        Dark images file name pattern
+
+    .. py:attribute:: flats_pattern
+
+        Flat images file name pattern
+
+    .. py:attribute:: radios_pattern
+
+        Projection images file name pattern
+
     """
 
     async def __ainit__(self, camera, num_darks, num_flats, num_radios, darks_pattern='darks',
@@ -234,7 +233,7 @@ class RemoteFileImagingExperiment(Experiment):
         self.num_darks = num_darks
         self.num_flats = num_flats
         self.num_radios = num_radios
-        self._camera = camera
+        self.camera = camera
         darks = await Acquisition('darks', self.take_darks, producer=camera)
         flats = await Acquisition('flats', self.take_flats, producer=camera)
         radios = await Acquisition('radios', self.take_radios, producer=camera)
@@ -245,21 +244,21 @@ class RemoteFileImagingExperiment(Experiment):
             name_fmt=name_fmt
         )
 
-    async def _produce_frames(self, pattern, number):
-        await self._camera.set_pattern(pattern)
-        async with self._camera.recording():
-            await self._camera.grab_send(number)
+    async def _produce_images(self, pattern, number):
+        await self.camera.set_pattern(pattern)
+        async with self.camera.recording():
+            await self.camera.grab_send(number)
 
         return number
 
     @remote
     def take_darks(self):
-        return self._produce_frames(self.darks_pattern, self.num_darks)
+        return self._produce_images(self.darks_pattern, self.num_darks)
 
     @remote
     def take_flats(self):
-        return self._produce_frames(self.flats_pattern, self.num_flats)
+        return self._produce_images(self.flats_pattern, self.num_flats)
 
     @remote
     def take_radios(self):
-        return self._produce_frames(self.radios_pattern, self.num_radios)
+        return self._produce_images(self.radios_pattern, self.num_radios)
