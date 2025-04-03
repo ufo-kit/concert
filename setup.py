@@ -42,8 +42,7 @@ setup(
         'scipy',
         'tifffile',
         'pyzmq>=23.2.1',
-        'psutil',
-        'pytango'
+        'psutil'
     ],
     test_suite='concert.tests',
 )
