@@ -1,3 +1,4 @@
+import collections
 import inspect
 import numpy as np
 import time
@@ -318,3 +319,22 @@ class TestImageWithMetadata(TestCase):
             view_2 = view[:, ::2]
             mirrored = np.fliplr(self.image[:, ::2]) if mirror else self.image[:, ::2]
             self._test_conversions(view_2, mirrored, orig=self.image[:, ::2])
+
+    def test_order(self):
+        for mirror in [True, False]:
+            for i in range(4):
+                view = ImageWithMetadata(
+                    self.image,
+                    metadata=collections.OrderedDict((("mirror", mirror), ("rotate", i)))
+                )
+                view_2 = ImageWithMetadata(
+                    self.image,
+                    metadata=collections.OrderedDict((("rotate", i), ("mirror", mirror)))
+                )
+                if mirror:
+                    first_rot_then_mirrored = np.fliplr(np.rot90(self.image, k=i))
+                    first_mirrored_then_rot = np.rot90(np.fliplr(self.image), k=i)
+                else:
+                    first_rot_then_mirrored = first_mirrored_then_rot = np.rot90(self.image, k=i)
+                self._test_conversions(view, first_mirrored_then_rot)
+                self._test_conversions(view_2, first_rot_then_mirrored)

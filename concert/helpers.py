@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import collections
 import os
 import time
 import inspect
@@ -316,8 +317,12 @@ async def get_state_from_awaitable(awaitable) -> str:
 class ImageWithMetadata(np.ndarray):
     """
     Subclass of numpy.ndarray with a metadata dictionary to hold images its metadata.
+
+    :param input_array: Input array (can be an instance of :class:`.ImageWithMetadata`)
+    :param metadata: metadata (preferably as :class:`collections.OrderedDict` because order of
+    operations matters)
     """
-    def __new__(cls, input_array, metadata: dict | None = None):
+    def __new__(cls, input_array: np.ndarray, metadata: collections.OrderedDict | None = None):
         obj = np.asarray(input_array).view(cls)
         obj.metadata.update(metadata)
 
@@ -328,7 +333,7 @@ class ImageWithMetadata(np.ndarray):
         if obj is None:
             return
 
-        self.metadata = copy.deepcopy(getattr(obj, "metadata", {}))
+        self.metadata = copy.deepcopy(getattr(obj, "metadata", collections.OrderedDict({})))
         if "conversion_applied" not in self.metadata:
             self.metadata["conversion_applied"] = False
 
@@ -338,8 +343,14 @@ class ImageWithMetadata(np.ndarray):
         nesting issues.
         """
         obj = self
-        if self.metadata["conversion_applied"] ^ forward:
-            for (operation, arg) in self.metadata.items():
+        meta = self.metadata.copy()
+        applied = meta.pop("conversion_applied", default=False)
+        if applied ^ forward:
+            items = list(meta.items())
+            if not forward:
+                # Backward conversion needs to do the operations in reversed order
+                items = items[::-1]
+            for (operation, arg) in items:
                 # If we have ordered dict the order of operations is preserved
                 if operation == "mirror" and arg:
                     obj = np.fliplr(obj)
