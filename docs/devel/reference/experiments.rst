@@ -1,23 +1,36 @@
-Experiments
-===========
+.. _exp-implementations:
+
+Experiment implementations
+==========================
 
 
-There are abstract implementations for radiography, stepped tomography, continuous tomography,
-stepped spiral tomography and continuous spiral tomography.
+There are abstract implementations for radiography, stepped tomography,
+continuous tomography, stepped spiral tomography and continuous spiral
+tomography.
 
-All of them implement :class:`.LocalAcquisition` for dark images (without beam), flat field images (with beam, but sample moved to
-Experiment.flatfield_position) and projections of the sample according to the measurement scheme.
+All of them implement :class:`.Acquisition` for dark images (without beam), flat
+field images (with beam, but sample moved to Experiment.flatfield_position) and
+projections of the sample according to the measurement scheme.
 
-In each acquisition generator the functions :func:`~concert.experiments.imaging.Radiography._prepare_flats`, :func:`~concert.experiments.imaging.Radiography._finish_flats`,
-:func:`~concert.experiments.imaging.Radiography._prepare_darks`, :func:`~concert.experiments.imaging.Radiography._finish_darks`,
-:func:`~concert.experiments.imaging.Radiography._prepare_radios`, :func:`~concert.experiments.imaging.Radiography._finish_radios` are called.
-Overwriting them allows an easy way to implement special features within the experiments.
+In each acquisition generator the functions
+:func:`~concert.experiments.imaging.Radiography._prepare_flats`,
+:func:`~concert.experiments.imaging.Radiography._finish_flats`,
+:func:`~concert.experiments.imaging.Radiography._prepare_darks`,
+:func:`~concert.experiments.imaging.Radiography._finish_darks`,
+:func:`~concert.experiments.imaging.Radiography._prepare_radios`,
+:func:`~concert.experiments.imaging.Radiography._finish_radios` are called.
+Overwriting them allows an easy way to implement special features within the
+experiments.
 
-To use the classes one has to implement the :func:`~concert.experiments.imaging.Radiography.start_sample_exposure` and
-:func:`~concert.experiments.imaging.Radiography.stop_sample_exposure` accordingly
-(see :class:`concert.experiments.synchrotron.SynchrotronMixin` as an example).
+To use the classes one has to implement the
+:func:`~concert.experiments.imaging.Radiography.start_sample_exposure` and
+:func:`~concert.experiments.imaging.Radiography.stop_sample_exposure`
+accordingly (see :class:`~concert.experiments.synchrotron.SynchrotronMixin` as an
+example).
 
-For special cameras the generator :func:`~concert.experiments.imaging.Radiography._produce_frames` can be overwritten.
+For special cameras the generator
+:func:`~concert.experiments.imaging.Radiography._produce_frames` can be
+overwritten.
 
 
 Radiography
