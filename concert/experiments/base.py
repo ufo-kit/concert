@@ -131,7 +131,7 @@ class Acquisition(RunnableParameterizable):
         consumers = self._consumers + [count]
         coros = broadcast(self.producer_corofunc(), *consumers)
         num = (await asyncio.gather(*coros, return_exceptions=False))[-1]
-        # await asyncio.gather(*(consumer.proxy.wait(num) for consumer in self._consumers))
+        LOG.debug("`%s' handled %d items", self.name, num)
 
     async def _connect_remote(self):
         """
@@ -149,7 +149,7 @@ class Acquisition(RunnableParameterizable):
             # constantly sending grab commands to the camera server.
             if inspect.isasyncgen(producer):
                 i = 0
-                async for nothing in producer:
+                async for _ in producer:
                     i += 1
             else:
                 i = await producer
@@ -162,8 +162,9 @@ class Acquisition(RunnableParameterizable):
 
         # Connect the producer to all consumers
         for consumer in self._consumers:
-            await self.producer.register_endpoint(consumer.addon.endpoint)
-            await consumer.addon.connect_endpoint()
+            if consumer.addon is not None:
+                await self.producer.register_endpoint(consumer.addon.endpoint)
+                await consumer.addon.connect_endpoint()
 
         tasks = [start(producer_coro())]
         self._producer_task = tasks[0]
@@ -209,8 +210,9 @@ class Acquisition(RunnableParameterizable):
         finally:
             # No matter what happens disconnect the producers and consumers to have a clean state
             for consumer in self._consumers:
-                await self.producer.unregister_endpoint(consumer.addon.endpoint)
-                await consumer.addon.disconnect_endpoint()
+                if consumer.addon is not None:
+                    await self.producer.unregister_endpoint(consumer.addon.endpoint)
+                    await consumer.addon.disconnect_endpoint()
 
     @background
     @check(source=['standby', 'error', 'cancelled'], target=['standby', 'cancelled'])
@@ -526,39 +528,39 @@ class ExperimentError(Exception):
     pass
 
 
-def remote(func):
-    """Decorator which marks *func* as remote."""
-    @functools.wraps(func)
+def remote(corofunc):
+    """Decorator which marks *corofunc* as remote."""
+    @functools.wraps(corofunc)
     async def wrapped(*args, **kwargs):
-        return await func(*args, **kwargs)
+        return await corofunc(*args, **kwargs)
 
     wrapped.remote = True
 
     return wrapped
 
 
-def local(func):
-    """Decorator which marks *func* as local. If *func* is an async generator function, then it must
-    yield values itself, it cannot just return a generator, otherwise it would not be recognized by
-    inspect.isasyncgenfunction.
+def local(corofunc):
+    """Decorator which marks *corofunc* as local. If *corofunc* is an async generator function, then
+    it must yield values itself, it cannot just return a generator, otherwise it would not be
+    recognized by inspect.isasyncgenfunction.
     """
     import inspect
 
-    @functools.wraps(func)
+    @functools.wraps(corofunc)
     async def wrapped_asyncgen(*args, **kwargs):
-        if inspect.isasyncgenfunction(func):
+        if inspect.isasyncgenfunction(corofunc):
             # We need to re-yield, otherwise this would not be an asyncgenfunction
-            async for item in func(*args, **kwargs):
+            async for item in corofunc(*args, **kwargs):
                 yield item
 
-    @functools.wraps(func)
+    @functools.wraps(corofunc)
     async def wrapped(*args, **kwargs):
-        return await func(*args, **kwargs)
+        return await corofunc(*args, **kwargs)
 
     wrapped.remote = False
     wrapped_asyncgen.remote = False
 
-    if inspect.isasyncgenfunction(func):
+    if inspect.isasyncgenfunction(corofunc):
         return wrapped_asyncgen
     else:
         return wrapped
