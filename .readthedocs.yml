@@ -23,6 +23,7 @@ build:
   apt_packages:
     - gobject-introspection
     - libgirepository1.0-dev
+    - gir1.2-girepository-2.0
     - python3-cairo
     - python-gi-dev
     - python3-gi-cairo
