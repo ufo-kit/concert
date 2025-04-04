@@ -468,7 +468,7 @@ class _PyQtGraphUpdater(_ImageUpdaterBase):
         now = time.perf_counter()
         self.view.imageItem.setImage(image, autoLevels=self.clim == 'auto')
         if self.clim == 'stream':
-            self.clim = (image.min(), image.max())
+            self.clim = (float(image.min()), float(image.max()))
             self.sync_image_and_clim()
 
         if self.show_refresh_rate:
