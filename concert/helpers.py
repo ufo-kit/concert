@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import copy
-import collections
 import os
 import time
 import inspect
@@ -319,10 +318,9 @@ class ImageWithMetadata(np.ndarray):
     Subclass of numpy.ndarray with a metadata dictionary to hold images its metadata.
 
     :param input_array: Input array (can be an instance of :class:`.ImageWithMetadata`)
-    :param metadata: metadata (preferably as :class:`collections.OrderedDict` because order of
-    operations matters)
+    :param metadata: metadata
     """
-    def __new__(cls, input_array: np.ndarray, metadata: collections.OrderedDict | None = None):
+    def __new__(cls, input_array: np.ndarray, metadata: dict | None = None):
         obj = np.asarray(input_array).view(cls)
         obj.metadata.update(metadata)
 
@@ -333,7 +331,7 @@ class ImageWithMetadata(np.ndarray):
         if obj is None:
             return
 
-        self.metadata = copy.deepcopy(getattr(obj, "metadata", collections.OrderedDict({})))
+        self.metadata = copy.deepcopy(getattr(obj, "metadata", {}))
         if "conversion_applied" not in self.metadata:
             self.metadata["conversion_applied"] = False
 
@@ -342,20 +340,27 @@ class ImageWithMetadata(np.ndarray):
         Convert image and return a numpy ndarray, not ImageWithMetadata anymore in order to avoid
         nesting issues.
         """
+        def perform_mirroring(obj):
+            mirror = self.metadata.get("mirror", False)
+            if mirror:
+                obj = np.fliplr(obj)
+
+            return obj
+
+        def perform_rotation(obj):
+            k = self.metadata.get("rotate", 0)
+
+            return np.rot90(obj, k=k if forward else -k)
+
         obj = self
-        meta = self.metadata.copy()
-        applied = meta.pop("conversion_applied", default=False)
-        if applied ^ forward:
-            items = list(meta.items())
+        if self.metadata.get("conversion_applied", False) ^ forward:
+            funcs = [perform_mirroring, perform_rotation]
             if not forward:
-                # Backward conversion needs to do the operations in reversed order
-                items = items[::-1]
-            for (operation, arg) in items:
-                # If we have ordered dict the order of operations is preserved
-                if operation == "mirror" and arg:
-                    obj = np.fliplr(obj)
-                if operation == "rotate":
-                    obj = np.rot90(obj, k=arg if forward else -arg)
+                # Revese order for backward conversion
+                funcs = funcs[::-1]
+
+            for func in funcs:
+                obj = func(obj)
 
             obj.metadata["conversion_applied"] = forward
 

@@ -327,14 +327,8 @@ class TestImageWithMetadata(TestCase):
                     self.image,
                     metadata=collections.OrderedDict((("mirror", mirror), ("rotate", i)))
                 )
-                view_2 = ImageWithMetadata(
-                    self.image,
-                    metadata=collections.OrderedDict((("rotate", i), ("mirror", mirror)))
-                )
                 if mirror:
-                    first_rot_then_mirrored = np.fliplr(np.rot90(self.image, k=i))
-                    first_mirrored_then_rot = np.rot90(np.fliplr(self.image), k=i)
+                    converted = np.rot90(np.fliplr(self.image), k=i)
                 else:
-                    first_rot_then_mirrored = first_mirrored_then_rot = np.rot90(self.image, k=i)
-                self._test_conversions(view, first_mirrored_then_rot)
-                self._test_conversions(view_2, first_rot_then_mirrored)
+                    converted = np.rot90(self.image, k=i)
+                self._test_conversions(view, converted)
