@@ -4,15 +4,14 @@ files creation.
 """
 import asyncio
 import logging
-import os
 import os.path as op
 import tempfile
 import shutil
-from typing import Tuple
 import unittest
 import numpy as np
-from concert.quantities import q
 import concert.config as cfg
+from concert.quantities import q
+from typing import Tuple
 from concert.coroutines.base import start
 from concert.coroutines.sinks import Accumulate, null
 from concert.experiments.base import (Acquisition, Consumer as AcquisitionConsumer, Experiment,
@@ -375,7 +374,7 @@ class TestExperimentLogging(unittest.IsolatedAsyncioTestCase):
         mock_device.log.assert_called()
         mock_device.deregister_logger.assert_called()
         mock_device.log_to_json.assert_called()
-        
+
     async def test_experiment_logging2(self):
         mock_device = self._walker.device.mock_device
 

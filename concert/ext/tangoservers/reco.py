@@ -5,7 +5,6 @@ from tango.server import command, pipe
 from .base import TangoRemoteProcessing
 from concert.coroutines.base import async_generate
 from concert.ext.ufo import GeneralBackprojectManager, LocalGeneralBackprojectArgs
-from concert.quantities import q
 from concert.networking.base import get_tango_device, ZmqSender
 from concert.storage import RemoteDirectoryWalker
 from ...config import DISTRIBUTED_TANGO_TIMEOUT
@@ -256,8 +255,6 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     async def get_parameters(self):
         result = []
         for param, doc in await self._args.get_parameters():
-            print(param)
-            print(doc)
             result.append(param)
             result.append(doc)
 

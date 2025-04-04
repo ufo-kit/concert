@@ -142,7 +142,8 @@ class OnlineReconstruction(base.OnlineReconstruction):
                     producer = async_generate(self._manager.volume)
                     writer = self.walker.create_writer(
                         producer,
-                        name=await self.get_slice_directory() if slice_directory is None else slice_directory,
+                        name=await self.get_slice_directory() if slice_directory is None
+                        else slice_directory,
                         dsetname='slice_{:>04}.tif'
                     )
                 await writer

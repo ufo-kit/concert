@@ -2,12 +2,13 @@
 import abc
 import collections
 import multiprocessing as mp
+import numpy as np
+import os
 import time
 import logging
 from abc import abstractmethod
 from queue import Empty
 from typing import Callable
-import numpy as np
 from concert.base import Parameterizable, Parameter
 from concert.coroutines.base import background, run_in_executor
 from concert.quantities import q
@@ -47,7 +48,9 @@ def imagej(image, path="imagej"):
         Create a tmp file for dumping the *image* and use *program*
         to open that image. Use *writer* for writing the iamge to the disk.
         """
+        import tempfile
         from concert.storage import write_tiff
+        from subprocess import Popen
 
         tmp_file = tempfile.mkstemp()[1]
         try:

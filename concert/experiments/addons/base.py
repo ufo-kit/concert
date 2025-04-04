@@ -6,7 +6,7 @@ from abc import abstractmethod
 
 import numpy as np
 
-from concert.base import AsyncObject, Parameterizable, Parameter, Quantity, Selection
+from concert.base import Parameterizable, Parameter, Quantity, Selection
 from concert.experiments.base import Consumer as AcquisitionConsumer
 from concert.coroutines.base import background
 from concert.quantities import q

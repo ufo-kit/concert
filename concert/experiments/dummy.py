@@ -1,11 +1,9 @@
 """Dummy experiments."""
 
 import logging
-import os
 import numpy as np
 from concert.coroutines.base import run_in_executor
 from concert.experiments.base import Acquisition, Experiment, local, remote
-from concert.devices.cameras.dummy import FileCamera
 from concert.progressbar import wrap_iterable
 
 

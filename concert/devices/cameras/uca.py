@@ -7,9 +7,9 @@ import logging
 import numpy as np
 import struct
 import weakref
-from concert.coroutines.base import background, run_in_executor
+from concert.coroutines.base import run_in_executor
 from concert.quantities import q
-from concert.base import check, Parameter, Quantity
+from concert.base import Parameter, Quantity
 from concert.helpers import Bunch, CommData
 from concert.devices.cameras import base
 

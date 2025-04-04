@@ -15,9 +15,14 @@ import concert.devices.base
 from concert.coroutines.base import background, broadcast, start
 from concert.coroutines.sinks import count
 from concert.progressbar import wrap_iterable
-from concert.base import (check, Parameterizable, Parameter, Selection, State, StateError,
-                          RunnableParameterizable)
-from concert.helpers import get_state_from_awaitable, get_basename
+from concert.base import (
+    check,
+    Parameter,
+    Selection,
+    StateError,
+    RunnableParameterizable
+)
+from concert.helpers import get_basename
 from concert.loghandler import AsyncLoggingHandlerCloser
 from functools import partial
 

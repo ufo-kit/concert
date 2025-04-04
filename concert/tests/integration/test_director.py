@@ -1,14 +1,12 @@
 import asyncio
-import os
+import concert
 import shutil
 import tempfile
-from typing import Tuple, List
 import logging
-from time import time
 import unittest
-import unittest.mock as mock
 import numpy as np
-import concert
+from typing import Tuple
+from time import time
 from concert.storage import DirectoryWalker
 from concert.experiments.base import Experiment as BaseExperiment, Acquisition, local
 from concert.experiments.base import Consumer as AcquisitionConsumer

@@ -24,4 +24,4 @@ PERFDEBUG = 8
 ALWAYS_WRITE_JSON_METADATA_FILE = False
 
 # Timeout for distributed tango servers in milliseconds
-DISTRIBUTED_TANGO_TIMEOUT = 2**21
+DISTRIBUTED_TANGO_TIMEOUT = 2 ** 21

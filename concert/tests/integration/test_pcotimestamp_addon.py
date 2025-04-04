@@ -20,7 +20,7 @@ from concert.base import transition, Parameter, identity
 def _int_to_int_array(number, length):
     array = np.zeros(length, dtype=np.uint16)
     for i in range(length):
-        array[length-i-1] = number % 10
+        array[length - i - 1] = number % 10
         number //= 10
     return array
 

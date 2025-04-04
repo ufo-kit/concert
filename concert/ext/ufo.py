@@ -24,11 +24,10 @@ except ImportError:
     print("You must install tofu to use Ufo features, see 'https://github.com/ufo-kit/tofu.git'",
           file=sys.stderr)
 
-from concert.base import Parameterizable, Parameter, Quantity, State
+from concert.base import Parameterizable, State
 from concert.config import PERFDEBUG
 from concert.coroutines.base import background, async_generate, run_in_executor, start
 from concert.imageprocessing import filter_low_frequencies
-from concert.quantities import q
 
 
 LOG = logging.getLogger(__name__)
@@ -242,7 +241,7 @@ class GeneralBackprojectArgs(object):
         for section in GEN_RECO_PARAMS:
             for arg in SECTIONS[section]:
                 settings = SECTIONS[section][arg]
-                parameters[arg.replace('-', '_')] = settings
+                self.parameters[arg.replace('-', '_')] = settings
         self.parameters['y'] = SECTIONS['reading']['y']
         self.parameters['height'] = SECTIONS['reading']['height']
         self.parameters['width'] = SECTIONS['general']['width']
@@ -253,8 +252,9 @@ class GeneralBackprojectArgs(object):
             "help": "Slice metric for finding reconstruction parameters"
         }
 
-        self.slice_metrics = ['min', 'max', 'sum', 'mean', 'var', 'std', 'skew',
-                               'kurtosis', 'sag', '']
+        self.slice_metrics = [
+            'min', 'max', 'sum', 'mean', 'var', 'std', 'skew', 'kurtosis', 'sag', ''
+        ]
         self.z_parameters = SECTIONS['general-reconstruction']['z-parameter']['choices']
         for arg, settings in self.parameters.items():
             default = settings['default']

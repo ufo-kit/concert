@@ -8,11 +8,10 @@ import asyncio
 import os
 import logging
 import re
-from abc import abstractmethod
-from typing import Optional, AsyncIterable, Awaitable, Type, Iterable, Set
-import tango
 import zmq
 import tifffile
+from abc import abstractmethod
+from typing import Optional, AsyncIterable, Awaitable, Type, Iterable, Set
 from concert.base import Parameterizable, Parameter
 from concert.config import DISTRIBUTED_TANGO_TIMEOUT
 from concert.coroutines.base import background

@@ -1,11 +1,9 @@
-import random
 import numpy as np
 from concert.tests import assert_almost_equal, TestCase, slow
 from concert.quantities import q
 from concert.devices.monochromators.dummy import\
     Monochromator as DummyMonochromator
 from concert.devices.monochromators import base
-from concert.devices.monochromators.base import Monochromator
 from concert.devices.monochromators.dummy import DoubleMonochromator
 from concert.devices.photodiodes.dummy import PhotoDiode as DummyPhotoDiode
 

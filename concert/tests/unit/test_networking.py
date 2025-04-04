@@ -11,7 +11,7 @@ from concert.networking.base import (
     zmq_create_image_metadata,
     NetworkingError
 )
-from concert.tests import assert_almost_equal, TestCase
+from concert.tests import TestCase
 
 
 CLIENT = "tcp://localhost:9999"

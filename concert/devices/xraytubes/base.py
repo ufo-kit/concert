@@ -6,7 +6,7 @@ from abc import abstractmethod
 from concert.base import check
 from concert.coroutines.base import background
 from concert.quantities import q
-from concert.base import Quantity, AccessorNotImplementedError, State
+from concert.base import Quantity, State
 from concert.devices.base import Device
 
 

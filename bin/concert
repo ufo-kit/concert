@@ -297,7 +297,9 @@ class ImportCommand(SubCommand):
         shutil.rmtree(path)
 
     def _import_file(self, url, force):
-        import urllib.request, urllib.error, urllib.parse
+        import urllib.request
+        import urllib.error
+        import urllib.parse
 
         if not url.endswith('.py'):
             sys.exit("`{0}' is not a Python module".format(url))
@@ -352,7 +354,7 @@ class StartCommand(SubCommand):
 
     def __init__(self):
         opts = {'session': {'nargs': '?', 'type': str, 'default': None},
-                '--filename':  {'type': str, 'default': None},
+                '--filename': {'type': str, 'default': None},
                 '--logto': {'choices': ['stderr', 'file'],
                             'default': 'file'},
                 '--logfile': {'type': str},
@@ -542,7 +544,10 @@ class BroadcastCommand(SubCommand):
                 if endpoints[-1][-1] < 0:
                     # sndhwm check
                     raise ValueError('sndhwm must be a positive integer')
-                if start_consumers and dest in SERVER_NAMES and is_zmq_endpoint_local(values['address']):
+                if (
+                    start_consumers and dest in SERVER_NAMES
+                    and is_zmq_endpoint_local(values['address'])
+                ):
                     cmd = f'concert tango {dest} --loglevel {loglevel}'
                     if 'tango-port' in values:
                         cmd += f' --port {values["tango-port"]}'

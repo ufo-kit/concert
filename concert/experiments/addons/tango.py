@@ -4,7 +4,6 @@ import inspect
 import logging
 import os
 import numpy as np
-import tango
 
 from concert.config import DISTRIBUTED_TANGO_TIMEOUT
 from concert.coroutines.base import background
@@ -170,7 +169,6 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
             viewer=viewer
         )
 
-
     @TangoMixin.cancel_remote
     @remote
     async def update_darks(self):
@@ -195,7 +193,8 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
                 async with self.walker:
                     path = os.path.join(
                         await self.walker.get_current(),
-                        await self.get_slice_directory() if slice_directory is None else slice_directory
+                        await self.get_slice_directory() if slice_directory is None
+                        else slice_directory
                     )
         if cached:
             await self._device.rereconstruct(path)

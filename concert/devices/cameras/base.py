@@ -190,7 +190,10 @@ class Camera(Device):
                 async with self._grab_lock:
                     if await self.get_state() == 'recording':
                         image = await self._grab_real()
-                        meta = {"mirror": await self.get_mirror(), "rotate": await self.get_rotate()}
+                        meta = {
+                            "mirror": await self.get_mirror(),
+                            "rotate": await self.get_rotate()
+                        }
                         image = ImageWithMetadata(image, metadata=meta).convert()
                     else:
                         break

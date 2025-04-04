@@ -16,9 +16,8 @@ class ImageWriter(abc.ABC):
         self._metadata_file = None
         self._append = append
         if metadata_file:
-            self._metadata_filename = self._metadata_file_name = os.path.splitext(filename)[
-                                                                     0] + ".json"
-            self._metadata_file = open(self._metadata_file_name, 'a')
+            metadata_file_name = os.path.splitext(filename)[0] + ".json"
+            self._metadata_file = open(metadata_file_name, 'a')
             self._metadata_file.write("{\n")
             self._first_entry = True
 

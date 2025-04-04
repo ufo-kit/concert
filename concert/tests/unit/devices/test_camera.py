@@ -1,5 +1,4 @@
 from datetime import datetime
-from unittest import mock
 import numpy as np
 import zmq
 from concert.tests import TestCase
@@ -7,7 +6,7 @@ from concert.quantities import q
 from concert.devices.cameras.dummy import Camera, BufferedCamera
 from concert.devices.cameras.pco import Timestamp, TimestampError
 from concert.helpers import CommData, ImageWithMetadata
-from concert.networking.base import ZmqSender, ZmqReceiver
+from concert.networking.base import ZmqReceiver
 
 
 class TestDummyCamera(TestCase):
@@ -44,7 +43,6 @@ class TestDummyCamera(TestCase):
         await camera.start_readout()
         try:
             producer = camera.readout_buffer()
-            print(producer)
             async for item in producer:
                 i += 1
         finally:
@@ -100,7 +98,9 @@ class TestDummyCamera(TestCase):
         for mirrored in (True, False):
             for rotated in (0, 1, 2, 3):
                 await self.camera.unregister_all()
-                await self.camera.register_endpoint(CommData("localhost", 8991+i, "tcp", zmq.PUSH, 0))
+                await self.camera.register_endpoint(
+                    CommData("localhost", 8991 + i, "tcp", zmq.PUSH, 0)
+                )
                 receiver = ZmqReceiver(endpoint=f"tcp://localhost:{8991+i}")
 
                 self.camera.set_mirror(mirrored)
@@ -115,7 +115,6 @@ class TestDummyCamera(TestCase):
                     image,
                     ImageWithMetadata(await grab(), metadata=meta).convert()
                 )
-
 
     async def test_simulate(self):
         async with self.camera.recording():

@@ -33,7 +33,6 @@ def generate_frames(number=10, dimensions=(10, 10)) -> [ImageWithMetadata]:
 class TestReaderWriter(TestCase):
     async def asyncSetUp(self) -> None:
         self._data_dir = tempfile.mkdtemp()
-        print(self._data_dir)
         self.data = generate_frames(20)
 
     def tearDown(self) -> None:

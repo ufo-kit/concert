@@ -3,7 +3,6 @@ import shutil
 import tifffile
 import os
 import tempfile
-import numpy as np
 from concert.coroutines.base import background
 from concert.base import check
 from concert.quantities import q
