@@ -161,10 +161,14 @@ async def zmq_send_image(socket, image, metadata=None):
     if socket is None:
         raise NetworkingError("Socket cannot be none")
 
+    if isinstance(image, ImageWithMetadata):
+        if image.metadata.get("conversion_applied", False):
+            # Image data can be non-contiguous, which zmq does not like, make a copy
+            # to make sure we are good for sending
+            image = image.convert_back().copy()
+
     if image is None or not metadata:
         metadata = zmq_create_image_metadata(image)
-        if metadata.get("conversion_applied", False):
-            raise RuntimeError("zmq_image_send needs and image without applied conversions")
 
     try:
         if image is None:
