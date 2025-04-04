@@ -374,11 +374,10 @@ settings for conducting a tomographic experiment.
 Synchrotron and X-Ray tube experiments
 --------------------------------------
 
-In :py:mod:`concert.experiments.synchrotron` and
-:py:mod:`concert.experiments.xraytube` implementations of Radiography,
-SteppedTomography, ContinuousTomography and SteppedSpiralTomography,
+In :py:mod:`concert.experiments.synchrotron` and :py:mod:`concert.experiments.xraytube` experiment classes for
+Radiography, SteppedTomography, ContinuousTomography and SteppedSpiralTomography,
 ContinuousSpiralTomography and GratingInterferometryStepping are implemented for
-the two different source types.
+the two different source types as local and remote experiments.
 
 For detailed information how they are implemented, you can have a look at the
 base classes :class:`~concert.experiments.imaging.Radiography`,
@@ -392,8 +391,9 @@ base classes :class:`~concert.experiments.imaging.Radiography`,
 In the standard configuration, all tomography and radiography experiments first
 acquire the dark images, then the flat images and the projection images of the
 sample at the end. This order can be adjusted by the
-:func:`~concert.experiments.base.Experiment.swap` command. You can find more details on the
-different experiments in :ref:`Experiment implementations <exp-implementations>`.
+:func:`~concert.experiments.base.Experiment.swap` command.
+
+You can find more details on the different experiments in :ref:`Experiment implementations <exp-implementations>`.
 
 
 Control
