@@ -236,23 +236,23 @@ class GeneralBackprojectArgs(object):
 
     """Data class holding arguments for tofu."""
 
-    parameters = {}
-
-    for section in GEN_RECO_PARAMS:
-        for arg in SECTIONS[section]:
-            settings = SECTIONS[section][arg]
-            parameters[arg.replace('-', '_')] = settings
-    parameters['y'] = SECTIONS['reading']['y']
-    parameters['height'] = SECTIONS['reading']['height']
-    parameters['width'] = SECTIONS['general']['width']
-    parameters['number'] = SECTIONS['reading']['number']
-    parameters['slice_metric'] = {
-        "default": None,
-        "type": str,
-        "help": "Slice metric for finding reconstruction parameters"
-    }
-
     def __init__(self, **kwargs):
+        self.parameters = {}
+
+        for section in GEN_RECO_PARAMS:
+            for arg in SECTIONS[section]:
+                settings = SECTIONS[section][arg]
+                parameters[arg.replace('-', '_')] = settings
+        self.parameters['y'] = SECTIONS['reading']['y']
+        self.parameters['height'] = SECTIONS['reading']['height']
+        self.parameters['width'] = SECTIONS['general']['width']
+        self.parameters['number'] = SECTIONS['reading']['number']
+        self.parameters['slice_metric'] = {
+            "default": None,
+            "type": str,
+            "help": "Slice metric for finding reconstruction parameters"
+        }
+
         self.slice_metrics = ['min', 'max', 'sum', 'mean', 'var', 'std', 'skew',
                                'kurtosis', 'sag', '']
         self.z_parameters = SECTIONS['general-reconstruction']['z-parameter']['choices']
