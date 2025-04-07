@@ -49,13 +49,15 @@ experiment can be run in an empty session with dummy devices::
 
     viewer = await PyplotImageViewer()
     walker = await DirectoryWalker()
-    exp = await LocalContinuousTomography(walker=walker,
-                                     flat_motor=flat_motor,
-                                     tomography_motor=tomo_motor,
-                                     radio_position=0*q.mm,
-                                     flat_position=10*q.mm,
-                                     camera=camera,
-                                     shutter=shutter)
+    exp = await LocalContinuousTomography(
+        walker=walker,
+        flat_motor=flat_motor,
+        tomography_motor=tomo_motor,
+        radio_position=0*q.mm,
+        flat_position=10*q.mm,
+        camera=camera,
+        shutter=shutter
+    )
 
     # Attach live_view to the experiment
     live = await local_addons.LiveView(viewer, exp)
@@ -207,7 +209,9 @@ camera here as well. The following session uses a
             "live": CommData("localhost", port=8995, socket_type=zmq.PUB, sndhwm=1),
     }
 
-    walker_device = get_tango_device(f'{os.uname()[1]}:1238/concert/tango/walker#dbase=no', timeout=1000 * q.s)
+    walker_device = get_tango_device(
+        f'{os.uname()[1]}:1238/concert/tango/walker#dbase=no', timeout=1000 * q.s
+    )
     walker = await RemoteDirectoryWalker(
         device=walker_device,
         root='/mnt/fast/tests',
@@ -239,12 +243,15 @@ camera here as well. The following session uses a
     if "reco" in SERVERS:
         reco_device = get_tango_device(f'{os.uname()[1]}:1237/concert/tango/reco#dbase=no', timeout=1000 * q.s)
         # await reco_device.write_attribute('endpoint', SERVERS["reco"].client_endpoint)
-        reco = await tango_addons.OnlineReconstruction(reco_device, ex,
-                                                       SERVERS["reco"],
-                                                       do_normalization=True,
-                                                       average_normalization=True,
-                                                       slice_directory="online-slices",
-                                                       viewer=slice_viewer)
+        reco = await tango_addons.OnlineReconstruction(
+            reco_device,
+            ex,
+            SERVERS["reco"],
+            do_normalization=True,
+            average_normalization=True,
+            slice_directory="online-slices",
+            viewer=slice_viewer
+        )
         await reco.set_region([0., 1., 1.])
         await reco.set_center_position_x([1009.0] * q.px)
         await reco.set_fix_nan_and_inf(True)
