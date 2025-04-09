@@ -4,7 +4,7 @@ from concert.coroutines.base import (async_generate, broadcast, feed_queue, run_
                                      run_in_loop, start, wait_until, WaitError)
 from concert.coroutines.filters import (absorptivity, flat_correct, average_images,
                                         downsize, stall, Timer)
-from concert.coroutines.sinks import null, Result, Accumulate
+from concert.coroutines.sinks import count, null, Result, Accumulate
 from concert.quantities import q
 from concert.tests import assert_almost_equal, TestCase
 
@@ -151,10 +151,14 @@ class TestCoroutines(TestCase):
         self.assertTrue(isinstance(future, asyncio.Future))
         await asyncio.sleep(.1)
         self.assertTrue(self.iteration != 0)
+        self.assertEqual(future, start(future))
 
     async def test_null(self):
         await null(self.produce())
         self.assertEqual(5, self.iteration)
+
+    async def test_count(self):
+        self.assertEqual(5, await count(self.produce()))
 
     async def test_averager(self):
         await self.consume(average_images(produce_frames()))

@@ -1,10 +1,12 @@
 """
 An X-ray tube.
 """
+from abc import abstractmethod
+
 from concert.base import check
 from concert.coroutines.base import background
 from concert.quantities import q
-from concert.base import Quantity, AccessorNotImplementedError, State
+from concert.base import Quantity, State
 from concert.devices.base import Device
 
 
@@ -22,20 +24,21 @@ class XRayTube(Device):
     async def __ainit__(self):
         await super(XRayTube, self).__ainit__()
 
-    async def _get_state(self):
-        raise AccessorNotImplementedError
-
+    @abstractmethod
     async def _get_voltage(self):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _set_voltage(self, voltage):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _get_current(self):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _set_current(self, current):
-        raise AccessorNotImplementedError
+        ...
 
     async def _get_power(self):
         return (await self.get_voltage() * await self.get_current()).to(q.W)
@@ -60,14 +63,16 @@ class XRayTube(Device):
         """
         await self._off()
 
+    @abstractmethod
     async def _on(self):
         """
         Implementation of on().
         """
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     async def _off(self):
         """
         Implementation of off().
         """
-        raise NotImplementedError
+        ...

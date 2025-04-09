@@ -1,6 +1,6 @@
 """Pumps."""
-
-from concert.base import Quantity, State, check, AccessorNotImplementedError
+from abc import abstractmethod
+from concert.base import Quantity, State, check
 from concert.coroutines.base import background
 from concert.quantities import q
 from concert.devices.base import Device
@@ -36,14 +36,18 @@ class Pump(Device):
         """
         await self._stop()
 
+    @abstractmethod
     async def _get_flow_rate(self):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _set_flow_rate(self, flow_rate):
-        raise AccessorNotImplementedError
+        ...
 
+    @abstractmethod
     async def _start(self):
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     async def _stop(self):
-        raise NotImplementedError
+        ...

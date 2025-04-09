@@ -24,9 +24,9 @@ except ImportError:
     print("You must install tofu to use Ufo features, see 'https://github.com/ufo-kit/tofu.git'",
           file=sys.stderr)
 
-from concert.base import Parameterizable, State, check, transition
+from concert.base import Parameterizable, State
 from concert.config import PERFDEBUG
-from concert.coroutines.base import background, async_generate, run_in_executor, run_in_loop, start
+from concert.coroutines.base import background, async_generate, run_in_executor, start
 from concert.imageprocessing import filter_low_frequencies
 
 
@@ -161,31 +161,31 @@ class InjectProcess(object):
 
         await run_in_executor(_insert_real, array, node, index)
 
+    def _result_real(self, leave_index):
+        if self.output_tasks:
+            if leave_index is None:
+                indices = list(range(len(self.output_tasks)))
+            else:
+                indices = [leave_index]
+            results = []
+            for index in indices:
+                buf = self.output_tasks[index].get_output_buffer()
+                if not buf:
+                    return [None]
+                results.append(np.copy(ufo.numpy.asarray(buf)))
+                self.output_tasks[index].release_output_buffer(buf)
+
+            if leave_index is not None:
+                results = results[0]
+
+            return results
+
     @background
     async def result(self, leave_index=None):
         """Get result from *leave_index* if not None, all leaves if None. Returns a list of results
         in case *leave_index* is None or one result for the specified leave_index.
         """
-        def _result_real(leave_index=None):
-            if self.output_tasks:
-                if leave_index is None:
-                    indices = list(range(len(self.output_tasks)))
-                else:
-                    indices = [leave_index]
-                results = []
-                for index in indices:
-                    buf = self.output_tasks[index].get_output_buffer()
-                    if not buf:
-                        return [None]
-                    results.append(np.copy(ufo.numpy.asarray(buf)))
-                    self.output_tasks[index].release_output_buffer(buf)
-
-                if leave_index is not None:
-                    results = results[0]
-
-                return results
-
-        return await run_in_executor(_result_real, leave_index)
+        return await run_in_executor(self._result_real, leave_index)
 
     def stop(self):
         """Stop input tasks."""
@@ -232,54 +232,68 @@ class FlatCorrect(InjectProcess):
 
 
 class GeneralBackprojectArgs(object):
-    def __init__(self, center_position_x, center_position_z, number,
-                 overall_angle=np.pi):
-        self._slice_metric = None
-        self._slice_metrics = ['min', 'max', 'sum', 'mean', 'var', 'std', 'skew',
-                               'kurtosis', 'sag']
-        self._z_parameters = SECTIONS['general-reconstruction']['z-parameter']['choices']
+
+    """Data class holding arguments for tofu."""
+
+    def __init__(self, **kwargs):
+        self.parameters = {}
+
         for section in GEN_RECO_PARAMS:
             for arg in SECTIONS[section]:
                 settings = SECTIONS[section][arg]
-                default = settings['default']
-                if default is not None and 'type' in settings:
-                    default = settings['type'](default)
-                setattr(self, arg.replace('-', '_'), default)
-        self.y = 0
-        self.height = None
-        self.width = None
-        self.center_position_x = center_position_x
-        self.center_position_z = center_position_z
-        self.number = number
-        self.overall_angle = overall_angle
+                self.parameters[arg.replace('-', '_')] = settings
+        self.parameters['y'] = SECTIONS['reading']['y']
+        self.parameters['height'] = SECTIONS['reading']['height']
+        self.parameters['width'] = SECTIONS['general']['width']
+        self.parameters['number'] = SECTIONS['reading']['number']
+        self.parameters['slice_metric'] = {
+            "default": None,
+            "type": str,
+            "help": "Slice metric for finding reconstruction parameters"
+        }
 
-    @property
-    def z_parameters(self):
-        return self._z_parameters
+        self.slice_metrics = [
+            'min', 'max', 'sum', 'mean', 'var', 'std', 'skew', 'kurtosis', 'sag', ''
+        ]
+        self.z_parameters = SECTIONS['general-reconstruction']['z-parameter']['choices']
+        for arg, settings in self.parameters.items():
+            default = settings['default']
+            if default is not None and 'type' in settings:
+                default = settings['type'](default)
+            setattr(self, arg.replace('-', '_'), default)
 
-    @property
-    def slice_metrics(self):
-        return self._slice_metrics
+        if kwargs:
+            self._set_args(**kwargs)
 
-    @property
-    def slice_metric(self):
-        return self._slice_metric
+    def _set_args(self, **kwargs):
+        for arg in kwargs:
+            if not hasattr(self, arg):
+                raise AttributeError(f"GeneralBackprojectArgs do not have attribute `{arg}'")
+            setattr(self, arg, kwargs[arg])
 
-    @slice_metric.setter
-    def slice_metric(self, metric):
-        if metric not in [None] + self.slice_metrics:
-            raise GeneralBackprojectArgsError("Metric '{}' not known".format(metric))
-        self._slice_metric = metric
 
-    @property
-    def z_parameter(self):
-        return self._z_parameter
+class LocalGeneralBackprojectArgs(GeneralBackprojectArgs):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
-    @z_parameter.setter
-    def z_parameter(self, name):
-        if name not in self.z_parameters:
-            raise GeneralBackprojectArgsError("Unknown z parameter '{}'".format(name))
-        self._z_parameter = name
+    async def set_reco_arg(self, arg, value):
+        if arg in ["slice_metrics", "z_parameters"]:
+            raise AttributeError(f"`{arg}' cannot be set")
+        if arg == "slice_metric":
+            if value not in self.slice_metrics:
+                raise GeneralBackprojectArgsError("Metric '{}' not known".format(value))
+        elif arg == "z_parameter":
+            if value not in self.z_parameters:
+                raise GeneralBackprojectArgsError("Unknown z parameter '{}'".format(value))
+        if not hasattr(self, arg):
+            raise AttributeError(f"LocalGeneralBackprojectArgs do not have attribute `{arg}'")
+        setattr(self, arg, value)
+
+    async def get_reco_arg(self, arg):
+        return getattr(self, arg)
+
+    async def get_parameters(self):
+        return tuple([(key, self.parameters[key]["help"]) for key in self.parameters])
 
 
 class GeneralBackproject(InjectProcess):
@@ -385,6 +399,8 @@ class GeneralBackproject(InjectProcess):
             self.ufo_buffers[self.ffc] = [None]
             self.graph.connect_nodes_full(self.input_tasks[self.ffc][0], self.ffc, 0)
 
+        self._generating = False
+
     async def _average(self, producer, node):
         what = 'darks' if node == self.dark_avg else 'flats'
         LOG.log(PERFDEBUG, 'Starting %s averaging', what)
@@ -407,12 +423,22 @@ class GeneralBackproject(InjectProcess):
         await self._average(producer, self.flat_avg)
         self._flats_averaged = True
 
+    def abort(self):
+        LOG.debug("Aborting GeneralBackproject's scheduler")
+        self.stop()
+        self.sched.abort()
+        if self._generating:
+            while self._result_real(None)[0] is not None:
+                pass
+        LOG.debug("GeneralBackproject's scheduler aborted")
+
     async def __call__(self, producer):
         async def consume_volume():
             if not self._started:
                 yield None
                 return
             self.stop()
+            self._generating = True
             st = time.perf_counter()
             for k in np.arange(*self.args.region):
                 result = (await self.result())[0]
@@ -420,43 +446,42 @@ class GeneralBackproject(InjectProcess):
                     LOG.warning('Not all slices received (last: %g)', k)
                     break
                 yield result
+            self._generating = False
             LOG.log(PERFDEBUG, 'Volume downloaded in: %.2f s', time.perf_counter() - st)
             self.wait()
             self._darks_averaged = False
             self._flats_averaged = False
 
+        self._generating = False
         i = 0
-        try:
-            async for projection in producer:
-                if i == 0:
-                    st = time.perf_counter()
-                    if not self._started:
-                        self.start()
-                    if self.do_normalization:
-                        if not (self._darks_averaged and self._flats_averaged):
-                            raise GeneralBackprojectError('Darks and flats not processed yet')
-                        # Tell averagers to generate instead of consuming from now on
-                        self.input_tasks[self.dark_avg][0].stop()
-                        self.input_tasks[self.flat_avg][0].stop()
-                i += 1
+        async for projection in producer:
+            if i == 0:
+                st = time.perf_counter()
+                if not self._started:
+                    self.start()
+                if self.do_normalization:
+                    if not (self._darks_averaged and self._flats_averaged):
+                        raise GeneralBackprojectError('Darks and flats not processed yet')
+                    # Tell averagers to generate instead of consuming from now on
+                    self.input_tasks[self.dark_avg][0].stop()
+                    self.input_tasks[self.flat_avg][0].stop()
+            i += 1
 
-                projection = projection[self.args.y:self.args.y + self.args.height]
-                if projection.dtype != np.float32:
-                    projection = projection.astype(np.float32)
-                # If ffc is None, node=None and that's OK because there is only one input which the
-                # parent can deal with. Projection port of ffc task is zero, so no need for special
-                # handling.
-                await self.insert(projection, node=self.ffc, index=0)
+            projection = projection[self.args.y:self.args.y + self.args.height]
+            if projection.dtype != np.float32:
+                projection = projection.astype(np.float32)
+            # If ffc is None, node=None and that's OK because there is only one input which the
+            # parent can deal with. Projection port of ffc task is zero, so no need for special
+            # handling.
+            await self.insert(projection, node=self.ffc, index=0)
 
-                if i == self.args.number:
-                    LOG.log(PERFDEBUG, 'Backprojected %d projections, duration: %.2f s', i,
-                            time.perf_counter() - st)
-                    async for item in consume_volume():
-                        yield item
-        except asyncio.CancelledError:
-            # Stop scheduler to free up memory
-            self.wait()
-            raise
+            if i == self.args.number:
+                LOG.log(PERFDEBUG, 'Backprojected %d projections, duration: %.2f s', i,
+                        time.perf_counter() - st)
+                j = 0
+                async for item in consume_volume():
+                    yield item
+                    j += 1
 
 
 class GeneralBackprojectManager(Parameterizable):
@@ -559,17 +584,22 @@ class GeneralBackprojectManager(Parameterizable):
                 await self._producer_condition.wait_for(lambda: self._num_received_projections > i)
             yield self.projections[i]
             self._num_processed_projections = i + 1
+        LOG.debug(
+            "Last projection %d dispatched to backprojectors",
+            self._num_processed_projections
+        )
 
     async def _consume(self, offset, producer):
         """Consume slices from individual backprojectors."""
+        LOG.debug("Consuming slices at offset %d", offset)
         i = 0
         async for item in producer:
             self.volume[offset + i] = item
             i += 1
+        LOG.debug("Consuming slices at offset %d finished", offset)
 
-    def find_parameters(self, parameters, projections=None, metrics=('sag',), regions=None,
-                        iterations=1, fwhm=0, minimize=(True,), z=None, method='powell',
-                        method_options=None, guesses=None, bounds=None, store=True):
+    async def find_parameters(self, parameters, projections=None, metrics=('sag',), regions=None,
+                              iterations=1, fwhm=0, minimize=(True,), z=None, store=True):
         """Find reconstruction parameters. *parameters* (see
         :attr:`.GeneralBackprojectArgs.z_parameters`) are the names of the parameters which should
         be found, *projections* are the input data and if not specified, the ones from last
@@ -578,29 +608,18 @@ class GeneralBackprojectManager(Parameterizable):
         Optimization is done either brute-force if *regions* are not specified or one of the scipy
         minimization methods is used, see below.
 
-        If *regions* are specified, they are reconstructed for the corresponding parameters and a
-        metric from *metrics* list is applied. Thus, first parameter in *parameters* is
-        reconstructed within the first region in *regions* and the first metric (see
-        :attr:`.GeneralBackprojectArgs.slice_metrics`) in *metrics* is applied and so on. If
-        *metrics* is of length 1 then it is applied to all parameters. *minimize* is a tuple
-        specifying whether each parameter in the list should be minimized (True) or maximized
-        (False). After every parameter is processed, the parameter optimization result is stored and
-        the next parameter is optimized in such a way, that the result of the optimization of the
-        previous parameter already takes place. *iterations* specifies how many times are all the
-        parameters reconstructed. *fwhm* specifies the full width half maximum of the gaussian
-        window used to filter out the low frequencies in the metric, which is useful when the region
-        for a metric is large. If the *fwhm* is specified, the region must be at least 4 * fwhm
-        large. If *fwhm* is 0 no filtering is done.
-
-        If *regions* is not specified, :func:`scipy.minimize` is used to find the parameter, where
-        the optimization method is given by the *method* parameter, *method_options* are passed as
-        *options* to the minimize function and *guesses* are initial guesses in the order of the
-        *parameters* list. If *bounds* are given, they represent the domains where to look for
-        parameters, they are (min, max) tuples, also in the order of the *parameters* list. See
-        documentation of :func:`scipy.minimize` for the list of minimization methods which support
-        bounds specification. In this approach only the first in *metrics* is taken into account
-        because the optimization happens on all parameters simultaneously, the same holds for
-        *minimize*.
+        *regions* are reconstructed for the corresponding parameters and a metric from *metrics*
+        list is applied. Thus, first parameter in *parameters* is reconstructed within the first
+        region in *regions* and the first metric (see :attr:`.GeneralBackprojectArgs.slice_metrics`)
+        in *metrics* is applied and so on. If *metrics* is of length 1 then it is applied to all
+        parameters. *minimize* is a tuple specifying whether each parameter in the list should be
+        minimized (True) or maximized (False). After every parameter is processed, the parameter
+        optimization result is stored and the next parameter is optimized in such a way, that the
+        result of the optimization of the previous parameter already takes place. *iterations*
+        specifies how many times are all the parameters reconstructed. *fwhm* specifies the full
+        width half maximum of the gaussian window used to filter out the low frequencies in the
+        metric, which is useful when the region for a metric is large. If the *fwhm* is specified,
+        the region must be at least 4 * fwhm large. If *fwhm* is 0 no filtering is done.
         """
         if projections is None:
             if self.projections is None:
@@ -610,68 +629,35 @@ class GeneralBackprojectManager(Parameterizable):
         orig_args = self.args
         self.args = copy.deepcopy(self.args)
 
-        if regions is None:
-            # No region specified, do a real optimization on the parameters vector
-            from scipy import optimize
-
-            def score(vector):
-                for (parameter, value) in zip(parameters, vector):
-                    setattr(self.args, parameter.replace('-', '_'), [value])
-                run_in_loop(self.backproject(async_generate(projections)))
-                result = sgn * self.volume[0]
-                LOG.info('Optimization vector: %s, result: %g', vector, result)
-
-                return result
-
-            self.args.z_parameter = 'z'
-            z = z or 0
-            self.args.region = [z, z + 1, 1.]
-            self.args.slice_metric = metrics[0]
-            sgn = 1 if minimize[0] else -1
-            if guesses is None:
-                guesses = []
-                for parameter in parameters:
-                    if parameter == 'center-position-x':
-                        guesses.append(self.args.width / 2)
-                    else:
-                        guesses.append(0.)
-            LOG.info('Guesses: %s', guesses)
-            result = optimize.minimize(score, guesses, method=method, bounds=bounds,
-                                       options=method_options)
-            LOG.info('%s', result.message)
-            result = result.x
-        else:
-            # Regions specified, reconstruct given regions for given parameters and simply search
-            # for extrema of the given metrics
-            self.args.z = z or 0
-            if fwhm:
-                for region in regions:
-                    if len(np.arange(*region)) < 4 * fwhm:
-                        raise ValueError('All regions must be at least 4 * fwhm large '
-                                         'when fwhm is specified')
-            result = []
-            if len(metrics) == 1:
-                metrics = metrics * len(parameters)
-            if len(minimize) == 1:
-                minimize = minimize * len(parameters)
-            for i in range(iterations):
-                for (parameter, region, metric, minim) in zip(parameters, regions,
-                                                              metrics, minimize):
-                    self.args.slice_metric = metric
-                    self.args.z_parameter = parameter
-                    self.args.region = region
-                    run_in_loop(self.backproject(async_generate(projections)))
-                    sgn = 1 if minim else -1
-                    values = self.volume
-                    if fwhm:
-                        values = filter_low_frequencies(values, fwhm=fwhm)[2 * int(fwhm):
-                                                                           -2 * int(fwhm)]
-                    param_result = (np.argmin(sgn * values) + 2 * fwhm) * region[2] + region[0]
-                    setattr(self.args, parameter.replace('-', '_'), [param_result])
-                    if i == iterations - 1:
-                        result.append(float(param_result))
-                    LOG.info('Optimizing %s, region: %s, metric: %s, minimize: %s, result: %g',
-                             parameter, region, metric, minim, param_result)
+        self.args.z = z or 0
+        if fwhm:
+            for region in regions:
+                if len(np.arange(*region)) < 4 * fwhm:
+                    raise ValueError('All regions must be at least 4 * fwhm large '
+                                     'when fwhm is specified')
+        result = []
+        if len(metrics) == 1:
+            metrics = metrics * len(parameters)
+        if len(minimize) == 1:
+            minimize = minimize * len(parameters)
+        for i in range(iterations):
+            for (parameter, region, metric, minim) in zip(parameters, regions,
+                                                          metrics, minimize):
+                self.args.slice_metric = metric
+                self.args.z_parameter = parameter
+                self.args.region = region
+                await self.backproject(async_generate(projections))
+                sgn = 1 if minim else -1
+                values = self.volume
+                if fwhm:
+                    values = filter_low_frequencies(values, fwhm=fwhm)[2 * int(fwhm):
+                                                                       -2 * int(fwhm)]
+                param_result = (np.argmin(sgn * values) + 2 * fwhm) * region[2] + region[0]
+                setattr(self.args, parameter.replace('-', '_'), [param_result])
+                if i == iterations - 1:
+                    result.append(float(param_result))
+                LOG.info('Optimizing %s, region: %s, metric: %s, minimize: %s, result: %g',
+                         parameter, region, metric, minim, param_result)
 
         LOG.info('Optimization result: %s', result)
 
@@ -691,6 +677,8 @@ class GeneralBackprojectManager(Parameterizable):
             self._num_received_projections += 1
             async with self._producer_condition:
                 self._producer_condition.notify_all()
+            if self._num_received_projections == self.args.number:
+                LOG.debug("Last projection %d came", self._num_received_projections)
 
     async def _copy_projections(self, producer):
         async for projection in producer:
@@ -735,14 +723,35 @@ class GeneralBackprojectManager(Parameterizable):
                                                                   self._flats_condition)
                 await asyncio.gather(bp.average_darks(darks_generator),
                                      bp.average_flats(flats_generator))
-            await self._consume(offset, bp(self._produce()))
+
+            def consume_cb(task):
+                LOG.debug("consume task finished: %s", task)
+                if task.cancelled() or task.exception():
+                    bp.abort()
+
+                # Help garbage collection which would otherwise leave the graph and tasks hanging
+                # around for too long blocking GPU memory
+                del bp.graph
+
+            # We need to take care of aborting here because if there is a KeyboardInterrupt in
+            # _consume during a blocking (non-asyncio call), it will never be thrown into the back
+            # projector, hence there is no way of checking inside it whether the processing stopped
+            # or was aborted. Thus, we attach a callback here and if we get a CancelledError or a
+            # KeyboardInterrupt, we detect it and abort the back projector and free up resources.
+            consume_task = start(self._consume(offset, bp(self._produce())))
+            consume_task.add_done_callback(consume_cb)
+            await consume_task
 
         LOG.debug('Reconstructing %d batches: %s', len(self._regions), self._regions)
-        for batch_index in range(len(self._regions)):
-            coros = []
-            for region_index in range(len(self._regions[batch_index])):
-                coros.append(start_one(batch_index, region_index))
-            await asyncio.gather(*coros)
+        try:
+            self._state_value = 'running'
+            for batch_index in range(len(self._regions)):
+                coros = []
+                for region_index in range(len(self._regions[batch_index])):
+                    coros.append(start_one(batch_index, region_index))
+                await asyncio.gather(*coros)
+        finally:
+            self._state_value = 'standby'
 
         # Process results
         duration = time.perf_counter() - st
@@ -815,8 +824,6 @@ class GeneralBackprojectManager(Parameterizable):
         self._num_received_projections = self._num_processed_projections = 0
 
     @background
-    @check(source='standby', target='*')
-    @transition(immediate='running', target='standby')
     async def update_darks(self, producer):
         """Get new darks from *producer*. Immediately start the reconstruction so that averaging
         starts.
@@ -824,8 +831,6 @@ class GeneralBackprojectManager(Parameterizable):
         await self._copy_normalization(producer, self.darks, self._darks_condition)
 
     @background
-    @check(source='standby', target='*')
-    @transition(immediate='running', target='standby')
     async def update_flats(self, producer):
         """Get new flats from *producer*. Immediately start the reconstruction so that averaging
         starts.
@@ -833,10 +838,8 @@ class GeneralBackprojectManager(Parameterizable):
         await self._copy_normalization(producer, self.flats, self._flats_condition)
 
     @background
-    @check(source='standby', target='*')
     async def backproject(self, producer):
         """Backproject projections from *producer*."""
-        self._state_value = 'running'
         self._num_received_projections = self._num_processed_projections = 0
 
         try:
@@ -846,8 +849,10 @@ class GeneralBackprojectManager(Parameterizable):
                 if not self.args.width:
                     (self.args.height, self.args.width) = projection.shape
                 elif (self.args.height, self.args.width) != projection.shape:
-                    raise GeneralBackprojectManagerError('Projections have different '
-                                                         'shape from normalization images')
+                    raise GeneralBackprojectManagerError(
+                        f'Projections have different shape ({projection.shape}) '
+                        'shape from normalization images'
+                    )
                 in_shape = (self.args.number,) + projection.shape
                 if (self.projections is None or in_shape != self.projections.shape
                         or projection.dtype != self.projections.dtype):
@@ -863,9 +868,9 @@ class GeneralBackprojectManager(Parameterizable):
         except asyncio.CancelledError:
             if self._processing_task and not self._processing_task.cancelled():
                 self._processing_task.cancel()
+            raise
         finally:
             self._processing_task = None
-            self._state_value = 'standby'
 
 
 class InjectProcessError(Exception):

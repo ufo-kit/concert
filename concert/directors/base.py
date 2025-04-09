@@ -1,19 +1,18 @@
-import os
 import asyncio
 import logging
+from abc import abstractmethod
 
-from concert.base import Parameterizable, background, Parameter, State, transition, StateError, \
-    check, Selection
+from concert.base import background, Parameter, StateError, Selection, RunnableParameterizable
 from concert.helpers import get_state_from_awaitable
+from concert.loghandler import AsyncLoggingHandlerCloser
 
 LOG = logging.getLogger(__name__)
 
 
-class Director(Parameterizable):
+class Director(RunnableParameterizable):
     """
     Class to handle multiple experiment executions.
     """
-    state = State(default="standby")
     number_of_iterations = Parameter()
     current_iteration = Parameter()
     current_iteration_name = Parameter()
@@ -37,7 +36,6 @@ class Director(Parameterizable):
         self._iteration = 0
         self.log = LOG
         self.log.setLevel("INFO")
-        self._run_awaitable = None
         await super().__ainit__()
 
     async def _get_state(self):
@@ -53,6 +51,7 @@ class Director(Parameterizable):
     async def _set_log_level(self, level):
         self.log.setLevel(level.upper())
 
+    @abstractmethod
     async def _prepare_run(self, iteration: int):
         """
         This function changes whatever should be different between the different experiment
@@ -62,16 +61,20 @@ class Director(Parameterizable):
         :param iteration:
         :type iteration: int
         """
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     async def _get_number_of_iterations(self) -> int:
         """
         Should return the total number of iterations.
         :return: Number of iterations.
         """
-        raise NotImplementedError
+        ...
 
-    async def _get_iteration_name(self, iteration: int) -> str:
+    async def _get_current_iteration_name(self) -> str:
+        return await self.get_iteration_name(await self.get_current_iteration())
+
+    async def get_iteration_name(self, iteration: int) -> str:
         """
         Function for giving meaningfully names for each experiment execution.
         Should be overwritten for more complicated naming (e.g. specimen descriptions).
@@ -85,13 +88,6 @@ class Director(Parameterizable):
         if await self.get_current_iteration() < await self.get_number_of_iterations() - 1:
             await self._prepare_run(await self.get_current_iteration() + 1)
 
-
-    @background
-    @check(source=['standby', 'error'], target="standby")
-    async def run(self):
-        self._run_awaitable = self._run()
-        await self._run_awaitable
-
     @background
     async def _run(self):
         await self._experiment['separate_scans'].stash()
@@ -99,11 +95,11 @@ class Director(Parameterizable):
         handler = None
         try:
             if self._experiment.walker:
-                handler = logging.FileHandler(os.path.join(self._experiment.walker.current,
-                                                           'director.log'))
-                formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s '
-                                              '- %(message)s')
-                handler.setFormatter(formatter)
+                handler: AsyncLoggingHandlerCloser = await self._experiment.walker.register_logger(
+                    logger_name=self.__class__.__name__,
+                    log_level=logging.NOTSET,
+                    file_name="director.log"
+                )
                 self.log.addHandler(handler)
             self.log.info(await self.info_table)
 
@@ -116,9 +112,9 @@ class Director(Parameterizable):
                 self._iteration = iteration
                 await self._run_event.wait()
 
-                self._experiment.walker.descend(await self._get_iteration_name(iteration))
+                await self._experiment.walker.descend(await self.get_iteration_name(iteration))
                 exp_run = self._experiment.run()
-                sample_name = await self._get_iteration_name(iteration)
+                sample_name = await self.get_iteration_name(iteration)
                 self._experiment.log.info(f"Sample name: {sample_name}")
                 self._experiment.log.info(await self.info_table)
 
@@ -129,12 +125,13 @@ class Director(Parameterizable):
                 try:
                     await exp_run
                 except Exception as e:
+                    itr_name = await self.get_iteration_name(await self.get_iteration())
                     self.log.error(
-                        f"Director iteration {await self.get_iteration_name(await self.get_iteration())} failed.")
+                        f"Director iteration {itr_name} failed.")
                     self.log.error(e)
                     raise e
                 finally:
-                    self._experiment.walker.ascend()
+                    await self._experiment.walker.ascend()
 
         except asyncio.CancelledError:
             # This is normal, no special state needed -> standby
@@ -148,7 +145,7 @@ class Director(Parameterizable):
             raise
         finally:
             if handler:
-                handler.close()
+                await handler.aclose()
                 self.log.removeHandler(handler)
             await self._experiment['separate_scans'].restore()
             await self.finish()

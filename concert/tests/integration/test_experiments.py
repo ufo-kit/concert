@@ -3,20 +3,40 @@ Test experiments. Logging is disabled, so just check the directory and log
 files creation.
 """
 import asyncio
-import numpy as np
+import logging
 import os.path as op
 import tempfile
 import shutil
+import unittest
+import numpy as np
+import concert.config as cfg
 from concert.quantities import q
+from typing import Tuple
 from concert.coroutines.base import start
-from concert.coroutines.sinks import Accumulate
-from concert.experiments.base import Acquisition, Experiment, ExperimentError
+from concert.coroutines.sinks import Accumulate, null
+from concert.experiments.base import (Acquisition, Consumer as AcquisitionConsumer, Experiment,
+                                      ExperimentError, local)
 from concert.experiments.imaging import (tomo_angular_step, tomo_max_speed,
                                          tomo_projections_number, frames)
-from concert.experiments.addons import Addon, Consumer, ImageWriter, Accumulator
+from concert.experiments.addons.base import Addon
+from concert.experiments.addons.local import (Accumulator as LocalAccumulator,
+                                              Consumer as LocalConsumer,
+                                              ImageWriter as LocalImageWriter)
 from concert.devices.cameras.dummy import Camera
+from concert.devices.shutters.dummy import Shutter
+from concert.devices.motors.dummy import LinearMotor
 from concert.tests import TestCase, suppressed_logging, assert_almost_equal
-from concert.storage import DummyWalker, DirectoryWalker
+from concert.storage import DirectoryWalker, DummyWalker, RemoteDirectoryWalker
+from concert.tests.util.mocks import MockWalkerDevice
+
+
+class BrokenDeviceException(Exception):
+    pass
+
+
+class BrokenDevice(LinearMotor):
+    async def _get_position(self):
+        raise BrokenDeviceException("Broken device")
 
 
 class VisitChecker(object):
@@ -31,15 +51,22 @@ class VisitChecker(object):
 
 
 class DummyAddon(Addon):
-    def __init__(self):
-        self.attached_num_times = 0
-        super(DummyAddon, self).__init__([])
 
-    def _attach(self):
-        self.attached_num_times += 1
+    remote = False
 
-    def _detach(self):
-        self.attached_num_times -= 1
+    async def __ainit__(self):
+        await super(DummyAddon, self).__ainit__(experiment=None, acquisitions=[])
+
+    def _make_consumers(self, acquisitions):
+        return dict((acq, AcquisitionConsumer(local(null))) for acq in acquisitions)
+
+    def is_attached(self, acquisitions):
+        for acq in acquisitions:
+            for consumer in self._consumers:
+                if acq.contains(consumer):
+                    return True
+
+        return False
 
 
 class ExperimentSimple(Experiment):
@@ -47,6 +74,7 @@ class ExperimentSimple(Experiment):
         acq = await Acquisition("test", self._run_test_acq)
         await super(ExperimentSimple, self).__ainit__([acq], walker)
 
+    @local
     async def _run_test_acq(self):
         for i in range(10):
             await asyncio.sleep(0.1)
@@ -58,6 +86,7 @@ class ExperimentException(Experiment):
         acq = await Acquisition("test", self._run_test_acq)
         await super(ExperimentException, self).__ainit__([acq], walker)
 
+    @local
     async def _run_test_acq(self):
         for i in range(2):
             yield i
@@ -99,8 +128,8 @@ class TestAcquisition(TestCase):
         await super().asyncSetUp()
         self.acquired = False
         self.item = None
-        self.acquisition = await Acquisition('foo', self.produce, consumers=[self.consume],
-                                             acquire=self.acquire)
+        self.acquisition = await Acquisition('foo', self.produce, acquire=self.acquire)
+        self.acquisition.add_consumer(AcquisitionConsumer(self.consume))
 
     async def test_run(self):
         await self.acquisition()
@@ -110,9 +139,11 @@ class TestAcquisition(TestCase):
     async def acquire(self):
         self.acquired = True
 
+    @local
     async def produce(self):
         yield 1
 
+    @local
     async def consume(self, producer):
         async for item in producer:
             self.item = item
@@ -124,11 +155,11 @@ class TestExperimentBase(TestCase):
         await super(TestExperimentBase, self).asyncSetUp()
         self.acquired = 0
         self.root = ''
-        self.walker = DummyWalker(root=self.root)
+        self.walker = await DummyWalker(root=self.root)
         self.name_fmt = 'scan_{:>04}'
         self.visited = 0
-        self.foo = await Acquisition("foo", self.produce, consumers=[self.consume],
-                                     acquire=self.acquire)
+        self.foo = await Acquisition("foo", self.produce, acquire=self.acquire)
+        self.foo.add_consumer(AcquisitionConsumer(self.consume))
         self.bar = await Acquisition("bar", self.produce, acquire=self.acquire)
         self.acquisitions = [self.foo, self.bar]
         self.num_produce = 2
@@ -137,11 +168,13 @@ class TestExperimentBase(TestCase):
     async def acquire(self):
         self.acquired += 1
 
+    @local
     async def produce(self):
         self.visited += 1
         for i in range(self.num_produce):
-            yield i
+            yield np.ones((1,)) * i
 
+    @local
     async def consume(self, producer):
         async for item in producer:
             self.item = item
@@ -163,7 +196,7 @@ class TestExperiment(TestExperimentBase):
         self.assertEqual(self.visited, 2 * len(self.experiment.acquisitions))
 
         truth = set([op.join(self.root, self.name_fmt.format(i)) for i in range(2)])
-        self.assertEqual(truth, self.walker.paths)
+        self.assertEqual(truth, await self.walker.paths)
 
         # Consumers must be called
         self.assertTrue(self.item is not None)
@@ -202,61 +235,68 @@ class TestExperiment(TestExperimentBase):
 
     async def test_consumer_addon(self):
         accumulate = Accumulate()
-        Consumer([self.acquisitions[0]], accumulate)
+        consumer = await LocalConsumer(accumulate, experiment=self.experiment,
+                                       acquisitions=[self.acquisitions[0]])
         await self.experiment.run()
         self.assertEqual(accumulate.items, list(range(self.num_produce)))
 
     async def test_image_writing(self):
-        ImageWriter(self.acquisitions, self.walker)
-        await self.experiment.run()
+        data_dir = tempfile.mkdtemp()
+        try:
+            walker = await DirectoryWalker(root=data_dir, bytes_per_file=0)
+            self.experiment.walker = walker
+            writer = await LocalImageWriter(self.experiment)
+            await self.experiment.set_separate_scans(False)
+            await self.experiment.run()
 
-        scan_name = self.name_fmt.format(0)
-        # Check if the writing coroutine has been attached
-        for i in range(self.num_produce):
-            foo = op.join(self.root, scan_name, 'foo', self.walker.dsetname, str(i))
-            bar = op.join(self.root, scan_name, 'bar', self.walker.dsetname, str(i))
-
-            self.assertTrue(self.walker.exists(foo))
-            self.assertTrue(self.walker.exists(bar))
+            # Check if the writing coroutine has been attached
+            for i in range(self.num_produce):
+                foo = op.join(data_dir, 'foo', (await walker.get_dsetname()).format(i))
+                bar = op.join(data_dir, 'bar', (await walker.get_dsetname()).format(i))
+                self.assertTrue(await walker.exists(foo))
+                self.assertTrue(await walker.exists(bar))
+        finally:
+            self.experiment.walker = None
+            shutil.rmtree(data_dir)
 
     async def test_accumulation(self):
-        acc = Accumulator(self.acquisitions)
+        acc = await LocalAccumulator(self.experiment)
         await self.experiment.run()
 
         for acq in self.acquisitions:
-            self.assertEqual(acc.items[acq], list(range(self.num_produce)))
+            self.assertEqual(await acc.get_items(acq), list(range(self.num_produce)))
 
         # Test detach
-        acc.detach()
+        acc = await LocalAccumulator(self.experiment)
+        await acc.detach(self.acquisitions)
+        await self.experiment.run()
         for acq in self.acquisitions:
-            for consumer in acq.consumers:
-                self.assertFalse(isinstance(consumer, Accumulate))
-        self.assertEqual(acc.items, {})
+            self.assertEqual(await acc.get_items(acq), [])
 
-    def test_attach_num_times(self):
+    async def test_attach_num_times(self):
         """An attached addon cannot be attached the second time."""
-        addon = DummyAddon()
+        addon = await DummyAddon()
         # Does nothing because it's attached during construction
-        addon.attach()
-        self.assertEqual(1, addon.attached_num_times)
+        await addon.attach(self.acquisitions)
+        self.assertTrue(addon.is_attached(self.acquisitions))
 
         # Detach
-        addon.detach()
-        self.assertEqual(0, addon.attached_num_times)
+        await addon.detach(self.acquisitions)
+        self.assertFalse(addon.is_attached(self.acquisitions))
 
         # Second time, cannot be called
-        addon.detach()
-        self.assertEqual(0, addon.attached_num_times)
+        await addon.detach(self.acquisitions)
+        self.assertFalse(addon.is_attached(self.acquisitions))
 
 
 class TestExperimentStates(TestCase):
     def tearDown(self):
         shutil.rmtree(self.data_dir)
 
-    def setUp(self):
-        super(TestExperimentStates, self).setUp()
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
         self.data_dir = tempfile.mkdtemp()
-        self.walker = DirectoryWalker(root=self.data_dir)
+        self.walker = await DirectoryWalker(root=self.data_dir)
 
     async def test_experiment_state_normal(self):
         exp = await ExperimentSimple(self.walker)
@@ -281,3 +321,98 @@ class TestExperimentStates(TestCase):
         with self.assertRaises(Exception):
             await exp.run()
         self.assertEqual(await exp.get_state(), "error")
+
+
+class TestExperimentLogging(unittest.IsolatedAsyncioTestCase):
+
+    async def asyncSetUp(self):
+        logging.disable(logging.NOTSET)
+        cfg.PROGRESS_BAR = False
+        self._visited = 0
+        self._acquired = 0
+        self._device = MockWalkerDevice()
+        self._walker = await RemoteDirectoryWalker(device=self._device)
+        foo = await Acquisition("foo", self.produce, acquire=self.acquire)
+        foo.add_consumer(AcquisitionConsumer(self.consume)), Tuple
+        bar = await Acquisition("bar", self.produce, acquire=self.acquire)
+        self._acquisitions = [foo, bar]
+        self.num_produce = 2
+        self._item = None
+        self._experiment = await Experiment(acquisitions=self._acquisitions, walker=self._walker)
+        await self._experiment._set_log_level("debug")
+        self._devices = [await Shutter(), await LinearMotor(), await Camera()]
+        [self._experiment.add_device_to_log(f"Device-{dix}", dev) for dix,
+         dev in enumerate(self._devices)]
+        await super().asyncSetUp()
+
+    async def asyncTearDown(self) -> None:
+        logging.disable(logging.CRITICAL)
+        await super().asyncTearDown()
+
+    async def acquire(self):
+        self._acquired += 1
+
+    @local
+    async def produce(self):
+        self._visited += 1
+        for i in range(self.num_produce):
+            yield np.ones((1,)) * i
+
+    @local
+    async def consume(self, producer):
+        async for item in producer:
+            self._item = item
+
+    async def test_experiment_logging(self) -> None:
+        self._experiment.set_log_devices_at_start(True)
+        self._experiment.set_log_devices_at_start(True)
+        _ = await self._experiment.run()
+        self.assertEqual(self._visited, len(self._experiment.acquisitions))
+        self.assertEqual(self._acquired, len(self._experiment.acquisitions))
+        mock_device = self._walker.device.mock_device
+        mock_device.register_logger.assert_called()
+        mock_device.log.assert_called()
+        mock_device.deregister_logger.assert_called()
+        mock_device.log_to_json.assert_called()
+
+    async def test_experiment_logging2(self):
+        mock_device = self._walker.device.mock_device
+
+        mock_device.reset_mock()
+        self._experiment.set_log_devices_at_start(True)
+        self._experiment.set_log_devices_at_finish(True)
+        _ = await self._experiment.run()
+        self.assertEqual(mock_device.log_to_json.call_count, 2)
+
+        mock_device.reset_mock()
+        self._experiment.set_log_devices_at_start(False)
+        self._experiment.set_log_devices_at_finish(True)
+        _ = await self._experiment.run()
+        self.assertEqual(mock_device.log_to_json.call_count, 1)
+
+        mock_device.reset_mock()
+        self._experiment.set_log_devices_at_start(True)
+        self._experiment.set_log_devices_at_finish(False)
+        _ = await self._experiment.run()
+        self.assertEqual(mock_device.log_to_json.call_count, 1)
+
+        mock_device.reset_mock()
+        self._experiment.set_log_devices_at_start(False)
+        self._experiment.set_log_devices_at_finish(False)
+        _ = await self._experiment.run()
+        self.assertEqual(mock_device.log_to_json.call_count, 0)
+
+    async def test_optional_device_logging(self):
+        broken_device = await BrokenDevice()
+        self._experiment._devices_to_log = {}
+        self._experiment._devices_to_log_optional = {}
+        self._experiment.add_device_to_log("BrokenDevice", broken_device, optional=False)
+        # Test that the experiment fails when a non-optional device is broken
+        with self.assertRaises(BrokenDeviceException):
+            await self._experiment.run()
+
+        self._experiment._devices_to_log = {}
+        self._experiment._devices_to_log_optional = {}
+        self._experiment.add_device_to_log("BrokenDevice", broken_device, optional=True)
+        # Test that the experiment does not fail when an optional device is broken
+        await self._experiment.run()

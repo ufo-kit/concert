@@ -4,18 +4,18 @@ import numpy as np
 from concert.quantities import q
 from concert.tests import TestCase, slow
 from concert.storage import DirectoryWalker
-from concert.experiments.addons import ImageWriter, Accumulator, \
+from concert.experiments.addons.local import (
+    ImageWriter,
+    Accumulator,
     PhaseGratingSteppingFourierProcessing
+)
 from concert.devices.cameras.dummy import Camera
 from concert.devices.motors.dummy import LinearMotor
 from concert.devices.xraytubes.dummy import XRayTube
 from concert.devices.shutters.dummy import Shutter
-from concert.experiments.synchrotron import \
-    GratingInterferometryStepping as SynchrotronPhaseStepping
-from concert.experiments.xraytube import GratingInterferometryStepping as XRayTubePhaseStepping
-from concert.experiments.xraytube import XrayTubeMixin
-from concert.experiments.synchrotron import SynchrotronMixin
-from concert.experiments.imaging import Tomography, ContinuousTomography
+from concert.experiments import synchrotron
+from concert.experiments import xraytube
+from concert.experiments import imaging
 
 
 class LoggingCamera(Camera):
@@ -30,9 +30,9 @@ class LoggingCamera(Camera):
         await self.set_exposure_time(0.001 * q.s)
 
     async def _trigger_real(self):
-        if isinstance(self.experiment, SynchrotronMixin):
+        if isinstance(self.experiment, synchrotron.SynchrotronMixin):
             source = self.experiment._shutter
-        elif isinstance(self.experiment, XrayTubeMixin):
+        elif isinstance(self.experiment, xraytube.XrayTubeMixin):
             source = self.experiment._xray_tube
         else:
             raise Exception("Experiment must implement a source.")
@@ -45,9 +45,9 @@ class LoggingCamera(Camera):
         self._last_flat_axis_position = await self.experiment._flat_motor.get_position()
         self._last_stepping_position = await self.experiment._stepping_motor.get_position()
 
-        if isinstance(self.experiment, Tomography):
+        if isinstance(self.experiment, imaging.SteppedTomographyLogic):
             self._last_tomo_position = await self.experiment._tomograpy_motor.get_position()
-        if isinstance(self.experiment, ContinuousTomography):
+        if isinstance(self.experiment, imaging.ContinuousTomographyLogic):
             self._last_tomo_velocity = await self.experiment._tomography_motor.get_velocity()
 
     async def _grab_real(self):
@@ -98,13 +98,13 @@ class GratingInterferometryStepping:
         self.stepping_axis = await LinearMotor()
         self.camera = await LoggingCamera()
         self._data_dir = tempfile.mkdtemp()
-        self.walker = DirectoryWalker(root=self._data_dir)
+        self.walker = await DirectoryWalker(root=self._data_dir)
 
     async def run_experiment(self):
         self.camera.experiment = self.exp
-        self.acc = Accumulator(self.exp.acquisitions)
-        self.writer = ImageWriter(walker=self.walker, acquisitions=self.exp.acquisitions)
-        self.phase_stepping_addon = PhaseGratingSteppingFourierProcessing(experiment=self.exp)
+        self.acc = await Accumulator(experiment=self.exp)
+        self.writer = await ImageWriter(experiment=self.exp)
+        self.phase_stepping_addon = await PhaseGratingSteppingFourierProcessing(experiment=self.exp)
         await self.exp.run()
 
     def tearDown(self):
@@ -118,9 +118,9 @@ class GratingInterferometryStepping:
         - Correct number of frames recorded
         - Correct exposure for all frames
         """
-        self.assertEqual(len(self.acc.items[self.exp.get_acquisition("darks")]),
-                         await self.exp.get_num_darks())
-        for flat in self.acc.items[self.exp.get_acquisition("darks")]:
+        items = (await self.acc.get_items(self.exp.get_acquisition("darks")))
+        self.assertEqual(len(items), await self.exp.get_num_darks())
+        for flat in items:
             self.assertEqual(flat[0, 0], 0.0)
 
     async def _test_stepping(self, stepping_type):
@@ -139,43 +139,71 @@ class GratingInterferometryStepping:
         if stepping_type not in ["reference", "object"]:
             raise Exception("Stepping type not known.")
 
-        self.assertEqual(len(self.acc.items[self.exp.get_acquisition(stepping_type + "_stepping")]),
-                         (await self.exp.get_num_periods()
-                          * await self.exp.get_num_steps_per_period()))
+        items = (await self.acc.get_items(self.exp.get_acquisition(stepping_type + "_stepping")))
+        self.assertEqual(
+            len(items),
+            (await self.exp.get_num_periods() * await self.exp.get_num_steps_per_period())
+        )
 
         stepping_start = await self.exp.get_stepping_start_position()
         step_size = await self.exp.get_grating_period() / await self.exp.get_num_steps_per_period()
-        for i in range(len(self.acc.items[self.exp.get_acquisition(stepping_type + "_stepping")])):
-            radio = self.acc.items[self.exp.get_acquisition(stepping_type + "_stepping")][i]
+        for i in range(len(items)):
+            radio = items[i]
             stepping_position = i * step_size + stepping_start
             self.assertAlmostEqual(radio[1, 0], stepping_position.to(q.um).magnitude, places=3)
             self.assertEqual(radio[0, 0], 1.0)
 
     async def test_reference_stepping(self):
         await self._test_stepping("reference")
-        for i in range(len(self.acc.items[self.exp.get_acquisition("reference_stepping")])):
-            radio = self.acc.items[self.exp.get_acquisition("reference_stepping")][i]
+        items = (await self.acc.get_items(self.exp.get_acquisition("reference_stepping")))
+        for i in range(len(items)):
+            radio = items[i]
             self.assertEqual(radio[0, 1], (await self.exp.get_flat_position()).to(q.mm).magnitude)
 
     async def test_object_stepping(self):
         await self._test_stepping("object")
-        for i in range(len(self.acc.items[self.exp.get_acquisition("object_stepping")])):
-            radio = self.acc.items[self.exp.get_acquisition("object_stepping")][i]
+        items = (await self.acc.get_items(self.exp.get_acquisition("object_stepping")))
+        for i in range(len(items)):
+            radio = items[i]
             self.assertEqual(radio[0, 1], (await self.exp.get_radio_position()).to(q.mm).magnitude)
 
     async def test_addon(self):
-        self.assertAlmostEqual(self.phase_stepping_addon.object_intensity[1, 1], 0.5, places=3,
-                               msg="object intensity")
-        self.assertAlmostEqual(self.phase_stepping_addon.reference_intensity[1, 1], 1.0, places=3,
-                               msg="reference_intensity")
-        self.assertAlmostEqual(self.phase_stepping_addon.reference_visibility[1, 1], 1.0, places=3,
-                               msg="reference_visibility")
-        self.assertAlmostEqual(self.phase_stepping_addon.object_visibility[1, 1], 0.5, places=3,
-                               msg="object_visibility")
-        self.assertAlmostEqual(self.phase_stepping_addon.reference_phase[1, 1], 0, places=3,
-                               msg="reference_phase")
-        self.assertAlmostEqual(self.phase_stepping_addon.object_phase[1, 1], np.pi / 2., places=3,
-                               msg="object_phase")
+        self.assertAlmostEqual(
+            (await self.phase_stepping_addon.get_object_intensity())[1, 1],
+            0.5,
+            places=3,
+            msg="object intensity"
+        )
+        self.assertAlmostEqual(
+            (await self.phase_stepping_addon.get_reference_intensity())[1, 1],
+            1.0,
+            places=3,
+            msg="reference_intensity"
+        )
+        self.assertAlmostEqual(
+            (await self.phase_stepping_addon.get_reference_visibility())[1, 1],
+            1.0,
+            places=3,
+            msg="reference_visibility"
+        )
+        self.assertAlmostEqual(
+            (await self.phase_stepping_addon.get_object_visibility())[1, 1],
+            0.5,
+            places=3,
+            msg="object_visibility"
+        )
+        self.assertAlmostEqual(
+            (await self.phase_stepping_addon.get_reference_phase())[1, 1],
+            0,
+            places=3,
+            msg="reference_phase"
+        )
+        self.assertAlmostEqual(
+            (await self.phase_stepping_addon.get_object_phase())[1, 1],
+            np.pi / 2.,
+            places=3,
+            msg="object_phase"
+        )
 
 
 @slow
@@ -183,20 +211,22 @@ class TestSynchrotronGratingInterferometryStepping(GratingInterferometryStepping
     async def asyncSetUp(self):
         await GratingInterferometryStepping.asyncSetUp(self)
         self.source = await Shutter()
-        self.exp = await SynchrotronPhaseStepping(walker=self.walker,
-                                                  camera=self.camera,
-                                                  shutter=self.source,
-                                                  flat_motor=self.flatfield_axis,
-                                                  stepping_motor=self.stepping_axis,
-                                                  flat_position=-10 * q.cm,
-                                                  radio_position=0 * q.mm,
-                                                  grating_period=2.4 * q.um,
-                                                  num_darks=10,
-                                                  stepping_start_position=0 * q.um,
-                                                  num_periods=4,
-                                                  num_steps_per_period=8,
-                                                  propagation_distance=20 * q.cm,
-                                                  separate_scans=True)
+        self.exp = await synchrotron.LocalGratingInterferometryStepping(
+            walker=self.walker,
+            camera=self.camera,
+            shutter=self.source,
+            flat_motor=self.flatfield_axis,
+            stepping_motor=self.stepping_axis,
+            flat_position=-10 * q.cm,
+            radio_position=0 * q.mm,
+            grating_period=2.4 * q.um,
+            num_darks=10,
+            stepping_start_position=0 * q.um,
+            num_periods=4,
+            num_steps_per_period=8,
+            propagation_distance=20 * q.cm,
+            separate_scans=True
+        )
         await self.run_experiment()
 
 
@@ -205,18 +235,20 @@ class TestXRayTubeGratingInterferometryStepping(GratingInterferometryStepping, T
     async def asyncSetUp(self):
         await GratingInterferometryStepping.asyncSetUp(self)
         self.source = await XRayTube()
-        self.exp = await XRayTubePhaseStepping(walker=self.walker,
-                                               camera=self.camera,
-                                               xray_tube=self.source,
-                                               flat_motor=self.flatfield_axis,
-                                               stepping_motor=self.stepping_axis,
-                                               flat_position=-10 * q.cm,
-                                               radio_position=0 * q.mm,
-                                               grating_period=2.4 * q.um,
-                                               num_darks=10,
-                                               stepping_start_position=0 * q.um,
-                                               num_periods=4,
-                                               num_steps_per_period=8,
-                                               propagation_distance=20 * q.cm,
-                                               separate_scans=True)
+        self.exp = await xraytube.LocalGratingInterferometryStepping(
+            walker=self.walker,
+            camera=self.camera,
+            xray_tube=self.source,
+            flat_motor=self.flatfield_axis,
+            stepping_motor=self.stepping_axis,
+            flat_position=-10 * q.cm,
+            radio_position=0 * q.mm,
+            grating_period=2.4 * q.um,
+            num_darks=10,
+            stepping_start_position=0 * q.um,
+            num_periods=4,
+            num_steps_per_period=8,
+            propagation_distance=20 * q.cm,
+            separate_scans=True
+        )
         await self.run_experiment()

@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+import copy
+import os
 import time
 import inspect
 import functools
 import logging
+import zmq
+import concert.config
 from dataclasses import dataclass, field
 from typing import Any
 from pint.errors import DimensionalityError
+from concert.quantities import q
 
 import numpy as np
 
@@ -311,16 +316,158 @@ async def get_state_from_awaitable(awaitable) -> str:
 class ImageWithMetadata(np.ndarray):
     """
     Subclass of numpy.ndarray with a metadata dictionary to hold images its metadata.
+
+    :param input_array: Input array (can be an instance of :class:`.ImageWithMetadata`)
+    :param metadata: metadata
     """
-    def __new__(cls, input_array, metadata: dict | None = None):
+    def __new__(cls, input_array: np.ndarray, metadata: dict | None = None):
         obj = np.asarray(input_array).view(cls)
-        if metadata is None:
-            metadata = {}
-        obj.metadata = metadata
+        obj.metadata.update(metadata)
+
         return obj
 
     def __array_finalize__(self, obj):
         # see InfoArray.__array_finalize__ for comments
         if obj is None:
             return
-        self.metadata = getattr(obj, 'metadata', {})
+
+        self.metadata = copy.deepcopy(getattr(obj, "metadata", {}))
+        if "conversion_applied" not in self.metadata:
+            self.metadata["conversion_applied"] = False
+
+    def _convert(self, forward):
+        """
+        Convert image and return a numpy ndarray, not ImageWithMetadata anymore in order to avoid
+        nesting issues.
+        """
+        def perform_mirroring(obj):
+            mirror = self.metadata.get("mirror", False)
+            if mirror:
+                obj = np.fliplr(obj)
+
+            return obj
+
+        def perform_rotation(obj):
+            k = self.metadata.get("rotate", 0)
+
+            return np.rot90(obj, k=k if forward else -k)
+
+        obj = self
+        if self.metadata.get("conversion_applied", False) ^ forward:
+            funcs = [perform_mirroring, perform_rotation]
+            if not forward:
+                # Revese order for backward conversion
+                funcs = funcs[::-1]
+
+            for func in funcs:
+                obj = func(obj)
+
+            obj.metadata["conversion_applied"] = forward
+
+        return obj
+
+    def convert(self):
+        return self._convert(True)
+
+    def convert_back(self):
+        return self._convert(False)
+
+
+class PerformanceTracker:
+
+    """A stopwatch with the ability to report data throughput.
+
+    :param summary: if True, output everything at the end, otherwise immediately on :meth:`.lap`
+    call.
+    :param loglevel: logging level
+    """
+
+    def __init__(self, summary=False, loglevel=concert.config.PERFDEBUG):
+        self.start = 0 * q.s
+        self.duration = 0 * q.s
+        self.size = 0 * q.B
+        self.loglevel = loglevel
+        self.summary = [] if summary else None
+        self.iteration = 0
+
+    def __enter__(self):
+        self.start = time.perf_counter() * q.s
+
+        return self
+
+    def lap(self, name=None, final=False):
+        duration = time.perf_counter() * q.s - self.start
+
+        if final:
+            self.duration = duration
+
+        if name is None:
+            if final:
+                name = 'final'
+            else:
+                name = str(self.iteration)
+                self.iteration += 1
+
+        output = f'{name} duration: {duration:.2f}'
+        if self.size:
+            size = self.size.to(q.mebibyte)
+            output += f', size: {size:.2f}, throughput: {size / duration:.2f}'
+
+        if self.summary is not None:
+            self.summary.append(output)
+        else:
+            LOG.log(self.loglevel, output)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.lap(final=True)
+        if self.summary is not None:
+            for record in self.summary:
+                LOG.log(self.loglevel, record)
+
+
+@dataclass
+class CommData:
+    """Encapsulates communication metadata."""
+
+    host: str
+    port: int = None
+    protocol: str = "tcp"
+    socket_type: zmq.SocketType = zmq.PUSH
+    sndhwm: int = 1000
+
+    def __post_init__(self):
+        if self.protocol not in ["tcp", "ipc"]:
+            raise ValueError("protocol must be one of `tcp', `ipc'")
+
+    @property
+    def server_endpoint(self) -> str:
+        if self.protocol == "ipc":
+            return f"{self.protocol}://{self.host}"
+        else:
+            return f"{self.protocol}://*:{self.port}"
+
+    @property
+    def client_endpoint(self) -> str:
+        if self.protocol == "ipc":
+            return f"{self.protocol}://{self.host}"
+        else:
+            return f"{self.protocol}://{self.host}:{self.port}"
+
+    def __eq__(self, other: CommData) -> bool:
+        for key, value in self.__dict__.items():
+            if other.__dict__[key] != value:
+                return False
+        return True
+
+    def __ne__(self, other: CommData) -> bool:
+        return not self.__eq__(other)
+
+    def __hash__(self) -> int:
+        return hash((self.host, self.port, self.protocol, self.socket_type, self.sndhwm))
+
+
+def get_basename(filename):
+    if filename.endswith(os.sep):
+        filename = filename[:-1]
+
+    return os.path.basename(filename)

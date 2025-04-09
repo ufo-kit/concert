@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 from concert.tests import TestCase
 from concert.base import (transition, check, StateError, TransitionNotAllowed, State, Parameter,
                           FSMError)
@@ -68,6 +69,10 @@ class SomeDevice(Device):
     async def reset(self):
         self._error = False
 
+    @check()
+    async def produce(self):
+        yield None
+
 
 class BaseDevice(Device):
 
@@ -104,6 +109,60 @@ class StatelessDevice(Device):
 
     @transition(target='changed')
     async def change(self):
+        pass
+
+
+class MultipleStateDevice(Device):
+    foo_state = State(default='standby')
+    bar_state = State()
+    state = State(default='standby')
+
+    parameter = Parameter(check=check(source='standby', state_name='foo_state'))
+
+    async def __ainit__(self):
+        self._bar_state = "standby"
+        await super().__ainit__()
+
+    @check(source='standby', target='moving')
+    @transition(target='moving')
+    async def switch_state_to_moving(self):
+        pass
+
+    @check(source='moving', target='standby')
+    @transition(target='standby')
+    async def switch_state_to_standby(self):
+        pass
+
+    @check(source='standby', target='moving', state_name='foo_state')
+    @transition(target='moving', state_name='foo_state')
+    async def switch_foo_state_to_moving(self):
+        pass
+
+    @check(source='moving', target='standby', state_name='foo_state')
+    @transition(target='standby', state_name='foo_state')
+    async def switch_foo_state_to_standby(self):
+        pass
+
+    async def _get_bar_state(self):
+        return self._bar_state
+
+    @check(source='standby', target='moving', state_name='bar_state')
+    async def switch_bar_state_to_moving(self):
+        self._bar_state = "moving"
+
+    @check(source='moving', target='standby', state_name='bar_state')
+    async def switch_bar_state_to_standby(self):
+        self._bar_state = "standby"
+
+    async def _get_parameter(self):
+        return True
+
+    async def _set_parameter(self, value):
+        pass
+
+    @check(source='standby', state_name='foo_state')
+    @check(source='standby', state_name='bar_state')
+    async def do_only_with_foo_and_bar_in_standby(self):
         pass
 
 
@@ -210,3 +269,66 @@ class TestStateMachine(TestCase):
         dev.faulty = True
         with self.assertRaises(RuntimeError):
             await dev.start_moving()
+
+    async def test_check_coro(self):
+        self.assertTrue(inspect.iscoroutinefunction(self.device.start_moving))
+
+    async def test_check_asyncgen(self):
+        self.assertTrue(inspect.isasyncgenfunction(self.device.produce))
+
+    async def test_multiple_state(self):
+        dev = await MultipleStateDevice()
+        self.assertEqual(await dev.get_state(), 'standby')
+        self.assertEqual(await dev.get_foo_state(), 'standby')
+        self.assertEqual(await dev.get_bar_state(), 'standby')
+        await dev.set_parameter(False)
+        await dev.do_only_with_foo_and_bar_in_standby()
+
+        await dev.switch_state_to_moving()
+        self.assertEqual(await dev.get_state(), 'moving')
+        self.assertEqual(await dev.get_foo_state(), 'standby')
+        self.assertEqual(await dev.get_bar_state(), 'standby')
+        await dev.set_parameter(False)
+        await dev.do_only_with_foo_and_bar_in_standby()
+
+        await dev.switch_foo_state_to_moving()
+        self.assertEqual(await dev.get_state(), 'moving')
+        self.assertEqual(await dev.get_foo_state(), 'moving')
+        self.assertEqual(await dev.get_bar_state(), 'standby')
+        with self.assertRaises(FSMError):
+            await dev.set_parameter(True)
+        with self.assertRaises(FSMError):
+            await dev.do_only_with_foo_and_bar_in_standby()
+
+        await dev.switch_bar_state_to_moving()
+        self.assertEqual(await dev.get_state(), 'moving')
+        self.assertEqual(await dev.get_foo_state(), 'moving')
+        self.assertEqual(await dev.get_bar_state(), 'moving')
+        with self.assertRaises(FSMError):
+            await dev.set_parameter(True)
+        with self.assertRaises(FSMError):
+            await dev.do_only_with_foo_and_bar_in_standby()
+
+        await dev.switch_state_to_standby()
+        self.assertEqual(await dev.get_state(), 'standby')
+        self.assertEqual(await dev.get_foo_state(), 'moving')
+        self.assertEqual(await dev.get_bar_state(), 'moving')
+        with self.assertRaises(FSMError):
+            await dev.set_parameter(True)
+        with self.assertRaises(FSMError):
+            await dev.do_only_with_foo_and_bar_in_standby()
+
+        await dev.switch_foo_state_to_standby()
+        self.assertEqual(await dev.get_state(), 'standby')
+        self.assertEqual(await dev.get_foo_state(), 'standby')
+        self.assertEqual(await dev.get_bar_state(), 'moving')
+        await dev.set_parameter(False)
+        with self.assertRaises(FSMError):
+            await dev.do_only_with_foo_and_bar_in_standby()
+
+        await dev.switch_bar_state_to_standby()
+        self.assertEqual(await dev.get_state(), 'standby')
+        self.assertEqual(await dev.get_foo_state(), 'standby')
+        self.assertEqual(await dev.get_bar_state(), 'standby')
+        await dev.set_parameter(False)
+        await dev.do_only_with_foo_and_bar_in_standby()

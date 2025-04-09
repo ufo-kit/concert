@@ -32,7 +32,9 @@ autodoc_default_options = {
     'special-members': '__ainit__'
 }
 
-# html_static_path = ['_static']
+html_theme = "sphinx_rtd_theme"
+html_static_path = ['_static']
+html_style = 'css/custom.css'
 htmlhelp_basename = 'concertdoc'
 
 intersphinx_mapping = {

@@ -2,9 +2,10 @@
 import asyncio
 import time
 import numpy as np
+from concert.base import Parameter
 from concert.coroutines.base import run_in_executor
 from concert.quantities import q
-from concert.base import transition, Quantity
+from concert.base import check, transition, Quantity
 from concert.devices.cameras import base
 from concert.readers import TiffSequenceReader
 
@@ -93,6 +94,8 @@ class Camera(Base):
 
     """A simple dummy camera."""
 
+    simulate = Parameter(help='Simulate noise')
+
     async def __ainit__(self, background=None, simulate=True):
         """
         *background* can be an array-like that will be used to generate the frame when calling grab.
@@ -101,8 +104,16 @@ class Camera(Base):
         modifications to it.
         """
         await super(Camera, self).__ainit__()
-        self.simulate = simulate
+        self._simulate = simulate
+        await self.set_background(background)
 
+    async def _get_simulate(self):
+        return self._simulate
+
+    async def _set_simulate(self, value):
+        self._simulate = value
+
+    async def set_background(self, background):
         if background is not None:
             self._roi_width = background.shape[1] * q.pixel
             self._roi_height = background.shape[0] * q.pixel
@@ -110,10 +121,10 @@ class Camera(Base):
         else:
             shape = (640, 480)
             self._roi_width, self._roi_height = shape * q.pixel
-            self._background = np.ones(shape[::-1], dtype=np.uint8)
+            self._background = np.ones(shape[::-1], dtype=np.uint16)
 
     async def _grab_real(self):
-        if not self.simulate:
+        if not await self.get_simulate():
             return self._background
         start = time.time()
         cur_time = (await self.get_exposure_time()).to(q.s).magnitude
@@ -129,7 +140,7 @@ class Camera(Base):
         if to_sleep > 0 * q.s:
             await asyncio.sleep(to_sleep.magnitude)
 
-        return np.cast[np.uint16](tmp)
+        return np.asarray(tmp, dtype=np.uint16)
 
 
 class FileCamera(Base):
@@ -141,14 +152,28 @@ class FileCamera(Base):
     multi-page).
     """
 
+    pattern = Parameter(help='Image file pattern to read')
+
     async def __ainit__(self, pattern, reset_on_start=True, start_index=0):
         # Let users change the directory
         await super(FileCamera, self).__ainit__()
+        self._pattern = pattern
         self._reader = TiffSequenceReader(pattern)
+        self._start_index = start_index
         self.index = start_index
         self.reset_on_start = reset_on_start
-        self._roi_height = 0 * q.px
-        self._roi_width = 0 * q.px
+        image = self._reader.read(0)
+        self._roi_height = image.shape[0] * q.px
+        self._roi_width = image.shape[1] * q.px
+
+    async def _get_pattern(self):
+        return self._pattern
+
+    @check(source='standby')
+    async def _set_pattern(self, pattern):
+        self._pattern = pattern
+        self._reader = TiffSequenceReader(pattern)
+        self.index = self._start_index
 
     @transition(target='recording')
     async def _record_real(self):
@@ -169,11 +194,23 @@ class FileCamera(Base):
 
         image = await run_in_executor(self._reader.read, self.index)
         self.index += 1
+        await asyncio.sleep((1 / (await self.get_frame_rate())).to(q.s).magnitude)
 
         return image[roi_y0.magnitude:y_region, roi_x0.magnitude:x_region]
 
 
 class BufferedCamera(Camera, base.BufferedMixin):
+
+    async def __ainit__(self, background=None, simulate=True):
+        await Camera.__ainit__(self, background=background, simulate=simulate)
+
+    @transition(target='readout')
+    async def _start_readout_real(self):
+        pass
+
+    @transition(target='standby')
+    async def _stop_readout_real(self):
+        pass
 
     async def _readout_real(self):
         for i in range(3):

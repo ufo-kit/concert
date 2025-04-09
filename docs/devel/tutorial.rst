@@ -361,6 +361,70 @@ useful for invoking mechanisms beyond concert, e.g. updating the limits in a
 Tango database. The limits can be locked in a similar way to parameter locking.
 
 
+Acquisitions
+============
+
+A single acquisition object needs to be able to run multiple times in order for
+us to be able to repeat an experiment multiple times (e.g. more tomograms), thus
+we need to specify its producer as a coroutine function and consumers by
+:class:`~concert.experiments.base.Consumer`, which takes a consumer coroutine
+function on input. We need to do this because coroutine functions cannot be
+"restarted". Producers and consumers can be ``local`` or ``remote``, which is
+realized by decorating the actual coroutine functions by one of :func:`.local`
+or :func:`.remote` decorators.  :class:`~concert.experiments.base.Consumer`
+takes an actual consumer coroutine function and takes arguments with which it
+will be called. Acquisitions can connect one producer to multiple consumers,
+which allows us to use experiment :class:`.Addon`. `Local` producers and
+consumers directly manipulate the data in the concert session (e.g. get images
+from a camera and write them to disk).  `Remote` ones communicate with data
+producers and consumers over network, e.g.  tell a camera server where it should
+send the images for further processing.
+
+The following code shows how we would set up a local producer with one local
+consumer. It is very important that you enclose the executive part of the
+production and consumption code in `try-finally` to ensure proper clean up. E.g.
+if a producer starts rotating a motor, then in the `finally` clause there should
+be the call `await motor.stop()`.
+
+An example of an acquisition could look like this::
+
+    from concert.experiments.base import Acquisition, Consumer, local
+
+    # This is a real generator
+    @local
+    async def produce():
+        try:
+            for i in range(10):
+                yield i
+        finally:
+            # Clean up here
+            pass
+
+    # A simple coroutine sink which prints items
+    @local
+    async def consume(producer, arg):
+        try:
+            async for item in producer:
+                print(item, arg)
+        finally:
+            # Clean up here
+            pass
+
+    acquisition = await Acquisition('foo', produce)
+    # Now we make it aware of a consumer, which will print "0 foo", "1 foo" and so on 
+    # *producer* is not specified, *Consumer* class handles this
+    acquisition.add_consumer(Consumer(consume, corofunc_args=("foo",)))
+    # Now we can run the acquisition
+    await acquisition()
+
+
+`Local` consumers must always take at least one argument, which is the producer
+of the incoming data. `Remote` consumers do not take a producer because the data
+stream comes via network. The ``producer`` must be omitted from
+``corofunc_args``, :class:`~concert.experiments.base.Consumer` knows if the
+consumer is local and adds the ``producer`` if that is the case.
+
+
 Creating a experiment class
 ===========================
 
@@ -369,8 +433,9 @@ Like the :class:`.Device` an experiment class can also hold :class:`.Quantity` a
 The logger from the :class:`.Experiment` will automatically write the values of these in the experiments log file.
 It also has a state parameter, showing the current experiments state.
 
-Each experiment consist of a set of :class:`.Acquisitions`, each generating images.
-An example experiment with one :class:`.Acquisitions` can look like this::
+An example experiment with one :class:`.LocalAcquisition` can look like this::
+
+    from concert.experiments.base import Acquisition, local, Experiment    
 
     class MyExperiment(Experiment):
         num_images = Parameter(help="number of images to acquire")
@@ -378,8 +443,8 @@ An example experiment with one :class:`.Acquisitions` can look like this::
         async def __ainit__(self, camera, walker):
             self._num_images = 5
             self._camera = camera
-            image_acquisition = Acquisition("images", self._acquire_images)
-            await super().__init__(acquisitions=[image_acquisition], walker=walker)
+            image_acquisition = await Acquisition("images", self._acquire_images)
+            await super().__ainit__([image_acquisition], walker=walker)
 
         async def _get_num_images(self):
             return self._num_images
@@ -387,9 +452,9 @@ An example experiment with one :class:`.Acquisitions` can look like this::
         async def _set_num_images(self, n):
             self._num_images = int(n)
 
+        @local
         async def _acquire_images(self):
             await self._camera.set_trigger_source("AUTO")
             async with self._camera.recording():
                 for i in range(await self.get_num_images()):
                     yield await self._camera.grab()
-

@@ -25,6 +25,9 @@ Collection of parameters
 .. autoclass:: concert.base.Parameterizable
     :members:
 
+.. autoclass:: concert.base.RunnableParameterizable
+    :members:
+
 
 State machine
 -------------

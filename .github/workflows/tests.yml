@@ -4,7 +4,7 @@ on:
   push:
     branches: [ master ]
   pull_request:
-    branches: [ master ]
+    branches: [ master, decentralize, stuff-after-decentralized ]
 
 permissions:
   contents: read
@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
       fail-fast: false
 
     steps:
@@ -29,14 +29,19 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -qq libtiff5-dev
+        sudo apt-get install -qq libtiff5-dev python3-tango expect
         python -m pip install --upgrade pip
-        pip install flake8 pytest coverage
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        pip install scikit-image
+        pip install flake8 pytest coverage scikit-image pytango pooch
+        pip install .
+    - name: Start tango servers for tests in background
+      run: |
+        run_server_detached concert tango walker --port 1200
+        # run_server_detached concert tango reco --port 1204
+        run_server_detached TangoRemoteWalker test -nodb --port 1201 --dlist concert/tango/walker
+        # run_server_detached TangoOnlineReco test -nodb --port 1205 --dlist concert/tango/reco
     - name: Test with pytest
       run: |
-        coverage run --source=concert -m pytest -m "not skip_ci"
+        coverage run --source=concert -m pytest --ignore=concert/tests/integration/scenarios -m "not skip_ci" 
     - name: Convert coverage to xml
       if: matrix.python-version == '3.12'
       run: |
@@ -45,7 +50,7 @@ jobs:
       if: matrix.python-version == '3.12'
       uses: codecov/codecov-action@v2
       with:
-        fail_ci_if_error: false
+        fail_ci_if_error: true
         files: ./coverage.xml
         token: ${{ secrets.CODECOV_TOKEN }}
         verbose: true

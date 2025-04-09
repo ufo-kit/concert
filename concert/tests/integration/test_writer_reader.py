@@ -18,7 +18,13 @@ def generate_frames(number=10, dimensions=(10, 10)) -> [ImageWithMetadata]:
     for i in range(number):
         image = np.random.random(dimensions)
         image = image.astype(np.float32)
-        metadata = {"time": datetime.now().isoformat(), "random_value": np.random.random()}
+        metadata = {
+            "time": datetime.now().isoformat(),
+            "random_value": np.random.random(),
+            "shape": dimensions,
+            "mirror": False,
+            "rotate": 0
+        }
         image = ImageWithMetadata(image, metadata=metadata)
         frames.append(image)
     return frames
@@ -27,21 +33,27 @@ def generate_frames(number=10, dimensions=(10, 10)) -> [ImageWithMetadata]:
 class TestReaderWriter(TestCase):
     async def asyncSetUp(self) -> None:
         self._data_dir = tempfile.mkdtemp()
-        print(self._data_dir)
         self.data = generate_frames(20)
 
     def tearDown(self) -> None:
         shutil.rmtree(self._data_dir)
 
-    async def run_test(self, enforce_json_file=False, bytes_per_file=0):
+    async def run_test(self, enforce_json_file=False, bytes_per_file=0, walker_kwargs=None):
+        if walker_kwargs is None:
+            walker_kwargs = {}
+        if 'writer' not in walker_kwargs:
+            walker_kwargs['writer'] = TiffWriter
+
         config.ALWAYS_WRITE_JSON_METADATA_FILE = enforce_json_file
         run_file_name = datetime.now().strftime("%y%m%d_%H%M%S.%f")
         folder = os.path.join(self._data_dir, run_file_name)
         os.mkdir(folder)
-        walker = DirectoryWalker(root=folder,
-                                 writer=TiffWriter,
-                                 dsetname="frame_{:>06}.tif",
-                                 bytes_per_file=bytes_per_file)
+        walker = await DirectoryWalker(
+            root=folder,
+            writer=TiffWriter,
+            dsetname="frame_{:>06}.tif",
+            bytes_per_file=bytes_per_file
+        )
         await walker.write(async_generate(self.data))
         reader = TiffSequenceReader(os.path.join(folder))
         data2 = []
@@ -64,3 +76,6 @@ class TestReaderWriter(TestCase):
         await self.run_test(enforce_json_file=False, bytes_per_file=int(1E12))
         await self.run_test(enforce_json_file=True, bytes_per_file=0)
         await self.run_test(enforce_json_file=True, bytes_per_file=int(1E12))
+
+    async def test_remote_walker_tifffile(self) -> None:
+        pass

@@ -1,9 +1,12 @@
 from datetime import datetime
 import numpy as np
+import zmq
 from concert.tests import TestCase
 from concert.quantities import q
 from concert.devices.cameras.dummy import Camera, BufferedCamera
 from concert.devices.cameras.pco import Timestamp, TimestampError
+from concert.helpers import CommData, ImageWithMetadata
+from concert.networking.base import ZmqReceiver
 
 
 class TestDummyCamera(TestCase):
@@ -14,7 +17,8 @@ class TestDummyCamera(TestCase):
         self.camera = await Camera(background=self.background)
 
     async def test_grab(self):
-        frame = await self.camera.grab()
+        async with self.camera.recording():
+            frame = await self.camera.grab()
         self.assertIsNotNone(frame)
 
     def test_trigger_source(self):
@@ -35,8 +39,15 @@ class TestDummyCamera(TestCase):
     async def test_buffered_camera(self):
         camera = await BufferedCamera()
         i = 0
-        async for item in camera.readout_buffer():
-            i += 1
+
+        await camera.start_readout()
+        try:
+            producer = camera.readout_buffer()
+            async for item in producer:
+                i += 1
+        finally:
+            await camera.stop_readout()
+
         self.assertEqual(i, 3)
 
     async def test_context_manager(self):
@@ -64,14 +75,54 @@ class TestDummyCamera(TestCase):
             return np.mgrid[:5, :5][1]
 
         self.camera._grab_real = grab
-        self.camera.convert = np.fliplr
-        image = await self.camera.grab()
-        np.testing.assert_equal(image, (await grab())[:, ::-1])
+
+        for mirrored in (True, False):
+            for rotated in (0, 1, 2, 3):
+                self.camera.set_mirror(mirrored)
+                self.camera.set_rotate(rotated)
+                async with self.camera.recording():
+                    image = await self.camera.grab()
+                meta = {"mirror": mirrored, "rotate": rotated}
+                np.testing.assert_equal(
+                    image,
+                    ImageWithMetadata(await grab(), metadata=meta).convert()
+                )
+
+    async def test_grab_and_send_convert(self):
+        async def grab():
+            return np.mgrid[:5, :5][1]
+
+        self.camera._grab_real = grab
+
+        i = 0
+        for mirrored in (True, False):
+            for rotated in (0, 1, 2, 3):
+                await self.camera.unregister_all()
+                await self.camera.register_endpoint(
+                    CommData("localhost", 8991 + i, "tcp", zmq.PUSH, 0)
+                )
+                receiver = ZmqReceiver(endpoint=f"tcp://localhost:{8991+i}")
+
+                self.camera.set_mirror(mirrored)
+                self.camera.set_rotate(rotated)
+                async with self.camera.recording():
+                    await self.camera.grab_send(1)
+                    (metadata, image) = await receiver.receive_image()
+                receiver.close()
+                i += 1
+                meta = {"mirror": mirrored, "rotate": rotated}
+                np.testing.assert_equal(
+                    image,
+                    ImageWithMetadata(await grab(), metadata=meta).convert()
+                )
 
     async def test_simulate(self):
-        self.assertTrue(np.any(self.background - await self.camera.grab()))
+        async with self.camera.recording():
+            self.assertTrue(np.any(self.background - await self.camera.grab()))
+
         camera = await Camera(background=self.background, simulate=False)
-        np.testing.assert_equal(self.background, await camera.grab())
+        async with camera.recording():
+            np.testing.assert_equal(self.background, await camera.grab())
 
 
 class TestPCOTimeStamp(TestCase):
