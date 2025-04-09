@@ -3,6 +3,21 @@ Changelog
 
 Here you can see the full list of changes between each Concert release.
 
+Version 0.33
+------------
+
+First decentralized release on April 9th 2025. There are local and remote experiments. The remote ones are new and they lift the processing burden from concert, which up to now did everything. Instead, there are separate tango servers running on separate computers which get the data via ZMQ streams and do things like writing data, online reconstruction and so on. For more details see documentation.
+
+
+What's Changed
+--------------
+
+* Fix github actions by @MarcusZuber in https://github.com/ufo-kit/concert/pull/536
+* Distribution of Processing by @tfarago in https://github.com/ufo-kit/concert/pull/481
+
+
+**Full Changelog**: https://github.com/ufo-kit/concert/compare/v0.32.0...v0.33.0
+
 
 Version 0.32
 ------------
@@ -17,11 +32,6 @@ Features
 - added PCO timestamp check addon
 - added ImageWithMetadata for camera frames and store the metadata in tiff files
 
-
-Version 0.33
-------------
-
-First decentralized release.
 
 Notes
 ~~~~~
