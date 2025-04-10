@@ -132,17 +132,13 @@ class TiffSequenceReader(FileSequenceReader):
         if self._metadata_file:
             image.metadata = self._json_metadata[str(index)]
         else:
-            try:
-                image.metadata = json.loads(self._file.pages[index].description)
+            metadata = self._file.pages[index].description
+            if metadata:
+                image.metadata = json.loads(metadata)
                 # Discard shape information, this will be handled later (e.g. FileCamera grab)
                 # Multitiffs also have this often wrong in a way that first page carries the 3D
                 # shape and the rest of the pages carry nothing, which is not what we want.
                 image.metadata.pop("shape", None)
-            except SyntaxError:
-                # No metadata in file
-                pass
-            except Exception as e:
-                raise e
         return image
 
 
