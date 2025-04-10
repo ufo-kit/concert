@@ -4,8 +4,8 @@ Concert
 .. image:: https://img.shields.io/badge/Python-3.7+-blue
     :target: https://www.python.org/downloads
 
-.. image:: https://badge.fury.io/py/concert.png
-    :target: http://badge.fury.io/py/concert
+.. image:: https://badge.fury.io/py/concert.svg
+    :target: https://badge.fury.io/py/concert
 
 .. image:: https://github.com/ufo-kit/concert/actions/workflows/tests.yml/badge.svg?branch=master
     :target: https://github.com/ufo-kit/concert/actions
