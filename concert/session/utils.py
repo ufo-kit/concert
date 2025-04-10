@@ -195,12 +195,10 @@ def abort_awaiting(skip=None):
     LOG.log(AIODEBUG, 'async code: %s', loop_running)
 
     def get_task_name(task):
-        # _coro instead of get_coro() for Python 3.7 compatibility
-        return task._coro.__qualname__
+        return task.get_coro().__qualname__
 
     def get_task_directory(task):
-        # _coro instead of get_coro() for Python 3.7 compatibility
-        return os.path.dirname(task._coro.cr_code.co_filename)
+        return os.path.dirname(task.get_coro().cr_code.co_filename)
 
     loop = get_event_loop()
     try:

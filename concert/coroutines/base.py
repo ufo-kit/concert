@@ -38,8 +38,11 @@ def run_in_loop(coroutine, error_msg_if_running=None):
         result = loop.run_until_complete(task)
         return result
     except KeyboardInterrupt:
-        # _coro instead of get_coro() for Python 3.7 compatibilityget_coro()
-        LOG.log(AIODEBUG, "KeyboardInterrupt in `%s', cancelling", task._coro.__qualname__)
+        LOG.log(
+            AIODEBUG,
+            "KeyboardInterrupt in `%s', cancelling",
+            task.get_coro().__qualname__
+        )
         task.cancel()
 
 
