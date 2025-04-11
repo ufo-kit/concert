@@ -108,8 +108,7 @@ def _find_object_by_name(instance):
         # Try coroutines
         tasks = asyncio.all_tasks(loop=asyncio.get_running_loop())
         for task in tasks:
-            # Python 3.7 compatibility, later task.get_coro()
-            coro = task._coro
+            coro = task.get_coro()
             if not inspect.iscoroutine(coro):
                 # can be a regular generator in a tango server
                 continue
