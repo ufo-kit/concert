@@ -422,6 +422,19 @@ class StartCommand(SubCommand):
                     pass
                 atexit.register(delete_lock_file, lockfile)
 
+            for device_lock in cs.get_device_locks(session):
+                lockfile = os.path.join(lockdir, '.device_lock_' + device_lock)
+                if os.path.exists(lockfile):
+                    print(f"An device lock `{device_lock}' seems to be active.")
+                    print(
+                        f"If you are sure there are no running instances, delete `{lockfile}' "
+                        "and start again."
+                    )
+                    return
+                with open(lockfile, 'w'):
+                    pass
+                atexit.register(delete_lock_file, lockfile)
+
             docstring = cs.get_docstring(path)
             if docstring:
                 print(docstring)
