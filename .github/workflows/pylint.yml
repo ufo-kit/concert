@@ -17,7 +17,7 @@
      - name: Install dependencies
        run: |
          python -m pip install --upgrade pip
-         pip install -r requirements.txt
+         pip install .
      - name: Analysing the code with pylint
        run: |
          pylint $(git ls-files '*.py')
