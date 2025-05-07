@@ -1,10 +1,16 @@
 """Tango device for online 3D reconstruction from zmq image stream."""
+import asyncio
+from enum import IntEnum
+import os
+from typing import Tuple, Optional
 import numpy as np
-from tango import DebugIt, CmdArgType, PipeWriteType
+from tango import DebugIt, CmdArgType, PipeWriteType, EventType, EventData
 from tango.server import command, pipe
+from tango.asyncio import DeviceProxy
 from .base import TangoRemoteProcessing
 from concert.coroutines.base import async_generate
 from concert.ext.ufo import GeneralBackprojectManager, LocalGeneralBackprojectArgs
+from concert.quantities import q
 from concert.networking.base import get_tango_device, ZmqSender
 from concert.storage import RemoteDirectoryWalker
 from ...config import DISTRIBUTED_TANGO_TIMEOUT
@@ -45,6 +51,16 @@ async def set_{0}(self, values):
     except TypeError:
         await self._args.set_reco_arg("{0}", values)
 """
+
+
+class OpMode(IntEnum):
+    """
+    Mode of operation for online reconstruction. It can be either standalone, in which it expects
+    axis of rotation would be provided manually. Alternatively, it can subscribe for an event from
+    rotation axis estimator device server for axis of rotation.
+    """
+    STANDALONE = 0
+    RAE_DEPENDENT = 1
 
 
 class TangoOnlineReconstruction(TangoRemoteProcessing):
@@ -93,10 +109,18 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
         access=PipeWriteType.PIPE_READ_WRITE
     )
 
+    op_mode = attribute(dtype=OpMode, access=AttrWriteType.READ_WRITE)
+
+    _rae_device: Optional[DeviceProxy]
+    _rae_subscription: Optional[int]
+    _axis_estmd: Optional[asyncio.Event]
+    _manager: GeneralBackprojectManager
+
     async def init_device(self):
         """Inits device and communciation"""
         await super().init_device()
-
+        # By default online reconstruction is decoupled from rotation axis estimator
+        self._op_mode = OpMode(0)
         self._manager = await GeneralBackprojectManager(
             self._args,
             average_normalization=True
@@ -104,6 +128,58 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
         self._walker = None
         self._sender = None
         self._find_args = None
+        self.info_stream("%s: %s with default operation mode: STANDALONE", self.__class__.__name__,
+                         self.get_state())
+
+    def read_op_mode(self) -> OpMode:
+        return self._op_mode
+
+    def write_op_mode(self, om: OpMode) -> None:
+        self._op_mode = om
+        if self._op_mode == OpMode.RAE_DEPENDENT:
+            self._axis_estmd = asyncio.Event()
+            self._manager.set_axis_estmd(self._axis_estmd)
+        self.info_stream("%s: set operation mode to: %s", self.__class__.__name__,
+                         "RAE_DEPENDENT" if self._op_mode == OpMode.RAE_DEPENDENT else "STANDALONE")
+
+    @DebugIt()
+    @command(
+        dtype_in=(str,),
+        doc_in="port and domain namespace for rotation axis estimator device"
+    )
+    async def register_rotation_axis_feedback(self, args: Tuple[str, str]) -> None:
+        """
+        Subscribes for event concerning axis of rotation estimation.
+        Arguments include port number and domain namespace for rotation axis estimator device.
+        """
+        if self._op_mode == OpMode.RAE_DEPENDENT:
+            # Get the device proxy reference for RotationAxisEstimator device and subscribe for event
+            rae_dev_ref = f"{os.uname()[1]}:{args[0]}/{args[1]}#dbase=no"
+            self._rae_device = get_tango_device(rae_dev_ref, timeout=1000 * q.s)
+            self._rae_subscription = await self._rae_device.subscribe_event(
+                    "axis_of_rotation", EventType.CHANGE_EVENT, self._on_axis_of_rotation)
+            self.info_stream("%s: registered rotation axis feedback", self.__class__.__name__)
+        else:
+            self.info_stream("%s: cannot register rotation axis feedback on standalone mode.",
+                             self.__class__.__name__)
+
+    def _on_axis_of_rotation(self, event: EventData) -> None:
+        """
+        Defines the callback function upon receiving estimated center of rotation by the QA
+        device
+        """
+        # We wrap the implementation within exception handling to catch transparent issues in Tango
+        # and reraise.
+        try:
+            if event.attr_value.value and event.attr_value.value != None:
+                estm_axis: float = event.attr_value.value
+                self.info_stream("%s: estimated axis: %s", self.__class__.__name__, estm_axis)
+                self._manager.args.center_position_x = [estm_axis]
+                assert(self._axis_estmd is not None)
+                self._axis_estmd.set()
+        except Exception as err:
+            self.error_stream("%s: axis estimation error: %s", self.__class__.__name__, str(err))
+            raise
 
     @DebugIt()
     @command()
@@ -170,6 +246,9 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     @command(dtype_in=str)
     async def reconstruct(self, slice_directory):
         await self._reconstruct(cached=False, slice_directory=slice_directory)
+        # If relevant, enable waiting for estimated axis of rotation on next reconstruction
+        if self._op_mode == OpMode.RAE_DEPENDENT and self._axis_estmd is not None:
+            self._axis_estmd.clear()
 
     @DebugIt(show_args=True)
     @command(dtype_in=str)

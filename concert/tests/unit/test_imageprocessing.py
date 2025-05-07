@@ -3,6 +3,7 @@ from concert.coroutines.base import async_generate
 from concert.devices.motors.dummy import ContinuousRotationMotor
 from concert.quantities import q
 from concert.imageprocessing import (compute_rotation_axis, normalize, find_sphere_centers)
+from concert.imageprocessing import find_sphere_centers_corr
 from concert.measures import rotation_axis
 from concert.tests import suppressed_logging, slow, assert_almost_equal, TestCase
 from concert.tests.util.rotationaxis import SimulationCamera
@@ -122,3 +123,46 @@ class TestSphereSegmentation(TestCase):
         # at least coarsely close match should be found to the ellipse
         assert np.abs(roll - await self.z_motor.get_position()) < 1 * q.deg
         assert np.abs(pitch - await self.x_motor.get_position()) < 1 * q.deg
+
+
+@slow
+class TestSphereCorrelation(TestCase):
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.x_motor = await ContinuousRotationMotor()
+        self.y_motor = await ContinuousRotationMotor()
+        self.z_motor = await ContinuousRotationMotor()
+        self._radius = 65
+
+        await self.x_motor.set_position(13 * q.deg)
+        await self.y_motor.set_position(0 * q.deg)
+        await self.z_motor.set_position(-7 * q.deg)
+
+        self.camera = await SimulationCamera(512, self.x_motor["position"],
+                                             self.y_motor["position"],
+                                             self.z_motor["position"],
+                                             needle_radius=self._radius,
+                                             scales=(1, 1, 1),
+                                             y_position=0)
+
+    async def acquire_frames(self, num_frames=10):
+        da = 360 * q.degree / num_frames
+        images = []
+        centers = []
+
+        async with self.camera.recording():
+            for i in range(10):
+                await self.y_motor.move(da)
+                images.append(await self.camera.grab())
+                centers.append(self.camera.ellipsoid_center)
+
+        return (images, centers)
+
+    def check(self, gt, measured):
+        assert np.all(np.abs(np.fliplr(gt).astype(np.int_) - measured) <= 1)
+
+    async def test_sphere_fully_inside(self):
+        (frames, gt) = await self.acquire_frames()
+        centers = await find_sphere_centers_corr(async_generate(frames), radius=self._radius)
+        self.check(gt, centers)

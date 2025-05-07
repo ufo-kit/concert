@@ -4,8 +4,19 @@ backprojection, flat field correction and other operations on images.
 """
 
 import asyncio
-import numpy as np
+import functools
 import logging
+from typing import AsyncIterator, List, Awaitable, Tuple
+import numpy as np
+try:
+    import cupy as xp
+    import cupy.fft as xft
+    from cupy import ndarray as ArrayLike
+except ModuleNotFoundError:
+    print("cupy not available, defaulting to numpy")
+    import numpy as xp
+    import numpy.fft as xft
+    from concert.typing import ArrayLike
 from scipy.signal import fftconvolve
 from concert.coroutines.base import background, run_in_executor
 from concert.quantities import q
@@ -77,6 +88,81 @@ def find_needle_tip(image):
     coords = [_find_peak_subpix(pos, image) for pos in coords]
 
     return np.mean(coords, axis=0) if coords else None
+
+def get_sphere_absorption_pattern(radius: int) -> ArrayLike:
+    """
+    Returns a generic spherical absorption pattern
+    :param radius: radius for simulating pattern
+    :type radius: int
+    :return: absorption pattern
+    :rtype: ArrayLike
+    """
+    y, x = xp.mgrid[-radius:radius + 1, -radius:radius + 1]
+    mask: ArrayLike = xp.where(radius ** 2 - x ** 2 - y ** 2 >= 0)
+    sphere: ArrayLike = xp.zeros((2 * radius + 1, 2 * radius + 1))
+    sphere[mask] = 2 * xp.sqrt(radius ** 2 - x[mask] ** 2 - y[mask] ** 2)
+    return sphere
+
+
+def get_sphere_center_corr(proj: ArrayLike, sphere: ArrayLike,
+                           radius: int, **kwargs) -> Tuple[int, int]:
+    """
+    Extract sphere center for a single projection.
+    :param proj: single projection with sphere
+    :type proj: ArrayLike
+    :param sphere: spherical absorption pattern
+    :type sphere: ArrayLike
+    :param radius: radius of the sphere
+    :type radius: int
+    :param kwargs:
+        crop_left_px: left side cropping by pixels, default 0
+        crop_right_px: right side cropping by pixels, default 0
+        crop_vertical_prop: cropping by proportion along vertical axis, default 1 (whole projection)
+    """
+    clp: int = kwargs.get("crop_left_px", 0)
+    assert (clp >= 0)
+    crp: int = kwargs.get("crop_right_px", 0)
+    assert (crp >= 0)
+    cvp: int = kwargs.get("crop_vertical_prop", 1)
+    assert (cvp != 0)
+    if cvp > 0:
+        patch: ArrayLike = xp.asarray(proj[:abs(proj.shape[0] // cvp), clp:proj.shape[1] - crp])
+    else:
+        patch: ArrayLike = xp.asarray(proj[proj.shape[0] // cvp:, clp:proj.shape[1] - crp])
+    corr: ArrayLike = xft.ifft2(xft.fft2(patch - patch.mean()) * xp.conjugate(xft.fft2(
+        sphere - sphere.mean(), s=patch.shape))).real
+    yc, xc = xp.unravel_index(xp.argmax(corr), corr.shape)
+    yc += radius
+    xc += radius
+    # If CuPy is used this statement ensures, that the reference count of the object is reduced
+    # and GPU memory can be cleaned up by device servers.
+    del patch
+    return yc.item(), xc.item()
+
+
+@background
+async def find_sphere_centers_corr(producer: AsyncIterator[ArrayLike], radius: int = 65,
+                                   **kwargs) -> List[ArrayLike]:
+    """
+    Finds sphere centers from absorption projections using correlation with a generic spherical
+    absorption pattern with given radius. We can optionally provide a cropping criterion to be
+    efficient with computation.
+    :param producer: asynchronous source of projection data
+    :type producer: AsyncIterator[ArrayLike]
+    :param radius: radius of the sphere, default 65 (155-190 q.um Tungsten Carbide) for 5x
+    magnification having approximate diameter of 130 pixels in projections.
+    :type radius: int
+    :param kwargs:
+        crop_left_px: left side cropping by pixels, default 0
+        crop_right_px: right side cropping by pixels, default 0
+        crop_vertical_prop: cropping by proportion along vertical axis, default 1 (whole projection)
+    """
+    sphere: ArrayLike = get_sphere_absorption_pattern(radius=radius)
+    coros: List[Awaitable] = []
+    async for projection in producer:
+        coros.append(run_in_executor(
+            functools.partial(get_sphere_center_corr, projection, sphere, radius, **kwargs)))
+    return [np.array([yc, xc]) for yc, xc in await asyncio.gather(*coros)]
 
 
 @background

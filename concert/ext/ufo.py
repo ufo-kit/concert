@@ -4,6 +4,7 @@ import logging
 import threading
 import time
 import sys
+from typing import Optional
 import numpy as np
 
 try:
@@ -509,6 +510,7 @@ class GeneralBackprojectManager(Parameterizable):
     """
 
     state = State(default='standby')
+    _axis_estmd: Optional[asyncio.Event]
 
     async def __ainit__(self, args, average_normalization=True, regions=None, copy_inputs=False):
         await super().__ainit__()
@@ -532,6 +534,11 @@ class GeneralBackprojectManager(Parameterizable):
         self._producer_condition = asyncio.Condition()
         self._processing_task = None
         self._regions = None
+        self._axis_estmd = None
+
+    def set_axis_estmd(self, axis_estmd: asyncio.Event) -> None:
+        """Enable back projector to wait for estimated axis"""
+        self._axis_estmd = axis_estmd
 
     @property
     def num_received_projections(self):
@@ -742,6 +749,11 @@ class GeneralBackprojectManager(Parameterizable):
             consume_task.add_done_callback(consume_cb)
             await consume_task
 
+        # We wait for the event to be set from the reco device server to indicate that the axis of
+        # rotation has been estimated. This is relevant only when online reconstruction is being
+        # done in standalone mode.
+        if self._axis_estmd:
+            await self._axis_estmd.wait()
         LOG.debug('Reconstructing %d batches: %s', len(self._regions), self._regions)
         try:
             self._state_value = 'running'
