@@ -1,0 +1,3 @@
+ignore:
+  - "**/typing.py"
+  - "concert/ext/tangoservers/rae.py"
