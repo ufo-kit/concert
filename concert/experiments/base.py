@@ -264,13 +264,13 @@ class Experiment(RunnableParameterizable):
 
     """
 
-    iteration = Parameter()
-    separate_scans = Parameter()
-    name_fmt = Parameter()
+    iteration = Parameter(check=check(source=_runnable_state))
+    separate_scans = Parameter(check=check(source=_runnable_state))
+    name_fmt = Parameter(check=check(source=_runnable_state))
     current_name = Parameter(help="Name of the current iteration")
     log_level = Selection(['critical', 'error', 'warning', 'info', 'debug'])
-    log_devices_at_start = Parameter()
-    log_devices_at_finish = Parameter()
+    log_devices_at_start = Parameter(check=check(source=_runnable_state))
+    log_devices_at_finish = Parameter(check=check(source=_runnable_state))
 
     async def __ainit__(self, acquisitions, walker=None, separate_scans=True,
                         name_fmt='scan_{:>04}'):
@@ -515,7 +515,7 @@ class Experiment(RunnableParameterizable):
                 if handler:
                     await handler.aclose()
                     self.log.removeHandler(handler)
-                await self.set_iteration(iteration + 1)
+                await self._set_iteration(iteration + 1)
 
 
 class AcquisitionError(Exception):
