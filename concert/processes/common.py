@@ -4,12 +4,13 @@ from itertools import product
 from functools import reduce
 import numpy as np
 import logging
+from pint import Quantity
 from concert.coroutines.base import background, broadcast
 from concert.coroutines.sinks import Result
 from concert.quantities import q
 from concert.measures import rotation_axis
 from concert.optimization import halver, optimize_parameter
-from concert.imageprocessing import flat_correct, find_needle_tips
+from concert.imageprocessing import flat_correct, find_sphere_centers_corr, find_needle_tips
 from concert.helpers import expects, is_iterable, Numeric
 from concert.devices.motors.base import LinearMotor, RotationMotor
 from concert.devices.shutters.base import Shutter
@@ -385,6 +386,194 @@ async def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None
 
     return (roll_history, pitch_history, center)
 
+
+@background
+@expects(Camera, RotationMotor, x_motor=RotationMotor, z_motor=RotationMotor,
+         get_ellipse_points=find_sphere_centers_corr, sphere_radius=Numeric(1),
+         num_frames=Numeric(1), metric_eps=Numeric(1, q.deg),
+         position_eps=Numeric(1, q.deg), max_iterations=Numeric(1),
+         initial_x_coeff=Numeric(1, q.dimensionless), initial_z_coeff=Numeric(1, q.dimensionless),
+         shutter=Shutter, flat_motor=LinearMotor, flat_position=Numeric(1, q.m),
+         y_0=Numeric(1), y_1=Numeric(1), get_ellipse_points_kwargs=None, frame_consumers=None)
+async def align_rotation_axis_corr(camera, rotation_motor, x_motor=None, z_motor=None,
+                              get_ellipse_points=find_sphere_centers_corr, sphere_radius: int = 65,
+                              num_frames=10, metric_eps=None,
+                              position_eps=0.1 * q.deg, max_iterations=5,
+                              initial_x_coeff=1 * q.dimensionless,
+                              initial_z_coeff=1 * q.dimensionless,
+                              shutter=None, flat_motor=None, flat_position=None, y_0=0, y_1=None,
+                              get_ellipse_points_kwargs=None, frame_consumers=None):
+    """
+    align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None,
+    get_ellipse_points=find_sphere_centers_corr, sphere_radius: int = 65,
+    num_frames=10, metric_eps=None, position_eps=0.1 * q.deg, max_iterations=5,
+    initial_x_coeff=1 * q.dimensionless, initial_z_coeff=1 * q.dimensionless, shutter=None,
+    flat_motor=None, flat_position=None, y_0=0, y_1=None, get_ellipse_points_kwargs=None,
+    frame_consumers=None)
+
+    Align rotation axis. *camera* is used to obtain frames, *rotation_motor* rotates the sample
+    around the tomographic axis of rotation, *x_motor* turns the sample around x-axis, *z_motor*
+    turns the sample around z-axis.
+
+    *get_ellipse_points* is a function with one or conditionally two positional arguments, a set of
+    images, and radius of a trackable object like a sphere. It computes the ellipse points from the
+    sample positions as it rotates around the tomographic axis.
+    You can use e.g. :func:`concert.imageprocessing.find_sphere_centers_corr` or
+    :func:`concert.imageprocessing.find_sphere_centers` to extract the ellipse points from sphere
+    centers. You can pass additional keyword arguments to the *get_ellipse_points* function in the
+    *get_ellipse_points_kwargs* dictionary.
+
+    *sphere_radius* is the radius of the sphere used to extract the ellipse points. It is used by
+    the *get_ellipse_points* function to determine the size of the sphere to look for in the images.
+    This parameter is only used if the *get_ellipse_points* function requires it, e.g. in
+    :func:`concert.imageprocessing.find_sphere_centers_corr`.
+
+    *num_frames* defines how many frames are acquired and passed to the *measure*. *metric_eps* is
+    the metric threshold for stopping the procedure. If not specified, it is calculated
+    automatically to not exceed 0.5 pixels vertically. If *max_iterations* is reached the procedure
+    stops as well. *initial_[x|z]_coeff* is the coefficient applied` to the motor motion for the
+    first iteration. If we move the camera instead of the rotation stage, it is often necessary to
+    acquire fresh flat fields. In order to make an up-to-date flat correction, specify *shutter* if
+    you want fresh dark fields and specify *flat_motor* and *flat_position* to acquire flat fields.
+    Crop acquired images to *y_0* and *y_1*. *frame_consumers* are coroutine functions which will be
+    fed with all acquired frames.
+
+    The procedure finishes when it finds the minimum angle between an ellipse extracted from the
+    sample movement and respective axes or the found angle drops below *metric_eps*. The axis of
+    rotation after the procedure is (0,1,0), which is the direction perpendicular to the beam
+    direction and the lateral direction. *x_motor* and *z_motor* do not have to move exactly by the
+    computed angles but their relative motion must be linear with respect to computed angles (e.g.
+    if the motors operate with steps it is fine, also rotation direction does not need to be known).
+    """
+    if get_ellipse_points_kwargs is None:
+        get_ellipse_points_kwargs = {}
+
+    if not x_motor and not z_motor:
+        raise ProcessError("At least one of the x, z motors must be given")
+
+    async def make_step(i, motor, position_last, angle_last, angle_current, initial_coeff,
+                        rotation_type, max_step: Quantity = 1.0 * q.deg):
+        cur_pos = await motor.get_position()
+        LOG.debug("%s: i: %d, last angle: %s, angle: %s, last position: %s, position: %s",
+                  rotation_type, i, angle_last.to(q.deg), angle_current.to(q.deg),
+                  position_last.to(q.deg), cur_pos.to(q.deg))
+        if i > 0:
+            # Assume linear mapping between the computed angles and motor motion
+            if angle_current == angle_last:
+                coeff = 0 * q.dimensionless
+            else:
+                coeff = (cur_pos - position_last) / (angle_current - angle_last)
+        else:
+            coeff = initial_coeff
+        position_last = cur_pos
+        angle_last = angle_current
+        # Compute step taking max step into account. Max step is a simple safety cap for the motor
+        # motion. When alignment routine is closing into an optimal situation angle_current and
+        # angle_last are close values and there difference in the denominator can lead to a large
+        # coefficient being calculated. This can in turn lead to a large movement that the motor
+        # might not be able to cope with and might go to an error state.
+        step: Quantity = -coeff * angle_current
+        if np.abs(step.to_base_units().magnitude) > max_step.to_base_units().magnitude:
+            LOG.debug("%s: Step %s exceeds max step %s, limiting motor movement", rotation_type,
+                      step.to(q.deg), max_step.to(q.deg))
+            step = np.sign(step) * max_step
+        await motor.move(step)
+        return (position_last, angle_last)
+
+    async def go_to_best_index(motor, history):
+        positions, angles = list(zip(*history))
+        best_index = np.argmin(np.abs([angle.to_base_units().magnitude for angle in angles]))
+        LOG.debug("Best iteration: %d, position: %s, angle: %s",
+                  best_index, positions[best_index].to(q.deg), angles[best_index].to(q.deg))
+        await motor.set_position(positions[best_index])
+
+    async def extract_points(producer):
+        return await get_ellipse_points(producer, sphere_radius, **get_ellipse_points_kwargs)
+
+    roll_history = []
+    pitch_history = []
+    center = None
+
+    if z_motor:
+        roll_angle_last = 0 * q.deg
+        roll_position_last = await z_motor.get_position()
+        roll_continue = True
+    if x_motor:
+        pitch_angle_last = 0 * q.deg
+        pitch_position_last = await x_motor.get_position()
+        pitch_continue = True
+
+    frames_result = Result()
+    for i in range(max_iterations):
+        acq_consumers = [extract_points, frames_result]
+        if frame_consumers is not None:
+            acq_consumers += list(frame_consumers)
+        tips_start = time.perf_counter()
+        frame_producer = acquire_frames_360(camera, rotation_motor, num_frames, shutter=shutter,
+                                            flat_motor=flat_motor, flat_position=flat_position,
+                                            y_0=y_0, y_1=y_1)
+
+        coros = broadcast(frame_producer, *acq_consumers)
+        try:
+            tips = (await asyncio.gather(*coros))[1]
+        except Exception as tips_exc:
+            raise ProcessError('Error finding reference points') from tips_exc
+        LOG.debug('Found %d points in %g s', len(tips), time.perf_counter() - tips_start)
+        roll_angle_current, pitch_angle_current, center = rotation_axis(tips)
+        coros = []
+        x_coro = z_coro = None
+        if metric_eps is None:
+            metric_eps = np.rad2deg(np.arctan(1 / frames_result.result.shape[1])) * q.deg
+            LOG.debug('Automatically computed metric epsilon: %s', metric_eps)
+
+        if z_motor and roll_continue:
+            z_pos = await z_motor.get_position()
+            roll_history.append((z_pos, roll_angle_current))
+            if (np.abs(roll_angle_current) >= metric_eps
+                    and (np.abs(roll_position_last - z_pos) >= position_eps or i == 0)):
+                z_coro = make_step(i, z_motor, roll_position_last, roll_angle_last,
+                                   roll_angle_current, initial_z_coeff, 'roll')
+                coros.append(z_coro)
+            else:
+                LOG.debug("Roll epsilon reached")
+                roll_continue = False
+        if x_motor and pitch_continue:
+            x_pos = await x_motor.get_position()
+            pitch_history.append((x_pos, pitch_angle_current))
+            if (np.abs(pitch_angle_current) >= metric_eps
+                    and (np.abs(pitch_position_last - x_pos) >= position_eps or i == 0)):
+                x_coro = make_step(i, x_motor, pitch_position_last, pitch_angle_last,
+                                   pitch_angle_current, initial_x_coeff, 'pitch')
+                coros.append(x_coro)
+            else:
+                LOG.debug("Pitch epsilon reached")
+                pitch_continue = False
+
+        if not coros:
+            # If there are no coros the motors have reached positions at which the computed
+            # angles are below threshold
+            break
+
+        step_results = await asyncio.gather(*coros)
+        if x_coro:
+            # Regardless from x_coro and z_coro to be present, x_coro is always added last, so pop
+            # it first
+            pitch_position_last, pitch_angle_last = step_results.pop()
+        if z_coro:
+            roll_position_last, roll_angle_last = step_results.pop()
+
+    if i == max_iterations - 1:
+        LOG.info('Maximum iterations reached')
+
+    # Move to the best known position
+    coros = []
+    if z_motor:
+        coros.append(go_to_best_index(z_motor, roll_history))
+    if x_motor:
+        coros.append(go_to_best_index(x_motor, pitch_history))
+    await asyncio.gather(*coros)
+
+    return (roll_history, pitch_history, center)
 
 class ProcessError(Exception):
 
