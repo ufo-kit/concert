@@ -7,6 +7,7 @@ from concert.coroutines.base import async_generate
 from concert.ext.ufo import GeneralBackprojectManager, LocalGeneralBackprojectArgs
 from concert.networking.base import get_tango_device, ZmqSender
 from concert.storage import RemoteDirectoryWalker
+from concert.typing import AbstractTangoDevice
 from ...config import DISTRIBUTED_TANGO_TIMEOUT
 
 MAX_DIM = 100000
@@ -102,7 +103,8 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
             average_normalization=True
         )
         self._walker = None
-        self._sender = None
+        self._sender2writer = None
+        self._sender2qa = None
         self._find_args = None
 
     @DebugIt()
@@ -150,9 +152,33 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
             root=root,
             bytes_per_file=2 ** 40,
         )
-        if self._sender:
-            self._sender.close()
-        self._sender = ZmqSender(endpoint=f"{protocol}://*:{port}", reliable=True)
+        if self._sender2writer:
+            self._sender2writer.close()
+        self._sender2writer = ZmqSender(endpoint=f"{protocol}://*:{port}", reliable=True)
+
+    @DebugIt()
+    @command(
+        dtype_in=CmdArgType.DevVarStringArray,
+        doc_in="1. qa's tango server URI, "
+               "2. root path, "
+               "3. protocol, "
+               "4. host, "
+               "5. port "
+    )
+    async def setup_qa(self, args):
+        """Setup quality assurance walker for eveluating slices remotely."""
+        tango_remote = args[0]
+        root = args[1]
+        protocol = args[2]
+        host = args[3]
+        port = args[4]
+
+        qa_device: AbstractTangoDevice = get_tango_device(tango_remote)
+        qa_device.set_timeout_millis(DISTRIBUTED_TANGO_TIMEOUT)
+        await qa_device.write_attribute('endpoint', f"{protocol}://{host}:{port}")
+        if self._sender2qa:
+            self._sender2qa.close()
+        self._sender2qa = ZmqSender(endpoint=f"{protocol}://*:{port}", reliable=True)
 
     async def _reconstruct(self, cached=False, slice_directory=""):
         if cached:
@@ -162,9 +188,11 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
         if slice_directory:
             f = self._walker.write_sequence(name=slice_directory)
             for image in self._manager.volume:
-                await self._sender.send_image(image)
+                await self._sender2writer.send_image(image)
+                await self._sender2qa.send_image(image)
             # Poison pill
-            await self._sender.send_image(None)
+            await self._sender2writer.send_image(None)
+            await self._sender2qa.send_image(None)
 
     @DebugIt(show_args=True)
     @command(dtype_in=str)
