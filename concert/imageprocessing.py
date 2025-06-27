@@ -129,6 +129,8 @@ def get_sphere_center_corr(proj: ArrayLike, sphere: ArrayLike,
         patch: ArrayLike = xp.asarray(proj[:abs(proj.shape[0] // cvp), clp:proj.shape[1] - crp])
     else:
         patch: ArrayLike = xp.asarray(proj[proj.shape[0] // cvp:, clp:proj.shape[1] - crp])
+    if not isinstance(sphere, xp.ndarray):
+        sphere = xp.asarray(sphere)
     corr: ArrayLike = xft.ifft2(xft.fft2(patch - patch.mean()) * xp.conjugate(xft.fft2(
         sphere - sphere.mean(), s=patch.shape))).real
     yc, xc = xp.unravel_index(xp.argmax(corr), corr.shape)

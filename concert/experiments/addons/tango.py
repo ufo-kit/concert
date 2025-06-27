@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import dataclass
 import functools
 import inspect
 import logging
@@ -153,6 +154,32 @@ class _TangoProxyArgs:
         return tuple(result)
 
 
+@dataclass(init=True, repr=True)
+class RotationAxisEstimatorConfigs:
+    """
+    Configuration class for the RotationAxisEstimator addon. It holds default values for various
+    parameters used in the addon.
+
+    :attribute crop_vert_prop: vertical proportion to find the sphere, negative value denotes 
+    towards bottom, positive value denotes towards top. It prevents searching for the sphere in
+    the complete projection. It is especially relevant in context of, whether the projection
+    coming out of the camera is flipped or not. Defaults to +1, means whole projection.
+    :attribute crop_left_px: left side cropping by pixels, default 0, means no cropping.
+    :attribute crop_right_px: right side cropping by pixels, default 0, means no cropping.
+    :attribute radius: approximate radius of the sphere by pixels, default 65 for 5x
+    magnification (155-190 q.um Tungsten Carbide).
+    :attribute init_wait: initial wait time before estimation starts, default 50 projections.
+    :attribute conv_window: number of past estimations, based on which convergence should be
+    evaluated, default 50 projections.
+    """
+    crop_vert_prop: int = 1
+    crop_left_px: int = 0
+    crop_right_px: int = 0
+    radius: int = 65  # Default radius in pixels, corresponds to 5x
+    init_wait: int = 50  # Default initial wait time in projections
+    conv_window: int = 50  # Default convergence window in projections
+
+
 class RotationAxisEstimator(TangoMixin, base.Addon):
     """
     Tango addon for estimating axis of rotation during acquisition. It relies on a highly
@@ -162,18 +189,11 @@ class RotationAxisEstimator(TangoMixin, base.Addon):
     accumulated sphere centroids takes place.
     """
 
-    DEFAULT_CROP_VERT_PROP = 1
-    DEFAULT_CROP_LEFT_PX = 0
-    DEFAULT_CROP_RIGHT_PX = 0
-    DEFAULT_MARKER_RADIUS = 65
-    DEFAULT_INITIAL_WAIT = 50
-    DEFAULT_AVERAGING_FACTOR = 0.9
-    DEFAULT_ESTM_ERR_THRESHOLD = 0.1
-    DEFAULT_CONV_WINDOW = 50
-
     async def __ainit__(self, device: AbstractRAEDevice, endpoint: CommData, experiment: Experiment,
                         acquisitions: Set[Acquisition], num_darks: int, num_flats: int,
-                        num_radios: int, rot_angle: float = np.pi, **kwargs) -> None:
+                        num_radios: int, rot_angle: float = np.pi,
+                        configs: RotationAxisEstimatorConfigs = RotationAxisEstimatorConfigs()
+                        ) -> None:
         """
         :param device: tango device server proxy for rotation axis estimation.
         :type device: `concert.experiments.addons.typing.AbstractRAEDevice`
@@ -191,29 +211,8 @@ class RotationAxisEstimator(TangoMixin, base.Addon):
         :type num_radios: int
         :param rot_angle: overall rotation angle.
         :type rot_angle: float, defaults to `np.pi`
-        :param crop_vert_prop: (kwarg)vertical proportion to find the sphere, negative value denotes
-        towards bottom, positive value denotes towards top. It prevents searching for the sphere in
-        the complete projection. It is especially relevant in context of, whether the projection
-        coming out of the camera is flipped or not. Defaults to +1, means whole projection.
-        :type crop_vert_prop: int
-        :param crop_left_px: (kwarg)left side cropping by pixels, default 0, means no cropping.
-        :type crop_left_px: int
-        :param crop_right_px: (kwarg)right side cropping by pixels, default 0, means no cropping.
-        :type crop_right_px: int
-        :param radius: (kwarg)approximate radius of the sphere by pixels, default 65 for 5x
-        magnification (155-190 q.um Tungsten Carbide).
-        :type radius: int
-        :param init_wait: (kwarg)initial wait time before estimation starts, default 50 projections.
-        :type init_wait: int
-        :param avg_beta: (kwarg)smoothing factor to smooth out the estimated value to ensure a
-        faster convergence, default 0.9.
-        :param avg_beta: float
-        :param diff_thresh: (kwarg)threshold diff value in estimated center of rotation from
-        successive projections, default 0.1.
-        :type diff_thresh: float
-        :param conv_window: (kwarg)number of past estimations, based on which convergence should be
-        evaluated, default 50 projections.
-        :type conv_window: int
+        :param configs: configuration object for the rotation axis estimator.
+        :type configs: `RotationAxisEstimatorConfigs`
         """
         await TangoMixin.__ainit__(self, device, endpoint)
         await self._device.write_attribute("rot_angle", rot_angle)
@@ -221,20 +220,11 @@ class RotationAxisEstimator(TangoMixin, base.Addon):
         await self._device.write_attribute("attr_acq", np.array([num_darks, num_flats, num_radios],
                                                                 dtype=np.int_))
         # Meta attributes for tracking
-        crop_vert_prop: int = kwargs.get("crop_vert_prop", self.DEFAULT_CROP_VERT_PROP)
-        crop_left_px: int = kwargs.get("crop_left_px", self.DEFAULT_CROP_LEFT_PX)
-        crop_right_px: int = kwargs.get("crop_right_px", self.DEFAULT_CROP_RIGHT_PX)
-        radius: int = kwargs.get("radius", self.DEFAULT_MARKER_RADIUS)
-        await self._device.write_attribute("attr_track", np.array([crop_vert_prop, crop_left_px,
-                                                                   crop_right_px, radius],
-                                                                  dtype=np.int_))
+        await self._device.write_attribute("attr_track", np.array([
+            configs.crop_vert_prop, configs.crop_left_px, configs.crop_right_px,configs.radius]))
         # Meta attributes for estimation
-        init_wait: int = kwargs.get("init_wait", self.DEFAULT_INITIAL_WAIT)
-        avg_beta: float = kwargs.get("avg_beta", self.DEFAULT_AVERAGING_FACTOR)
-        diff_thresh: float = kwargs.get("diff_thresh", self.DEFAULT_ESTM_ERR_THRESHOLD)
-        conv_window: int = kwargs.get("conv_window", self.DEFAULT_CONV_WINDOW)
-        await self._device.write_attribute("attr_estm", np.array([init_wait, avg_beta, diff_thresh,
-                                                                  conv_window]))
+        await self._device.write_attribute("attr_estm", np.array([
+            configs.init_wait, configs.conv_window]))
         await base.Addon.__ainit__(self, experiment, acquisitions)
 
     async def _get_center_of_rotation(self) -> float:

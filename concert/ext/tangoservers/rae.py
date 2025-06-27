@@ -61,15 +61,11 @@ class TangoRotationAxisEstimator(TangoRemoteProcessing):
 
     attr_estm = attribute(
         label="Meta attributes for axis estimation",
-        dtype=(float,),
-        max_dim_x=4,
+        dtype=(int,),
+        max_dim_x=2,
         access=AttrWriteType.WRITE,
         fset="set_attr_estm",
-        doc="encapsulates attributes for axis estimation.e., \
-        init_wait, \
-        avg_beta, \
-        diff_thresh, \
-        conv_window"
+        doc="encapsulates attributes for axis estimation.e., init_wait, conv_window"
     )
 
     async def init_device(self) -> None:
@@ -95,6 +91,8 @@ class TangoRotationAxisEstimator(TangoRemoteProcessing):
 
     def set_attr_acq(self, aa: ArrayLike) -> None:
         self._attr_acq = aa
+        self.info_stream("%s: acquisition attributes set to: %s", self.__class__.__name__,
+                         str(self._attr_acq))
 
     def get_axis_of_rotation(self) -> float:
         return self._axis_of_rotation
@@ -104,9 +102,13 @@ class TangoRotationAxisEstimator(TangoRemoteProcessing):
 
     def set_attr_track(self, at: ArrayLike) -> None:
         self._attr_track = at
+        self.info_stream("%s: tracking attributes set to: %s", self.__class__.__name__,
+                         str(self._attr_track))
 
     def set_attr_estm(self, ae: ArrayLike) -> None:
         self._attr_estm = ae
+        self.info_stream("%s: estimation attributes set to: %s", self.__class__.__name__,
+                         str(self._attr_estm))
 
     async def _process_flat_fields(self, name: str, producer: AsyncIterator[ArrayLike]) -> None:
         """
@@ -155,8 +157,7 @@ class TangoRotationAxisEstimator(TangoRemoteProcessing):
         :type producer: AsyncIterator[ArrayLike]
         """
         crop_vert_prop, crop_left_px, crop_right_px, radius = self._attr_track
-        init_wait, avg_beta, diff_thresh, conv_window = self._attr_estm
-        init_wait, conv_window = int(init_wait), int(conv_window)
+        init_wait, conv_window = self._attr_estm
         proj_count = 0
         centers: List[List[int]] = []
         ffc = FlatCorrect(dark=self._dark, flat=self._flat, absorptivity=True)
@@ -169,32 +170,42 @@ class TangoRotationAxisEstimator(TangoRemoteProcessing):
                                                 crop_left_px=crop_left_px,
                                                 crop_right_px=crop_right_px)
                 centers.append([yc, xc])
+                # NOTE: We replace the generic absorption pattern with a patch from the sphere
+                # tracking on first iteration. We don't want to repeat this on the subsequent
+                # iterations because exhaustive tests show that tracking error accumulates over time
+                # when we change the pattern to be tracked repeatedly. Selecting one specific
+                # pattern helps to stabilize the tracking.
+                if proj_count == 0:
+                    self._sphere = proj[yc - radius:yc + radius + 1,
+                                    (xc + crop_left_px) - radius:(xc + crop_left_px) + radius + 1]
+                ####################################################################################
+                # TODO: Debugging code to visualize the sphere tracking. To be the removed before
+                # merge.
+                # if proj_count % 4 == 0:
+                #     import matplotlib.pyplot as plt
+                #     plot = proj[yc -radius:yc+radius+1,
+                #                         (xc + crop_left_px)-radius:(xc + crop_left_px)+radius+1]
+                #     plt.imshow(plot, cmap="gray")
+                #     plt.show()
+                ####################################################################################
                 if proj_count > init_wait:
                     x: ArrayLike = self._angles[:proj_count]
                     y: ArrayLike = np.array(centers)[:proj_count, 1]
                     params, _ = sop.curve_fit(f=self._opt_func, xdata=np.squeeze(x),
                                               ydata=np.squeeze(y))
                     est_axis: float = crop_left_px + params[0]
-                    if len(est_axes) == 0:
-                        est_axes.append(np.round(est_axis, decimals=1))
-                    else:
-                        avg_est: float = (avg_beta * est_axes[-1]) + ((1 - avg_beta) * est_axis)
-                        avg_est /= (1 - avg_beta**proj_count)
-                        est_axes.append(np.round(avg_est, decimals=1))
+                    est_axes.append(np.round(est_axis, decimals=1))
                     self.info_stream("%s: current estimation: %.1f", self.__class__.__name__,
                                      est_axes[-1])
-                # Convergence: check if we have landed on a stable value. This check happens for
-                # each projection after given number of estimations are available. Since we want to
-                # achieve less than half-pixel error in estimation, we round the estimated values
-                # to 1 decimal position and compare against a threshold value, which should be less
-                # than configured diff_thresh.
                 if not converged and len(est_axes) > conv_window:
                     if proj_count % 10 == 0:
                         self.debug_stream(
                                 "estimation diff: %s",
-                                np.round(np.abs(np.diff(est_axes[-conv_window:])), decimals=1))
-                    if np.all(np.round(np.abs(np.diff(est_axes[-conv_window:])),
-                                       decimals=1) < diff_thresh):
+                                np.abs(np.diff(np.trunc(est_axes[-conv_window:]))))
+                    # To check for convergence we take the last `conv_window` estimates and check
+                    # the difference in the integral part of the estimates. We want the integral
+                    # part to remain stable throughout the last `conv_window` estimates.
+                    if np.count_nonzero(np.abs(np.diff(np.trunc(est_axes[-conv_window:])))) == 0:
                         self._axis_of_rotation = est_axes[-1]
                         self.info_stream("%s: converged at: %.1f", self.__class__.__name__,
                                          self._axis_of_rotation)
@@ -209,26 +220,14 @@ class TangoRotationAxisEstimator(TangoRemoteProcessing):
                                  self._axis_of_rotation)
                 self.push_change_event("axis_of_rotation", self._axis_of_rotation)
         except Exception as e:
-            self.info_stream("%s: runtime error: %s, unblocking reco with generic value",
-                             self.__class__.__name__, str(e))
             # Unblock reco device server if the axis estimation routine is not successful for some
             # reason. In that case we take half of the projection width as a generic value.
+            self.info_stream("%s: runtime error: %s, unblocking reco with generic value",
+                             self.__class__.__name__, str(e))
             self._axis_of_rotation = proj.shape[1] / 2
             self.push_change_event("axis_of_rotation", self._axis_of_rotation)
-        # Set axis_of_rotation attribute back to None to safe-guard against mis-fire of tango
-        # events.
+        # Reset axis_of_rotation attribute for the subsequent acquisition.
         self._axis_of_rotation = None
-        try:
-            # NOTE: We need to put this strategy into test. Since this routine is supposed to be
-            # executed in the reconstruction server its implication on the reconstruction workflow
-            # needs to be understood.
-            import cupy as cp
-            cp._default_memory_pool.free_all_blocks()
-            self.info_stream("%s: attempted to release unused GPU memory")
-        except ModuleNotFoundError:
-            # If cupy is available we ensure to release all allocated GPU memory for current
-            # stream. We don't need to do anything specific otherwise.
-            pass
 
 
 if __name__ == "__main__":
