@@ -326,7 +326,7 @@ class GeneralBackproject(InjectProcess):
     """
 
     def __init__(self, args, resources=None, gpu_index=0, do_normalization=False,
-                 region=None, copy_inputs=False):
+                 region=None, copy_inputs=False, general_backproject=True):
         if args.width is None or args.height is None:
             raise GeneralBackprojectError('width and height must be set in GeneralBackprojectArgs')
         scheduler = Ufo.FixedScheduler()
@@ -372,7 +372,7 @@ class GeneralBackproject(InjectProcess):
 
         (first, last) = setup_graph(self.args, graph, x_region, y_region, self.args.region,
                                     source=self.ffc, gpu=gpu, index=gpu_index, do_output=False,
-                                    make_reader=False)
+                                    make_reader=False, general_backproject=general_backproject)
         output_dims = 2
         if args.slice_metric:
             output_dims = 1
