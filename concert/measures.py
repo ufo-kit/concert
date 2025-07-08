@@ -127,12 +127,12 @@ def rotation_axis(tips):
     We exploit the fact that the projected circle is an ellipse. Thus,
     ellipse's major axis is the radius of rotation. If we set the beam
     direction to be the :math:`z`-axis :math:`(0,0,1)`, we can determine
-    the :math:`xy` angle :math:`(\roll_angle)` by the major axis angle
+    the :math:`xy` angle :math:`(\phi)` by the major axis angle
     of the ellipse. Furthermore, based on the ratio between minor
     and major axis, we can determine the projected circle's
     inclination from its normal, yielding the :math:`zy` angle
-    :math:`(\pitch_angle)` of the circle. One then needs to rotate the the sample
-    :math:`(-\roll_angle,\pm \pitch_angle)`. The :math:`\pitch_angle` angle ambiguity comes from
+    :math:`(\psi)` of the circle. One then needs to rotate the the sample
+    :math:`(-\phi,\pm \psi)`. The :math:`\psi` angle ambiguity comes from
     the fact that we are working with projected data.
 
     There are three possible situations with the ellipse fitting algorithm:
@@ -140,7 +140,7 @@ def rotation_axis(tips):
     * The sample does not move in the image sequence, it is not off-centered
         enough.
     * The ellipse degenerates to a line, which means the circle is parallel
-        to the beam, thus we only need to rotate by :math:`-\roll_angle`.
+        to the beam, thus we only need to rotate by :math:`-\phi`.
     * The projections lead to a non-degenerate ellipse. In this case we need to
         rotate around both angles.
 
@@ -158,7 +158,7 @@ def rotation_axis(tips):
     #. Sample tip determination (largest Euclidean distance from the sample
         entering to the image and its boundaries).
     #. Ellipse fitting to the set of tip points.
-    #. Determine :math:`\roll_angle` and :math:`\pitch_angle` from the projected circle.
+    #. Determine :math:`\phi` and :math:`\psi` from the projected circle.
 
     **Assumptions**
 
@@ -168,7 +168,7 @@ def rotation_axis(tips):
 
     **Output**
 
-    The measure returns a tuple (:math:`\roll_angle`, :math:`\pitch_angle`, center).
+    The measure returns a tuple (:math:`\phi`, :math:`\psi`, center).
     """
     if len(tips) < 5:
         raise ValueError("At least 5 coordinate pairs are needed")
@@ -201,7 +201,7 @@ def rotation_axis(tips):
         if x_ind[y_ind.argmax()] <= x_ind[y_ind.argmin()]:
             # More than pi/4.
             angle = -angle
-        roll_angle, pitch_angle = (angle, 0.0 * q.rad)
+        phi, psi = (angle, 0.0 * q.rad)
         center = np.mean(tips, axis=0)
     else:
         x_pos = ((params[1] * params[4] - 2 * params[3] * params[2])
@@ -214,8 +214,12 @@ def rotation_axis(tips):
         v_1 = np.array(tips[1]) - center
         pitch_d_angle = np.arctan2(np.cross(v_0, v_1), np.dot(v_0, v_1))
         sgn = int(np.sign(pitch_d_angle))
-        roll_angle, pitch_angle = (np.arctan(v_mat[1][1] / v_mat[1][0]) * q.rad,
+        phi, psi = (np.arctan(v_mat[1][1] / v_mat[1][0]) * q.rad,
                     sgn * np.arcsin(np.sqrt(s_vec[1]) / np.sqrt(s_vec[0])) * q.rad)
 
-    LOG.debug('Found z angle: %s, x angle: %s, center: %s', roll_angle, pitch_angle, center)
-    return (roll_angle.to(q.deg), pitch_angle.to(q.deg), center)
+    phi = phi.to(q.deg)
+    psi = psi.to(q.deg)
+
+    LOG.debug('Found z angle: %s, x angle: %s, center: %s', phi, psi, center)
+
+    return (phi, psi, center)

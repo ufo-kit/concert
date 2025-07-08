@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import inspect
 import time
 from itertools import product
@@ -419,6 +420,10 @@ class MotorState(AsyncObject):
         components.append(f"- upper-limit: {self._upper_limit}")
         return "\n".join(components)
 
+class DebugOnlyLoggingFilter(logging.Filter):
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.levelno == logging.DEBUG
 
 async def set_soft_limits(motor: RotationMotor, limits: Quantity) -> None:
         """Sets soft `limits` for the specified `motor`"""
@@ -456,9 +461,9 @@ async def make_step_dynamic(iteration: int,
     func_name: str = inspect.currentframe().f_code.co_name
     pose_current = await motor.get_position()
     iteration_log = f"{func_name}: {rotation_type}: iter: {iteration}"
-    logger.info(iteration_log)
-    logger.info("=" * len(iteration_log))
-    logger.info("last angle: {}, current angle: {}, last position: {}, current position: {}".format(
+    logger.debug(iteration_log)
+    logger.debug("=" * len(iteration_log))
+    logger.debug("last angle: {}, current angle: {}, last position: {}, current position: {}".format(
         angle_last.to(q.deg), angle_current.to(q.deg), pose_last.to(q.deg), pose_current.to(q.deg)))
     angle_diff = angle_current - angle_last
     pose_diff = pose_current - pose_last
@@ -472,39 +477,42 @@ async def make_step_dynamic(iteration: int,
             gain = np.clip(pose_diff / angle_diff, -ceil_gain, ceil_gain)
         # If the angle change is insignificant then we have two possibilities to consider.
         else:
+            # NOTE: We take the simplified approach first and say that if the angle has not changed
+            # significantly in subsequent iterations we don't make any adjustments.
             # If there is a non-zero change in position change but the angle did not change
             # significantly this can mean motor sensitivity issue or a potential non-linear mapping
             # between motor motion and angle change. In this case we calculate a gain with a ceiling
             # value to prevent a explosive motion.
-            if abs(pose_diff) > 0:
-                gain = ceil_gain * np.sign(pose_diff)
-            # If neither angle not position changed significantly we have no gain. Ideally this
-            # should mark the end of alignment.
-            else:
-                gain = 0 * q.dimensionless
+            # if abs(pose_diff) > 0:
+            #     gain = ceil_gain * np.sign(pose_diff)
+            # # If neither angle not position changed significantly we have no gain. Ideally this
+            # # should mark the end of alignment.
+            # else:
+            #     gain = 0 * q.dimensionless
+            gain = 0 * q.dimensionless
     else:
         gain = initial_gain
     pose_last = pose_current
     angle_last = angle_current
     # Relative movement is capped by `ceil_rel_move`.
     move_relative: Quantity = np.clip(-gain * angle_current, -ceil_rel_move, ceil_rel_move)
-    logger.info(f"gain: {gain} move-relative: {move_relative}")
+    logger.debug(f"gain: {gain} move-relative: {move_relative}")
     if np.any(np.sign(move_relative.magnitude)):
         try:
             await motor.move(move_relative)
         except SoftLimitError:
-            logger.info(f"motor: {rotation_type} encountered soft-limit error")
-            logger.info(f"motor: {rotation_type} current-position: {pose_last} current-angle: {angle_last}")
-            logger.info("=" * len(iteration_log))
+            logger.debug(f"motor: {rotation_type} encountered soft-limit error")
+            logger.debug(f"motor: {rotation_type} current-position: {pose_last} current-angle: {angle_last}")
+            logger.debug("=" * len(iteration_log))
             return pose_last, angle_last
     else:
-        logger.info(f"motor: {rotation_type} didn't need to move")
-        logger.info(f"motor: {rotation_type} current-position: {pose_last} current-angle: {angle_last}")
-        logger.info("=" * len(iteration_log))
+        logger.debug(f"motor: {rotation_type} didn't need to move")
+        logger.debug(f"motor: {rotation_type} current-position: {pose_last} current-angle: {angle_last}")
+        logger.debug("=" * len(iteration_log))
         return pose_last, angle_last
     pose_current = await motor.get_position()
-    logger.info(f"motor: {rotation_type} moved, current-position: {pose_current} current-angle: {angle_last}")
-    logger.info("=" * len(iteration_log))
+    logger.debug(f"motor: {rotation_type} moved, current-position: {pose_current} current-angle: {angle_last}")
+    logger.debug("=" * len(iteration_log))
     return pose_last, angle_last
 
 
@@ -514,7 +522,7 @@ async def go_to_best_index(motor: RotationMotor, rot_type: str, history: List[Di
     func_name: str = inspect.currentframe().f_code.co_name
     positions, angles = list(zip(*[(item["position"], item[rot_type]) for item in history]))
     best_index = np.argmin(np.abs([angle.to_base_units().magnitude for angle in angles]))
-    logger.info("{}: best: {}, position: {}, angle: {}".format(func_name, rot_type,
+    logger.debug("{}: best: {}, position: {}, angle: {}".format(func_name, rot_type,
                                                                positions[best_index].to(q.deg),
                                                                angles[best_index].to(q.deg)))
     await motor.set_position(positions[best_index])
@@ -528,25 +536,25 @@ async def extract_ellipse_points(producer: AsyncIterator[ArrayLike], radius: int
 @background
 async def align_pitch_with_dynamic_gain(camera: Camera,
                                   angular_rot_motor: RotationMotor,
-                                  angular_rot_limits: Quantity,
+                                  angular_rot_limits: Optional[Quantity],
                                   x_rot_motor: RotationMotor,
-                                  x_rot_limits: Quantity,
+                                  x_rot_limits: Optional[Quantity],
                                   flat_motor: LinearMotor,
                                   shutter: Shutter,
                                   flat_position: Quantity,
                                   radius: int,
-                                  crop_y_start: int,
-                                  crop_y_end: int,
+                                  y_start: int,
+                                  y_end: int,
                                   logger: logging.Logger,
                                   base_log_path: str,
-                                  num_frames: int = 40,
-                                  max_iterations: int = 10,
+                                  num_frames: int = 10,
+                                  max_iterations: int = 5,
                                   initial_x_gain: Quantity = 1 * q.dimensionless,
                                   eps_position: Quantity = 0.1 * q.deg,
                                   eps_metric: Optional[Quantity] = None,
                                   eps_angle_diff: Quantity = 1e-7 * q.deg,
                                   ceil_gain: Quantity = 1e3 * q.dimensionless,
-                                  ceil_rel_move: Quantity = 5 * q.deg) -> None:
+                                  ceil_rel_move: Quantity = 3 * q.deg) -> None:
     """
     Implements dynamically gained alignment routine for pitch angle only. This is a proof of concept
     and easy to debug routine since we are focusing on one specific error. Pitch angle error is also
@@ -557,64 +565,70 @@ async def align_pitch_with_dynamic_gain(camera: Camera,
     axis to the beam direction. We cannot recover from this error in a straight forward manner.
     Hence, we put more emphasis on the pitch angle error.
     """
-    assert (camera and shutter)
-    assert (angular_rot_motor and has_unit(angular_rot_limits, "degree") and len(angular_rot_limits) == 2)
-    assert (x_rot_motor and has_unit(x_rot_limits, "degree") and len(x_rot_limits) == 2)
-    assert (flat_motor and flat_position and has_unit(flat_position, "millimeter"))
-    assert (radius and crop_y_start and crop_y_end)
+    # assert(camera and shutter)
+    # assert(angular_rot_motor)
+    # if angular_rot_limits:
+    #     assert(has_unit(angular_rot_limits, "degree") and len(angular_rot_limits) == 2)
+    # assert(x_rot_motor)
+    # if x_rot_limits:
+    #     assert(has_unit(x_rot_limits, "degree") and len(x_rot_limits) == 2)
+    # assert(flat_motor and flat_position and has_unit(flat_position, "millimeter"))
     func_name: str = inspect.currentframe().f_code.co_name
     log_file = f"{func_name}_{time.ctime().replace(' ', '_').lower()}.log"
     formatter = logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s")
-    handler = logging.FileHandler("{0}/{1}.log".format(base_log_path, log_file))
+    handler = logging.FileHandler("{0}/{1}".format(base_log_path, log_file))
+    handler.addFilter(DebugOnlyLoggingFilter())
     handler.setFormatter(formatter)
     logger.addHandler(handler)
-    logger.info(f"Start: {func_name}")
-    logger.info("#" * len(f"Start: {func_name}"))
-    # Set soft limits to the motors for safe-alignment.
-    try:
-        await set_soft_limits(angular_rot_motor, angular_rot_limits)
-        await set_soft_limits(x_rot_motor, x_rot_limits)
-    except Exception as e:
-        logger.info(f"{func_name}: error setting soft-limits, \n{str(e)}")
-        logger.info(f"End: {func_name}")
-        logger.info("#" * len(f"End: {func_name}"))
-        logger.removeHandler(handler)
-        return
+    logger.debug(f"Start: {func_name}")
+    logger.debug("#" * len(f"Start: {func_name}"))
+    # Set soft limits to the motors for safe-alignment if provided.
+    if angular_rot_limits and x_rot_limits:
+        try:
+            await set_soft_limits(angular_rot_motor, angular_rot_limits)
+            await set_soft_limits(x_rot_motor, x_rot_limits)
+        except Exception as e:
+            logger.debug(f"{func_name}: error setting soft-limits, \n{str(e)}")
+            logger.debug(f"End: {func_name}")
+            logger.debug("#" * len(f"End: {func_name}"))
+            logger.removeHandler(handler)
+            return
     # Log initial state
-    logger.info("motor State: ====>")
-    logger.info(str(await MotorState("angular", angular_rot_motor)))
-    logger.info(str(await MotorState("pitch", x_rot_motor)))
+    logger.debug("motor State: ====>")
+    logger.debug(str(await MotorState("angular", angular_rot_motor)))
+    logger.debug(str(await MotorState("pitch", x_rot_motor)))
     # Kick-start alignment with initial values.
     pitch_angle_last: Quantity = 0 * q.deg
     pitch_position_last: Quantity = await x_rot_motor.get_position()
     pitch_can_continue = True
     pitch_align_history: List[Dict[str, Quantity]] = []
+
     frames_result = Result()
     for iteration in range(max_iterations):
-        acq_consumers = [extract_ellipse_points, frames_result]
+        acq_consumers = [functools.partial(extract_ellipse_points, radius=radius), frames_result]
         tips_start = time.perf_counter()
         # Acquire frames from camera and perform flat-field correction.
         frame_producer = acquire_frames_360(camera, angular_rot_motor, num_frames, shutter=shutter,
                                             flat_motor=flat_motor, flat_position=flat_position,
-                                            y_0=crop_y_start, y_1=crop_y_end)
+                                            y_0=y_start, y_1=y_end)
         coros = broadcast(frame_producer, *acq_consumers)
         try:
             tips = (await asyncio.gather(*coros))[1]
         except Exception as tips_exc:
-            logger.info(f"{func_name}: iteration: {iteration} - error finding reference points: {tips_exc}")
-            logger.info("motor State: ====>")
-            logger.info(str(await MotorState("angular", angular_rot_motor)))
-            logger.info(str(await MotorState("pitch", x_rot_motor)))
-            logger.info(f"End: {func_name}")
-            logger.info("#" * len(f"End: {func_name}"))
+            logger.debug(f"{func_name}: iteration: {iteration} - error finding reference points: {tips_exc}")
+            logger.debug("motor State: ====>")
+            logger.debug(str(await MotorState("angular", angular_rot_motor)))
+            logger.debug(str(await MotorState("pitch", x_rot_motor)))
+            logger.debug(f"End: {func_name}")
+            logger.debug("#" * len(f"End: {func_name}"))
             logger.removeHandler(handler)
             return
-        logger.info(f"{func_name}: found {len(tips)} points in {time.perf_counter() - tips_start} seconds.")
-        _, pitch_angle_current, center = rotation_axis(tips)
+        logger.debug(f"{func_name}: found {len(tips)} points in {time.perf_counter() - tips_start} seconds.")
+        _, pitch_angle_current, _ = rotation_axis(tips)
         # Determine an alignment metric epsilon if not provided already.
         if eps_metric is None:
             eps_metric = np.rad2deg(np.arctan(1 / frames_result.result.shape[1])) * q.deg
-            logger.info(f"{func_name}: computed metric epsilon: {eps_metric}")
+            logger.debug(f"{func_name}: computed metric epsilon: {eps_metric}")
         # Start aligning pitch-angle
         if pitch_can_continue:
             x_rot_pos = await x_rot_motor.get_position()
@@ -628,38 +642,38 @@ async def align_pitch_with_dynamic_gain(camera: Camera,
                     eps_angle_diff=eps_angle_diff, ceil_gain=ceil_gain,
                     ceil_rel_move=ceil_rel_move)
             else:
-                logger.info(f"{func_name}: desired pitch angle threshold reached")
+                logger.debug(f"{func_name}: desired pitch angle threshold reached")
                 pitch_can_continue = False
     if iteration == max_iterations - 1:
-        logger.info(f"{func_name}: maximum iterations reached")
+        logger.debug(f"{func_name}: maximum iterations reached")
     # Move to the best known position
     coros = []
     coros.append(go_to_best_index(motor=x_rot_motor, rot_type="pitch", history=pitch_align_history,
                                   logger=logger))
     await asyncio.gather(*coros)
     # Leave the system in stable state
-    logger.info("motor State: ====>")
-    logger.info(str(await MotorState("angular", angular_rot_motor)))
-    logger.info(str(await MotorState("pitch", x_rot_motor)))
-    logger.info(f"End: {func_name}")
-    logger.info("#" * len(f"End: {func_name}"))
+    logger.debug("motor State: ====>")
+    logger.debug(str(await MotorState("angular", angular_rot_motor)))
+    logger.debug(str(await MotorState("pitch", x_rot_motor)))
+    logger.debug(f"End: {func_name}")
+    logger.debug("#" * len(f"End: {func_name}"))
     logger.removeHandler(handler)
 
 
 @background
 async def align_sequential_with_dynamic_gain(camera: Camera,
                                   angular_rot_motor: RotationMotor,
-                                  angular_rot_limits: Quantity,
+                                  angular_rot_limits: Optional[Quantity],
                                   x_rot_motor: RotationMotor,
-                                  x_rot_limits: Quantity,
+                                  x_rot_limits: Optional[Quantity],
                                   z_rot_motor: RotationMotor,
-                                  z_rot_limits: Quantity,
+                                  z_rot_limits: Optional[Quantity],
                                   flat_motor: LinearMotor,
                                   shutter: Shutter,
                                   flat_position: Quantity,
                                   radius: int,
-                                  crop_y_start: int,
-                                  crop_y_end: int,
+                                  y_start: int,
+                                  y_end: int,
                                   logger: logging.Logger,
                                   base_log_path: str,
                                   num_frames: int = 40,
@@ -676,36 +690,44 @@ async def align_sequential_with_dynamic_gain(camera: Camera,
     correction. In each iteration we make a step for roll angle correction followed by a step for
     pitch angle correction.
     """
-    assert (camera and shutter)
-    assert (angular_rot_motor and has_unit(angular_rot_limits, "degree") and len(angular_rot_limits) == 2)
-    assert (x_rot_motor and has_unit(x_rot_limits, "degree") and len(x_rot_limits) == 2)
-    assert (z_rot_motor and has_unit(z_rot_limits, "degree") and len(z_rot_limits) == 2)
-    assert (flat_motor and flat_position and has_unit(flat_position, "millimeter"))
-    assert (radius and crop_y_start and crop_y_end)
+    # assert(camera and shutter)
+    # assert(angular_rot_motor)
+    # if angular_rot_limits:
+    #     assert(has_unit(angular_rot_limits, "degree") and len(angular_rot_limits) == 2)
+    # assert(x_rot_motor)
+    # if x_rot_limits:
+    #     assert(has_unit(x_rot_limits, "degree") and len(x_rot_limits) == 2)
+    # assert(z_rot_motor)
+    # if z_rot_limits:
+    #     assert(has_unit(z_rot_limits, "degree") and len(z_rot_limits) == 2)
+    # assert (flat_motor and flat_position and has_unit(flat_position, "millimeter"))
+    # assert (radius and y_start and y_end)
     func_name: str = inspect.currentframe().f_code.co_name
     log_file = f"{func_name}_{time.ctime().replace(' ', '_').lower()}.log"
     formatter = logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s")
     handler = logging.FileHandler("{0}/{1}.log".format(base_log_path, log_file))
+    handler.addFilter(DebugOnlyLoggingFilter())
     handler.setFormatter(formatter)
     logger.addHandler(handler)
-    logger.info(f"Start: {func_name}")
-    logger.info("#" * len(f"Start: {func_name}"))
-    # Set soft limits to the motors for safe-alignment.
-    try:
-        await set_soft_limits(angular_rot_motor, angular_rot_limits)
-        await set_soft_limits(x_rot_motor, x_rot_limits)
-        await set_soft_limits(z_rot_motor, z_rot_limits)
-    except Exception as e:
-        logger.info(f"{func_name}: error setting soft-limits, \n{str(e)}")
-        logger.info(f"End: {func_name}")
-        logger.info("#" * len(f"End: {func_name}"))
-        logger.removeHandler(handler)
-        return
+    logger.debug(f"Start: {func_name}")
+    logger.debug("#" * len(f"Start: {func_name}"))
+    # Set soft limits to the motors for safe-alignment if provided.
+    if angular_rot_limits and x_rot_limits and z_rot_limits:
+        try:
+            await set_soft_limits(angular_rot_motor, angular_rot_limits)
+            await set_soft_limits(x_rot_motor, x_rot_limits)
+            await set_soft_limits(z_rot_motor, z_rot_limits)
+        except Exception as e:
+            logger.debug(f"{func_name}: error setting soft-limits, \n{str(e)}")
+            logger.debug(f"End: {func_name}")
+            logger.debug("#" * len(f"End: {func_name}"))
+            logger.removeHandler(handler)
+            return
     # Log initial state
-    logger.info("motor State: ====>")
-    logger.info(str(await MotorState("angular", angular_rot_motor)))
-    logger.info(str(await MotorState("roll", z_rot_motor)))
-    logger.info(str(await MotorState("pitch", x_rot_motor)))
+    logger.debug("motor State: ====>")
+    logger.debug(str(await MotorState("angular", angular_rot_motor)))
+    logger.debug(str(await MotorState("roll", z_rot_motor)))
+    logger.debug(str(await MotorState("pitch", x_rot_motor)))
     # Kick-start alignment with initial values.
     if z_rot_motor:
         roll_angle_last: Quantity = 0 * q.deg
@@ -719,31 +741,31 @@ async def align_sequential_with_dynamic_gain(camera: Camera,
         pitch_align_history: List[Dict[str, Quantity]] = []
     frames_result = Result()
     for iteration in range(max_iterations):
-        acq_consumers = [extract_ellipse_points, frames_result]
+        acq_consumers = [functools.partial(extract_ellipse_points, radius=radius), frames_result]
         tips_start = time.perf_counter()
         # Acquire frames from camera and perform flat-field correction.
         frame_producer = acquire_frames_360(camera, angular_rot_motor, num_frames, shutter=shutter,
                                             flat_motor=flat_motor, flat_position=flat_position,
-                                            y_0=crop_y_start, y_1=crop_y_end)
+                                            y_0=y_start, y_1=y_end)
         coros = broadcast(frame_producer, *acq_consumers)
         try:
             tips = (await asyncio.gather(*coros))[1]
         except Exception as tips_exc:
-            logger.info(f"{func_name}: iteration: {iteration} - error finding reference points: {tips_exc}")
-            logger.info("motor State: ====>")
-            logger.info(str(await MotorState("angular", angular_rot_motor)))
-            logger.info(str(await MotorState("roll", z_rot_motor)))
-            logger.info(str(await MotorState("pitch", x_rot_motor)))
-            logger.info(f"End: {func_name}")
-            logger.info("#" * len(f"End: {func_name}"))
+            logger.debug(f"{func_name}: iteration: {iteration} - error finding reference points: {tips_exc}")
+            logger.debug("motor State: ====>")
+            logger.debug(str(await MotorState("angular", angular_rot_motor)))
+            logger.debug(str(await MotorState("roll", z_rot_motor)))
+            logger.debug(str(await MotorState("pitch", x_rot_motor)))
+            logger.debug(f"End: {func_name}")
+            logger.debug("#" * len(f"End: {func_name}"))
             logger.removeHandler(handler)
             return
-        logger.info(f"{func_name}: found {len(tips)} points in {time.perf_counter() - tips_start} seconds.")
+        logger.debug(f"{func_name}: found {len(tips)} points in {time.perf_counter() - tips_start} seconds.")
         roll_angle_current, pitch_angle_current, center = rotation_axis(tips)
         # Determine an alignment metric epsilon if not provided already.
         if eps_metric is None:
             eps_metric = np.rad2deg(np.arctan(1 / frames_result.result.shape[1])) * q.deg
-            logger.info(f"{func_name}: computed metric epsilon: {eps_metric}")
+            logger.debug(f"{func_name}: computed metric epsilon: {eps_metric}")
         # Start aligning roll-angle
         if roll_can_continue:
             z_rot_pos = await z_rot_motor.get_position()
@@ -757,7 +779,7 @@ async def align_sequential_with_dynamic_gain(camera: Camera,
                     eps_angle_diff=eps_angle_diff, ceil_gain=ceil_gain,
                     ceil_rel_move=ceil_rel_move)
             else:
-                logger.info(f"{func_name}: desired roll angle threshold reached")
+                logger.debug(f"{func_name}: desired roll angle threshold reached")
                 roll_can_continue = False
         # Start aligning pitch-angle
         if pitch_can_continue:
@@ -772,10 +794,10 @@ async def align_sequential_with_dynamic_gain(camera: Camera,
                     eps_angle_diff=eps_angle_diff, ceil_gain=ceil_gain,
                     ceil_rel_move=ceil_rel_move)
             else:
-                logger.info(f"{func_name}: desired pitch angle threshold reached")
+                logger.debug(f"{func_name}: desired pitch angle threshold reached")
                 pitch_can_continue = False
     if iteration == max_iterations - 1:
-        logger.info(f"{func_name}: maximum iterations reached")
+        logger.debug(f"{func_name}: maximum iterations reached")
     # Move to the best known position
     coros = []
     coros.append(go_to_best_index(motor=z_rot_motor, rot_type="roll", history=roll_align_history,
@@ -784,12 +806,12 @@ async def align_sequential_with_dynamic_gain(camera: Camera,
                                   logger=logger))
     await asyncio.gather(*coros)
     # Leave the system in stable state
-    logger.info("motor State: ====>")
-    logger.info(str(await MotorState("angular", angular_rot_motor)))
-    logger.info(str(await MotorState("roll", z_rot_motor)))
-    logger.info(str(await MotorState("pitch", x_rot_motor)))
-    logger.info(f"End: {func_name}")
-    logger.info("#" * len(f"End: {func_name}"))
+    logger.debug("motor State: ====>")
+    logger.debug(str(await MotorState("angular", angular_rot_motor)))
+    logger.debug(str(await MotorState("roll", z_rot_motor)))
+    logger.debug(str(await MotorState("pitch", x_rot_motor)))
+    logger.debug(f"End: {func_name}")
+    logger.debug("#" * len(f"End: {func_name}"))
     logger.removeHandler(handler)
 
 
@@ -799,8 +821,8 @@ async def make_step_static(iteration: int,
                     rotation_type: str,
                     logger: logging.Logger,
                     error_state: Dict[str, float],
-                    proportional_gain: float = 50.0,
-                    integral_gain: float = 0.5,
+                    proportional_gain: float = 1.0,
+                    integral_gain: float = 0.01,
                     derivative_gain: float = 0.0,
                     ceil_rel_move: Quantity = 5 * q.deg) -> None:
     """
@@ -809,12 +831,12 @@ async def make_step_static(iteration: int,
     func_name: str = inspect.currentframe().f_code.co_name
     pose_current = await motor.get_position()
     iteration_log = f"{func_name}: {rotation_type}: iter: {iteration}"
-    logger.info(iteration_log)
-    logger.info("=" * len(iteration_log))
+    logger.debug(iteration_log)
+    logger.debug("=" * len(iteration_log))
     ceil_integral: float = ceil_rel_move.magnitude / integral_gain
     target_angle: float = 0.0
     current_error: float = target_angle - current_angle.magnitude
-    logger.info(f"{func_name}: current {rotation_type} error: {current_error * q.deg}")
+    logger.debug(f"{func_name}: current {rotation_type} error: {current_error * q.deg}")
     # Propotional Correction
     _proportional = proportional_gain * current_error
     # Integral Corrrection
@@ -842,36 +864,36 @@ async def make_step_static(iteration: int,
     elif rotation_type == "pitch":
         error_state["last_pitch_error"] = current_error
     # We check for a valid movement before asking the motor to move.
-    logger.info(f"{func_name}: current {rotation_type} move-raw: {move_raw} move-clipped: {move_relative}")
+    logger.debug(f"{func_name}: current {rotation_type} move-raw: {move_raw} move-clipped: {move_relative}")
     if np.any(np.sign(move_relative)):
         try:
             await motor.move(move_relative * q.deg)
         except SoftLimitError:
-            logger.info(f"{func_name}: motor: {rotation_type} encountered soft-limit error")
+            logger.debug(f"{func_name}: motor: {rotation_type} encountered soft-limit error")
     else:
-        logger.info(f"{func_name}: motor: {rotation_type} didn't need to move")
-    logger.info(f"{func_name}: motor {rotation_type} moved to position: {await motor.get_position()}")
-    logger.info("=" * len(iteration_log))
+        logger.debug(f"{func_name}: motor: {rotation_type} didn't need to move")
+    logger.debug(f"{func_name}: motor {rotation_type} moved to position: {await motor.get_position()}")
+    logger.debug("=" * len(iteration_log))
 
 
 @background
 async def align_pitch_with_static_gain(camera: Camera,
                                   angular_rot_motor: RotationMotor,
-                                  angular_rot_limits: Quantity,
+                                  angular_rot_limits: Optional[Quantity],
                                   x_rot_motor: RotationMotor,
-                                  x_rot_limits: Quantity,
+                                  x_rot_limits: Optional[Quantity],
                                   flat_motor: LinearMotor,
                                   shutter: Shutter,
                                   flat_position: Quantity,
                                   radius: int,
-                                  crop_y_start: int,
-                                  crop_y_end: int,
+                                  y_start: int,
+                                  y_end: int,
                                   logger: logging.Logger,
                                   base_log_path: str,
                                   num_frames: int = 40,
                                   max_iterations: int = 20,
-                                  proportional_gain: float = 50.0,
-                                  integral_gain: float = 0.5,
+                                  proportional_gain: float = 1.0,
+                                  integral_gain: float = 0.01,
                                   derivative_gain: float = 0.0,
                                   eps_metric: Quantity = 1e-5 * q.deg,
                                   ceil_rel_move: Quantity = 5 * q.deg) -> None:
@@ -885,37 +907,41 @@ async def align_pitch_with_static_gain(camera: Camera,
     axis to the beam direction. We cannot recover from this error in a straight forward manner.
     Hence, we put more emphasis on the pitch angle error.
     """
-    assert (camera and shutter)
-    assert (angular_rot_motor and has_unit(angular_rot_limits, "degree") and len(angular_rot_limits) == 2)
-    assert (x_rot_motor and has_unit(x_rot_limits, "degree") and len(x_rot_limits) == 2)
-    assert (flat_motor and flat_position and has_unit(flat_position, "millimeter"))
-    assert (radius and crop_y_start and crop_y_end)
+    # assert(camera and shutter)
+    # assert(angular_rot_motor)
+    # if angular_rot_limits:
+    #     assert(has_unit(angular_rot_limits, "degree") and len(angular_rot_limits) == 2)
+    # assert(x_rot_motor)
+    # if x_rot_limits:
+    #     assert(has_unit(x_rot_limits, "degree") and len(x_rot_limits) == 2)
+    # assert(flat_motor and flat_position and has_unit(flat_position, "millimeter"))
+    # assert(radius and y_start and y_end)
     func_name: str = inspect.currentframe().f_code.co_name
     log_file = f"{func_name}_{time.ctime().replace(' ', '_').lower()}.log"
     formatter = logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s")
     handler = logging.FileHandler("{0}/{1}.log".format(base_log_path, log_file))
+    handler.addFilter(DebugOnlyLoggingFilter())
     handler.setFormatter(formatter)
     logger.addHandler(handler)
-    logger.info(f"Start: {func_name}")
-    logger.info("#" * len(f"Start: {func_name}"))
-    # Set soft limits to the motors for safe-alignment.
-    try:
-        await set_soft_limits(angular_rot_motor, angular_rot_limits)
-        await set_soft_limits(x_rot_motor, x_rot_limits)
-    except Exception as e:
-        logger.info(f"{func_name}: error setting soft-limits, \n{str(e)}")
-        logger.info(f"End: {func_name}")
-        logger.info("#" * len(f"End: {func_name}"))
-        logger.removeHandler(handler)
-        return
+    logger.debug(f"Start: {func_name}")
+    logger.debug("#" * len(f"Start: {func_name}"))
+    # Set soft limits to the motors for safe-alignment if provided.
+    if angular_rot_limits and x_rot_limits:
+        try:
+            await set_soft_limits(angular_rot_motor, angular_rot_limits)
+            await set_soft_limits(x_rot_motor, x_rot_limits)
+        except Exception as e:
+            logger.debug(f"{func_name}: error setting soft-limits, \n{str(e)}")
+            logger.debug(f"End: {func_name}")
+            logger.debug("#" * len(f"End: {func_name}"))
+            logger.removeHandler(handler)
+            return
     # Log initial state
-    logger.info("motor State: ====>")
-    logger.info(str(await MotorState("angular", angular_rot_motor)))
-    logger.info(str(await MotorState("pitch", x_rot_motor)))
+    logger.debug("motor State: ====>")
+    logger.debug(str(await MotorState("angular", angular_rot_motor)))
+    logger.debug(str(await MotorState("pitch", x_rot_motor)))
     # Kick-start alignment with initial values.
     error_state: Dict[str, float] = {
-        "last_roll_error": 0.0,
-        "accumulated_roll_error": 0.0,
         "last_pitch_error": 0.0,
         "accumulated_pitch_error": 0.0
     }
@@ -924,30 +950,30 @@ async def align_pitch_with_static_gain(camera: Camera,
         pitch_align_history: List[Dict[str, Quantity]] = []
     frames_result = Result()
     for iteration in range(max_iterations):
-        acq_consumers = [extract_ellipse_points, frames_result]
+        acq_consumers = [functools.partial(extract_ellipse_points, radius=radius), frames_result]
         tips_start = time.perf_counter()
         # Acquire frames from camera and perform flat-field correction.
         frame_producer = acquire_frames_360(camera, angular_rot_motor, num_frames, shutter=shutter,
                                             flat_motor=flat_motor, flat_position=flat_position,
-                                            y_0=crop_y_start, y_1=crop_y_end)
+                                            y_0=y_start, y_1=y_end)
         coros = broadcast(frame_producer, *acq_consumers)
         try:
             tips = (await asyncio.gather(*coros))[1]
         except Exception as tips_exc:
-            logger.info(f"{func_name}: iteration: {iteration} - error finding reference points: {tips_exc}")
-            logger.info("motor State: ====>")
-            logger.info(str(await MotorState("angular", angular_rot_motor)))
-            logger.info(str(await MotorState("pitch", x_rot_motor)))
-            logger.info(f"End: {func_name}")
-            logger.info("#" * len(f"End: {func_name}"))
+            logger.debug(f"{func_name}: iteration: {iteration} - error finding reference points: {tips_exc}")
+            logger.debug("motor State: ====>")
+            logger.debug(str(await MotorState("angular", angular_rot_motor)))
+            logger.debug(str(await MotorState("pitch", x_rot_motor)))
+            logger.debug(f"End: {func_name}")
+            logger.debug("#" * len(f"End: {func_name}"))
             logger.removeHandler(handler)
             return
-        logger.info(f"{func_name}: found {len(tips)} points in {time.perf_counter() - tips_start} seconds.")
+        logger.debug(f"{func_name}: found {len(tips)} points in {time.perf_counter() - tips_start} seconds.")
         roll_angle_current, pitch_angle_current, center = rotation_axis(tips)
         # Determine an alignment metric epsilon if not provided already.
         if eps_metric is None:
             eps_metric = np.rad2deg(np.arctan(1 / frames_result.result.shape[1])) * q.deg
-            logger.info(f"{func_name}: computed metric epsilon: {eps_metric}")
+            logger.debug(f"{func_name}: computed metric epsilon: {eps_metric}")
         # Start aligning pitch-angle
         if pitch_can_continue:
             if abs(pitch_angle_current) >= eps_metric:
@@ -959,38 +985,38 @@ async def align_pitch_with_static_gain(camera: Camera,
                                        proportional_gain=proportional_gain, integral_gain=integral_gain,
                                        derivative_gain=derivative_gain, ceil_rel_move=ceil_rel_move)
             else:
-                logger.info(f"{func_name}: desired pitch angle threshold reached")
+                logger.debug(f"{func_name}: desired pitch angle threshold reached")
                 pitch_can_continue = False
     if iteration == max_iterations - 1:
-        logger.info(f"{func_name}: maximum iterations reached")
+        logger.debug(f"{func_name}: maximum iterations reached")
     # Move to the best known position
     coros = []
     coros.append(go_to_best_index(motor=x_rot_motor, rot_type="pitch", history=pitch_align_history,
                                   logger=logger))
     await asyncio.gather(*coros)
     # Leave the system in stable state
-    logger.info("motor State: ====>")
-    logger.info(str(await MotorState("angular", angular_rot_motor)))
-    logger.info(str(await MotorState("pitch", x_rot_motor)))
-    logger.info(f"End: {func_name}")
-    logger.info("#" * len(f"End: {func_name}"))
+    logger.debug("motor State: ====>")
+    logger.debug(str(await MotorState("angular", angular_rot_motor)))
+    logger.debug(str(await MotorState("pitch", x_rot_motor)))
+    logger.debug(f"End: {func_name}")
+    logger.debug("#" * len(f"End: {func_name}"))
     logger.removeHandler(handler)
 
 
 @background
 async def align_sequential_with_static_gain(camera: Camera,
                                   angular_rot_motor: RotationMotor,
-                                  angular_rot_limits: Quantity,
+                                  angular_rot_limits: Optional[Quantity],
                                   x_rot_motor: RotationMotor,
-                                  x_rot_limits: Quantity,
+                                  x_rot_limits: Optional[Quantity],
                                   z_rot_motor: RotationMotor,
-                                  z_rot_limits: Quantity,
+                                  z_rot_limits: Optional[Quantity],
                                   flat_motor: LinearMotor,
                                   shutter: Shutter,
                                   flat_position: Quantity,
                                   radius: int,
-                                  crop_y_start: int,
-                                  crop_y_end: int,
+                                  y_start: int,
+                                  y_end: int,
                                   logger: logging.Logger,
                                   base_log_path: str,
                                   num_frames: int = 40,
@@ -1005,36 +1031,44 @@ async def align_sequential_with_static_gain(camera: Camera,
     correction. In each iteration we make a step for roll angle correction followed by a step for
     pitch angle correction.
     """
-    assert (camera and shutter)
-    assert (angular_rot_motor and has_unit(angular_rot_limits, "degree") and len(angular_rot_limits) == 2)
-    assert (x_rot_motor and has_unit(x_rot_limits, "degree") and len(x_rot_limits) == 2)
-    assert (z_rot_motor and has_unit(z_rot_limits, "degree") and len(z_rot_limits) == 2)
-    assert (flat_motor and flat_position and has_unit(flat_position, "millimeter"))
-    assert (radius and crop_y_start and crop_y_end)
+    # assert(camera and shutter)
+    # assert(angular_rot_motor)
+    # if angular_rot_limits:
+    #     assert(has_unit(angular_rot_limits, "degree") and len(angular_rot_limits) == 2)
+    # assert(x_rot_motor)
+    # if x_rot_limits:
+    #     assert(has_unit(x_rot_limits, "degree") and len(x_rot_limits) == 2)
+    # assert(z_rot_motor)
+    # if z_rot_limits:
+    #     assert(has_unit(z_rot_limits, "degree") and len(z_rot_limits) == 2)
+    # assert(flat_motor and flat_position and has_unit(flat_position, "millimeter"))
+    # assert(radius and y_start and y_end)
     func_name: str = inspect.currentframe().f_code.co_name
     log_file = f"{func_name}_{time.ctime().replace(' ', '_').lower()}.log"
     formatter = logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s")
     handler = logging.FileHandler("{0}/{1}.log".format(base_log_path, log_file))
+    handler.addFilter(DebugOnlyLoggingFilter())
     handler.setFormatter(formatter)
     logger.addHandler(handler)
-    logger.info(f"Start: {func_name}")
-    logger.info("#" * len(f"Start: {func_name}"))
-    # Set soft limits to the motors for safe-alignment.
-    try:
-        await set_soft_limits(angular_rot_motor, angular_rot_limits)
-        await set_soft_limits(x_rot_motor, x_rot_limits)
-        await set_soft_limits(z_rot_motor, z_rot_limits)
-    except Exception as e:
-        logger.info(f"{func_name}: error setting soft-limits, \n{str(e)}")
-        logger.info(f"End: {func_name}")
-        logger.info("#" * len(f"End: {func_name}"))
-        logger.removeHandler(handler)
-        return
+    logger.debug(f"Start: {func_name}")
+    logger.debug("#" * len(f"Start: {func_name}"))
+    # Set soft limits to the motors for safe-alignment if provided.
+    if angular_rot_limits and x_rot_limits and z_rot_limits:
+        try:
+            await set_soft_limits(angular_rot_motor, angular_rot_limits)
+            await set_soft_limits(x_rot_motor, x_rot_limits)
+            await set_soft_limits(z_rot_motor, z_rot_limits)
+        except Exception as e:
+            logger.debug(f"{func_name}: error setting soft-limits, \n{str(e)}")
+            logger.debug(f"End: {func_name}")
+            logger.debug("#" * len(f"End: {func_name}"))
+            logger.removeHandler(handler)
+            return
     # Log initial state
-    logger.info("motor State: ====>")
-    logger.info(str(await MotorState("angular", angular_rot_motor)))
-    logger.info(str(await MotorState("roll", z_rot_motor)))
-    logger.info(str(await MotorState("pitch", x_rot_motor)))
+    logger.debug("motor State: ====>")
+    logger.debug(str(await MotorState("angular", angular_rot_motor)))
+    logger.debug(str(await MotorState("roll", z_rot_motor)))
+    logger.debug(str(await MotorState("pitch", x_rot_motor)))
     # Kick-start alignment with initial values.
     error_state: Dict[str, float] = {
         "last_roll_error": 0.0,
@@ -1050,31 +1084,31 @@ async def align_sequential_with_static_gain(camera: Camera,
         pitch_align_history: List[Dict[str, Quantity]] = []
     frames_result = Result()
     for iteration in range(max_iterations):
-        acq_consumers = [extract_ellipse_points, frames_result]
+        acq_consumers = [functools.partial(extract_ellipse_points, radius=radius), frames_result]
         tips_start = time.perf_counter()
         # Acquire frames from camera and perform flat-field correction.
         frame_producer = acquire_frames_360(camera, angular_rot_motor, num_frames, shutter=shutter,
                                             flat_motor=flat_motor, flat_position=flat_position,
-                                            y_0=crop_y_start, y_1=crop_y_end)
+                                            y_0=y_start, y_1=y_end)
         coros = broadcast(frame_producer, *acq_consumers)
         try:
             tips = (await asyncio.gather(*coros))[1]
         except Exception as tips_exc:
-            logger.info(f"{func_name}: iteration: {iteration} - error finding reference points: {tips_exc}")
-            logger.info("motor State: ====>")
-            logger.info(str(await MotorState("angular", angular_rot_motor)))
-            logger.info(str(await MotorState("roll", z_rot_motor)))
-            logger.info(str(await MotorState("pitch", x_rot_motor)))
-            logger.info(f"End: {func_name}")
-            logger.info("#" * len(f"End: {func_name}"))
+            logger.debug(f"{func_name}: iteration: {iteration} - error finding reference points: {tips_exc}")
+            logger.debug("motor State: ====>")
+            logger.debug(str(await MotorState("angular", angular_rot_motor)))
+            logger.debug(str(await MotorState("roll", z_rot_motor)))
+            logger.debug(str(await MotorState("pitch", x_rot_motor)))
+            logger.debug(f"End: {func_name}")
+            logger.debug("#" * len(f"End: {func_name}"))
             logger.removeHandler(handler)
             return
-        logger.info(f"{func_name}: found {len(tips)} points in {time.perf_counter() - tips_start} seconds.")
+        logger.debug(f"{func_name}: found {len(tips)} points in {time.perf_counter() - tips_start} seconds.")
         roll_angle_current, pitch_angle_current, center = rotation_axis(tips)
         # Determine an alignment metric epsilon if not provided already.
         if eps_metric is None:
             eps_metric = np.rad2deg(np.arctan(1 / frames_result.result.shape[1])) * q.deg
-            logger.info(f"{func_name}: computed metric epsilon: {eps_metric}")
+            logger.debug(f"{func_name}: computed metric epsilon: {eps_metric}")
         # Start aligning roll-angle
         if roll_can_continue:
             if abs(roll_angle_current) >= eps_metric:
@@ -1086,7 +1120,7 @@ async def align_sequential_with_static_gain(camera: Camera,
                                        proportional_gain=proportional_gain, integral_gain=integral_gain,
                                        derivative_gain=derivative_gain, ceil_rel_move=ceil_rel_move)
             else:
-                logger.info(f"{func_name}: desired roll angle threshold reached")
+                logger.debug(f"{func_name}: desired roll angle threshold reached")
                 roll_can_continue = False
         # Start aligning pitch-angle
         if pitch_can_continue:
@@ -1099,10 +1133,10 @@ async def align_sequential_with_static_gain(camera: Camera,
                                        proportional_gain=proportional_gain, integral_gain=integral_gain,
                                        derivative_gain=derivative_gain, ceil_rel_move=ceil_rel_move)
             else:
-                logger.info(f"{func_name}: desired pitch angle threshold reached")
+                logger.debug(f"{func_name}: desired pitch angle threshold reached")
                 pitch_can_continue = False
     if iteration == max_iterations - 1:
-        logger.info(f"{func_name}: maximum iterations reached")
+        logger.debug(f"{func_name}: maximum iterations reached")
     # Move to the best known position
     coros = []
     coros.append(go_to_best_index(motor=z_rot_motor, rot_type="roll", history=roll_align_history,
@@ -1111,12 +1145,12 @@ async def align_sequential_with_static_gain(camera: Camera,
                                   logger=logger))
     await asyncio.gather(*coros)
     # Leave the system in stable state
-    logger.info("motor State: ====>")
-    logger.info(str(await MotorState("angular", angular_rot_motor)))
-    logger.info(str(await MotorState("roll", z_rot_motor)))
-    logger.info(str(await MotorState("pitch", x_rot_motor)))
-    logger.info(f"End: {func_name}")
-    logger.info("#" * len(f"End: {func_name}"))
+    logger.debug("motor State: ====>")
+    logger.debug(str(await MotorState("angular", angular_rot_motor)))
+    logger.debug(str(await MotorState("roll", z_rot_motor)))
+    logger.debug(str(await MotorState("pitch", x_rot_motor)))
+    logger.debug(f"End: {func_name}")
+    logger.debug("#" * len(f"End: {func_name}"))
     logger.removeHandler(handler)
 ####################################################################################################
 
