@@ -591,17 +591,17 @@ async def align_dynamic(camera: Camera, tomo_motor: RotationMotor, pitch_motor: 
     logger.debug(f"Start: {func_name}")
     logger.debug("#" * 3 * len(f"Start: {func_name}"))
     # Set soft limits to the motors for safe-alignment if provided.
-    if dev_limits.pitch_lim:
+    if dev_limits.pitch_lim is not None:
         try:
             await set_soft_limits(motor=pitch_motor, limits=dev_limits.pitch_lim * q.deg)
         except Exception as e:
             logger.debug(f"{func_name}: error setting soft-limits to pitch-motor, {str(e)}")
-    if dev_limits.roll_lim:
+    if dev_limits.roll_lim is not None:
         try:
             await set_soft_limits(motor=roll_motor, limits=dev_limits.roll_lim * q.deg)
         except Exception as e:
             logger.debug(f"{func_name}: error setting soft-limits to roll-motor, {str(e)}")
-    if dev_limits.tomo_lim:
+    if dev_limits.tomo_lim is not None:
         try:
             await set_soft_limits(motor=tomo_motor, limits=dev_limits.tomo_lim * q.deg)
         except Exception as e:
@@ -628,6 +628,9 @@ async def align_dynamic(camera: Camera, tomo_motor: RotationMotor, pitch_motor: 
                                             flat_position=acq_params.flat_position,
                                             y_0=acq_params.y_start, y_1=acq_params.y_end)
         coros = broadcast(frame_producer, *acq_consumers)
+        # Setting tomographic rotation motor to zero degree after a full circular rotation is a
+        # safety measure against potential malfunction.
+        await tomo_motor.set_position(0 * q.deg)
         tips = []
         try:
             tips = (await asyncio.gather(*coros))[1]
