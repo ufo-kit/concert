@@ -1,12 +1,13 @@
 import asyncio
 from dataclasses import dataclass
+from enum import Enum
 import functools
 import inspect
 import time
 from itertools import product
 from functools import reduce
 import logging
-from typing import AsyncIterator, Awaitable, List, Optional, Tuple, Dict
+from typing import AsyncIterator, Callable, Awaitable, List, Optional, Tuple, Dict, Coroutine
 import numpy as np
 from concert.base import SoftLimitError, AsyncObject
 from concert.coroutines.base import background, broadcast
@@ -171,13 +172,14 @@ async def focus(camera, motor, measure=np.std, opt_kwargs=None,
 @expects(Camera, RotationMotor, num_frames=Numeric(1), shutter=Shutter,
          flat_motor=LinearMotor, flat_position=Numeric(1, q.m), y_0=Numeric(1),
          y_1=Numeric(1))
-async def acquire_frames_360(camera, rotation_motor, num_frames, shutter=None, flat_motor=None,
+async def acquire_frames(camera, rotation_motor, num_frames, shutter=None, flat_motor=None,
                              flat_position=None, y_0=0, y_1=None):
     """
-    acquire_frames_360(camera, rotation_motor, num_frames, shutter=None, flat_motor=None,
+    acquire_frames(camera, rotation_motor, num_frames, shutter=None, flat_motor=None,
                        flat_position=None, y_0=0, y_1=None)
 
-    Acquire frames around a circle.
+    Acquire frames either for 360 degrees of rotation when num_frames is greater than 1 and a single
+    frame otherwise.
     """
     flat = None
     if await camera.get_state() == 'recording':
@@ -199,8 +201,11 @@ async def acquire_frames_360(camera, rotation_motor, num_frames, shutter=None, f
                 await camera.trigger()
                 flat = (await camera.grab())[y_0:y_1]
                 await flat_motor.set_position(radio_position)
-            for i in range(num_frames):
-                await rotation_motor.move(2 * np.pi / num_frames * q.rad)
+            for _ in range(num_frames):
+                # Only acquire for 360 degrees of rotation if num_frames specifies a number greater
+                # than 1.
+                if num_frames > 1:
+                    await rotation_motor.move(2 * np.pi / num_frames * q.rad)
                 await camera.trigger()
                 frame = (await camera.grab())[y_0:y_1].astype(float)
                 if flat is not None:
@@ -325,7 +330,7 @@ async def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None
         if frame_consumers is not None:
             acq_consumers += list(frame_consumers)
         tips_start = time.perf_counter()
-        frame_producer = acquire_frames_360(camera, rotation_motor, num_frames, shutter=shutter,
+        frame_producer = acquire_frames(camera, rotation_motor, num_frames, shutter=shutter,
                                             flat_motor=flat_motor, flat_position=flat_position,
                                             y_0=y_0, y_1=y_1)
 
@@ -393,14 +398,26 @@ async def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None
 
 
 ####################################################################################################
-# Alignment routines to test during beam time
+# Revised Alignment Routines
 ####################################################################################################
+FrameProducer_T = Awaitable[ArrayLike]
+FramesProducer_T = Awaitable[List[ArrayLike]]
+IntCBFunc = Callable[[int], Coroutine[None, None, None]]
+
+class PixelSize(Enum):
+    """Encapsulates pixel sizes for different magnifications"""
+    
+    TWO_X: Quantity = 5.5 * q.um
+    FIVE_X: Quantity = 2.44 * q.um
+    TEN_X: Quantity = 1.22 * q.um
+
+
 @dataclass
 class AlignmentParams:
     """Encapsulates parameters required for alignment"""
     
     num_frames: int = 10
-    max_iterations: int = 50
+    max_iterations: int = 30
     init_pitch_gain: float = 1.0
     init_roll_gain: float = 1.0
     eps_pose: Quantity = 0.1 * q.deg
@@ -408,36 +425,41 @@ class AlignmentParams:
     eps_ang_diff: Quantity = 1e-7 * q.deg
     ceil_gain: float = 1e2
     ceil_rel_move: Quantity = 2 * q.deg
-    # For Static
-    proportional_gain: float = 1
-    integral_gain: float = 0.0
-    ceil_integral: float = 1.0
-    derivative_gain: float = 0.0
 
 
 @dataclass
 class DeviceSoftLimits:
     """Encapsulates soft-limits for relevant devices"""
 
-    pitch_lim: Optional[Tuple[float, float]] = None
-    roll_lim: Optional[Tuple[float, float]] = None
-    tomo_lim: Optional[Tuple[float, float]] = None
+    pitch_rot_lim: Optional[Tuple[Quantity, Quantity]] = None
+    roll_rot_lim: Optional[Tuple[Quantity, Quantity]] = None
+    pitch_lin_lim: Optional[Quantity] = None  # Maximum off-centering for pitch angle correction
+    roll_lin_lim: Optional[Quantity] = None  # Maximum off-centering for roll angle correction
 
 
-@dataclass(init=True)
+@dataclass
 class AcquisitionParams:
     """Encapsulates parameters relevant for acquisition using camera"""
 
-    flat_position: Quantity
-    radius: int
-    y_start: int
-    y_end: int
+    flat_position: Quantity = 7 * q.mm
+    sphere_radius: int = 65
+    height: int = 2016
+    width: int = 2016
 
 
-async def set_soft_limits(motor: RotationMotor, limits: Quantity) -> None:
+def get_noop_logger() -> logging.Logger:
+    """Get a no-op logger for alignment"""
+    logger = logging.getLogger("no-op")
+    logger.addHandler(logging.NullHandler())
+    logger.propagate = False
+    return logger
+
+
+async def set_soft_limits(motor: RotationMotor, lims: Optional[Tuple[Quantity, Quantity]]) -> None:
         """Sets soft `limits` for the specified `motor`"""
-        await motor["position"].set_lower(limits[0])
-        await motor["position"].set_upper(limits[1])
+        if lims != None:
+            await motor["position"].set_lower(lims[0])
+            await motor["position"].set_upper(lims[1])
 
 
 async def extract_ellipse_points(producer: AsyncIterator[ArrayLike],
@@ -460,7 +482,7 @@ async def set_best_position(motor: RotationMotor, rot_type: str, history: List[D
         logger.debug(f"{rot_type} motor could not set best position: {exc}")
 
 
-async def make_step_dynamic(iteration: int, motor: RotationMotor, pose_last: Quantity,
+async def make_alignment_step(iteration: int, motor: RotationMotor, pose_last: Quantity,
                             ang_last: Quantity, ang_curr: Quantity, init_gain: float,
                             rot_type: str, eps_ang_diff: Quantity, ceil_gain: float,
                             ceil_rel_move: Quantity,
@@ -511,76 +533,12 @@ async def make_step_dynamic(iteration: int, motor: RotationMotor, pose_last: Qua
     return pose_last, ang_last
 
 
-async def make_step_static(iteration: int, motor: RotationMotor,
-                           ang_curr: Quantity, rot_type: str,
-                           error_state: Dict[str, float], proportional_gain: float,
-                           integral_gain: float, ceil_integral: float, derivative_gain: float,
-                           ceil_rel_move: Quantity, logger: logging.Logger) -> None:
-    """
-    Makes a single step using proportional integral and optionally derivative gain controller.
-    """
-    pose_curr = await motor.get_position()
-    logger.debug(f"iteration: {iteration} - {rot_type} motor-position: {pose_curr}")
-    target_angle: float = 0.0
-    # Current error is the distance from the target error.
-    current_error: float = target_angle - ang_curr.magnitude
-    logger.debug(f"current {rot_type} error: {target_angle} - {ang_curr.magnitude} = " +
-                 f"{current_error} deg")
-    # Proportional Correction
-    _proportional = proportional_gain * current_error
-    logger.debug(f"proportional-correction: {proportional_gain} * " + 
-                 f"{current_error} = {_proportional} deg")
-    # Integral Correction
-    _integral = 0.0
-    if rot_type == "roll":
-        error_state["accumulated_roll_error"] += current_error
-        error_state["accumulated_roll_error"] = np.clip(error_state["accumulated_roll_error"],
-                                                        -ceil_integral, ceil_integral)
-        _integral = integral_gain * error_state["accumulated_roll_error"]
-    elif rot_type == "pitch":
-        error_state["accumulated_pitch_error"] += current_error
-        error_state["accumulated_pitch_error"] = np.clip(error_state["accumulated_pitch_error"],
-                                                        -ceil_integral, ceil_integral)
-        _integral = integral_gain * error_state["accumulated_pitch_error"]
-    logger.debug(f"integral-correction: {integral_gain} * " + 
-                 f"{error_state['accumulated_pitch_error']} = {_integral} deg")
-    # Derivative Correction
-    derivative_error = 0.0
-    if rot_type == "roll":
-        derivative_error = current_error - error_state["last_roll_error"]
-    elif rot_type == "pitch":
-        derivative_error = current_error - error_state["last_pitch_error"]
-    _derivative = derivative_gain * derivative_error
-    logger.debug(f"derivative-correction: {derivative_gain} * " + 
-                 f"{derivative_error} = {_derivative} deg")
-    move_raw: float = _proportional + _integral + _derivative
-    move_rel: float = np.clip(move_raw, -ceil_rel_move.magnitude, ceil_rel_move.magnitude)
-    logger.debug(f"motor-move(theoretical): {_proportional} + " + 
-                 f"{_integral} + {_derivative} = {move_raw} deg")
-    logger.debug(f"motor-move(clipped): {move_rel}")
-    # Update state for next iteration
-    if rot_type == "roll":
-        error_state["last_roll_error"] = current_error
-    elif rot_type == "pitch":
-        error_state["last_pitch_error"] = current_error
-    # We check for a valid movement before asking the motor to move.
-    if np.any(np.sign(move_rel)):
-        try:
-            await motor.move(move_rel * q.deg)
-        except SoftLimitError:
-            logger.debug(f"{rot_type} motor encountered soft-limit error")
-    else:
-        logger.debug(f"{rot_type} motor didn't not move")
-    pose_curr = await motor.get_position()
-    logger.debug(f"{rot_type} motor moved, current motor position: {pose_curr}")
-
-
 @background
-async def align_dynamic(camera: Camera, tomo_motor: RotationMotor, pitch_motor: RotationMotor,
-                        roll_motor: RotationMotor, flat_motor: LinearMotor, shutter: Shutter,
-                        align_params: AlignmentParams, dev_limits: DeviceSoftLimits,
-                        acq_params: AcquisitionParams, logger: logging.Logger,
-                        callback_func: Optional[Awaitable[None]] = None) -> None:
+async def align_rotation_stage_ellipse_fit(
+    camera: Camera, shutter: Shutter, flat_motor: LinearMotor,
+    tomo_motor: RotationMotor, rot_motor_roll: RotationMotor, rot_motor_pitch: RotationMotor, 
+    dev_limits: DeviceSoftLimits,acq_params: AcquisitionParams, align_params: AlignmentParams,
+    logger: logging.Logger = get_noop_logger(), cb_func: Optional[IntCBFunc] = None) -> None:
     """
     Implements dynamically gained iterative alignment routine for pitch angle and roll angle
     correction. In each iteration we make a step for roll angle correction followed by a step for
@@ -591,43 +549,32 @@ async def align_dynamic(camera: Camera, tomo_motor: RotationMotor, pitch_motor: 
     logger.debug(f"Start: {func_name}")
     logger.debug("#" * 3 * len(f"Start: {func_name}"))
     # Set soft limits to the motors for safe-alignment if provided.
-    if dev_limits.pitch_lim is not None:
-        try:
-            await set_soft_limits(motor=pitch_motor, limits=dev_limits.pitch_lim * q.deg)
-        except Exception as e:
-            logger.debug(f"{func_name}: error setting soft-limits to pitch-motor, {str(e)}")
-    if dev_limits.roll_lim is not None:
-        try:
-            await set_soft_limits(motor=roll_motor, limits=dev_limits.roll_lim * q.deg)
-        except Exception as e:
-            logger.debug(f"{func_name}: error setting soft-limits to roll-motor, {str(e)}")
-    if dev_limits.tomo_lim is not None:
-        try:
-            await set_soft_limits(motor=tomo_motor, limits=dev_limits.tomo_lim * q.deg)
-        except Exception as e:
-            logger.debug(f"{func_name}: error setting soft-limits to tomo-motor, {str(e)}")
+    try:
+        await set_soft_limits(motor=rot_motor_pitch, lims=dev_limits.pitch_rot_lim)
+        await set_soft_limits(motor=rot_motor_roll, lims=dev_limits.roll_rot_lim) 
+    except Exception as e:
+        logger.debug(f"{func_name}: error setting soft-limits: {str(e)}")
     # Initialize alignment-related variables and metric.
     pitch_ang_last: Quantity = 0 * q.deg
-    pitch_pose_last: Quantity = await pitch_motor.get_position()
+    pitch_pose_last: Quantity = await rot_motor_pitch.get_position()
     pitch_can_continue = True
     pitch_align_history: List[Dict[str, Quantity]] = []
     roll_ang_last: Quantity = 0 * q.deg
-    roll_pose_last: Quantity = await roll_motor.get_position()
+    roll_pose_last: Quantity = await rot_motor_roll.get_position()
     roll_can_continue = True
     roll_align_history: List[Dict[str, Quantity]] = []
     eps_metric = align_params.eps_metric if align_params.eps_metric else None
     frames_result = Result()
     for iteration in range(align_params.max_iterations):
         logger.debug("=" * 3 * len(f"Start: {func_name}"))
-        acq_consumers = [functools.partial(extract_ellipse_points, radius=acq_params.radius),
+        acq_consumers = [functools.partial(extract_ellipse_points, radius=acq_params.sphere_radius),
                          frames_result]
         tips_start = time.perf_counter()
         # Acquire frames from camera and perform flat-field correction.
-        frame_producer = acquire_frames_360(camera, tomo_motor, align_params.num_frames,
-                                            shutter=shutter, flat_motor=flat_motor,
-                                            flat_position=acq_params.flat_position,
-                                            y_0=acq_params.y_start, y_1=acq_params.y_end)
-        coros = broadcast(frame_producer, *acq_consumers)
+        producer: FramesProducer_T = acquire_frames(camera, tomo_motor, align_params.num_frames,
+                                                    shutter=shutter, flat_motor=flat_motor,
+                                                    flat_position=acq_params.flat_position)
+        coros = broadcast(producer, *acq_consumers)
         # Setting tomographic rotation motor to zero degree after a full circular rotation is a
         # safety measure against potential malfunction.
         await tomo_motor.set_position(0 * q.deg)
@@ -651,12 +598,12 @@ async def align_dynamic(camera: Camera, tomo_motor: RotationMotor, pitch_motor: 
             logger.debug(f"{func_name}: computed metric: {eps_metric}")
         # Start alignment iteration
         if pitch_can_continue:
-            pitch_pose = await pitch_motor.get_position()
+            pitch_pose = await rot_motor_pitch.get_position()
             pitch_align_history.append({"position": pitch_pose, "pitch": pitch_ang_curr})
             if abs(pitch_ang_curr) >= eps_metric and (
                 abs(pitch_pose_last - pitch_pose) >= align_params.eps_pose or iteration == 0):
-                pitch_pose_last, pitch_ang_last = await make_step_dynamic(
-                    iteration=iteration, motor=pitch_motor,
+                pitch_pose_last, pitch_ang_last = await make_alignment_step(
+                    iteration=iteration, motor=rot_motor_pitch,
                     pose_last=pitch_pose_last, ang_last=pitch_ang_last,
                     ang_curr=pitch_ang_curr, init_gain=align_params.init_pitch_gain,
                     rot_type="pitch", eps_ang_diff=align_params.eps_ang_diff,
@@ -666,12 +613,12 @@ async def align_dynamic(camera: Camera, tomo_motor: RotationMotor, pitch_motor: 
                 logger.debug(f"{func_name}: desired pitch angle threshold reached")
                 pitch_can_continue = False
         if roll_can_continue:
-            roll_pose = await roll_motor.get_position()
+            roll_pose = await rot_motor_roll.get_position()
             roll_align_history.append({"position": roll_pose, "roll": roll_ang_curr})
             if abs(roll_ang_curr) >= eps_metric and (
                 abs(roll_pose_last - roll_pose) >= align_params.eps_pose or iteration == 0):
-                roll_pose_last, roll_ang_last = await make_step_dynamic(
-                    iteration=iteration, motor=roll_motor,
+                roll_pose_last, roll_ang_last = await make_alignment_step(
+                    iteration=iteration, motor=rot_motor_roll,
                     pose_last=roll_pose_last, ang_last=roll_ang_last,
                     ang_curr=roll_ang_curr, init_gain=align_params.init_roll_gain,
                     rot_type="roll", eps_ang_diff=align_params.eps_ang_diff,
@@ -680,8 +627,8 @@ async def align_dynamic(camera: Camera, tomo_motor: RotationMotor, pitch_motor: 
             else:
                 logger.debug(f"{func_name}: desired roll angle threshold reached")
                 roll_can_continue = False
-        if callback_func:
-            await callback_func(iteration)
+        if cb_func:
+            await cb_func(iteration)
         if not pitch_can_continue and not roll_can_continue:
             break
     if pitch_can_continue:
@@ -690,138 +637,141 @@ async def align_dynamic(camera: Camera, tomo_motor: RotationMotor, pitch_motor: 
         logger.debug(f"{func_name}: max iterations reached but roll error is still significant")
     # Move to the best known position
     coros = []
-    coros.append(set_best_position(motor=pitch_motor, rot_type="pitch", history=pitch_align_history,
+    coros.append(set_best_position(motor=rot_motor_pitch, rot_type="pitch", history=pitch_align_history,
                                    logger=logger))
-    coros.append(set_best_position(motor=roll_motor, rot_type="roll", history=roll_align_history,
+    coros.append(set_best_position(motor=rot_motor_roll, rot_type="roll", history=roll_align_history,
                                    logger=logger))
     await asyncio.gather(*coros)
     # Leave the system in stable state
     logger.debug(
-        f"final pitch = {await pitch_motor.get_position()} " +
-        f"final roll = {await roll_motor.get_position()}")
+        f"final pitch = {await rot_motor_pitch.get_position()} " +
+        f"final roll = {await rot_motor_roll.get_position()}")
     logger.debug(f"End: {func_name}")
 
 
-@background
-async def align_static(camera: Camera, tomo_motor: RotationMotor, pitch_motor: RotationMotor,
-                       roll_motor: RotationMotor, flat_motor: LinearMotor, shutter: Shutter,
-                       align_params: AlignmentParams, dev_limits: DeviceSoftLimits,
-                       acq_params: AcquisitionParams, logger: logging.Logger,
-                       callback_func: Optional[Awaitable[None]] = None) -> None:
+async def center_sphere_in_projection(camera: Camera, shutter: Shutter, tomo_motor: RotationMotor,
+                                      stage_horz_motor: LinearMotor, stage_vert_motor: LinearMotor,
+                                      pixel_size: PixelSize, acq_params: AcquisitionParams,
+                                      center_px_eps: float = 2.0) -> None:
     """
-    Implements dynamically gained iterative alignment routine for pitch angle and roll angle
-    correction. In each iteration we make a step for roll angle correction followed by a step for
-    pitch angle correction.
+    Adjusts the vertical and horizontal stage motors to put the sphere into the middle of the
+    projection
+    """
+    producer: Awaitable = acquire_frames(camera, tomo_motor, 1, shutter=shutter,
+                                         flat_motor=stage_horz_motor,
+                                         flat_position=acq_params.flat_position)
+    cnt_y, cnt_x = await find_sphere_centers_corr(producer=producer,
+                                                  radius=acq_params.sphere_radius)[0]
+    sgn_off_hor_px = (acq_params.width // 2) - cnt_x
+    sgn_off_ver_px = (acq_params.height // 2) - cnt_y
+    # NOTE: To move the motors we are assuming that relative movement follows the cartesian
+    # coordinate system i.e., horizontal stage motor (flat motor) goes right for positive and left
+    # for negative relative movements and vertical stage motor (sample z) goes up for positive and
+    # down for negative relative movements. This needs to be verified. For instance when the sphere
+    # is somewhere towards the bottom left portion of the projection we expect sgn_off_hor_px to be
+    # +ve and flat motor to go somewhat right and sgn_off_ver_px to be -ve and vertical z motor to
+    # go to opposite direction.
+    await stage_horz_motor.move(sgn_off_hor_px * pixel_size.value)
+    await stage_vert_motor.move(-sgn_off_ver_px * pixel_size.value)
+    producer: FrameProducer_T = acquire_frames(camera, tomo_motor, 1, shutter=shutter,
+                                               flat_motor=stage_horz_motor,
+                                               flat_position=acq_params.flat_position)
+    cnt_y, cnt_x = await find_sphere_centers_corr(producer=producer,
+                                                  radius=acq_params.sphere_radius)[0]
+    # After the motor movement we want to ensure that we are not far from a threshold pixel distance
+    # from projection center.
+    assert(abs((acq_params.width // 2) - cnt_x) < center_px_eps)
+    assert(abs((acq_params.height // 2) - cnt_y) < center_px_eps)
+
+
+@background
+async def align_rotation_stage_comparative(
+    camera: Camera, shutter: Shutter, flat_motor: LinearMotor, sample_z_motor: LinearMotor,
+    tomo_motor: RotationMotor, rot_motor_roll: RotationMotor, rot_motor_pitch: RotationMotor,
+    lin_motor_roll: LinearMotor, lin_motor_pitch: LinearMotor, pixel_size: PixelSize,
+    dev_limits: DeviceSoftLimits, acq_params: AcquisitionParams,
+    logger: logging.Logger = get_noop_logger()) -> None:
+    """
+    # NOTE: This implementation assumes that we bring projection phantom inside the FOV manually
+    # before triggering the alignment-routine and ensure that tomo_motor position is at 0 degree.
     """
     func_name: str = inspect.currentframe().f_code.co_name
     logger.debug("#" * 3 * len(f"Start: {func_name}"))
     logger.debug(f"Start: {func_name}")
     logger.debug("#" * 3 * len(f"Start: {func_name}"))
-    # Set soft limits to the motors for safe-alignment if provided.
-    if dev_limits.pitch_lim:
-        try:
-            await set_soft_limits(motor=pitch_motor, limits=dev_limits.pitch_lim * q.deg)
-        except Exception as e:
-            logger.debug(f"{func_name}: error setting soft-limits to pitch-motor, {str(e)}")
-    if dev_limits.roll_lim:
-        try:
-            await set_soft_limits(motor=roll_motor, limits=dev_limits.roll_lim * q.deg)
-        except Exception as e:
-            logger.debug(f"{func_name}: error setting soft-limits to roll-motor, {str(e)}")
-    if dev_limits.tomo_lim:
-        try:
-            await set_soft_limits(motor=tomo_motor, limits=dev_limits.tomo_lim * q.deg)
-        except Exception as e:
-            logger.debug(f"{func_name}: error setting soft-limits to tomo-motor, {str(e)}")
-    # Initialize alignment-related variables and metric.
-    pitch_can_continue = True
-    pitch_align_history: List[Dict[str, Quantity]] = []
-    roll_can_continue = True
-    roll_align_history: List[Dict[str, Quantity]] = []
-    error_state: Dict[str, float] = {
-        "last_pitch_error": 0.0,
-        "last_roll_error": 0.0,
-        "accumulated_pitch_error": 0.0,
-        "accumulated_roll_error": 0.0
-    }
-    eps_metric = align_params.eps_metric if align_params.eps_metric else None
-    frames_result = Result()
-    for iteration in range(align_params.max_iterations):
-        logger.debug("=" * 3 * len(f"Start: {func_name}"))
-        acq_consumers = [functools.partial(extract_ellipse_points, radius=acq_params.radius),
-                         frames_result]
-        tips_start = time.perf_counter()
-        # Acquire frames from camera and perform flat-field correction.
-        frame_producer = acquire_frames_360(camera, tomo_motor, align_params.num_frames,
-                                            shutter=shutter, flat_motor=flat_motor,
-                                            flat_position=acq_params.flat_position,
-                                            y_0=acq_params.y_start, y_1=acq_params.y_end)
-        coros = broadcast(frame_producer, *acq_consumers)
-        tips = []
-        try:
-            tips = (await asyncio.gather(*coros))[1]
-        except Exception as tips_exc:
-            logger.debug(
-                f"{func_name}:iteration:{iteration}-error finding reference points: {tips_exc}")
-            logger.debug(f"End: {func_name}")
-            logger.debug("#" * len(f"End: {func_name}"))
-            return
-        logger.debug(
-            f"found {len(tips)} centroids, elapsed time: {time.perf_counter() - tips_start}")
-        roll_ang_curr, pitch_ang_curr, _ = rotation_axis(tips)
-        logger.debug(f"current pitch angle error: {pitch_ang_curr.magnitude}")
-        logger.debug(f"current roll angle error: {roll_ang_curr.magnitude}")
-        # Determine an alignment metric epsilon if not provided already.
-        if not eps_metric:
-            eps_metric = np.rad2deg(np.arctan(1 / frames_result.result.shape[1])) * q.deg
-            logger.debug(f"{func_name}: computed metric: {eps_metric}")
-        # Start alignment iteration
-        if pitch_can_continue:
-            pitch_pose = await pitch_motor.get_position()
-            pitch_align_history.append({"position": pitch_pose, "pitch": pitch_ang_curr})
-            if abs(pitch_ang_curr.magnitude) >= eps_metric.magnitude:
-                await make_step_static(iteration=iteration, motor=pitch_motor, 
-                                       ang_curr=pitch_ang_curr, rot_type="pitch",
-                                       error_state=error_state, proportional_gain=align_params.proportional_gain,
-                                       integral_gain=align_params.integral_gain, ceil_integral=align_params.ceil_integral,
-                                       derivative_gain=align_params.derivative_gain,
-                                       ceil_rel_move=align_params.ceil_rel_move, logger=logger)
-            else:
-                logger.debug(f"{func_name}: desired pitch angle threshold reached")
-                pitch_can_continue = False
-        if roll_can_continue:
-            roll_pose = await roll_motor.get_position()
-            roll_align_history.append({"position": roll_pose, "roll": roll_ang_curr})
-            if abs(roll_ang_curr.magnitude) >= eps_metric.magnitude:
-                await make_step_static(iteration=iteration, motor=roll_motor, 
-                                       ang_curr=roll_ang_curr, rot_type="roll",
-                                       error_state=error_state, proportional_gain=align_params.proportional_gain,
-                                       integral_gain=align_params.integral_gain, ceil_integral=align_params.ceil_integral,
-                                       derivative_gain=align_params.derivative_gain,
-                                       ceil_rel_move=align_params.ceil_rel_move, logger=logger)
-            else:
-                logger.debug(f"{func_name}: desired roll angle threshold reached")
-                roll_can_continue = False
-        if callback_func:
-            await callback_func(iteration)
-        if not pitch_can_continue and not roll_can_continue:
-            break
-    if pitch_can_continue:
-        logger.debug(f"{func_name}: max iterations reached but pitch error is still significant")
-    if roll_can_continue:
-        logger.debug(f"{func_name}: max iterations reached but roll error is still significant")
-    # Move to the best known position
-    coros = []
-    coros.append(set_best_position(motor=pitch_motor, rot_type="pitch", history=pitch_align_history,
-                                   logger=logger))
-    coros.append(set_best_position(motor=roll_motor, rot_type="roll", history=roll_align_history,
-                                   logger=logger))
-    await asyncio.gather(*coros)
-    # Leave the system in stable state
-    logger.debug(
-        f"final pitch = {await pitch_motor.get_position()} " +
-        f"final roll = {await roll_motor.get_position()}")
-    logger.debug(f"End: {func_name}")
+    # Set soft limits to the rotation motors for safe-operation if provided.
+    try:
+        await set_soft_limits(motor=rot_motor_pitch, lims=dev_limits.pitch_rot_lim)
+        await set_soft_limits(motor=rot_motor_roll, lims=dev_limits.roll_rot_lim)
+    except Exception as e:
+        logger.debug(f"{func_name}: error setting soft-limits: {str(e)}")
+    # STEP 0: Set sphere at the middle of the projection before alignment
+    await center_sphere_in_projection(camera=camera, shutter=shutter, tomo_motor=tomo_motor,
+                                      stage_horz_motor=flat_motor,
+                                      stage_vert_motor=sample_z_motor,
+                                      pixel_size=pixel_size, acq_params=acq_params)
+    # STEP 2: Correct pith
+    # Off-center the sphere horizontally and record its vertical position. Offcentering should
+    # happen such that the sphere does not go outside FOV before rotation.
+    assert(dev_limits.pitch_lin_lim is not None)
+    assert(dev_limits.roll_lin_lim is not None)
+    padding_px = 50
+    off_center_px = acq_params.width - (acq_params.sphere_radius + padding_px)
+    # TODO: Is this off-centering can be used both for roll and pitch.
+    off_center_mov: Quantity = min(off_center_px - (acq_params.width // 2) * pixel_size.value,
+                        dev_limits.pitch_lin_lim.to(q.um))
+    await lin_motor_pitch.move(off_center_mov)
+    acq_producer = acquire_frames(camera, tomo_motor, 1, shutter=shutter,flat_motor=flat_motor,
+                                  flat_position=acq_params.flat_position,
+                                  y_0=acq_params.y_start, y_1=acq_params.y_end)
+    y_before_rot: float = await find_sphere_centers_corr(producer=acq_producer,
+                                                             radius=acq_params.sphere_radius)[0][0]
+    await tomo_motor.set_position(180 * q.deg)
+    acq_producer = acquire_frames(camera, tomo_motor, 1, shutter=shutter,flat_motor=flat_motor,
+                                  flat_position=acq_params.flat_position,
+                                  y_0=acq_params.y_start, y_1=acq_params.y_end)
+    y_after_rot: float = await find_sphere_centers_corr(producer=acq_producer,
+                                                           radius=acq_params.sphere_radius)[0][0]
+    # Since I know how much I off-centered in q.um and since I know the pixel size I can derive the
+    # number of pixels.
+    # NOTE: Assuming the origin is at the top-left corner if after rotation y-coordinate is greater
+    # than before rotation y-coordinate then their difference in that order is positive and positive
+    # (counterclockwise) rotation is needed. In the opposite scenario their difference in that order
+    # is negative, hence a negative (clockwise) rotation is needed.
+    # Expression (y_after_rot - y_before_rot) is the signed rise component of sine, which we want to
+    # correct.
+    # Expression (off_center_mov / pixel_size.value).magnitude gives the radius of rotation in
+    # pixels and it is the hypotenuse component of sine.
+    # TODO: Consider clipping the input to arcsin between [-1, 1]
+    pitch_corr = np.arcsin((y_after_rot - y_before_rot) / 
+                           (off_center_mov / pixel_size.value).magnitude)
+    await rot_motor_pitch.move(pitch_corr.to(q.deg))
+    # STEP 4: Correct roll
+    # TODO: Do I need to go back to 0 degree, restore off-centering and do off-centering in the
+    # other direction ?
+    await tomo_motor.set_position(90 * q.deg)
+    acq_producer = acquire_frames(camera, tomo_motor, 1, shutter=shutter,flat_motor=flat_motor,
+                                  flat_position=acq_params.flat_position,
+                                  y_0=acq_params.y_start, y_1=acq_params.y_end)
+    y_before_rot = await find_sphere_centers_corr(producer=acq_producer,
+                                                      radius=acq_params.sphere_radius)[0][0]
+    await tomo_motor.set_position(270 * q.deg)
+    acq_producer = acquire_frames(camera, tomo_motor, 1, shutter=shutter,flat_motor=flat_motor,
+                                  flat_position=acq_params.flat_position,
+                                  y_0=acq_params.y_start, y_1=acq_params.y_end)
+    y_after_rot = await find_sphere_centers_corr(producer=acq_producer,
+                                                    radius=acq_params.sphere_radius)[0][0]
+    # TODO: Consider clipping the input to arcsin between [-1, 1]
+    roll_corr = np.arcsin((y_after_rot - y_before_rot) / 
+                           (off_center_mov / pixel_size.value).magnitude)
+    # NOTE: Assuming the origin is at the top-left corner if after rotation y-coordinate is greater
+    # than before rotation y-coordinate then their difference in that order is positive and positive
+    # (counterclockwise) rotation is needed. In the opposite scenario their difference in that order
+    # is negative, hence a negative (clockwise) rotation is needed.
+    await rot_motor_roll.move(roll_corr.to(q.deg))
+    # STEP 5: Restore initial
+    await tomo_motor.set_position(0 * q.deg)
+    await lin_motor_pitch.move(-off_center_mov)
 ####################################################################################################
 
 
