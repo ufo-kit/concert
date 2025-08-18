@@ -5,7 +5,9 @@ typing.py
 ---------
 Facilitates type annotations for concert
 """
-from typing import Protocol, Any, NewType, Sequence, Tuple
+from typing import Protocol, Any, NewType, Callable
+from typing import List, Sequence, Tuple
+from typing import Awaitable, Coroutine
 import numpy
 
 # Defines ArrayLike as a new type
@@ -14,6 +16,10 @@ import numpy
 # NumPy versions. In future this can(should) be replaced with
 # from numpy.typing import ArrayLike
 ArrayLike = NewType("ArrayLike", numpy.ndarray)
+
+FrameProducer_T = Awaitable[ArrayLike]
+FramesProducer_T = Awaitable[List[ArrayLike]]
+IntCBFunc = Callable[[int], Coroutine[None, None, None]]
 
 
 #####################################################################

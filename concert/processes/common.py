@@ -21,7 +21,7 @@ from concert.devices.motors.base import LinearMotor, RotationMotor
 from concert.devices.shutters.base import Shutter
 from concert.devices.cameras.base import Camera
 from concert.progressbar import wrap_iterable
-from concert.typing import ArrayLike
+from concert.typing import ArrayLike, FrameProducer_T, FramesProducer_T, IntCBFunc
 
 
 LOG = logging.getLogger(__name__)
@@ -400,10 +400,6 @@ async def align_rotation_axis(camera, rotation_motor, x_motor=None, z_motor=None
 ####################################################################################################
 # Revised Alignment Routines
 ####################################################################################################
-FrameProducer_T = Awaitable[ArrayLike]
-FramesProducer_T = Awaitable[List[ArrayLike]]
-IntCBFunc = Callable[[int], Coroutine[None, None, None]]
-
 class PixelSize(Enum):
     """Encapsulates pixel sizes for different magnifications"""
     
@@ -425,6 +421,7 @@ class AlignmentParams:
     eps_ang_diff: Quantity = 1e-7 * q.deg
     ceil_gain: float = 1e2
     ceil_rel_move: Quantity = 2 * q.deg
+    off_center_padding_px: int = 200
 
 
 @dataclass
@@ -433,8 +430,6 @@ class DeviceSoftLimits:
 
     pitch_rot_lim: Optional[Tuple[Quantity, Quantity]] = None
     roll_rot_lim: Optional[Tuple[Quantity, Quantity]] = None
-    pitch_lin_lim: Optional[Quantity] = None  # Maximum off-centering for pitch angle correction
-    roll_lin_lim: Optional[Quantity] = None  # Maximum off-centering for roll angle correction
 
 
 @dataclass
@@ -650,15 +645,32 @@ async def align_rotation_stage_ellipse_fit(
 
 
 async def center_sphere_in_projection(camera: Camera, shutter: Shutter, tomo_motor: RotationMotor,
-                                      stage_horz_motor: LinearMotor, stage_vert_motor: LinearMotor,
+                                      flat_motor: LinearMotor, z_motor: LinearMotor,
                                       pixel_size: PixelSize, acq_params: AcquisitionParams,
                                       center_px_eps: float = 2.0) -> None:
     """
     Adjusts the vertical and horizontal stage motors to put the sphere into the middle of the
     projection
+
+    :param camera: camera to acquire projections
+    :type camera: `concert.devices.cameras.base.Camera`
+    :param shutter: beam shutter
+    :type shutter: `concert.devices.shutters.base.Shutter`
+    :param tomo_motor: tomographic rotation motor that rotates the stage
+    :type tomo_motor: `concert.devices.motors.base.RotationMotor`
+    :param flat_motor: motor that puts rotation stage into or away from the beam
+    :type flat_motor: `concert.devices.motors.base.LinearMotor`
+    :param z_motor: motor that alters the vertical position of the rotation stage
+    :type z_motor: `concert.devices.motors.base.LinearMotor`
+    :param pixel_size: pixel size
+    :type pixel_size: `concert.processes.common.PixelSize`
+    :param acq_params: configurations specific to acquisition
+    :type acq_params: `concert.processes.common.AcquisitionParams`
+    :param center_px_eps: epsilon distance from central pixel, default two pixels
+    :type center_px_eps: float
     """
     producer: Awaitable = acquire_frames(camera, tomo_motor, 1, shutter=shutter,
-                                         flat_motor=stage_horz_motor,
+                                         flat_motor=flat_motor,
                                          flat_position=acq_params.flat_position)
     cnt_y, cnt_x = await find_sphere_centers_corr(producer=producer,
                                                   radius=acq_params.sphere_radius)[0]
@@ -671,10 +683,10 @@ async def center_sphere_in_projection(camera: Camera, shutter: Shutter, tomo_mot
     # is somewhere towards the bottom left portion of the projection we expect sgn_off_hor_px to be
     # +ve and flat motor to go somewhat right and sgn_off_ver_px to be -ve and vertical z motor to
     # go to opposite direction.
-    await stage_horz_motor.move(sgn_off_hor_px * pixel_size.value)
-    await stage_vert_motor.move(-sgn_off_ver_px * pixel_size.value)
+    await flat_motor.move(sgn_off_hor_px * pixel_size.value)
+    await z_motor.move(-sgn_off_ver_px * pixel_size.value)
     producer: FrameProducer_T = acquire_frames(camera, tomo_motor, 1, shutter=shutter,
-                                               flat_motor=stage_horz_motor,
+                                               flat_motor=flat_motor,
                                                flat_position=acq_params.flat_position)
     cnt_y, cnt_x = await find_sphere_centers_corr(producer=producer,
                                                   radius=acq_params.sphere_radius)[0]
@@ -686,14 +698,87 @@ async def center_sphere_in_projection(camera: Camera, shutter: Shutter, tomo_mot
 
 @background
 async def align_rotation_stage_comparative(
-    camera: Camera, shutter: Shutter, flat_motor: LinearMotor, sample_z_motor: LinearMotor,
-    tomo_motor: RotationMotor, rot_motor_roll: RotationMotor, rot_motor_pitch: RotationMotor,
-    lin_motor_roll: LinearMotor, lin_motor_pitch: LinearMotor, pixel_size: PixelSize,
-    dev_limits: DeviceSoftLimits, acq_params: AcquisitionParams,
+    camera: Camera, shutter: Shutter, flat_motor: LinearMotor, z_motor: LinearMotor,
+    tomo_motor: RotationMotor, rot_motor_pitch: RotationMotor, rot_motor_roll: RotationMotor, 
+    align_motor_pbd: LinearMotor, align_motor_obd: LinearMotor, pixel_size: PixelSize,
+    dev_limits: DeviceSoftLimits, acq_params: AcquisitionParams, align_params: AlignmentParams,
     logger: logging.Logger = get_noop_logger()) -> None:
     """
-    # NOTE: This implementation assumes that we bring projection phantom inside the FOV manually
-    # before triggering the alignment-routine and ensure that tomo_motor position is at 0 degree.
+    Aligns rotation stage comparing the vertical positions of alignment phantom across half-circle
+    rotations.
+
+    STEP 0: This implementation requires that we bring sphere phantom inside the FOV manually before
+    triggering the alignment-routine and simultaneously ensure that tomographic rotation motor
+    position is at 0 degree.
+    
+    STEP 1: We use the pixel size and the projection dimension to put the sphere at the center of
+    the projection. To do that we use the `flat motor`, which moves compound rotary stage
+    horizontally orthogonal to the beam direction and `z motor` which moves the same vertically
+    orthogonal to the beam direction.
+    
+    NOTE: Compound rotary stage means the stage includes the tomographic rotation motor and the
+    linear motors to align the sample on the rotation axis. Once we put the sphere to the center of
+    the projection we would only work with the linear alignment motors. While the `flat motor`
+    influences whether a sample would be in the beam or not the linear alignment motors determine
+    how near or far from the rotation axis the sample would be during tomographic rotation, thereby
+    influencing the rotation radius. We refer to this idea as aligning sample on the rotation axis.
+    Typically, there are two alignment motors, moving the sample either horizontally parallel to the
+    beam direction or horizontally orthogonal to the beam direction. In this routine these motors
+    are referenced as `align_motor_pbd`, `align_motor_obd` respectively.
+
+    STEP 2: Off-centering is associated with alignment of rotation stage because both pitch and roll
+    themselves are elements of rotation. Unlike tomographic rotation (stage rotates along vertical
+    axis) these are rotations of the stage along two horizontal axes. Pitch is the rotation of the
+    stage along the horizontal axis orthogonal to the beam direction. Roll is the rotation of the
+    stage along the horizontal axis parallel to the beam direction. These rotations prevent the
+    stage from being perfectly horizontal. We tend to measure their impacts more accurately looking
+    at a point being rotated further away from the center of rotation as opposed to a point which
+    is near the center. For the same angle of rotation, the displacement (interpreted as error in
+    this context) of a point is more when it is away from center, which in turn gives us more robust
+    measure of the error to correct. This routine uses a configurable item `off_center_padding_px`
+    in pixels to compute the extent of off-centering to ensure that it remains within FOV.
+    
+    STEP 3: We off-center the sphere parallel to beam direction to account for the pitch of the
+    stage. We assume that +ve movement happens along the beam direction and -ve movement happens
+    opposite to the beam direction. In this case we off-center opposite to the beam direction and
+    rotate 180 degrees counter-clockwise. After accounting for the measured pitch we move back to
+    the starting position by making the opposite movements.
+
+    STEP 4: We off-center the sphere orthogonal to beam direction to account for the roll of the
+    stage. We assume that +ve movement happens orthogonal to the beam towards +ve cartesian x-axis
+    and -ve movement happens orthogonal to the beam towards -ve cartesian x-axis. In this case we
+    off-center towards +ve cartesian x-axis and rotate 180 degrees counter-clockwise. After
+    accounting for the measured roll we move back to the starting position by making the opposite
+    movements.
+
+    :param camera: camera to acquire projections
+    :type camera: `concert.devices.cameras.base.Camera`
+    :param shutter: beam shutter
+    :type shutter: `concert.devices.shutters.base.Shutter`
+    :param flat_motor: motor that puts rotation stage into or away from the beam
+    :type flat_motor: `concert.devices.motors.base.LinearMotor`
+    :param z_motor: motor that alters the vertical position of the rotation stage
+    :type z_motor: `concert.devices.motors.base.LinearMotor`
+    :param tomo_motor: tomographic rotation motor that rotates the stage
+    :type tomo_motor: `concert.devices.motors.base.RotationMotor`
+    :param rot_motor_pitch: motor that rotates the stage along orthogonal axis to beam direction
+    :type rot_motor_pitch: `concert.devices.motors.base.RotationMotor`
+    :param rot_motor_roll: motor that rotates the stage along parallel axis to beam direction
+    :type rot_motor_roll: `concert.devices.motors.base.RotationMotor`
+    :param align_motor_pbd: alignment motor parallel to beam direction to off-center for pitch
+    :type align_motor_pbd: `concert.devices.motors.base.LinearMotor`
+    :param align_motor_obd: alignment motor orthogonal to beam direction to off-center for roll
+    :type: align_motor_obd: `concert.devices.motors.base.LinearMotor`
+    :param pixel_size: pixel size
+    :type pixel_size: `concert.processes.common.PixelSize`
+    :param dev_limits: optional soft-limits for rotation motors for pitch and roll
+    :type dev_limits: `concert.processes.common.DeviceSoftLimits`
+    :param acq_params: configurations specific to acquisition
+    :type acq_params: `concert.processes.common.AcquisitionParams`
+    :param align_params: configurations specific to alignment
+    :type align_params: `concert.processes.common.AlignmentParams`
+    :param logger: optional logger
+    :type logger: logging.Logger
     """
     func_name: str = inspect.currentframe().f_code.co_name
     logger.debug("#" * 3 * len(f"Start: {func_name}"))
@@ -705,73 +790,59 @@ async def align_rotation_stage_comparative(
         await set_soft_limits(motor=rot_motor_roll, lims=dev_limits.roll_rot_lim)
     except Exception as e:
         logger.debug(f"{func_name}: error setting soft-limits: {str(e)}")
-    # STEP 0: Set sphere at the middle of the projection before alignment
-    await center_sphere_in_projection(camera=camera, shutter=shutter, tomo_motor=tomo_motor,
-                                      stage_horz_motor=flat_motor,
-                                      stage_vert_motor=sample_z_motor,
-                                      pixel_size=pixel_size, acq_params=acq_params)
-    # STEP 2: Correct pith
-    # Off-center the sphere horizontally and record its vertical position. Offcentering should
-    # happen such that the sphere does not go outside FOV before rotation.
-    assert(dev_limits.pitch_lin_lim is not None)
-    assert(dev_limits.roll_lin_lim is not None)
-    padding_px = 50
-    off_center_px = acq_params.width - (acq_params.sphere_radius + padding_px)
-    # TODO: Is this off-centering can be used both for roll and pitch.
-    off_center_mov: Quantity = min(off_center_px - (acq_params.width // 2) * pixel_size.value,
-                        dev_limits.pitch_lin_lim.to(q.um))
-    await lin_motor_pitch.move(off_center_mov)
-    acq_producer = acquire_frames(camera, tomo_motor, 1, shutter=shutter,flat_motor=flat_motor,
-                                  flat_position=acq_params.flat_position,
-                                  y_0=acq_params.y_start, y_1=acq_params.y_end)
-    y_before_rot: float = await find_sphere_centers_corr(producer=acq_producer,
-                                                             radius=acq_params.sphere_radius)[0][0]
-    await tomo_motor.set_position(180 * q.deg)
-    acq_producer = acquire_frames(camera, tomo_motor, 1, shutter=shutter,flat_motor=flat_motor,
-                                  flat_position=acq_params.flat_position,
-                                  y_0=acq_params.y_start, y_1=acq_params.y_end)
-    y_after_rot: float = await find_sphere_centers_corr(producer=acq_producer,
-                                                           radius=acq_params.sphere_radius)[0][0]
-    # Since I know how much I off-centered in q.um and since I know the pixel size I can derive the
-    # number of pixels.
-    # NOTE: Assuming the origin is at the top-left corner if after rotation y-coordinate is greater
-    # than before rotation y-coordinate then their difference in that order is positive and positive
-    # (counterclockwise) rotation is needed. In the opposite scenario their difference in that order
-    # is negative, hence a negative (clockwise) rotation is needed.
-    # Expression (y_after_rot - y_before_rot) is the signed rise component of sine, which we want to
-    # correct.
-    # Expression (off_center_mov / pixel_size.value).magnitude gives the radius of rotation in
-    # pixels and it is the hypotenuse component of sine.
-    # TODO: Consider clipping the input to arcsin between [-1, 1]
-    pitch_corr = np.arcsin((y_after_rot - y_before_rot) / 
-                           (off_center_mov / pixel_size.value).magnitude)
-    await rot_motor_pitch.move(pitch_corr.to(q.deg))
-    # STEP 4: Correct roll
-    # TODO: Do I need to go back to 0 degree, restore off-centering and do off-centering in the
-    # other direction ?
-    await tomo_motor.set_position(90 * q.deg)
-    acq_producer = acquire_frames(camera, tomo_motor, 1, shutter=shutter,flat_motor=flat_motor,
-                                  flat_position=acq_params.flat_position,
-                                  y_0=acq_params.y_start, y_1=acq_params.y_end)
-    y_before_rot = await find_sphere_centers_corr(producer=acq_producer,
-                                                      radius=acq_params.sphere_radius)[0][0]
-    await tomo_motor.set_position(270 * q.deg)
-    acq_producer = acquire_frames(camera, tomo_motor, 1, shutter=shutter,flat_motor=flat_motor,
-                                  flat_position=acq_params.flat_position,
-                                  y_0=acq_params.y_start, y_1=acq_params.y_end)
-    y_after_rot = await find_sphere_centers_corr(producer=acq_producer,
-                                                    radius=acq_params.sphere_radius)[0][0]
-    # TODO: Consider clipping the input to arcsin between [-1, 1]
-    roll_corr = np.arcsin((y_after_rot - y_before_rot) / 
-                           (off_center_mov / pixel_size.value).magnitude)
-    # NOTE: Assuming the origin is at the top-left corner if after rotation y-coordinate is greater
-    # than before rotation y-coordinate then their difference in that order is positive and positive
-    # (counterclockwise) rotation is needed. In the opposite scenario their difference in that order
-    # is negative, hence a negative (clockwise) rotation is needed.
-    await rot_motor_roll.move(roll_corr.to(q.deg))
-    # STEP 5: Restore initial
+    # STEP 1: Set the sphere at the center of the projection.
     await tomo_motor.set_position(0 * q.deg)
-    await lin_motor_pitch.move(-off_center_mov)
+    await center_sphere_in_projection(camera=camera, shutter=shutter, tomo_motor=tomo_motor,
+                                      flat_motor=flat_motor, z_motor=z_motor, pixel_size=pixel_size,
+                                      acq_params=acq_params)
+    # STEP 2: Compute off-centering.
+    off_cnt_sphere_x = acq_params.width - (acq_params.sphere_radius + 
+                                           align_params.off_center_padding_px)
+    off_cnt_um: Quantity = (off_cnt_sphere_x - (acq_params.width // 2)) * pixel_size.value
+    # NOTE: We compute the magnitude of pitch and roll from (rise / hypotenuse).
+    # * (y_after - y_before) is the signed rise component. Origin being at the top-left of the
+    # projection if after-rotation y-coordinate is greater than before-rotation y-coordinate then
+    # their difference in that order is +ve and +ve rotation is required. In the opposite scenario
+    # their difference in that order is -ve and -ve rotation is required. 
+    # * (off_cnt_sphere_x - (acq_params.width // 2)) is the radius of sphere rotation and when the
+    # stage is tilted it is the hypotenuse.
+    # STEP 3: Off-center horizontally opposite to the beam direction and account for pitch.
+    await align_motor_pbd.move(-off_cnt_um)
+    producer: FrameProducer_T = acquire_frames(camera, tomo_motor, 1, shutter=shutter,
+                                               flat_motor=flat_motor,
+                                               flat_position=acq_params.flat_position)
+    y_before: float = await find_sphere_centers_corr(producer=producer,
+                                                     radius=acq_params.sphere_radius)[0][0]
+    await tomo_motor.move(180 * q.deg)
+    producer = acquire_frames(camera, tomo_motor, 1, shutter=shutter, flat_motor=flat_motor,
+                              flat_position=acq_params.flat_position)
+    y_after: float = await find_sphere_centers_corr(producer=producer,
+                                                    radius=acq_params.sphere_radius)[0][0]
+    pitch_corr_rad: float = np.arcsin(np.clip((y_after - y_before) / 
+                                          (off_cnt_sphere_x - (acq_params.width // 2)),
+                                          a_min=-1.0, a_max=1.0))
+    await rot_motor_pitch.move(pitch_corr_rad.to(q.deg))
+    await tomo_motor.move(-180 * q.deg)
+    await align_motor_pbd.move(off_cnt_um)
+    # STEP 3: Off-center horizontally orthogonal to beam direction and account for roll.
+    await tomo_motor.set_position(90 * q.deg)
+    await align_motor_obd.move(off_cnt_um)
+    producer = acquire_frames(camera, tomo_motor, 1, shutter=shutter, flat_motor=flat_motor,
+                              flat_position=acq_params.flat_position)
+    y_before = await find_sphere_centers_corr(producer=producer,
+                                              radius=acq_params.sphere_radius)[0][0]
+    await tomo_motor.move(180 * q.deg)
+    producer = acquire_frames(camera, tomo_motor, 1, shutter=shutter,flat_motor=flat_motor,
+                              flat_position=acq_params.flat_position)
+    y_after = await find_sphere_centers_corr(producer=producer,
+                                             radius=acq_params.sphere_radius)[0][0]
+    roll_corr_rad = np.arcsin(np.clip((y_after - y_before) / 
+                                      (off_cnt_sphere_x - (acq_params.width // 2)),
+                                      a_min=-1.0, a_max=1.0))
+    await rot_motor_roll.move(roll_corr_rad.to(q.deg))
+    await tomo_motor.move(-180 * q.deg)
+    await align_motor_pbd.move(off_cnt_um)
+    await tomo_motor.set_position(0 * q.deg)
 ####################################################################################################
 
 
