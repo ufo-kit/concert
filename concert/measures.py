@@ -228,15 +228,66 @@ def rotation_axis(tips):
     return (phi, psi, center)
 
 
-def estimate_alignment_parameters(centroids: List[ArrayLike],
-                                  min_data_pts: int = 5,
-                                  x_offset_px: int = 10,
-                                  use_svd: bool = False) -> Tuple[Quantity, Quantity, float]:
+def estimate_alignment_parameters(centroids: List[ArrayLike], min_data_pts: int = 5,
+                                  x_offset_px: int = 10, use_svd: bool = False
+                                  ) -> Tuple[Quantity, Quantity, float]:
     """
-    TODO: Include docstring.
+    Estimates roll, pitch and center of rotation from projected sphere phantom.
+
+    This implementation incorporates more robust methods to determine the degenerate case of ellipse
+    using `skimage.measure.EllipseModel`, as opposed to SVD. The downside of using SVD throughout
+    the estimation is that the ellipse parameters computed from SVD in least-square sense are
+    very small floating point values in practice and they get even smaller during matrix operations.
+    Comparing among these values is fragile.
+
+    To determine the nature of the ellipse-fit from sphere centroids we feed them to EllipseModel,
+    which encapsulates direct least-square fit incorporating the conic discriminant condition
+    B^2 - 4AC < 0. In other words, unless the pitch angle is exactly 0 degree we are bound to get an
+    ellipse and its parameters, center-x, center-y, length of semi-major axis, length of semi-minor
+    axis, roll angle of the major axis in radians. If the length of semi-minor axis is greater or
+    equal to 1 pixel we have a proper ellipse and degenerate case otherwise.
+
+    - If a proper ellipse is found we can optionally make use of SVD to find the center of the
+    ellipse. A design matrix is built using the sphere centroids, where each row vector is
+    (x_i^2, x_iy_i, y_i^2, x_i, y_i, 1), i in range(#centroids). SVD of design matrix yields
+    best-fit parameters A, B, C, D, E, F in least-square sense. Center of the ellipse is the
+    (x, y) point for which the gradient of the quadratic form of the conic (degree-2 polynomial
+    terms) of Ax^2 + Bxy + Cy^2 + Dx + Ey + F becomes 0. Taking the gradient and solving the
+    same for (x, y) using Cramer's rule the center is computed as,
+
+     - x_c = (BF - 2DC) / (4AC - B^2)
+     - y_c = (DB - 2AE) / (4AC - B^2)
+
+    Alternative to using SVD, we can use the centers from the best-fit parameters from
+    EllipseModel directly. Upon computing the center (x, y) we compute two direction vectors
+    out of the sphere centroids. Dot product of these vectors provides the cosine component and
+    cross product provides the sine component along with the signed area of the parallelogram
+    that they make depending on their orientation w.r.t. each other, which is helpful to
+    determine the rotation direction of the pitch using arctangent. If using SVD we compute the
+    magnitude of the pitch from ratio of square-roots of the singual values of the quadratic
+    form matrix [[A, B / 2], [B / 2, C]], which is equivalent of ratio of semi-minor and
+    semi-major axes. Axes lengths and roll angle can be directly obtained from EllipseModel.
+
+    - Upon encountering degenerate ellipse case pitch angle can be inferred as 0 degree. Roll angle
+    is determined using slope (rise / run) with arctangent function. In this case an extra check
+    for the rotation of major-axis is done to determine the correct roll angle rotation.
+
+    In both cases of ellipse a normalization of the estimated roll angles is done to limit it to
+    a conveninent range. Experiments show that fitting noise can affect the roll-angle estimation.
+
+    :param centroids: extracted sphere centroids from projections
+    :type centroids: List[ArrayLike]
+    :param min_data_pts: min #centroids to consider to avoid an under-determined system
+    :type min_data_pts: int
+    :param x_offset_px: equivalent of min rotation radius in #pixels to consider for good estimation
+    :type x_offset_px: int
+    :param use_svd: if estimation should be done using SVD
+    :type use_svd: bool
+    :return: estimated roll, pitch and center of rotation
+    :rtype: Tuple[`concert.quantities.Quantity`, `concert.quantities.Quantity`, float]
     """
     
-    def normalized(angle: float) -> float:
+    def _normalized(angle: float) -> float:
         """
         Rotating the major axis by 180 degrees produces the same ellipse. For instance when actual
         roll angle is approximately 0 degree, fitting noise can make the angle flip to approximately
@@ -276,12 +327,10 @@ def estimate_alignment_parameters(centroids: List[ArrayLike],
             # below. Best-fit parameters come from the SVD of the design matrix above.
             _, _, parmas_matrix = np.linalg.svd(design_matrix)
             params = parmas_matrix.T[:, -1]
-            param_A, param_B, param_C = params[0], params[1], params[2]
-            param_D, param_E = params[3], params[4]
-            x_center = ((param_B * param_E - 2 * param_D * param_C) /
-                        (4 * param_A * param_C - param_B ** 2))
-            y_center = ((param_D * param_B - 2 * param_A * param_E) /
-                        (4 * param_A * param_C - param_B ** 2))
+            prm_A, prm_B, prm_C = params[0], params[1], params[2]
+            prm_D, prm_E = params[3], params[4]
+            x_center = ((prm_B * prm_E - 2 * prm_D * prm_C) / (4 * prm_A * prm_C - prm_B ** 2))
+            y_center = ((prm_D * prm_B - 2 * prm_A * prm_E) / (4 * prm_A * prm_C - prm_B ** 2))
             center = np.array([y_center, x_center])
             # We take two points out of the sphere centroids which make the projected ellipse,
             # remove the pre-existing translations in physical space and get two direction vectors
@@ -299,7 +348,7 @@ def estimate_alignment_parameters(centroids: List[ArrayLike],
             dir_vec_1 = np.array(centroids[1]) - center
             pitch_d_angle = np.arctan2(np.cross(dir_vec_0, dir_vec_1), np.dot(dir_vec_0, dir_vec_1))
             sign = int(np.sign(pitch_d_angle))
-            quadratic_form_matrix = np.array([[param_A, param_B / 2], [param_B / 2, param_C]])
+            quadratic_form_matrix = np.array([[prm_A, prm_B / 2], [prm_B / 2, prm_C]])
             # Quadratic form matrix is symmetric. Therefore its singular values and singular vectors
             # are identical to eigen values and eigen vectors. But for consistency we name them
             # sing_vals and sign_vecs. Following SVD in principle has,
@@ -322,18 +371,20 @@ def estimate_alignment_parameters(centroids: List[ArrayLike],
             pitch_d_angle = np.arctan2(np.cross(dir_vec_0, dir_vec_1), np.dot(dir_vec_0, dir_vec_1))
             sign = int(np.sign(pitch_d_angle))
             pitch_ang = sign * np.arcsin(semi_minor / semi_major) * q.rad
-        roll_ang = normalized(roll_angle_radians) * q.rad
+        roll_ang = _normalized(roll_angle_radians) * q.rad
+        rot_cnt = xc
     else:  # Degenerate Ellipse
         # In this scenario we make use of the slope (rise / run) and inverse tanget to derive the
         # roll angle.
         d_y = float(y_ind.max() - y_ind.min())
         d_x = float(x_ind.max() - x_ind.min())
-        angle = normalized(np.arctan2(d_y , d_x)) * q.rad
-        # We are determining the correct sign for the roll angle under the assumption that our
-        # coordinate origin is at the bottom-left. It is because we assume y-axis to the vertical
-        # direction.
+        angle = _normalized(np.arctan2(d_y , d_x)) * q.rad
+        # We determining the correct sign for the roll angle under the assumption that our
+        # coordinate origin is at the top-left. Since y-axis denotes the vertical direction, if
+        # following condition is satisfied it'd mean major-axis is rotated counter-clockwise and
+        # it'd take a clockwise (-ve) angular rotation to correct that.
         if x_ind[y_ind.argmax()] <= x_ind[y_ind.argmin()]:
             angle = -angle
         roll_ang, pitch_ang = angle, 0.0 * q.rad
-        center = np.mean(x_ind)
-    return roll_ang.to(q.deg), pitch_ang.to(q.deg), center
+        rot_cnt = np.mean(x_ind)
+    return roll_ang.to(q.deg), pitch_ang.to(q.deg), rot_cnt

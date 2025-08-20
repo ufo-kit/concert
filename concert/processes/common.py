@@ -7,13 +7,13 @@ import time
 from itertools import product
 from functools import reduce
 import logging
-from typing import AsyncIterator, Callable, Awaitable, List, Optional, Tuple, Dict, Coroutine
+from typing import AsyncIterator, List, Optional, Tuple, Dict
 import numpy as np
 from concert.base import SoftLimitError, AsyncObject
 from concert.coroutines.base import background, broadcast
 from concert.coroutines.sinks import Result
-from concert.quantities import q, Quantity, has_unit
-from concert.measures import rotation_axis
+from concert.quantities import q, Quantity
+from concert.measures import rotation_axis, estimate_alignment_parameters
 from concert.optimization import halver, optimize_parameter
 from concert.imageprocessing import flat_correct, find_needle_tips, find_sphere_centers_corr
 from concert.helpers import expects, is_iterable, Numeric
@@ -410,23 +410,41 @@ class PixelSize(Enum):
 
 @dataclass
 class AlignmentParams:
-    """Encapsulates parameters required for alignment"""
+    """
+    Encapsulates parameters required for alignment
+
+    - number of frames to extract the sphere centroids from
+    - max iterations for alignment
+    - initial gain to consider for pitch on first iteration
+    - initial gain to consider for roll on first iteration
+    - epsilon value for difference in motor positions in consecutive iterations
+    - epsilon value for difference in estimated angles in consecutive iterations
+    - metric to determine if rotation stage is aligned, computed in runtime when not provided
+    - ceiling value to prevent explosive gain
+    - ceiling value to prevent explosive motor movement
+    - padding in #pixels to consider during off-centering
+    """
     
     num_frames: int = 10
     max_iterations: int = 30
     init_pitch_gain: float = 1.0
     init_roll_gain: float = 1.0
     eps_pose: Quantity = 0.1 * q.deg
-    eps_metric: Optional[Quantity] = None
     eps_ang_diff: Quantity = 1e-7 * q.deg
+    align_metric: Optional[Quantity] = None
     ceil_gain: float = 1e2
-    ceil_rel_move: Quantity = 2 * q.deg
+    ceil_rel_move: Quantity = 1 * q.deg
     off_center_padding_px: int = 200
 
 
 @dataclass
 class DeviceSoftLimits:
-    """Encapsulates soft-limits for relevant devices"""
+    """
+    Encapsulates soft-limits for rotation motors
+
+    - lower abd upper soft limits for pitch rotation motor
+    - lower and upper soft limits for roll rotation motor
+    """
 
     pitch_rot_lim: Optional[Tuple[Quantity, Quantity]] = None
     roll_rot_lim: Optional[Tuple[Quantity, Quantity]] = None
@@ -434,7 +452,14 @@ class DeviceSoftLimits:
 
 @dataclass
 class AcquisitionParams:
-    """Encapsulates parameters relevant for acquisition using camera"""
+    """
+    Encapsulates parameters relevant for projections acquisition
+
+    - position for flat-motor to move sample away from beam
+    - radius of the alignment sphere marker for centroid estimation
+    - height of the projections
+    - width of the projections
+    """
 
     flat_position: Quantity = 7 * q.mm
     sphere_radius: int = 65
@@ -443,29 +468,55 @@ class AcquisitionParams:
 
 
 def get_noop_logger() -> logging.Logger:
-    """Get a no-op logger for alignment"""
+    """Provides a no-op logger"""
     logger = logging.getLogger("no-op")
     logger.addHandler(logging.NullHandler())
     logger.propagate = False
     return logger
 
 
-async def set_soft_limits(motor: RotationMotor, lims: Optional[Tuple[Quantity, Quantity]]) -> None:
-        """Sets soft `limits` for the specified `motor`"""
-        if lims != None:
-            await motor["position"].set_lower(lims[0])
-            await motor["position"].set_upper(lims[1])
+async def set_soft_limits(motor: RotationMotor, lims: Tuple[Quantity, Quantity]) -> None:
+        """
+        Sets soft-limits for the specified rotation motor movement.
+
+        :param motor: rotation motor for roll or pitch correction
+        :type motor: `concert.devices.motors.base.RotationMotor`
+        :type lims: soft-limits for the motor movement
+        :param lims: Tuple[`concert.quantities.Quantity`, `concert.quantities.Quantity`]
+        """
+        await motor["position"].set_lower(lims[0])
+        await motor["position"].set_upper(lims[1])
 
 
-async def extract_ellipse_points(producer: AsyncIterator[ArrayLike],
-                                 radius: int) -> List[ArrayLike]:
-    """Finds sphere centers from incoming frames using correlation"""
+async def extract_ellipse_points(producer: FramesProducer_T, radius: int) -> List[ArrayLike]:
+    """
+    Finds sphere centers from incoming frames using correlation.
+    
+    :param producer: asynchronous producer of projections
+    :type producer: `concert.typing.FramesProducer_T`
+    :param radius: radius of the sphere in pixels
+    :type radius: int
+    :return: extracted ellipse centroids
+    :rtype: List[ArrayLike]
+    """
     return await find_sphere_centers_corr(producer, radius=radius)
 
 
 async def set_best_position(motor: RotationMotor, rot_type: str, history: List[Dict[str, Quantity]],
                            logger: logging.Logger) -> None:
-    """Sets the motor position against the lowest angular error"""
+    """
+    Sets the motor position against the lowest angular error.
+
+    :param motor: rotation motor for roll or pitch correction
+    :type motor: `concert.devices.motors.base.RotationMotor`
+    :param rot_type: rotation type, 'roll' or 'pitch'
+    :type rot_type: str
+    :param history: mapping of estimated angle error and respective motor movement from all
+    iterations
+    :type history: List[Dict[str, `concert.quantities.Quantity`]]
+    :param logger: logger, defaults to no-op logger from caller
+    :type logger: logging.Logger
+    """
     positions, angles = list(zip(*[(item["position"], item[rot_type]) for item in history]))
     best_index = np.argmin(np.abs([angle.to_base_units().magnitude for angle in angles]))
     logger.debug(
@@ -482,7 +533,32 @@ async def make_alignment_step(iteration: int, motor: RotationMotor, pose_last: Q
                             rot_type: str, eps_ang_diff: Quantity, ceil_gain: float,
                             ceil_rel_move: Quantity,
                             logger: logging.Logger) -> Tuple[Quantity, Quantity]:
-    """Makes a single iterative step with dynamic gain"""
+    """
+    Makes a single iterative step with dynamic gain.
+
+    :param iteration: current iteration
+    :type iteration: int
+    :param motor: rotation motor for roll or pitch correction
+    :type motor: `concert.devices.motors.base.RotationMotor`
+    :param ang_last: estimated angle in previous iteration
+    :type ang_last: `concert.quantities.Quantity`
+    :param ang_curr: estimated angle in current iteration
+    :type ang_curr: `concert.quantities.Quantity`
+    :param init_gain: initial gain to apply on the first iteration when no angle is estimated
+    :type init_gain:float
+    :param rot_type: rotation type, 'roll' or 'pitch'
+    :type rot_type: str
+    :param eps_ang_diff: epsilon difference in last and current angle to consider for alignment
+    :type eps_ang_diff: `concert.quantities.Quantity`
+    :param ceil_gain: ceiling value to prevent explosive gain
+    :type ceil_gain: float
+    :param ceil_rel_move: ceiling value to prevent explosive motor movement
+    :type ceil_rel_move: `concert.quantities.Quantity`
+    :param logger: logger, defaults to no-op logger from caller
+    :type logger: logging.Logger
+    :return: estimated angle error and respective motor movement
+    :rtype: Tuple[`concert.quantities.Quantity`, `concert.quantities.Quantity`]
+    """
     pose_curr = await motor.get_position()
     logger.debug(
         f"iteration: {iteration} - {rot_type} motor-position: {pose_curr}")
@@ -536,8 +612,32 @@ async def align_rotation_stage_ellipse_fit(
     logger: logging.Logger = get_noop_logger(), cb_func: Optional[IntCBFunc] = None) -> None:
     """
     Implements dynamically gained iterative alignment routine for pitch angle and roll angle
-    correction. In each iteration we make a step for roll angle correction followed by a step for
-    pitch angle correction.
+    correction based on ellipse-fit. This implementation incorporates the idea of approaching the
+    alignment by adjusting the rotation stage in small steps. In each iteration we make a step for
+    roll angle correction followed by a step for pitch angle correction. Estimated angular
+    correction is translated to a motor movement which is safe-guarded by a ceiling to prevent an
+    explosive movement that might push the system to an anomaly.
+
+    :param camera: camera to acquire projections
+    :type camera: `concert.devices.cameras.base.Camera`
+    :param shutter: beam shutter
+    :type shutter: `concert.devices.shutters.base.Shutter`
+    :param flat_motor: motor that puts rotation stage into or away from the beam
+    :type flat_motor: `concert.devices.motors.base.LinearMotor`
+    :param tomo_motor: tomographic rotation motor that rotates the stage
+    :type tomo_motor: `concert.devices.motors.base.RotationMotor`
+    :param rot_motor_roll: motor that rotates the stage along parallel axis to beam direction
+    :type rot_motor_roll: `concert.devices.motors.base.RotationMotor`
+    :param rot_motor_pitch: motor that rotates the stage along orthogonal axis to beam direction
+    :type rot_motor_pitch: `concert.devices.motors.base.RotationMotor`
+    :param dev_limits: optional soft-limits for rotation motors for pitch and roll
+    :type dev_limits: `concert.processes.common.DeviceSoftLimits`
+    :param acq_params: configurations specific to acquisition
+    :type acq_params: `concert.processes.common.AcquisitionParams`
+    :param align_params: configurations specific to alignment
+    :type align_params: `concert.processes.common.AlignmentParams`    
+    :param logger: optional logger
+    :type logger: logging.Logger
     """
     func_name: str = inspect.currentframe().f_code.co_name
     logger.debug("#" * 3 * len(f"Start: {func_name}"))
@@ -545,8 +645,10 @@ async def align_rotation_stage_ellipse_fit(
     logger.debug("#" * 3 * len(f"Start: {func_name}"))
     # Set soft limits to the motors for safe-alignment if provided.
     try:
-        await set_soft_limits(motor=rot_motor_pitch, lims=dev_limits.pitch_rot_lim)
-        await set_soft_limits(motor=rot_motor_roll, lims=dev_limits.roll_rot_lim) 
+        if dev_limits.pitch_rot_lim is not None:
+            await set_soft_limits(motor=rot_motor_pitch, lims=dev_limits.pitch_rot_lim)
+        if dev_limits.roll_rot_lim is not None:
+            await set_soft_limits(motor=rot_motor_roll, lims=dev_limits.roll_rot_lim) 
     except Exception as e:
         logger.debug(f"{func_name}: error setting soft-limits: {str(e)}")
     # Initialize alignment-related variables and metric.
@@ -558,7 +660,7 @@ async def align_rotation_stage_ellipse_fit(
     roll_pose_last: Quantity = await rot_motor_roll.get_position()
     roll_can_continue = True
     roll_align_history: List[Dict[str, Quantity]] = []
-    eps_metric = align_params.eps_metric if align_params.eps_metric else None
+    align_metric = align_params.align_metric if align_params.align_metric else None
     frames_result = Result()
     for iteration in range(align_params.max_iterations):
         logger.debug("=" * 3 * len(f"Start: {func_name}"))
@@ -573,9 +675,9 @@ async def align_rotation_stage_ellipse_fit(
         # Setting tomographic rotation motor to zero degree after a full circular rotation is a
         # safety measure against potential malfunction.
         await tomo_motor.set_position(0 * q.deg)
-        tips = []
+        centroids = []
         try:
-            tips = (await asyncio.gather(*coros))[1]
+            centroids = (await asyncio.gather(*coros))[1]
         except Exception as tips_exc:
             logger.debug(
                 f"{func_name}:iteration:{iteration}-error finding reference points: {tips_exc}")
@@ -583,19 +685,19 @@ async def align_rotation_stage_ellipse_fit(
             logger.debug("#" * len(f"End: {func_name}"))
             return
         logger.debug(
-            f"found {len(tips)} centroids, elapsed time: {time.perf_counter() - tips_start}")
-        roll_ang_curr, pitch_ang_curr, _ = rotation_axis(tips)
+            f"found {len(centroids)} centroids, elapsed time: {time.perf_counter() - tips_start}")
+        roll_ang_curr, pitch_ang_curr, _ = estimate_alignment_parameters(centroids=centroids)
         logger.debug(f"current pitch angle error: {pitch_ang_curr.magnitude}")
         logger.debug(f"current roll angle error: {roll_ang_curr.magnitude}")
-        # Determine an alignment metric epsilon if not provided already.
-        if not eps_metric:
-            eps_metric = np.rad2deg(np.arctan(1 / frames_result.result.shape[1])) * q.deg
-            logger.debug(f"{func_name}: computed metric: {eps_metric}")
+        # Determine an alignment metric if not provided already.
+        if not align_metric:
+            align_metric = np.rad2deg(np.arctan(1 / frames_result.result.shape[1])) * q.deg
+            logger.debug(f"{func_name}: computed metric: {align_metric}")
         # Start alignment iteration
         if pitch_can_continue:
             pitch_pose = await rot_motor_pitch.get_position()
             pitch_align_history.append({"position": pitch_pose, "pitch": pitch_ang_curr})
-            if abs(pitch_ang_curr) >= eps_metric and (
+            if abs(pitch_ang_curr) >= align_metric and (
                 abs(pitch_pose_last - pitch_pose) >= align_params.eps_pose or iteration == 0):
                 pitch_pose_last, pitch_ang_last = await make_alignment_step(
                     iteration=iteration, motor=rot_motor_pitch,
@@ -610,7 +712,7 @@ async def align_rotation_stage_ellipse_fit(
         if roll_can_continue:
             roll_pose = await rot_motor_roll.get_position()
             roll_align_history.append({"position": roll_pose, "roll": roll_ang_curr})
-            if abs(roll_ang_curr) >= eps_metric and (
+            if abs(roll_ang_curr) >= align_metric and (
                 abs(roll_pose_last - roll_pose) >= align_params.eps_pose or iteration == 0):
                 roll_pose_last, roll_ang_last = await make_alignment_step(
                     iteration=iteration, motor=rot_motor_roll,
@@ -650,7 +752,7 @@ async def center_sphere_in_projection(camera: Camera, shutter: Shutter, tomo_mot
                                       center_px_eps: float = 2.0) -> None:
     """
     Adjusts the vertical and horizontal stage motors to put the sphere into the middle of the
-    projection
+    projection.
 
     :param camera: camera to acquire projections
     :type camera: `concert.devices.cameras.base.Camera`
@@ -669,9 +771,9 @@ async def center_sphere_in_projection(camera: Camera, shutter: Shutter, tomo_mot
     :param center_px_eps: epsilon distance from central pixel, default two pixels
     :type center_px_eps: float
     """
-    producer: Awaitable = acquire_frames(camera, tomo_motor, 1, shutter=shutter,
-                                         flat_motor=flat_motor,
-                                         flat_position=acq_params.flat_position)
+    producer: FrameProducer_T = acquire_frames(camera, tomo_motor, 1, shutter=shutter,
+                                               flat_motor=flat_motor,
+                                               flat_position=acq_params.flat_position)
     cnt_y, cnt_x = await find_sphere_centers_corr(producer=producer,
                                                   radius=acq_params.sphere_radius)[0]
     sgn_off_hor_px = (acq_params.width // 2) - cnt_x
@@ -719,7 +821,7 @@ async def align_rotation_stage_comparative(
     NOTE: Compound rotary stage means the stage includes the tomographic rotation motor and the
     linear motors to align the sample on the rotation axis. Once we put the sphere to the center of
     the projection we would only work with the linear alignment motors. While the `flat motor`
-    influences whether a sample would be in the beam or not the linear alignment motors determine
+    influences whether a sample would be in the beam or not, linear alignment motors determine
     how near or far from the rotation axis the sample would be during tomographic rotation, thereby
     influencing the rotation radius. We refer to this idea as aligning sample on the rotation axis.
     Typically, there are two alignment motors, moving the sample either horizontally parallel to the
@@ -786,8 +888,10 @@ async def align_rotation_stage_comparative(
     logger.debug("#" * 3 * len(f"Start: {func_name}"))
     # Set soft limits to the rotation motors for safe-operation if provided.
     try:
-        await set_soft_limits(motor=rot_motor_pitch, lims=dev_limits.pitch_rot_lim)
-        await set_soft_limits(motor=rot_motor_roll, lims=dev_limits.roll_rot_lim)
+        if dev_limits.pitch_rot_lim is not None:
+            await set_soft_limits(motor=rot_motor_pitch, lims=dev_limits.pitch_rot_lim)
+        if dev_limits.roll_rot_lim is not None:
+            await set_soft_limits(motor=rot_motor_roll, lims=dev_limits.roll_rot_lim) 
     except Exception as e:
         logger.debug(f"{func_name}: error setting soft-limits: {str(e)}")
     # STEP 1: Set the sphere at the center of the projection.
