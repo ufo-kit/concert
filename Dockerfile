@@ -31,7 +31,8 @@ RUN apt install -y \
     python3-pip \
     python3-setuptools \
     python3-wheel \
-    python3-gi
+    python3-gi \
+    python-is-python3
 
 # Install necessary Python packages
 RUN pip install --break-system-packages \
