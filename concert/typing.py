@@ -5,24 +5,29 @@ typing.py
 ---------
 Facilitates type annotations for concert
 """
-from typing import Protocol, Any, NewType, Callable
+from typing import Protocol, Any, Callable, Union
 from typing import List, Sequence, Tuple
 from typing import Awaitable, Coroutine
-import numpy
 
-# Defines ArrayLike as a new type
-# NOTE: We take this approach because NumPy>=1.20 offers ArrayLike as a
-# concrete type. At this point Tango has some discrepancy when it comes to
-# NumPy versions. In future this can(should) be replaced with
-# from numpy.typing import ArrayLike
-ArrayLike = NewType("ArrayLike", numpy.ndarray)
+####################################################################################################
+# Abstract types to be used across the codebase
 
+# ArrayLike is the abstract type to be used for images and numpy arrays in general
+try:
+    from numpy.typing import ArrayLike  # available in NumPy >= 1.20
+except ImportError:
+    from numpy import ndarray
+    ArrayLike = Union[ndarray, Sequence[float], float, int]
+
+# Coroutine object that can be awaited to produce a single image
 FrameProducer_T = Awaitable[ArrayLike]
+# Coroutine object that can be awaited to produce multiple images
 FramesProducer_T = Awaitable[List[ArrayLike]]
-IntCBFunc = Callable[[int], Coroutine[None, None, None]]
+# Function that takes an integer and produces a coroutine object
+IntCoroFunc = Callable[[int], Coroutine[None, None, None]]
+####################################################################################################
 
-
-#####################################################################
+####################################################################################################
 # Abstract Tango Device Types
 class AbstractStreamHandler(Protocol):
     """
@@ -160,6 +165,7 @@ class AbstractRAEDevice(Protocol):
     async def estimate_axis_of_rotation(self) -> None:
         """Executes axis of rotation estimation from radiogram projections"""
         ...
+####################################################################################################
 
 
 if __name__ == "__main__":

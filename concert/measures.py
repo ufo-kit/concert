@@ -301,10 +301,10 @@ def estimate_alignment_parameters(centroids: List[ArrayLike], min_data_pts: int 
         return wrapped
 
     if len(centroids) < min_data_pts:
-        raise ValueError("at least 5 coordinate pairs are needed")
+        raise ValueError("under-determined system, at least 5 coordinate pairs are needed")
     y_ind, x_ind = np.array(centroids)[:, 0], np.array(centroids)[:, 1]
     if max(x_ind) - min(x_ind) < x_offset_px:
-        raise ValueError("sample off-centering too small, enlarge rotation radius.")
+        raise ValueError("sample off-centering too small, enlarge rotation radius")
     # We fit the projection centroids to the EllipseModel to determine if we have a proper ellipse.
     elp = skm.EllipseModel()
     is_ellipse = elp.estimate(data=np.array(centroids)[:, [1, 0]])

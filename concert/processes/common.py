@@ -7,7 +7,7 @@ import time
 from itertools import product
 from functools import reduce
 import logging
-from typing import AsyncIterator, List, Optional, Tuple, Dict
+from typing import List, Optional, Tuple, Dict
 import numpy as np
 from concert.base import SoftLimitError, AsyncObject
 from concert.coroutines.base import background, broadcast
@@ -21,7 +21,7 @@ from concert.devices.motors.base import LinearMotor, RotationMotor
 from concert.devices.shutters.base import Shutter
 from concert.devices.cameras.base import Camera
 from concert.progressbar import wrap_iterable
-from concert.typing import ArrayLike, FrameProducer_T, FramesProducer_T, IntCBFunc
+from concert.typing import ArrayLike, FrameProducer_T, FramesProducer_T, IntCoroFunc
 
 
 LOG = logging.getLogger(__name__)
@@ -213,8 +213,6 @@ async def acquire_frames(camera, rotation_motor, num_frames, shutter=None, flat_
                     frame = np.nan_to_num(-np.log(frame))
                     # Huge numbers can also cause trouble
                     frame[np.abs(frame) > 1e6] = 0
-                else:
-                    frame = frame.max() - frame
                 yield frame
     finally:
         # No side effects
@@ -426,13 +424,13 @@ class AlignmentParams:
     """
     
     num_frames: int = 10
-    max_iterations: int = 30
+    max_iterations: int = 50
     init_pitch_gain: float = 1.0
     init_roll_gain: float = 1.0
-    eps_pose: Quantity = 0.1 * q.deg
+    eps_pose: Quantity = 0.01 * q.deg
     eps_ang_diff: Quantity = 1e-7 * q.deg
     align_metric: Optional[Quantity] = None
-    ceil_gain: float = 1e2
+    ceil_gain: float = 5.0
     ceil_rel_move: Quantity = 1 * q.deg
     off_center_padding_px: int = 200
 
@@ -606,10 +604,11 @@ async def make_alignment_step(iteration: int, motor: RotationMotor, pose_last: Q
 
 @background
 async def align_rotation_stage_ellipse_fit(
-    camera: Camera, shutter: Shutter, flat_motor: LinearMotor,
-    tomo_motor: RotationMotor, rot_motor_roll: RotationMotor, rot_motor_pitch: RotationMotor, 
-    dev_limits: DeviceSoftLimits,acq_params: AcquisitionParams, align_params: AlignmentParams,
-    logger: logging.Logger = get_noop_logger(), cb_func: Optional[IntCBFunc] = None) -> None:
+    camera: Camera, tomo_motor: RotationMotor,
+    rot_motor_roll: RotationMotor, rot_motor_pitch: RotationMotor, dev_limits: DeviceSoftLimits,
+    acq_params: AcquisitionParams, align_params: AlignmentParams, shutter: Optional[Shutter] = None,
+    flat_motor: Optional[LinearMotor] = None, logger: logging.Logger = get_noop_logger(),
+    cb_func: Optional[IntCoroFunc] = None) -> None:
     """
     Implements dynamically gained iterative alignment routine for pitch angle and roll angle
     correction based on ellipse-fit. This implementation incorporates the idea of approaching the
@@ -620,10 +619,6 @@ async def align_rotation_stage_ellipse_fit(
 
     :param camera: camera to acquire projections
     :type camera: `concert.devices.cameras.base.Camera`
-    :param shutter: beam shutter
-    :type shutter: `concert.devices.shutters.base.Shutter`
-    :param flat_motor: motor that puts rotation stage into or away from the beam
-    :type flat_motor: `concert.devices.motors.base.LinearMotor`
     :param tomo_motor: tomographic rotation motor that rotates the stage
     :type tomo_motor: `concert.devices.motors.base.RotationMotor`
     :param rot_motor_roll: motor that rotates the stage along parallel axis to beam direction
@@ -635,7 +630,11 @@ async def align_rotation_stage_ellipse_fit(
     :param acq_params: configurations specific to acquisition
     :type acq_params: `concert.processes.common.AcquisitionParams`
     :param align_params: configurations specific to alignment
-    :type align_params: `concert.processes.common.AlignmentParams`    
+    :type align_params: `concert.processes.common.AlignmentParams`
+    :param shutter: beam shutter
+    :type shutter: Optional[`concert.devices.shutters.base.Shutter`]
+    :param flat_motor: motor that puts rotation stage into or away from the beam
+    :type flat_motor: Optional[`concert.devices.motors.base.LinearMotor`]
     :param logger: optional logger
     :type logger: logging.Logger
     """
@@ -666,7 +665,7 @@ async def align_rotation_stage_ellipse_fit(
         logger.debug("=" * 3 * len(f"Start: {func_name}"))
         acq_consumers = [functools.partial(extract_ellipse_points, radius=acq_params.sphere_radius),
                          frames_result]
-        tips_start = time.perf_counter()
+        iter_start = time.perf_counter()
         # Acquire frames from camera and perform flat-field correction.
         producer: FramesProducer_T = acquire_frames(camera, tomo_motor, align_params.num_frames,
                                                     shutter=shutter, flat_motor=flat_motor,
@@ -685,7 +684,7 @@ async def align_rotation_stage_ellipse_fit(
             logger.debug("#" * len(f"End: {func_name}"))
             return
         logger.debug(
-            f"found {len(centroids)} centroids, elapsed time: {time.perf_counter() - tips_start}")
+            f"found {len(centroids)} centroids, elapsed time: {time.perf_counter() - iter_start}")
         roll_ang_curr, pitch_ang_curr, _ = estimate_alignment_parameters(centroids=centroids)
         logger.debug(f"current pitch angle error: {pitch_ang_curr.magnitude}")
         logger.debug(f"current roll angle error: {roll_ang_curr.magnitude}")
@@ -746,9 +745,11 @@ async def align_rotation_stage_ellipse_fit(
     logger.debug(f"End: {func_name}")
 
 
-async def center_sphere_in_projection(camera: Camera, shutter: Shutter, tomo_motor: RotationMotor,
-                                      flat_motor: LinearMotor, z_motor: LinearMotor,
-                                      pixel_size: PixelSize, acq_params: AcquisitionParams,
+async def center_sphere_in_projection(camera: Camera, tomo_motor: RotationMotor,
+                                      z_motor: LinearMotor, pixel_size: PixelSize,
+                                      acq_params: AcquisitionParams,
+                                      shutter: Optional[Shutter] = None,
+                                      flat_motor: Optional[LinearMotor] = None,
                                       center_px_eps: float = 2.0) -> None:
     """
     Adjusts the vertical and horizontal stage motors to put the sphere into the middle of the
@@ -756,18 +757,18 @@ async def center_sphere_in_projection(camera: Camera, shutter: Shutter, tomo_mot
 
     :param camera: camera to acquire projections
     :type camera: `concert.devices.cameras.base.Camera`
-    :param shutter: beam shutter
-    :type shutter: `concert.devices.shutters.base.Shutter`
     :param tomo_motor: tomographic rotation motor that rotates the stage
     :type tomo_motor: `concert.devices.motors.base.RotationMotor`
-    :param flat_motor: motor that puts rotation stage into or away from the beam
-    :type flat_motor: `concert.devices.motors.base.LinearMotor`
     :param z_motor: motor that alters the vertical position of the rotation stage
     :type z_motor: `concert.devices.motors.base.LinearMotor`
     :param pixel_size: pixel size
     :type pixel_size: `concert.processes.common.PixelSize`
     :param acq_params: configurations specific to acquisition
     :type acq_params: `concert.processes.common.AcquisitionParams`
+    :param shutter: beam shutter
+    :type shutter: Optional[`concert.devices.shutters.base.Shutter`]
+    :param flat_motor: motor that puts rotation stage into or away from the beam
+    :type flat_motor: Optional[`concert.devices.motors.base.LinearMotor`]
     :param center_px_eps: epsilon distance from central pixel, default two pixels
     :type center_px_eps: float
     """
@@ -800,11 +801,11 @@ async def center_sphere_in_projection(camera: Camera, shutter: Shutter, tomo_mot
 
 @background
 async def align_rotation_stage_comparative(
-    camera: Camera, shutter: Shutter, flat_motor: LinearMotor, z_motor: LinearMotor,
-    tomo_motor: RotationMotor, rot_motor_pitch: RotationMotor, rot_motor_roll: RotationMotor, 
-    align_motor_pbd: LinearMotor, align_motor_obd: LinearMotor, pixel_size: PixelSize,
-    dev_limits: DeviceSoftLimits, acq_params: AcquisitionParams, align_params: AlignmentParams,
-    logger: logging.Logger = get_noop_logger()) -> None:
+    camera: Camera, z_motor: LinearMotor, tomo_motor: RotationMotor,
+    rot_motor_pitch: RotationMotor, rot_motor_roll: RotationMotor, align_motor_pbd: LinearMotor,
+    align_motor_obd: LinearMotor, pixel_size: PixelSize, dev_limits: DeviceSoftLimits,
+    acq_params: AcquisitionParams, align_params: AlignmentParams, shutter: Optional[Shutter] = None,
+    flat_motor: Optional[LinearMotor] = None, logger: logging.Logger = get_noop_logger()) -> None:
     """
     Aligns rotation stage comparing the vertical positions of alignment phantom across half-circle
     rotations.
@@ -855,10 +856,6 @@ async def align_rotation_stage_comparative(
 
     :param camera: camera to acquire projections
     :type camera: `concert.devices.cameras.base.Camera`
-    :param shutter: beam shutter
-    :type shutter: `concert.devices.shutters.base.Shutter`
-    :param flat_motor: motor that puts rotation stage into or away from the beam
-    :type flat_motor: `concert.devices.motors.base.LinearMotor`
     :param z_motor: motor that alters the vertical position of the rotation stage
     :type z_motor: `concert.devices.motors.base.LinearMotor`
     :param tomo_motor: tomographic rotation motor that rotates the stage
@@ -879,6 +876,10 @@ async def align_rotation_stage_comparative(
     :type acq_params: `concert.processes.common.AcquisitionParams`
     :param align_params: configurations specific to alignment
     :type align_params: `concert.processes.common.AlignmentParams`
+    :param shutter: beam shutter
+    :type shutter: Optional[`concert.devices.shutters.base.Shutter`]
+    :param flat_motor: motor that puts rotation stage into or away from the beam
+    :type flat_motor: Optional[`concert.devices.motors.base.LinearMotor`]
     :param logger: optional logger
     :type logger: logging.Logger
     """

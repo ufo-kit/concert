@@ -11,7 +11,7 @@ import numpy as np
 try:
     import cupy as xp
     import cupy.fft as xft
-    from cupy import ndarray as ArrayLike
+    from cupy.typing import ArrayLike
 except ModuleNotFoundError:
     print("cupy not available, defaulting to numpy")
     import numpy as xp
