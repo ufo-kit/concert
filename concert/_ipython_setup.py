@@ -10,7 +10,7 @@ import traceback
 from concert.base import (UnitError, LimitError, ParameterError,
                           ReadAccessError, WriteAccessError, LockError)
 from concert.coroutines.base import get_event_loop
-from concert.session.utils import abort_awaiting
+from concert.session.utils import abort_awaiting, run_exit_functions
 
 
 LOG = logging.getLogger(__name__)
@@ -39,6 +39,20 @@ def _handler(_shell, _etype, evalue, _traceback_, tb_offset=None):
 
 def _abort_all_awaiting(event):
     abort_awaiting()
+
+
+async def _ctrl_d(event):
+    await run_exit_functions()
+    ip = get_ipython()
+    ip.ask_exit()
+    event.app.exit()
+
+
+def _pre_run_cell(info):
+    from concert.coroutines.base import run_in_loop
+    if info.raw_cell in ["exit", "quit"]:
+        run_in_loop(run_exit_functions())
+        get_ipython().ask_exit()
 
 
 _custom_exceptions = (
@@ -85,5 +99,7 @@ try:
     # ctrl-k (abort everything, also background awaitables)
     ip.loop_runner = ConcertAsyncioRunner()
     ip.pt_app.key_bindings.add('c-k')(_abort_all_awaiting)
+    ip.pt_app.key_bindings.add('c-d')(_ctrl_d)
+    ip.events.register("pre_run_cell", _pre_run_cell)
 except NameError as err:
     raise NameError("This module must be run after concert start") from err

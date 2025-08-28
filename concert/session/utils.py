@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import logging
 import math
 import os
@@ -238,3 +239,21 @@ async def check_emergency_stop(check, poll_interval=0.1 * q.s, exit_session=Fals
                 # Wait until the flag clears
                 await asyncio.sleep(poll_interval.to(q.s).magnitude)
         await asyncio.sleep(poll_interval.to(q.s).magnitude)
+
+
+_EXIT_FUNCTIONS = []
+
+
+def register_exit_func(func):
+    if func not in _EXIT_FUNCTIONS:
+        _EXIT_FUNCTIONS.append(func)
+
+
+def unregister_exit_func(func):
+    if func in _EXIT_FUNCTIONS:
+        _EXIT_FUNCTIONS.remove(func)
+
+
+async def run_exit_functions():
+    for func in _EXIT_FUNCTIONS:
+        await func()

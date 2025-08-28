@@ -12,6 +12,7 @@ from concert.quantities import q
 from concert.base import Parameter, Quantity
 from concert.helpers import Bunch, CommData
 from concert.devices.cameras import base
+from concert.session.utils import register_exit_func
 
 
 LOG = logging.getLogger(__name__)
@@ -260,7 +261,10 @@ class RemoteNetCamera(Camera):
         await Camera.__ainit__(self, 'net', params=params)
         self._ucad_host = self.uca.props.host
         self._ucad_port = self.uca.props.port
-        weakref.finalize(self, _ucad_unregister_all, self._ucad_host, self._ucad_port)
+        # weakref.finalize(self, _ucad_unregister_all, self._ucad_host, self._ucad_port)
+        import functools
+        fin = functools.partial(_ucad_unregister_all, self._ucad_host, self._ucad_port)
+        register_exit_func(fin)
         if ":" in self._ucad_host:
             self._ucad_host, self._ucad_port = self._ucad_host.split(":")
 
@@ -302,8 +306,8 @@ async def _ucad_communicate(request, host, port):
         await writer.wait_closed()
 
 
-def _ucad_unregister_all(host, port):
-    asyncio.run(_ucad_communicate(struct.pack("I", 14), host, port))
+async def _ucad_unregister_all(host, port):
+    await _ucad_communicate(struct.pack("I", 14), host, port)
     LOG.debug("Unregistered all endpoints on %s:%d", host, port)
 
 
