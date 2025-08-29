@@ -256,4 +256,8 @@ def unregister_exit_func(func):
 
 async def run_exit_functions():
     for func in _EXIT_FUNCTIONS:
-        await func()
+        try:
+            await func()
+        except Exception as e:
+            print(f"Exception in exit function `{func.__qualname__}': `{e}'")
+            LOG.error(e)
