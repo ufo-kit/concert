@@ -52,7 +52,6 @@ def _pre_run_cell(info):
     from concert.coroutines.base import run_in_loop
     if info.raw_cell in ["exit", "quit"]:
         run_in_loop(run_exit_functions())
-        get_ipython().ask_exit()
 
 
 _custom_exceptions = (
