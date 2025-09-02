@@ -34,9 +34,9 @@ except Exception as e:
     print("\\nAn error occured while starting session `{0}':")
     print("-------------------------------------------" + "-" * len('{0}'))
     print(traceback.format_exc(), file=sys.stderr)
-    if os.path.exists("{1}"):
-        os.remove("{1}")
-        print("Removed lock file {1}")
+    if os.path.exists(r"{1}"):
+        os.remove(r"{1}")
+        print(r"Removed lock file {1}")
     os.kill(os.getpid(), signal.SIGTERM)
 """
 
