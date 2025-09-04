@@ -3,6 +3,7 @@ import asyncio
 import logging
 from concert.base import HardLimitError, Quantity
 from concert.coroutines.base import start
+from concert.devices.base import Device
 from concert.quantities import q
 from concert.devices.motors import base
 import numpy as np
@@ -172,3 +173,47 @@ class ContinuousRotationMotor(RotationMotor,
                 start(self.set_position(-np.inf * q.deg))
         if vel.magnitude == 0:
             start(self.stop())
+
+
+class TomographyStage(Device):
+
+    """
+    Dummy tomography stage. Sample is in position [0, 0, 0] and the stack of motors is below it.
+    Top-to-bottom order of motors:
+        - parallel_motor_above and orthogonal_motor_above (in the same height)
+        - tomo_motor
+        - roll_motor
+        - lamino_motor
+        - parallel_motor_below
+        - orthogonal_motor_below
+    """
+
+    async def __ainit__(self, lamino_motor_z_offset=None, roll_motor_z_offset=None):
+        await super().__ainit__()
+
+        self.lamino_motor_z_offset = lamino_motor_z_offset
+        self.roll_motor_z_offset = roll_motor_z_offset
+        if self.lamino_motor_z_offset is None:
+            self.lamino_motor_z_offset = [0, 0, -30] * q.cm
+        if self.roll_motor_z_offset is None:
+            self.roll_motor_z_offset = [0, 0, -20] * q.cm
+
+        self.parallel_motor_below = await ContinuousLinearMotor()
+        self.orthogonal_motor_below = await ContinuousLinearMotor()
+        self.parallel_motor_above = await ContinuousLinearMotor()
+        self.orthogonal_motor_above = await ContinuousLinearMotor()
+        self.lamino_motor = await ContinuousRotationMotor()
+        self.roll_motor = await ContinuousRotationMotor()
+        self.tomo_motor = await ContinuousRotationMotor()
+        self._motors = [
+            self.parallel_motor_above,
+            self.parallel_motor_below,
+            self.orthogonal_motor_above,
+            self.orthogonal_motor_below,
+            self.lamino_motor,
+            self.roll_motor,
+            self.tomo_motor
+        ]
+
+    async def home(self):
+        await asyncio.gather(*[motor.set_position(0 * motor["position"].unit) for motor in self._motors])

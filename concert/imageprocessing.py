@@ -561,3 +561,15 @@ def filter_low_frequencies(data, fwhm=32.):
     fltr = 1 - np.exp(- x ** 2 / (2 * f_sigma ** 2))
 
     return np.fft.ifft(np.fft.fft(data) * fltr).real + mean
+
+
+def make_sphere(shape, radius, center):
+    """Make a sphere with image *shape*, *center* and *radius*."""
+    image = np.zeros(shape, dtype=np.float32)
+    y, x = np.indices(shape)
+    x = x - center[1] + .5
+    y = y - center[0] + .5
+    valid = np.where(x ** 2 + y ** 2 <= radius ** 2)
+    image[valid] = 2 * np.sqrt(radius ** 2 - x[valid] ** 2 - y[valid] ** 2)
+
+    return image
