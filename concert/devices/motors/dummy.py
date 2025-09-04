@@ -184,7 +184,7 @@ class TomographyStage(Device):
         - tomo_motor
         - roll_motor
         - lamino_motor
-        - parallel_motor_below
+        - vertical_motor_below
         - orthogonal_motor_below
     """
 
@@ -198,7 +198,7 @@ class TomographyStage(Device):
         if self.roll_motor_z_offset is None:
             self.roll_motor_z_offset = [0, 0, -20] * q.cm
 
-        self.parallel_motor_below = await ContinuousLinearMotor()
+        self.vertical_motor_below = await ContinuousLinearMotor()
         self.orthogonal_motor_below = await ContinuousLinearMotor()
         self.parallel_motor_above = await ContinuousLinearMotor()
         self.orthogonal_motor_above = await ContinuousLinearMotor()
@@ -207,7 +207,7 @@ class TomographyStage(Device):
         self.tomo_motor = await ContinuousRotationMotor()
         self._motors = [
             self.parallel_motor_above,
-            self.parallel_motor_below,
+            self.vertical_motor_below,
             self.orthogonal_motor_above,
             self.orthogonal_motor_below,
             self.lamino_motor,

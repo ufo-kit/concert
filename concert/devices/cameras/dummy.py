@@ -238,7 +238,7 @@ class TomographyStageCamera(Base):
 
             return shift * value.units
 
-        parallel_below = _vectorize(await self.stage.parallel_motor_below.get_position(), 1)
+        parallel_below = _vectorize(await self.stage.vertical_motor_below.get_position(), 2)
         ortho_below = _vectorize(await self.stage.orthogonal_motor_below.get_position(), 0)
         parallel_above = _vectorize(await self.stage.parallel_motor_above.get_position(), 1)
         ortho_above = _vectorize(await self.stage.orthogonal_motor_above.get_position(), 0)
@@ -263,9 +263,8 @@ class TomographyStageCamera(Base):
 
         # Return x-y on the projection, which is x-z here
         result = np.dot(mat, np.array([0, 0, 0, 1])) * 1e3 * q.mm
-        print(result[:-1])
 
-        return result[0:2]
+        return result[0::2]
         
     async def _grab_real(self):
         from concert.imageprocessing import make_sphere
