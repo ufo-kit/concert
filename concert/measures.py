@@ -228,9 +228,12 @@ def rotation_axis(tips):
     return (phi, psi, center)
 
 
-def estimate_alignment_parameters(centroids: List[ArrayLike], min_data_pts: int = 5,
-                                  x_offset_px: int = 10, use_svd: bool = False
-                                  ) -> Tuple[Quantity, Quantity, float]:
+def estimate_alignment_parameters(
+        centroids: List[ArrayLike],
+        min_data_pts: int = 5,
+        x_offset_px: int = 10,
+        use_svd: bool = False
+        ) -> Tuple[Quantity, Quantity, float]:
     """
     Estimates roll, pitch and center of rotation from projected sphere phantom.
 
@@ -264,7 +267,7 @@ def estimate_alignment_parameters(centroids: List[ArrayLike], min_data_pts: int 
     cross product provides the sine component along with the signed area of the parallelogram
     that they make depending on their orientation w.r.t. each other, which is helpful to
     determine the rotation direction of the pitch using arctangent. If using SVD we compute the
-    magnitude of the pitch from ratio of square-roots of the singual values of the quadratic
+    magnitude of the pitch from ratio of square-roots of the singular values of the quadratic
     form matrix [[A, B / 2], [B / 2, C]], which is equivalent of ratio of semi-minor and
     semi-major axes. Axes lengths and roll angle can be directly obtained from EllipseModel.
 
@@ -318,8 +321,9 @@ def estimate_alignment_parameters(centroids: List[ArrayLike], min_data_pts: int 
             # six columns.
             design_matrix = np.empty((len(x_ind), 6), dtype=float)
             for i in range(len(x_ind)):
-                design_matrix[i] = np.array([x_ind[i] ** 2, x_ind[i] * y_ind[i],
-                                            y_ind[i] ** 2, x_ind[i], y_ind[i], 1])
+                design_matrix[i] = np.array(
+                        [x_ind[i] ** 2, x_ind[i] * y_ind[i], y_ind[i] ** 2, x_ind[i], y_ind[i], 1]
+                )
             # Center of a conic (Ellipse or Hyperbola) is the point where the gradient of the
             # quadratic form becomes 0. To compute this (x, y) points we take the gradients of the
             # general conic equation and make a linear system of equations out it. Upon solving the
