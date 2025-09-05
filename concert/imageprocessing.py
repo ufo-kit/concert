@@ -563,13 +563,35 @@ def filter_low_frequencies(data, fwhm=32.):
     return np.fft.ifft(np.fft.fft(data) * fltr).real + mean
 
 
-def make_sphere(shape, radius, center):
-    """Make a sphere with image *shape*, *center* and *radius*."""
+def make_sphere(shape, radius, center, fast=False):
+    """Make a sphere with image *shape*, *center* and *radius*. If *fast* is True, sphere patch is
+    computed based on bounds given by radius and this patch is then placed into the result with
+    *shape*.
+    """
     image = np.zeros(shape, dtype=np.float32)
-    y, x = np.indices(shape)
-    x = x - center[1] + .5
-    y = y - center[0] + .5
-    valid = np.where(x ** 2 + y ** 2 <= radius ** 2)
-    image[valid] = 2 * np.sqrt(radius ** 2 - x[valid] ** 2 - y[valid] ** 2)
+
+    if fast:
+        x_0 = max(int(np.floor(-radius + center[1] - 0.5)), 0)
+        x_1 = min(int(np.ceil(radius + center[1] - 0.5)), shape[1])
+        y_0 = max(int(np.floor(-radius + center[0] - 0.5)), 0)
+        y_1 = min(int(np.ceil(radius + center[0] - 0.5)), shape[0])
+        if x_0 >= shape[1] or x_1 <= 0 or y_0 >= shape[0] or y_1 <= 0:
+            # Out of field of view
+            return image
+
+        x, y = np.meshgrid(np.arange(x_0, x_1), np.arange(y_0, y_1))
+        patch = np.zeros((y_1 - y_0, x_1 - x_0), dtype=np.float32)
+
+        x = x - center[1] + .5
+        y = y - center[0] + .5
+        valid = np.where(x ** 2 + y ** 2 <= radius ** 2)
+        patch[valid] = 2 * np.sqrt(radius ** 2 - x[valid] ** 2 - y[valid] ** 2)
+        image[y_0:y_1, x_0:x_1] = patch
+    else:
+        y, x = np.indices(shape)
+        x = x - center[1] + .5
+        y = y - center[0] + .5
+        valid = np.where(x ** 2 + y ** 2 <= radius ** 2)
+        image[valid] = 2 * np.sqrt(radius ** 2 - x[valid] ** 2 - y[valid] ** 2)
 
     return image
