@@ -7,6 +7,7 @@ from functools import reduce
 import logging
 from typing import List, Optional, Tuple, Dict
 import numpy as np
+import scipy.ndimage as sdi
 import skimage.registration as skr
 from concert.base import SoftLimitError, AsyncObject
 from concert.coroutines.base import background, broadcast
@@ -172,7 +173,7 @@ async def focus(camera, motor, measure=np.std, opt_kwargs=None,
          flat_motor=LinearMotor, flat_position=Numeric(1, q.m), y_0=Numeric(1),
          y_1=Numeric(1))
 async def acquire_frames(camera, rotation_motor, num_frames, shutter=None, flat_motor=None,
-                             flat_position=None, y_0=0, y_1=None):
+                         flat_position=None, y_0=0, y_1=None):
     """
     acquire_frames(camera, rotation_motor, num_frames, shutter=None, flat_motor=None,
                        flat_position=None, y_0=0, y_1=None)
@@ -207,11 +208,16 @@ async def acquire_frames(camera, rotation_motor, num_frames, shutter=None, flat_
                     await rotation_motor.move(2 * np.pi / num_frames * q.rad)
                 await camera.trigger()
                 frame = (await camera.grab())[y_0:y_1].astype(float)
-                if flat is not None:
-                    frame = flat_correct(frame, flat, dark=dark)
-                    frame = np.nan_to_num(-np.log(frame))
-                    # Huge numbers can also cause trouble
-                    frame[np.abs(frame) > 1e6] = 0
+                if shutter is None:
+                    # When we are working dummy motor and there is no shutter available we
+                    # initialize flat and dark such that zero-division error is avoided during
+                    # flat field correction.
+                    flat = np.ones(frame.shape)
+                    dark = np.zeros(frame.shape)
+                frame = flat_correct(frame, flat, dark=dark)
+                frame = np.nan_to_num(-np.log(frame))
+                # Huge numbers can also cause trouble
+                frame[np.abs(frame) > 1e6] = 0
                 yield frame
     finally:
         # No side effects
@@ -492,8 +498,7 @@ async def set_best_position(
         motor: RotationMotor,
         rot_type: str,
         history: List[Dict[str, Quantity]],
-        logger: logging.Logger
-        ) -> None:
+        logger: logging.Logger) -> None:
     """
     Sets the motor position against the lowest angular error.
 
@@ -529,8 +534,7 @@ async def make_alignment_step(
         eps_ang_diff: Quantity,
         ceil_gain: float,
         ceil_rel_move: Quantity,
-        logger: logging.Logger
-        ) -> Tuple[Quantity, Quantity]:
+        logger: logging.Logger) -> Tuple[Quantity, Quantity]:
     """
     Makes a single iterative step with dynamic gain.
 
@@ -613,11 +617,10 @@ async def align_rotation_stage_ellipse_fit(
         dev_limits: DeviceSoftLimits,
         acq_params: AcquisitionParams,
         align_params: AlignmentParams,
-        shutter: Optional[Shutter] = None,
-        flat_motor: Optional[LinearMotor] = None,
+        shutter: Shutter,
+        flat_motor: LinearMotor,
         logger: logging.Logger = get_noop_logger(),
-        cb_func: Optional[IntCoroFunc] = None
-        ) -> None:
+        cb_func: Optional[IntCoroFunc] = None) -> None:
     """
     Implements dynamically gained iterative alignment routine for pitch angle and roll angle
     correction based on ellipse-fit. This implementation incorporates the idea of approaching the
@@ -641,9 +644,9 @@ async def align_rotation_stage_ellipse_fit(
     :param align_params: configurations specific to alignment
     :type align_params: `concert.processes.common.AlignmentParams`
     :param shutter: beam shutter
-    :type shutter: Optional[`concert.devices.shutters.base.Shutter`]
+    :type shutter: `concert.devices.shutters.base.Shutter`
     :param flat_motor: motor that puts rotation stage into or away from the beam
-    :type flat_motor: Optional[`concert.devices.motors.base.LinearMotor`]
+    :type flat_motor: `concert.devices.motors.base.LinearMotor`
     :param logger: optional logger
     :type logger: logging.Logger
     """
@@ -754,17 +757,26 @@ async def align_rotation_stage_ellipse_fit(
     logger.debug(f"End: {func_name}")
 
 
-async def signed_offset_from_axis(
+async def offset_from_axis(
         camera: Camera,
         tomo_motor: RotationMotor,
         flat_motor: LinearMotor,
         acq_params: AcquisitionParams,
-        flipped_corr: bool = False,
-        shutter: Optional[Shutter] = None
-        ) -> ArrayLike:
+        shutter: Shutter,
+        flipped_corr: bool = False) -> float:
     """
-    Estimates the signed distance of a high-absorbing object from axis of rotation based on the
-    principles of phase correlation.
+    Estimates offset distance in pixels for an object from rotation axis for certain direction for
+    which the function is called.
+
+    A specific angular offset is associated with each direction e.g., [0, 180] for horizontally 
+    orthogonal to beam direction and [90, 270] for horizontally-parallel to beam direction. This
+    mapping is not universal but in context of rotation on 2D cartesian X-Y plane we know that
+    maximum angular offset in either direction is 180 degrees. We therefore cross-correlate the
+    projections for both ends of 180 degrees rotation to measure the displacement. This displacement
+    is analogous to rotation diameter for the given direction. Halving the same gives us approximate
+    distance of from rotation axis (which is this context is the origin of the coordinate system).
+    If we make correct proportional movement for alignment motor for respective direction sample
+    tends to get closer to the rotation axis from that direction.
 
     :param camera: camera to acquire projections
     :type camera: `concert.devices.cameras.base.Camera`
@@ -776,107 +788,45 @@ async def signed_offset_from_axis(
     :type acq_params: `concert.processes.common.AcquisitionParams`
     :param flip_corr: whether projection after 180 degrees rotation should be flipped
     :type flip_corr: bool
-    :param shutter: optional beam shutter
-    :type shutter: Optional[`concert.devices.shutters.base.Shutter`]
+    :param shutter: beam shutter
+    :type shutter: `concert.devices.shutters.base.Shutter`
+    :return: distance from axis of rotation, rotation radius
+    :rtype: float
     """
     producer: FrameProducer_T = acquire_frames(
-            camera,
-            tomo_motor,
-            1, # number of frames
-            shutter=shutter,
-            flat_motor=flat_motor,
-            flat_position=acq_params.flat_position
-    )
+        camera,
+        tomo_motor,
+        1, # number of frames
+        shutter=shutter,
+        flat_motor=flat_motor,
+        flat_position=acq_params.flat_position)
     frame0: ArrayLike = [frame async for frame in producer][0]
     await tomo_motor.move(180 * q.deg)
     producer = acquire_frames(
-            camera,
-            tomo_motor,
-            1, # number of frames
-            shutter=shutter,
-            flat_motor=flat_motor,
-            flat_position=acq_params.flat_position)
+        camera,
+        tomo_motor,
+        1, # number of frames
+        shutter=shutter,
+        flat_motor=flat_motor,
+        flat_position=acq_params.flat_position)
     frame180: ArrayLike = [frame async for frame in producer][0]
-    shift, _, _ = skr.phase_cross_correlation(
-        reference_image=frame0,
-        moving_image=np.fliplr(frame180) if flipped_corr else frame180,
+    reference_image: ArrayLike = frame0.copy()
+    reference_image[frame0 < frame0.max()] = frame0.min()
+    moving_image: ArrayLike = frame180.copy()
+    moving_image[frame180 < frame180.max()] = frame180.min()
+    shift_yx, _, _ = skr.phase_cross_correlation(
+        reference_image=reference_image,
+        moving_image=np.fliplr(moving_image) if flipped_corr else moving_image,
         upsample_factor=4)
-    return shift
+    await tomo_motor.move(-180 * q.deg)
+    # A rotation in 3D cartesian system w.r.t. vertical Z-axis (0, 0, 1) is projected onto 2D
+    # detector plane which is parallel to Z-axis. Displacement is the distance between two points
+    # on a horizontal line, therefore we take second component.
+    displacement = (shift_yx[1] + acq_params.width) % acq_params.width
+    return displacement / 2
 
 
-async def center_rotation_stage_in_projection(
-        camera: Camera,
-        tomo_motor: RotationMotor,
-        z_motor: LinearMotor,
-        flat_motor: LinearMotor,
-        pixel_size_um: Quantity,
-        acq_params: AcquisitionParams,
-        shutter: Optional[Shutter] = None,
-        px_eps: int = 2
-        ) -> None:
-    """
-    Adjusts the vertical motor(`z_motor`) and horizontal motor(`flat_motor`) to put the rotation
-    stage in he middle along the beam. We assume that the sample is brought within FOV beforehand
-    while tomo angle is at 0 degree.
-
-    NOTE: We compute the initial position of sample in the projection. While absolute distance
-    between the sample position and projection center drops under the epsilon pixel threshold,
-
-    - compute signed pixel offset from center for each direction.
-    - make a signed 1 mm delta movement in respective directions.
-    - determine correct direction based on new absolute distance from center after delta movement.
-    - make revised corrective motor movement to reduce absolute distance from center.
-   
-    :param camera: camera to acquire projections
-    :type camera: `concert.devices.cameras.base.Camera`
-    :param tomo_motor: tomographic rotation motor that rotates the stage
-    :type tomo_motor: `concert.devices.motors.base.RotationMotor`
-    :param z_motor: motor that alters the vertical position of the rotation stage
-    :type z_motor: `concert.devices.motors.base.LinearMotor`
-    :param flat_motor: motor that puts rotation stage into or away from the beam
-    :type flat_motor: `concert.devices.motors.base.LinearMotor`
-    :param pixel_size_um: pixel size in microns
-    :type pixel_size_um: `concert.quantities.Quantity`
-    :param acq_params: configurations specific to acquisition
-    :type acq_params: `concert.processes.common.AcquisitionParams`
-    :param shutter: optional beam shutter
-    :type shutter: Optional[`concert.devices.shutters.base.Shutter`]
-    :param px_eps: epsilon distance from central pixel, default two pixels
-    :type px_eps: int
-    """
-    sign_offset_ver, sign_offset_hor = signed_offset_from_axis(
-            camera, tomo_motor, flat_motor, acq_params, shutter
-    )
-    while abs(sign_offset_ver) < px_eps or abs(sign_offset_hor) < px_eps:
-        # Make vertical adjument
-        if abs(sign_offset_ver) > px_eps: 
-            delta_ver_mm = np.sign(sign_offset_ver) * q.mm
-            await z_motor.move(delta_ver_mm)
-            _sign_offset_ver, _ = signed_offset_from_axis(
-                    camera, tomo_motor, flat_motor, acq_params, shutter
-            )
-            if abs(_sign_offset_ver) > abs(sign_offset_ver):
-                sign_offset_ver = -sign_offset_ver 
-                delta_ver_mm = -delta_ver_mm
-            await z_motor.move((sign_offset_ver * pixel_size_um) + delta_ver_mm.to(q.um))
-        # Make horizontal adjustment
-        if abs(sign_offset_hor) > px_eps:
-            delta_hor_mm = np.sign(sign_offset_hor) * q.mm
-            await flat_motor.move(delta_hor_mm)
-            _, _sign_offset_hor = signed_offset_from_axis(
-                    camera, tomo_motor, flat_motor, acq_params, shutter
-            )
-            if abs(_sign_offset_hor) > abs(sign_offset_hor):
-                sign_offset_hor = -sign_offset_hor
-                delta_hor_mm = -delta_hor_mm
-            await flat_motor.move((sign_offset_hor * pixel_size_um) + delta_hor_mm.to(q.um))
-        # Update state for next iteration
-        sign_offset_ver, sign_offset_hor = signed_offset_from_axis(
-                camera, tomo_motor, flat_motor, acq_params, shutter
-        )
-
-
-async def center_sample_in_projection(
+async def center_sample_on_axis(
         camera: Camera,
         tomo_motor: RotationMotor,
         flat_motor: LinearMotor,
@@ -884,28 +834,38 @@ async def center_sample_in_projection(
         align_motor_obd: LinearMotor,
         pixel_size_um: Quantity,
         acq_params: AcquisitionParams,
-        shutter: Optional[Shutter] = None,
-        px_eps: float = 2.0
-        ) -> None:
+        shutter: Shutter,
+        delta_move_mm: Quantity = 0.05 * q.mm,
+        px_eps: float = 2.0) -> None:
     """
-    Adjusts linear alignment motors orthogonal to the beam (`align_motor_obd`) and parallel to the
-    beam (`alignment_motor_pbd`) to center the sample in projection.
+    Adjusts alignment motors orthogonal to the beam direction, `align_motor_obd` and parallel to the
+    beam direction, `align_motor_pbd` to center the sample on rotation axis. This is prerequisite
+    to aligning the rotation stage.
 
-    These linear motors seat on top of the rotation stage and we can use them to position the
-    sample in the projections while keeping the axis of rotation in the beam. In other words we
-    can use these motors to take projections such that the sample appears exactly at the middle
-    of the projection or away from the middle of the projections. Usually this assumption holds
-    when we have also aligned rotation stage to be the in the middle of the beam using
-    `center_rotation_stage`.
+    Alignment motors are linear motors which seat on top of tomographic rotation motor on stage. The
+    stage itself can be moved into or out of the beam using `flat_motor` (horizontally orthogonal
+    to beam direction). Rotation axis is the geometric center of the rotation motor. Since alignment
+    motors, `align_motor_pbd` and `align_motor_obd` seat on top the rotation motor they directly
+    influence the rotation radius i.e., how far from the center a sample is rotating. We project a
+    rotation in 3D cartesian system onto 2D plane to measure and reduce rotation radius in iterative
+    steps.
+
+    In 3D, sample rotates w.r.t vertical Z-axis (0, 0, 1), while `align_motor_obd` displaces the
+    sample along X-axis (1, 0, 0) and `align_motor_obd` displaces the sample along Y-axis (0, 1, 0).
+    In this context X-axis is spanned horizontally-orthogonal to the beam direction and Y-axis is
+    spanned horizontally-parallel to the beam direction. Although this mapping is not universal core
+    logic to estimate the rotation radius remains similar, because a specific angular offset is
+    associated with each direction and respective alignment motor e.g., [0, 180] is for
+    `align_motor_obd` and [90, 270] is for `align_motor_pbd`. From high level POV we want to measure
+    how far the sample is from rotation axis (which is this context is the origin of the coordinate
+    system) and adjust the motor to move the sample toward the axis from both horizontal directions
+    using respective motors. The rotation radius computed from both directions may not be same
+    because displacement of these motors are independent of each other but at the end of centering
+    the sample on rotation axis, we should not perceive any displacement from rotation.
     
-    Before starting the iterative alignment procedure we want to first put the sample exactly at
-    the middle of the projection because to align the rotation stage for tomography we want to
-    deliberately off-center our phantom both in the direction parallel to beam and orthogonal to
-    beam.
-
-    In this implementation we assume that a rotation of the stage between [0-180] degrees is
-    associated with the motor, orthogonal to the beam direction and [90-270] degrees is associated
-    with the motor, parallel to beam direction.
+    On first iteration we determine the sign of correct motor movement by making a small move
+    `delta_move_mm` in either direction and inspecting if that reduces the rotation radius in that
+    direction. If it does then we have the correct sign, otherwise we toggle the sign.
 
     :param camera: camera to acquire projections
     :type camera: `concert.devices.cameras.base.Camera`
@@ -922,57 +882,159 @@ async def center_sample_in_projection(
     :param acq_params: configurations specific to acquisition
     :type acq_params: `concert.processes.common.AcquisitionParams`
     :param shutter: optional beam shutter
-    :type shutter: Optional[`concert.devices.shutters.base.Shutter`]
+    :type shutter: `concert.devices.shutters.base.Shutter`
+    :param delta_move_mm: small movement to determine sign of corrective motor movement
+    :type delta_move_mm: `concert.quantities.Quantity` 
     :param px_eps: epsilon distance from central pixel, default two pixels
     :type px_eps: int
     """
-    # Get initial sample offset from axis of rotation.
+    
     await tomo_motor.set_position(0 * q.deg)
-    _, sign_offset_obd = signed_offset_from_axis(
-            camera, tomo_motor, flat_motor, acq_params, shutter
-    )
+    offset_obd: float = await offset_from_axis(camera, tomo_motor, flat_motor, acq_params, shutter)
     await tomo_motor.set_position(90 * q.deg)
-    _, sign_offset_pbd = signed_offset_from_axis(
-            camera, tomo_motor, flat_motor, acq_params, shutter
-    )
-    while abs(sign_offset_pbd) < px_eps or abs(sign_offset_obd) < px_eps:
-        # Make step adjustment for linear motor orthogonal to beam direction 
-        if abs(sign_offset_obd) < px_eps:
-            delta_obd_mm = np.sign(sign_offset_obd) * q.mm
-            await align_motor_obd.move(delta_obd_mm)
+    offset_pbd: float = await offset_from_axis(camera, tomo_motor, flat_motor, acq_params, shutter)
+    while offset_obd > px_eps or offset_pbd > px_eps:
+        # Make step adjustment for alignment motor orthogonal to beam direction
+        if offset_obd > px_eps:
+            await align_motor_obd.move(delta_move_mm)
             await tomo_motor.set_position(0 * q.deg)
-            _, _sign_offset_obd = signed_offset_from_axis(
-                    camera, tomo_motor, flat_motor, acq_params, shutter
-            )
-            if abs(_sign_offset_obd) > abs(sign_offset_obd):
-                sign_offset_obd = -sign_offset_obd 
-                delta_obd_mm = -delta_obd_mm
-            await align_motor_obd.move(
-                    (sign_offset_obd * pixel_size_um) + delta_obd_mm.to(q.um)
-            )
-        # Make step adjustment for linear motor parallel to beam direction.
-        if abs(sign_offset_pbd) < px_eps:
-            delta_pbd_mm = np.sign(sign_offset_pbd) * q.mm
-            await align_motor_pbd.move(delta_pbd_mm)
+            _offset_obd: float = await offset_from_axis(
+                camera, tomo_motor, flat_motor, acq_params, shutter)
+            await align_motor_obd.move(-delta_move_mm)
+            if _offset_obd > offset_obd:
+                offset_obd = -offset_obd
+            await align_motor_obd.move(offset_obd * pixel_size_um)
+        # Make step adjustment for alignment motor parallel to beam direction.
+        if offset_pbd > px_eps:
+            await align_motor_pbd.move(delta_move_mm)
             await tomo_motor.set_position(90 * q.deg)
-            _, _sign_offset_pbd = signed_offset_from_axis(
-                    camera, tomo_motor, flat_motor, acq_params, shutter
-            )
-            if abs(_sign_offset_pbd) > abs(sign_offset_pbd):
-                sign_offset_pbd = -sign_offset_pbd 
-                delta_pbd_mm = -delta_pbd_mm
-            await align_motor_pbd.move(
-                    (sign_offset_pbd * pixel_size_um) + delta_pbd_mm.to(q.um)
-            )
-        # Update sample offset from axis of rotation.
+            _offset_pbd: float = await offset_from_axis(
+                camera, tomo_motor, flat_motor, acq_params, shutter)
+            await align_motor_pbd.move(-delta_move_mm)
+            if _offset_pbd > offset_pbd:
+                offset_pbd = -offset_pbd
+            await align_motor_pbd.move(offset_pbd * pixel_size_um)
         await tomo_motor.set_position(0 * q.deg)
-        _, sign_offset_obd = signed_offset_from_axis(
-                camera, tomo_motor, flat_motor, acq_params, shutter
-        )
+        offset_obd = await offset_from_axis(camera, tomo_motor, flat_motor, acq_params, shutter)
         await tomo_motor.set_position(90 * q.deg)
-        _, sign_offset_pbd = signed_offset_from_axis(
-                camera, tomo_motor, flat_motor, acq_params, shutter
-        )
+        offset_pbd = await offset_from_axis(camera, tomo_motor, flat_motor, acq_params, shutter)        
+        await tomo_motor.set_position(0 * q.deg)
+
+
+async def offset_from_projection_center(
+        camera: Camera,
+        tomo_motor: RotationMotor,
+        flat_motor: LinearMotor,
+        acq_params: AcquisitionParams,
+        shutter: Shutter) -> Tuple[float, float]:
+    """
+    Derives the distance in pixels between geometric center of the projection and center of mass
+    in XY detector plane. These values are useful to adjust tomographic stage motor (horizontally
+    orthogonal to beam direction) and z-motor (vertically orthogonal to beam direction) to center a
+    sample in the projection.
+
+    :param camera: camera to acquire projections
+    :type camera: `concert.devices.cameras.base.Camera`
+    :param tomo_motor: tomographic rotation motor that rotates the stage
+    :type tomo_motor: `concert.devices.motors.base.RotationMotor`
+    :param flat_motor: motor that puts rotation stage into or away from the beam
+    :type flat_motor: `concert.devices.motors.base.LinearMotor`
+    :param acq_params: configurations specific to acquisition
+    :type acq_params: `concert.processes.common.AcquisitionParams`
+    :param shutter: beam shutter
+    :type shutter: `concert.devices.shutters.base.Shutter`
+    :return: distance between the geometric center of projection and center of mass 
+    :rtype: Tuple[float, float]
+    """
+    producer: FrameProducer_T = acquire_frames(
+        camera,
+        tomo_motor,
+        1, # number of frames
+        shutter=shutter,
+        flat_motor=flat_motor,
+        flat_position=acq_params.flat_position
+    )
+    frame: ArrayLike = [frame async for frame in producer][0]
+    reference_image: ArrayLike = frame.copy()
+    reference_image[frame < frame.max()] = frame.min()
+    ycm, xcm = sdi.center_of_mass(np.asarray(reference_image))
+    yc_proj, xc_proj = frame.shape[0] / 2, frame.shape[1] / 2
+    z_offset, stage_offset = abs(yc_proj - ycm), abs(xc_proj - xcm)
+    return z_offset, stage_offset
+
+
+async def center_tomo_stage_in_projection(
+        camera: Camera,
+        tomo_motor: RotationMotor,
+        z_motor: LinearMotor,
+        flat_motor: LinearMotor,
+        pixel_size_um: Quantity,
+        acq_params: AcquisitionParams,
+        shutter: Shutter,
+        delta_move_mm: Quantity = 0.05 * q.mm,
+        px_eps: float = 2.0) -> None:
+    """
+    Adjusts the vertical motor(`z_motor`) and horizontal motor(`flat_motor`) to put the center of
+    mass of the sample in the middle of the projection.
+   
+    :param camera: camera to acquire projections
+    :type camera: `concert.devices.cameras.base.Camera`
+    :param tomo_motor: tomographic rotation motor that rotates the stage
+    :type tomo_motor: `concert.devices.motors.base.RotationMotor`
+    :param z_motor: motor that alters the vertical position of the rotation stage
+    :type z_motor: `concert.devices.motors.base.LinearMotor`
+    :param flat_motor: motor that puts rotation stage into or away from the beam
+    :type flat_motor: `concert.devices.motors.base.LinearMotor`
+    :param pixel_size_um: pixel size in microns
+    :type pixel_size_um: `concert.quantities.Quantity`
+    :param acq_params: configurations specific to acquisition
+    :type acq_params: `concert.processes.common.AcquisitionParams`
+    :param shutter: beam shutter
+    :type shutter: `concert.devices.shutters.base.Shutter`
+    :param delta_move_mm: small movement to determine sign of corrective motor movement
+    :type delta_move_mm: `concert.quantities.Quantity` 
+    :param px_eps: epsilon distance from central pixel, default two pixels
+    :type px_eps: float
+    """
+    z_offset, stage_offset = offset_from_projection_center(
+        camera=camera,
+        tomo_motor=tomo_motor,
+        flat_motor=flat_motor,
+        acq_params=acq_params,
+        shutter=shutter)
+    while z_offset > px_eps or stage_offset > px_eps:
+        # Make step adjustment for z-motor (vertically orthogonal to beam direction)
+        if z_offset > px_eps:
+            await z_motor.move(delta_move_mm)
+            _z_offset, _ = offset_from_projection_center(
+                camera=camera,
+                tomo_motor=tomo_motor,
+                flat_motor=flat_motor,
+                acq_params=acq_params,
+                shutter=shutter)
+            await z_motor.move(-delta_move_mm)
+            if _z_offset > z_offset:
+                z_offset = -z_offset
+            await z_motor.move(z_offset * pixel_size_um)
+        # Make step adjustment for stage motor (horizontally orthogonal to beam direction)
+        if stage_offset > px_eps:
+            await flat_motor.move(delta_move_mm)
+            _, _stage_offset = offset_from_projection_center(
+                camera=camera,
+                tomo_motor=tomo_motor,
+                flat_motor=flat_motor,
+                acq_params=acq_params,
+                shutter=shutter)
+            await flat_motor.move(-delta_move_mm)
+            if _stage_offset > stage_offset:
+                stage_offset = -stage_offset
+            await flat_motor.move(stage_offset * pixel_size_um)
+        z_offset, stage_offset = offset_from_projection_center(
+            camera=camera,
+            tomo_motor=tomo_motor,
+            flat_motor=flat_motor,
+            acq_params=acq_params,
+            shutter=shutter)
 
 
 @background
@@ -988,13 +1050,18 @@ async def align_rotation_stage_comparative(
         dev_limits: DeviceSoftLimits,
         acq_params: AcquisitionParams,
         align_params: AlignmentParams,
-        shutter: Optional[Shutter] = None,
-        flat_motor: Optional[LinearMotor] = None,
-        logger: logging.Logger = get_noop_logger()
-        ) -> None:
+        shutter: Shutter,
+        flat_motor: LinearMotor,
+        logger: logging.Logger = get_noop_logger()) -> None:
     """
     Aligns rotation stage comparing the vertical positions of alignment phantom across half-circle
     rotations.
+
+    TODO: Offcentering is required to accurately estimate the angular error because the vertical component
+    of the sine is not signficant if the object remains close to center in projective geometry. Just
+    draw a angle in paper and put two spheres for close and further away for a given angle theta. The
+    difference would be clear why we need to go further away from center.
+
 
     STEP 0: This implementation requires that we bring sphere phantom inside the FOV manually before
     triggering the alignment-routine and simultaneously ensure that tomographic rotation motor
@@ -1063,9 +1130,9 @@ async def align_rotation_stage_comparative(
     :param align_params: configurations specific to alignment
     :type align_params: `concert.processes.common.AlignmentParams`
     :param shutter: beam shutter
-    :type shutter: Optional[`concert.devices.shutters.base.Shutter`]
+    :type shutter: `concert.devices.shutters.base.Shutter`
     :param flat_motor: motor that puts rotation stage into or away from the beam
-    :type flat_motor: Optional[`concert.devices.motors.base.LinearMotor`]
+    :type flat_motor: `concert.devices.motors.base.LinearMotor`
     :param logger: optional logger
     :type logger: logging.Logger
     """
@@ -1083,7 +1150,7 @@ async def align_rotation_stage_comparative(
         logger.debug(f"{func_name}: error setting soft-limits: {str(e)}")
     # STEP 1: Set the sphere at the center of the projection.
     await tomo_motor.set_position(0 * q.deg)
-    await center_rotation_stage_in_projection(
+    await center_tomo_stage_in_projection(
             camera=camera,
             shutter=shutter,
             tomo_motor=tomo_motor,
