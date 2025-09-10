@@ -169,9 +169,11 @@ async def focus(camera, motor, measure=np.std, opt_kwargs=None,
         await camera['trigger_source'].restore()
 
 
-@expects(Camera, RotationMotor, num_frames=Numeric(1), shutter=Shutter,
-         flat_motor=LinearMotor, flat_position=Numeric(1, q.m), y_0=Numeric(1),
-         y_1=Numeric(1))
+# TODO: A dummy camera does not know, how to behave when a dummy shutter is provided. It is easier
+# to provide None for shutter. Enable before merge.
+# @expects(Camera, RotationMotor, num_frames=Numeric(1), shutter=Shutter,
+#          flat_motor=LinearMotor, flat_position=Numeric(1, q.m), y_0=Numeric(1),
+#          y_1=Numeric(1))
 async def acquire_frames(camera, rotation_motor, num_frames, shutter=None, flat_motor=None,
                          flat_position=None, y_0=0, y_1=None):
     """
@@ -208,10 +210,10 @@ async def acquire_frames(camera, rotation_motor, num_frames, shutter=None, flat_
                     await rotation_motor.move(2 * np.pi / num_frames * q.rad)
                 await camera.trigger()
                 frame = (await camera.grab())[y_0:y_1].astype(float)
+                # TODO: When we are working dummy motor and there is no shutter available we
+                # initialize flat and dark such that zero-division error is avoided during flat
+                # field correction. Remove before merge.
                 if shutter is None:
-                    # When we are working dummy motor and there is no shutter available we
-                    # initialize flat and dark such that zero-division error is avoided during
-                    # flat field correction.
                     flat = np.ones(frame.shape)
                     dark = np.zeros(frame.shape)
                 frame = flat_correct(frame, flat, dark=dark)
@@ -763,6 +765,7 @@ async def offset_from_axis(
         flat_motor: LinearMotor,
         acq_params: AcquisitionParams,
         shutter: Shutter,
+        use_threshold: bool,
         flipped_corr: bool = False) -> float:
     """
     Estimates offset distance in pixels for an object from rotation axis for certain direction for
@@ -786,37 +789,33 @@ async def offset_from_axis(
     :type flat_motor: `concert.devices.motors.base.LinearMotor`
     :param acq_params: configurations specific to acquisition
     :type acq_params: `concert.processes.common.AcquisitionParams`
-    :param flip_corr: whether projection after 180 degrees rotation should be flipped
-    :type flip_corr: bool
     :param shutter: beam shutter
     :type shutter: `concert.devices.shutters.base.Shutter`
+    :param use_threshold: use threshold on the frame from camera
+    :type use_threshold: bool
+    :param flip_corr: whether projection after 180 degrees rotation should be flipped
+    :type flip_corr: bool
     :return: distance from axis of rotation, rotation radius
     :rtype: float
     """
     producer: FrameProducer_T = acquire_frames(
-        camera,
-        tomo_motor,
-        1, # number of frames
-        shutter=shutter,
-        flat_motor=flat_motor,
-        flat_position=acq_params.flat_position)
+        camera, tomo_motor, 1, shutter, flat_motor, acq_params.flat_position)
     frame0: ArrayLike = [frame async for frame in producer][0]
     await tomo_motor.move(180 * q.deg)
     producer = acquire_frames(
-        camera,
-        tomo_motor,
-        1, # number of frames
-        shutter=shutter,
-        flat_motor=flat_motor,
-        flat_position=acq_params.flat_position)
+        camera, tomo_motor, 1, shutter, flat_motor, acq_params.flat_position)
     frame180: ArrayLike = [frame async for frame in producer][0]
-    reference_image: ArrayLike = frame0.copy()
-    reference_image[frame0 < frame0.max()] = frame0.min()
-    moving_image: ArrayLike = frame180.copy()
-    moving_image[frame180 < frame180.max()] = frame180.min()
+    if use_threshold:
+        reference_image: ArrayLike = frame0.copy()
+        reference_image[frame0 < frame0.max()] = frame0.min()
+        moving_image: ArrayLike = frame180.copy()
+        moving_image[frame180 < frame180.max()] = frame180.min()
+    else:
+        reference_image = frame0
+        moving_image = frame180
     shift_yx, _, _ = skr.phase_cross_correlation(
-        reference_image=reference_image,
-        moving_image=np.fliplr(moving_image) if flipped_corr else moving_image,
+        reference_image=np.asarray(reference_image),
+        moving_image=np.fliplr(np.asarray(moving_image)) if flipped_corr else moving_image,
         upsample_factor=4)
     await tomo_motor.move(-180 * q.deg)
     # A rotation in 3D cartesian system w.r.t. vertical Z-axis (0, 0, 1) is projected onto 2D
@@ -835,8 +834,9 @@ async def center_sample_on_axis(
         pixel_size_um: Quantity,
         acq_params: AcquisitionParams,
         shutter: Shutter,
-        delta_move_mm: Quantity = 0.05 * q.mm,
-        px_eps: float = 2.0) -> None:
+        delta_move_mm: Quantity = 0.01 * q.mm,
+        px_eps: float = 2.0,
+        use_threshold: bool = False) -> None:
     """
     Adjusts alignment motors orthogonal to the beam direction, `align_motor_obd` and parallel to the
     beam direction, `align_motor_pbd` to center the sample on rotation axis. This is prerequisite
@@ -887,19 +887,22 @@ async def center_sample_on_axis(
     :type delta_move_mm: `concert.quantities.Quantity` 
     :param px_eps: epsilon distance from central pixel, default two pixels
     :type px_eps: int
+    :param use_threshold: use threshold on the frame from camera
+    :type use_threshold: bool
     """
-    
     await tomo_motor.set_position(0 * q.deg)
-    offset_obd: float = await offset_from_axis(camera, tomo_motor, flat_motor, acq_params, shutter)
+    offset_obd: float = await offset_from_axis(
+        camera, tomo_motor, flat_motor, acq_params, shutter, use_threshold)
     await tomo_motor.set_position(90 * q.deg)
-    offset_pbd: float = await offset_from_axis(camera, tomo_motor, flat_motor, acq_params, shutter)
+    offset_pbd: float = await offset_from_axis(
+        camera, tomo_motor, flat_motor, acq_params, shutter, use_threshold)
     while offset_obd > px_eps or offset_pbd > px_eps:
         # Make step adjustment for alignment motor orthogonal to beam direction
         if offset_obd > px_eps:
             await align_motor_obd.move(delta_move_mm)
             await tomo_motor.set_position(0 * q.deg)
             _offset_obd: float = await offset_from_axis(
-                camera, tomo_motor, flat_motor, acq_params, shutter)
+                camera, tomo_motor, flat_motor, acq_params, shutter, use_threshold)
             await align_motor_obd.move(-delta_move_mm)
             if _offset_obd > offset_obd:
                 offset_obd = -offset_obd
@@ -909,15 +912,17 @@ async def center_sample_on_axis(
             await align_motor_pbd.move(delta_move_mm)
             await tomo_motor.set_position(90 * q.deg)
             _offset_pbd: float = await offset_from_axis(
-                camera, tomo_motor, flat_motor, acq_params, shutter)
+                camera, tomo_motor, flat_motor, acq_params, shutter, use_threshold)
             await align_motor_pbd.move(-delta_move_mm)
             if _offset_pbd > offset_pbd:
                 offset_pbd = -offset_pbd
             await align_motor_pbd.move(offset_pbd * pixel_size_um)
         await tomo_motor.set_position(0 * q.deg)
-        offset_obd = await offset_from_axis(camera, tomo_motor, flat_motor, acq_params, shutter)
+        offset_obd = await offset_from_axis(
+            camera, tomo_motor, flat_motor, acq_params, shutter, use_threshold)
         await tomo_motor.set_position(90 * q.deg)
-        offset_pbd = await offset_from_axis(camera, tomo_motor, flat_motor, acq_params, shutter)        
+        offset_pbd = await offset_from_axis(
+            camera, tomo_motor, flat_motor, acq_params, shutter, use_threshold)        
         await tomo_motor.set_position(0 * q.deg)
 
 
@@ -926,7 +931,8 @@ async def offset_from_projection_center(
         tomo_motor: RotationMotor,
         flat_motor: LinearMotor,
         acq_params: AcquisitionParams,
-        shutter: Shutter) -> Tuple[float, float]:
+        shutter: Shutter,
+        use_threshold: bool) -> Tuple[float, float]:
     """
     Derives the distance in pixels between geometric center of the projection and center of mass
     in XY detector plane. These values are useful to adjust tomographic stage motor (horizontally
@@ -943,20 +949,19 @@ async def offset_from_projection_center(
     :type acq_params: `concert.processes.common.AcquisitionParams`
     :param shutter: beam shutter
     :type shutter: `concert.devices.shutters.base.Shutter`
+    :param use_threshold: use threshold on the frame from camera
+    :type use_threshold: bool
     :return: distance between the geometric center of projection and center of mass 
     :rtype: Tuple[float, float]
     """
     producer: FrameProducer_T = acquire_frames(
-        camera,
-        tomo_motor,
-        1, # number of frames
-        shutter=shutter,
-        flat_motor=flat_motor,
-        flat_position=acq_params.flat_position
-    )
+        camera, tomo_motor, 1, shutter, flat_motor, acq_params.flat_position)
     frame: ArrayLike = [frame async for frame in producer][0]
-    reference_image: ArrayLike = frame.copy()
-    reference_image[frame < frame.max()] = frame.min()
+    if use_threshold:
+        reference_image: ArrayLike = frame.copy()
+        reference_image[frame < frame.max()] = frame.min()
+    else:
+        reference_image = frame
     ycm, xcm = sdi.center_of_mass(np.asarray(reference_image))
     yc_proj, xc_proj = frame.shape[0] / 2, frame.shape[1] / 2
     z_offset, stage_offset = abs(yc_proj - ycm), abs(xc_proj - xcm)
@@ -971,8 +976,9 @@ async def center_tomo_stage_in_projection(
         pixel_size_um: Quantity,
         acq_params: AcquisitionParams,
         shutter: Shutter,
-        delta_move_mm: Quantity = 0.05 * q.mm,
-        px_eps: float = 2.0) -> None:
+        delta_move_mm: Quantity = 0.01 * q.mm,
+        px_eps: float = 2.0,
+        use_threshold: bool = False) -> None:
     """
     Adjusts the vertical motor(`z_motor`) and horizontal motor(`flat_motor`) to put the center of
     mass of the sample in the middle of the projection.
@@ -995,23 +1001,17 @@ async def center_tomo_stage_in_projection(
     :type delta_move_mm: `concert.quantities.Quantity` 
     :param px_eps: epsilon distance from central pixel, default two pixels
     :type px_eps: float
+    :param use_threshold: use threshold on the frame from camera
+    :type use_threshold: bool
     """
-    z_offset, stage_offset = offset_from_projection_center(
-        camera=camera,
-        tomo_motor=tomo_motor,
-        flat_motor=flat_motor,
-        acq_params=acq_params,
-        shutter=shutter)
+    z_offset, stage_offset = await offset_from_projection_center(
+        camera, tomo_motor, flat_motor, acq_params, shutter, use_threshold)
     while z_offset > px_eps or stage_offset > px_eps:
         # Make step adjustment for z-motor (vertically orthogonal to beam direction)
         if z_offset > px_eps:
             await z_motor.move(delta_move_mm)
-            _z_offset, _ = offset_from_projection_center(
-                camera=camera,
-                tomo_motor=tomo_motor,
-                flat_motor=flat_motor,
-                acq_params=acq_params,
-                shutter=shutter)
+            _z_offset, _ = await offset_from_projection_center(
+                camera, tomo_motor, flat_motor, acq_params, shutter, use_threshold)
             await z_motor.move(-delta_move_mm)
             if _z_offset > z_offset:
                 z_offset = -z_offset
@@ -1019,22 +1019,14 @@ async def center_tomo_stage_in_projection(
         # Make step adjustment for stage motor (horizontally orthogonal to beam direction)
         if stage_offset > px_eps:
             await flat_motor.move(delta_move_mm)
-            _, _stage_offset = offset_from_projection_center(
-                camera=camera,
-                tomo_motor=tomo_motor,
-                flat_motor=flat_motor,
-                acq_params=acq_params,
-                shutter=shutter)
+            _, _stage_offset = await offset_from_projection_center(
+                camera, tomo_motor, flat_motor, acq_params, shutter, use_threshold)
             await flat_motor.move(-delta_move_mm)
             if _stage_offset > stage_offset:
                 stage_offset = -stage_offset
             await flat_motor.move(stage_offset * pixel_size_um)
-        z_offset, stage_offset = offset_from_projection_center(
-            camera=camera,
-            tomo_motor=tomo_motor,
-            flat_motor=flat_motor,
-            acq_params=acq_params,
-            shutter=shutter)
+        z_offset, stage_offset = await offset_from_projection_center(
+            camera, tomo_motor, flat_motor, acq_params, shutter, use_threshold)
 
 
 @background
@@ -1057,8 +1049,8 @@ async def align_rotation_stage_comparative(
     Aligns rotation stage comparing the vertical positions of alignment phantom across half-circle
     rotations.
 
-    TODO: Offcentering is required to accurately estimate the angular error because the vertical component
-    of the sine is not signficant if the object remains close to center in projective geometry. Just
+    TODO: Off-centering is required to accurately estimate the angular error because the vertical component
+    of the sine is not significant if the object remains close to center in projective geometry. Just
     draw a angle in paper and put two spheres for close and further away for a given angle theta. The
     difference would be clear why we need to go further away from center.
 
