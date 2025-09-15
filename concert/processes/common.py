@@ -795,7 +795,7 @@ async def offset_from_axis(
     :type use_threshold: bool
     :param flip_corr: whether projection after 180 degrees rotation should be flipped
     :type flip_corr: bool
-    :return: distance from axis of rotation, rotation radius
+    :return: distance from axis of rotation
     :rtype: float
     """
     producer: FrameProducer_T = acquire_frames(
@@ -820,9 +820,9 @@ async def offset_from_axis(
     await tomo_motor.move(-180 * q.deg)
     # A rotation in 3D cartesian system w.r.t. vertical Z-axis (0, 0, 1) is projected onto 2D
     # detector plane which is parallel to Z-axis. Displacement is the distance between two points
-    # on a horizontal line, therefore we take second component.
-    displacement = (shift_yx[1] + acq_params.width) % acq_params.width
-    return displacement / 2
+    # in the horizontal direction. Halving this value gives us an estimate on how far the sample is
+    # from axis of rotation in that direction.
+    return abs(shift_yx[1]) / 2
 
 
 async def center_sample_on_axis(
