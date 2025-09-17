@@ -23,8 +23,8 @@ except ImportError:
 FrameProducer_T = Awaitable[ArrayLike]
 # Coroutine object that can be awaited to produce multiple images
 FramesProducer_T = Awaitable[List[ArrayLike]]
-# Function that takes an integer and produces a coroutine object
-IntCoroFunc = Callable[[int], Coroutine[None, None, None]]
+# Function that takes no parameter and produces a coroutine object
+CoroFunc_T = Callable[[], Coroutine[None, None, None]]
 ####################################################################################################
 
 ####################################################################################################
