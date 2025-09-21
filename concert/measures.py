@@ -276,7 +276,7 @@ def estimate_alignment_parameters(
     for the rotation of major-axis is done to determine the correct roll angle rotation.
 
     In both cases of ellipse a normalization of the estimated roll angles is done to limit it to
-    a conveninent range. Experiments show that fitting noise can affect the roll-angle estimation.
+    a convenient range. Experiments show that fitting noise can affect the roll-angle estimation.
 
     :param centroids: extracted sphere centroids from projections
     :type centroids: List[ArrayLike]
@@ -343,7 +343,7 @@ def estimate_alignment_parameters(
             # the directional information we use dot product, cross product with inverse tangent.
             # Dot product provides the magnitude of, how two direction vectors are aligned with each
             # other and brings in the cosine component.
-            # Cross product for the 2D direction vectors provide the area of the paralleogram that
+            # Cross product for the 2D direction vectors provide the area of the parallelogram that
             # they make and depending on the orientation of the vectors with respect to each other
             # it can be positive or negative. Here it is supposed to give us the hint, whether
             # dir_vec_1 is to the clockwise or anticlockwise direction from dir_vec_0 and it brings
@@ -364,7 +364,7 @@ def estimate_alignment_parameters(
             # to the ratio of semi-minor and semi-major axes. Normally eigen values and eigen
             # vectors are in decreasing order, hence sing_vals[0] is the eigen value along major
             # axis and sing_vals[1] is he eigen value along minor axis. In projected ellipse their
-            # invserse sine gives us the magnitude of how much we are tilted. On top of that we
+            # inverse sine gives us the magnitude of how much we are tilted. On top of that we
             # incorporate the direction.
             pitch_ang = sign * np.arcsin(np.sqrt(sing_vals[1]) / np.sqrt(sing_vals[0])) * q.rad
         else:
@@ -378,7 +378,7 @@ def estimate_alignment_parameters(
         roll_ang = _normalized(roll_angle_radians) * q.rad
         rot_cnt = xc
     else:  # Degenerate Ellipse
-        # In this scenario we make use of the slope (rise / run) and inverse tanget to derive the
+        # In this scenario we make use of the slope (rise / run) and inverse tangent to derive the
         # roll angle.
         d_y = float(y_ind.max() - y_ind.min())
         d_x = float(x_ind.max() - x_ind.min())

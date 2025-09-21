@@ -1040,7 +1040,7 @@ async def align_rotation_stage_comparative(
     source of information we try to model this error using an imaginary right triangle on the
     projection plane. Let's say we are trying to estimate the tilt which is orthogonal to beam
     i.e. roll angle misalignment. To estimate this angle we need some vertical and horizontal
-    displacements. While perfectly centered on axis of rotation smaple shows no displacement upon
+    displacements. While perfectly centered on axis of rotation sample shows no displacement upon
     rotating. Hence, we off-center the sample orthogonal to beam horizontally, which gives us some
     non-zero rotation radius and when we double this value it gives us the total horizontal shift
     in pixels for a 180 degree rotation. Furthermore, because of the roll angle error stage is not
