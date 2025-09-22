@@ -229,11 +229,8 @@ def rotation_axis(tips):
 
 
 def estimate_alignment_parameters(
-        centroids: List[ArrayLike],
-        min_data_pts: int = 5,
-        x_offset_px: int = 10,
-        use_svd: bool = False
-        ) -> Tuple[Quantity, Quantity, float]:
+        centroids: List[ArrayLike], min_data_pts: int = 5, x_offset_px: int = 10,
+        use_svd: bool = False) -> Tuple[Quantity, Quantity, float]:
     """
     Estimates roll, pitch and center of rotation from projected sphere phantom.
 
@@ -278,8 +275,8 @@ def estimate_alignment_parameters(
     In both cases of ellipse a normalization of the estimated roll angles is done to limit it to
     a convenient range. Experiments show that fitting noise can affect the roll-angle estimation.
 
-    :param centroids: extracted sphere centroids from projections
-    :type centroids: List[ArrayLike]
+    :param centroids: extracted sphere centroids(y, x) from projections
+    :type centroids: List[`concert.typing.ArrayLike`]
     :param min_data_pts: min #centroids to consider to avoid an under-determined system
     :type min_data_pts: int
     :param x_offset_px: equivalent of min rotation radius in #pixels to consider for good estimation
