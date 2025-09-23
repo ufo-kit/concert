@@ -826,7 +826,8 @@ async def get_sample_shifts(
 async def center_sample_on_axis(
         acq_devices: AcquisitionDevices, acq_params: AcquisitionParams,
         align_devices: AlignmentDevices, align_params: AlignmentParams,
-        pixel_size_um: Quantity, use_threshold: bool = False) -> None:
+        pixel_size_um: Quantity, use_threshold: bool = False,
+        logger: logging.Logger = get_noop_logger()) -> None:
     """
     Adjusts alignment motors orthogonal to the beam direction, `align_motor_obd` and parallel to the
     beam direction, `align_motor_pbd` to center the sample on rotation axis. This is prerequisite
@@ -870,14 +871,14 @@ async def center_sample_on_axis(
     :type pixel_size_um: `concert.quantities.Quantity`
     :param use_threshold: use threshold on the frame from camera
     :type use_threshold: bool
+    :param logger: optional logger
+    :type logger: logging.Logger
     """
     async def _move_corrective(motor: LinearMotor, offset: float, start_ang_deg: Quantity) -> float:
-        print(f"Before offset = {offset}")
         await motor.move(align_params.delta_move_mm)
         _, _offset = await get_sample_shifts(
             acq_devices=acq_devices, acq_params=acq_params,
             start_ang_deg=start_ang_deg, use_threshold=use_threshold)
-        print(f"Interim offset = {_offset}")
         await motor.move(-align_params.delta_move_mm)
         if _offset > offset:
             offset = -offset
@@ -885,9 +886,10 @@ async def center_sample_on_axis(
         _, _new_offset = await get_sample_shifts(
             acq_devices=acq_devices, acq_params=acq_params,
             start_ang_deg=start_ang_deg, use_threshold=use_threshold)
-        print(f"After offset = {_new_offset}")
         return _new_offset
-        
+    
+    logger.debug=print # TODO: For quick debugging, remove later
+    func_name = "center_sample_on_axis"
     # Get initial distances from center of rotation
     _, offset_obd = await get_sample_shifts(
         acq_devices=acq_devices, acq_params=acq_params,
@@ -895,6 +897,7 @@ async def center_sample_on_axis(
     _, offset_pbd = await get_sample_shifts(
         acq_devices=acq_devices, acq_params=acq_params,
         start_ang_deg=90 * q.deg, use_threshold=use_threshold)
+    logger.debug(f"{func_name}: before: offset_obd = {offset_obd} offset_pbd = {offset_pbd}")
     while offset_obd > align_params.px_eps or offset_pbd > align_params.px_eps:
         # Make step adjustment for alignment motor orthogonal to beam direction
         if offset_obd > align_params.px_eps:
@@ -904,6 +907,7 @@ async def center_sample_on_axis(
         if offset_pbd > align_params.px_eps:
             offset_pbd = await _move_corrective(
                 motor=align_devices.align_motor_pbd, offset=offset_pbd, start_ang_deg=90 * q.deg)
+    logger.debug(f"{func_name}: after: offset_obd = {offset_obd} offset_pbd = {offset_pbd}")
 
 
 async def offset_from_projection_center(
@@ -942,7 +946,7 @@ async def offset_from_projection_center(
 async def center_stage_in_projection(
         acq_devices: AcquisitionDevices, acq_params: AcquisitionParams,
         align_params: AlignmentParams, pixel_size_um: Quantity,
-        use_threshold: bool = False) -> None:
+        use_threshold: bool = False, logger: logging.Logger = get_noop_logger()) -> None:
     """
     Adjusts the vertical motor(`z_motor`) and horizontal motor(`flat_motor`) to put the center of
     mass of the sample in the middle of the projection.
@@ -957,10 +961,14 @@ async def center_stage_in_projection(
     :type pixel_size_um: `concert.quantities.Quantity`
     :param use_threshold: use threshold on the frame from camera
     :type use_threshold: bool
+    :param logger: optional logger
+    :type logger: logging.Logger
     """
+    logger.debug=print # TODO: For quick debugging, remove later
+    func_name = "center_stage_in_projection"
     z_offset, stage_offset = await offset_from_projection_center(
         acq_devices=acq_devices, acq_params=acq_params, use_threshold=use_threshold)
-    print(f"stage before: z_offset = {z_offset} stage_offset = {stage_offset}")
+    logger.debug(f"{func_name}: before: z_offset = {z_offset} stage_offset = {stage_offset}")
     while z_offset > align_params.px_eps or stage_offset > align_params.px_eps:
         # Make step adjustment for z-motor (vertically orthogonal to beam direction)
         if z_offset > align_params.px_eps:
@@ -982,7 +990,7 @@ async def center_stage_in_projection(
             await acq_devices.flat_motor.move(stage_offset * pixel_size_um)
         z_offset, stage_offset = await offset_from_projection_center(
             acq_devices=acq_devices, acq_params=acq_params, use_threshold=use_threshold)
-    print(f"stage after: z_offset = {z_offset} stage_offset = {stage_offset}")
+    logger.debug(f"{func_name}: after: z_offset = {z_offset} stage_offset = {stage_offset}")
 
 
 @background
@@ -1163,26 +1171,26 @@ async def align_rotation_stage_comparative(
     # misalignment.
     await align_devices.align_motor_obd.move(align_params.offset_obd)
     roll_ang_err: Quantity = await _get_roll()
-    logger.debug(f"Start roll = {roll_ang_err}")
+    logger.debug(f"{func_name} roll before misalignment: {abs(roll_ang_err)}")
     while abs(roll_ang_err) > acq_params.align_metric:
         roll_ang_err = await _step_roll(curr_roll=roll_ang_err)
         await align_devices.align_motor_obd.move(-align_params.offset_obd)
         await center_stage_in_projection(
             acq_devices=acq_devices, acq_params=acq_params, align_params=align_params,
             pixel_size_um=pixel_size_um, use_threshold=use_threshold)
-    logger.debug(f"End roll = {roll_ang_err}")
+    logger.debug(f"{func_name} roll after misalignment: {abs(roll_ang_err)}")
     # STEP 3: Off-center the sample parallel to beam direction and iteratively correct pitch (lamino)
     # angle misalignment.
     await align_devices.align_motor_pbd.move(align_params.offset_pbd)
     pitch_ang_err: Quantity = await _get_pitch()
-    logger.debug(f"Start pitch = {pitch_ang_err}")
+    logger.debug(f"{func_name} pitch before misalignment: {abs(pitch_ang_err)}")
     while abs(pitch_ang_err) > acq_params.align_metric:
         pitch_ang_err = await _step_pitch(curr_pitch=pitch_ang_err)
         await align_devices.align_motor_pbd.move(-align_params.offset_pbd)
         await center_stage_in_projection(
             acq_devices=acq_devices, acq_params=acq_params, align_params=align_params,
             pixel_size_um=pixel_size_um, use_threshold=use_threshold)
-    logger.debug(f"End pitch = {pitch_ang_err}")
+    logger.debug(f"{func_name} pitch after misalignment: {abs(pitch_ang_err)}")
     await acq_devices.tomo_motor.set_position(0 * q.deg)
 ####################################################################################################
 
