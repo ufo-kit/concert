@@ -241,13 +241,13 @@ class TomographyStageCamera(Base):
 
             return shift * value.units
 
-        parallel_below = _vectorize(await self.stage.vertical_motor_below.get_position(), 2)
-        ortho_below = _vectorize(await self.stage.orthogonal_motor_below.get_position(), 0)
-        parallel_above = _vectorize(await self.stage.parallel_motor_above.get_position(), 1)
-        ortho_above = _vectorize(await self.stage.orthogonal_motor_above.get_position(), 0)
-        lamino_angle = await self.stage.lamino_motor.get_position()
-        roll_angle = await self.stage.roll_motor.get_position()
-        tomo_angle = await self.stage.tomo_motor.get_position()
+        parallel_below = _vectorize(await self.stage.vertical_motor_below.get_actual_position(), 2)
+        ortho_below = _vectorize(await self.stage.orthogonal_motor_below.get_actual_position(), 0)
+        parallel_above = _vectorize(await self.stage.parallel_motor_above.get_actual_position(), 1)
+        ortho_above = _vectorize(await self.stage.orthogonal_motor_above.get_actual_position(), 0)
+        lamino_angle = await self.stage.lamino_motor.get_actual_position()
+        roll_angle = await self.stage.roll_motor.get_actual_position()
+        tomo_angle = await self.stage.tomo_motor.get_actual_position()
 
         mat_lamino = rotate(lamino_angle, X_AX, shift=-self.stage.lamino_motor_z_offset)
         mat_roll = rotate(roll_angle, Y_AX, shift=-self.stage.roll_motor_z_offset)

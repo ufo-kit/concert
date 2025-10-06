@@ -285,8 +285,8 @@ class TomographyStage(Device):
         self.orthogonal_motor_below = await ContinuousLinearMotor()
         self.parallel_motor_above = await ContinuousLinearMotor()
         self.orthogonal_motor_above = await ContinuousLinearMotor()
-        self.lamino_motor = await ContinuousRotationMotor()
-        self.roll_motor = await ContinuousRotationMotor()
+        self.lamino_motor = await ContinuousRotationMotor(backlash=0.1 * q.deg)
+        self.roll_motor = await ContinuousRotationMotor(backlash=0.1 * q.deg)
         self.tomo_motor = await ContinuousRotationMotor()
         self._motors = [
             self.parallel_motor_above,
