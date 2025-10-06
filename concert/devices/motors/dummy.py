@@ -12,14 +12,39 @@ LOG = logging.getLogger(__name__)
 MOVEMENT_TIME_STEPS = 0.01 * q.s
 
 
-class _PositionMixin(Parameterizable):
-    async def __ainit__(self, **kwargs):
-        self._position = 0 * q.mm
+class _PositionMixin(object):
+
+    """A motor which simulates the travel to a destination. If *backlash* is given, the motor
+    includes a backlash when changing direction. In the beginning and after homing, the direction is
+    positive, position is 0, and the actual position (considering backlash) is also 0.
+    """
+
+    async def __ainit__(
+        self, position=None, upper_hard_limit=None, lower_hard_limit=None, backlash=None
+    ):
+        unit = self["position"].unit
+        if upper_hard_limit:
+            self._upper_hard_limit = upper_hard_limit
+        else:
+            self._upper_hard_limit = np.inf * unit
+        if lower_hard_limit:
+            self._lower_hard_limit = lower_hard_limit
+        else:
+            self._lower_hard_limit = -np.inf * unit
+
+        # Position-related
+        if position:
+            if position > self._upper_hard_limit or position < self._lower_hard_limit:
+                raise ValueError("Position not within hard limits")
+            self._position = position
+        else:
+            self._position = 0 * unit
+        self._backlash = backlash
+        self._current_backlash = None
+        self._reset_backlash()
+
         self._moving = False
         self._stop_evt = asyncio.Event()
-        self._lower_hard_limit = -np.inf * q.mm
-        self._upper_hard_limit = np.inf * q.mm
-        await super().__ainit__(**kwargs)
 
     async def _set_position(self, position):
         self._stop_evt.clear()
@@ -126,30 +151,35 @@ class LinearMotor(_PositionMixin, base.LinearMotor):
     motion_velocity = Quantity(q.mm / q.s)
     actual_position = Quantity(q.mm, help="Actual mechanism position considering backlash")
 
-    async def __ainit__(self, *, position=None, upper_hard_limit=None, lower_hard_limit=None, **kwargs):
-        await super().__ainit__(**kwargs)
+    async def __ainit__(
+        self, position=None, upper_hard_limit=None, lower_hard_limit=None, backlash=None
+    ):
+        await base.LinearMotor.__ainit__(self)
+        await _PositionMixin.__ainit__(
+            self,
+            position=position,
+            upper_hard_limit=upper_hard_limit,
+            lower_hard_limit=lower_hard_limit,
+            backlash=backlash
+        )
         self._motion_velocity = 200000 * q.mm / q.s
-
-        if position is not None:
-            self._position = position
-        if upper_hard_limit is not None:
-            self._upper_hard_limit = upper_hard_limit
-        if lower_hard_limit is not None:
-            self._lower_hard_limit = lower_hard_limit
 
 
 class ContinuousLinearMotor(LinearMotor, base.ContinuousLinearMotor):
 
     """A continuous linear motor dummy."""
 
-    async def __ainit__(self, *, position=None, upper_hard_limit=None, lower_hard_limit=None, **kwargs):
-        await super().__ainit__(**kwargs)
-        if position:
-            self._position = position
-        if upper_hard_limit:
-            self._upper_hard_limit = upper_hard_limit
-        if lower_hard_limit:
-            self._lower_hard_limit = lower_hard_limit
+    async def __ainit__(
+        self, position=None, upper_hard_limit=None, lower_hard_limit=None, backlash=None
+    ):
+        await base.ContinuousLinearMotor.__ainit__(self)
+        await LinearMotor.__ainit__(
+            self,
+            position=position,
+            upper_hard_limit=upper_hard_limit,
+            lower_hard_limit=lower_hard_limit,
+            backlash=backlash
+        )
 
     async def _set_velocity(self, vel):
         if vel.magnitude > 0:
@@ -175,18 +205,22 @@ class RotationMotor(_PositionMixin, base.RotationMotor):
     motion_velocity = Quantity(q.deg / q.s)
     actual_position = Quantity(q.deg, help="Actual mechanism position considering backlash")
 
-    async def __ainit__(self, *, position=None, upper_hard_limit=None, lower_hard_limit=None, **kwargs):
-        await super().__ainit__(**kwargs)
-        self._position = 0 * q.deg
-        self._lower_hard_limit = -np.inf * q.deg
-        self._upper_hard_limit = np.inf * q.deg
+    async def __ainit__(
+        self,
+        position=None,
+        upper_hard_limit=None,
+        lower_hard_limit=None,
+        backlash=None
+    ):
+        await base.RotationMotor.__ainit__(self)
+        await _PositionMixin.__ainit__(
+            self,
+            position=position,
+            upper_hard_limit=upper_hard_limit,
+            lower_hard_limit=lower_hard_limit,
+            backlash=backlash
+        )
         self._motion_velocity = 50000 * q.deg / q.s
-        if position is not None:
-            self._position = position
-        if upper_hard_limit is not None:
-            self._upper_hard_limit = upper_hard_limit
-        if lower_hard_limit is not None:
-            self._lower_hard_limit = lower_hard_limit
 
 
 class ContinuousRotationMotor(RotationMotor,
@@ -194,14 +228,21 @@ class ContinuousRotationMotor(RotationMotor,
 
     """A continuous rotational step motor dummy."""
 
-    async def __ainit__(self, *, position=None, upper_hard_limit=None, lower_hard_limit=None, **kwargs):
-        await super().__ainit__(**kwargs)
-        if position:
-            self._position = position
-        if upper_hard_limit:
-            self._upper_hard_limit = upper_hard_limit
-        if lower_hard_limit:
-            self._lower_hard_limit = lower_hard_limit
+    async def __ainit__(
+        self,
+        position=None,
+        upper_hard_limit=None,
+        lower_hard_limit=None,
+        backlash=None
+    ):
+        await base.ContinuousRotationMotor.__ainit__(self)
+        await RotationMotor.__ainit__(
+            self,
+            position=position,
+            upper_hard_limit=upper_hard_limit,
+            lower_hard_limit=lower_hard_limit,
+            backlash=backlash
+        )
 
     async def _set_velocity(self, vel):
         if vel.magnitude > 0:
