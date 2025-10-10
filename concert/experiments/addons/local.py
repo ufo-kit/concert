@@ -3,7 +3,7 @@ import numpy as np
 from concert.coroutines.base import async_generate, background
 from concert.coroutines.sinks import Accumulate
 from concert.experiments.addons import base
-from concert.experiments.base import Consumer as AcquisitionConsumer, local
+from concert.experiments.base import Consumer as AcquisitionConsumer
 from concert.experiments.imaging import LocalGratingInterferometryStepping
 from concert.helpers import PerformanceTracker, ImageWithMetadata
 from concert.quantities import q
@@ -14,7 +14,17 @@ class Benchmarker(base.Benchmarker):
         await base.Benchmarker.__ainit__(self, experiment=experiment, acquisitions=acquisitions)
         self._durations = {}
 
-    @local
+    def _make_consumers(self, acquisitions):
+        consumers = {}
+
+        for acq in acquisitions:
+            consumers[acq] = AcquisitionConsumer(
+                self.start_timer,
+                corofunc_args=(acq.name,)
+            )
+
+        return consumers
+
     async def start_timer(self, producer, acquisition_name):
         total_bytes = 0
         with PerformanceTracker() as pt:
@@ -34,10 +44,32 @@ class ImageWriter(base.ImageWriter):
     async def __ainit__(self, experiment, acquisitions=None):
         await base.ImageWriter.__ainit__(self, experiment=experiment, acquisitions=acquisitions)
 
-    @local
-    async def write_sequence(self, name, producer=None):
-        """Wrap the walker and write data to subdirectory *name*."""
-        return await self.walker.create_writer(producer, name=name)
+    def _make_consumers(self, acquisitions):
+        """Attach all acquisitions."""
+        consumers = {}
+
+        def prepare_wrapper(name):
+            async def write_sequence(producer):
+                # Make sure the directory exists
+                async with self.walker:
+                    # Even though acquisition name is fixed, we don't know where in the file
+                    # system we are, so this must be determined dynamically when the writing
+                    # is about to start
+                    # This makes sure the directory exists
+                    await self.walker.descend(name)
+                    # Ascent immediately because walker descends to *name*
+                    await self.walker.ascend()
+                    # This returns a background task
+                    coro = self.walker.create_writer(producer, name=name)
+
+                await coro
+
+            return write_sequence
+
+        for acq in acquisitions:
+            consumers[acq] = AcquisitionConsumer(prepare_wrapper(acq.name))
+
+        return consumers
 
 
 class Consumer(base.Consumer):
@@ -47,7 +79,14 @@ class Consumer(base.Consumer):
                                       experiment=experiment,
                                       acquisitions=acquisitions)
 
-    @local
+    def _make_consumers(self, acquisitions):
+        consumers = {}
+
+        for acq in acquisitions:
+            consumers[acq] = AcquisitionConsumer(self.consume)
+
+        return consumers
+
     async def consume(self, producer):
         await self._consumer(producer)
 
@@ -59,7 +98,14 @@ class LiveView(base.LiveView):
                                       experiment=experiment,
                                       acquisitions=acquisitions)
 
-    @local
+    def _make_consumers(self, acquisitions):
+        consumers = {}
+
+        for acq in acquisitions:
+            consumers[acq] = AcquisitionConsumer(self.consume)
+
+        return consumers
+
     async def consume(self, producer):
         await self._viewer(producer)
 
@@ -75,7 +121,19 @@ class Accumulator(base.Accumulator):
         )
         self._accumulators = {}
 
-    @local
+    def _make_consumers(self, acquisitions):
+        shapes = (None,) * len(acquisitions) if self._shapes is None else self._shapes
+        consumers = {}
+
+        for i, acq in enumerate(acquisitions):
+            consumers[acq] = AcquisitionConsumer(
+                self.accumulate,
+                corofunc_args=(acq.name,),
+                corofunc_kwargs={'shape': shapes[i], 'dtype': self._dtype}
+            )
+
+        return consumers
+
     def accumulate(self, producer, acquisition_name, shape=None, dtype=None):
         if acquisition_name not in self._accumulators:
             self._accumulators[acquisition_name] = Accumulate(shape=shape, dtype=dtype)
@@ -114,11 +172,26 @@ class OnlineReconstruction(base.OnlineReconstruction):
             average_normalization=average_normalization
         )
 
-    @local
+    def _make_consumers(self, acquisitions):
+        consumers = {}
+
+        if self._do_normalization:
+            consumers[base.get_acq_by_name(acquisitions, 'darks')] = AcquisitionConsumer(
+                self.update_darks
+            )
+            consumers[base.get_acq_by_name(acquisitions, 'flats')] = AcquisitionConsumer(
+                self.update_flats
+            )
+
+        consumers[base.get_acq_by_name(acquisitions, 'radios')] = AcquisitionConsumer(
+            self.reconstruct
+        )
+
+        return consumers
+
     async def update_darks(self, producer):
         return await self._manager.update_darks(producer)
 
-    @local
     async def update_flats(self, producer):
         return await self._manager.update_flats(producer)
 
@@ -148,7 +221,6 @@ class OnlineReconstruction(base.OnlineReconstruction):
                     )
                 await writer
 
-    @local
     async def reconstruct(self, producer):
         await base.OnlineReconstruction.reconstruct(self, producer=producer)
 
@@ -209,7 +281,20 @@ class PhaseGratingSteppingFourierProcessing(base.PhaseGratingSteppingFourierProc
             output_directory=output_directory
         )
 
-    @local
+    def _make_consumers(self, acquisitions):
+        consumers = {}
+        consumers[base.get_acq_by_name(acquisitions, 'darks')] = AcquisitionConsumer(
+            self.process_darks
+        )
+        consumers[base.get_acq_by_name(acquisitions, 'reference_stepping')] = AcquisitionConsumer(
+            self.process_stepping
+        )
+        consumers[base.get_acq_by_name(acquisitions, 'object_stepping')] = AcquisitionConsumer(
+            self.process_stepping
+        )
+
+        return consumers
+
     async def process_darks(self, producer):
         """
         Processes dark images. All dark images are averaged.
@@ -225,7 +310,6 @@ class PhaseGratingSteppingFourierProcessing(base.PhaseGratingSteppingFourierProc
                 self._dark_image += item
         self._dark_image /= await self._experiment.get_num_darks()
 
-    @local
     async def process_stepping(self, producer):
         if await self._experiment.get_acquisition("reference_stepping").get_state() == "running":
             current_stepping = "reference"
@@ -371,7 +455,6 @@ class PCOTimestampCheck(base.Addon):
 
         return consumers
 
-    @local
     async def _check_timestamp(self, producer):
         self.timestamp_incorrect = False
         self.timestamp_missing = False

@@ -1,15 +1,13 @@
 import asyncio
-import functools
-import inspect
 import logging
 import os
 import numpy as np
+import time
 
 from concert.config import DISTRIBUTED_TANGO_TIMEOUT
 from concert.coroutines.base import background
 from concert.experiments.addons import base
-from concert.experiments.base import remote
-from concert.helpers import CommData
+from concert.experiments.base import Consumer
 from concert.quantities import q
 from typing import Awaitable
 
@@ -17,46 +15,112 @@ from typing import Awaitable
 LOG = logging.getLogger(__name__)
 
 
-class TangoMixin:
-
-    """TangoMixin does not need a producer becuase the backend processes image streams which do not
-    come via concert.
+class RemoteConsumer(Consumer):
     """
+    A wrapper for turning coroutine functions into coroutines.
 
-    @staticmethod
-    def cancel_remote(func):
-        if not inspect.iscoroutinefunction(func):
-            raise base.AddonError(f"`{func.__qualname__}' is not a coroutine function")
-
-        @functools.wraps(func)
-        async def wrapper(self, *args, **kwargs):
-            try:
-                await func(self, *args, **kwargs)
-            except BaseException as e:
-                LOG.debug(
-                    "`%s' occured in %s, remote cancelled with result: %s",
-                    e.__class__.__name__,
-                    func.__qualname__,
-                    await asyncio.gather(self.cancel(), return_exceptions=True)
-                )
-                raise
-
-        return wrapper
-
-    async def __ainit__(self, device, endpoint: CommData) -> Awaitable:
-        self._device = device
-        self._device.set_timeout_millis(DISTRIBUTED_TANGO_TIMEOUT)
+    :param corofunc: a consumer coroutine function
+    :param corofunc_args: a list or tuple of *corofunc* arguemnts
+    :param corofunc_kwargs: a list or tuple of *corofunc* keyword arguemnts
+    """
+    def __init__(self, endpoint, corofunc, corofunc_args=(), corofunc_kwargs=None):
+        super().__init__(corofunc, corofunc_args=corofunc_args, corofunc_kwargs=corofunc_kwargs)
         self.endpoint = endpoint
-        await self._device.write_attribute('endpoint', self.endpoint.client_endpoint)
+
+    @property
+    def remote(self):
+        return True
+
+    async def __call__(self):
+        st = time.perf_counter()
+        try:
+            await self.corofunc(*self.args, **self.kwargs)
+        except BaseException as e:
+            LOG.debug(
+                "`%s' occured in %s, remote cancelled with result: %s",
+                e.__class__.__name__,
+                self.corofunc.__qualname__,
+                await asyncio.gather(self.cancel_remote(), return_exceptions=True)
+            )
+            raise
+        finally:
+            LOG.debug('%s finished in %.3f s', self.corofunc.__qualname__, time.perf_counter() - st)
+
+    def connect_endpoint(self):
+        pass
+
+    def disconnect_endpoint(self):
+        pass
+
+    def cancel_remote(self):
+        """If local task gets cancelled, this functions makes sure the error propagates to the
+        remote node.
+        """
+        pass
+
+
+class TangoConsumer(RemoteConsumer):
+    """
+    A wrapper for turning coroutine functions into coroutines.
+
+    :param corofunc: a consumer coroutine function
+    :param corofunc_args: a list or tuple of *corofunc* arguemnts
+    :param corofunc_kwargs: a list or tuple of *corofunc* keyword arguemnts
+    """
+    def __init__(self, tango_device, endpoint, corofunc, corofunc_args=(), corofunc_kwargs=None):
+        super().__init__(
+            endpoint, corofunc, corofunc_args=corofunc_args, corofunc_kwargs=corofunc_kwargs
+        )
+        self._device = tango_device
 
     async def connect_endpoint(self):
+        if (await self._device.read_attribute("endpoint")).value != self.endpoint.client_endpoint:
+            await self.disconnect_endpoint()
+            await self._device.write_attribute("endpoint", self.endpoint.client_endpoint)
         await self._device.connect_endpoint()
 
     async def disconnect_endpoint(self):
         await self._device.disconnect_endpoint()
 
-    async def cancel(self):
+    async def cancel_remote(self):
         await self._device.cancel()
+
+
+class LiveViewConsumer(RemoteConsumer):
+    """
+    A wrapper for turning coroutine functions into coroutines.
+
+    :param corofunc: a consumer coroutine function
+    :param corofunc_args: a list or tuple of *corofunc* arguemnts
+    :param corofunc_kwargs: a list or tuple of *corofunc* keyword arguemnts
+    """
+    def __init__(self, viewer, endpoint, corofunc, corofunc_args=(), corofunc_kwargs=None):
+        super().__init__(
+            endpoint, corofunc, corofunc_args=corofunc_args, corofunc_kwargs=corofunc_kwargs
+        )
+        self._viewer = viewer
+
+    async def connect_endpoint(self):
+        if await self._viewer.get_limits() == 'stream':
+            self._viewer.unsubscribe()
+            # Force viewer to update the limits by unsubscribing and re-subscribing after
+            # setting limits to stream
+            await self._viewer.set_limits('stream')
+        self._viewer.subscribe(self.endpoint.client_endpoint)
+
+    async def disconnect_endpoint(self):
+        self._viewer.unsubscribe()
+
+
+class TangoMixin:
+
+    """TangoMixin does not need a producer becuase the backend processes image streams which do not
+    come via concert.
+    """
+    async def __ainit__(self, device, endpoints: dict) -> Awaitable:
+        self._device = device
+        self._device.set_timeout_millis(DISTRIBUTED_TANGO_TIMEOUT)
+        self._endpoints = endpoints
 
     async def _teardown(self):
         await self._device.disconnect_endpoint()
@@ -64,12 +128,20 @@ class TangoMixin:
 
 class Benchmarker(TangoMixin, base.Benchmarker):
 
-    async def __ainit__(self, experiment, device, endpoint, acquisitions=None):
-        await TangoMixin.__ainit__(self, device, endpoint)
+    async def __ainit__(self, experiment, device, endpoints, acquisitions=None):
+        await TangoMixin.__ainit__(self, device, endpoints)
         await base.Benchmarker.__ainit__(self, experiment=experiment, acquisitions=acquisitions)
 
-    @TangoMixin.cancel_remote
-    @remote
+    def _make_consumers(self, acquisitions):
+        consumers = {}
+
+        for acq in acquisitions:
+            consumers[acq] = TangoConsumer(
+                self._device, self._endpoints[acq], self.start_timer, corofunc_args=(acq.name,)
+            )
+
+        return consumers
+
     async def start_timer(self, acquisition_name):
         await self._device.start_timer(acquisition_name)
 
@@ -83,43 +155,59 @@ class Benchmarker(TangoMixin, base.Benchmarker):
 
 class ImageWriter(TangoMixin, base.ImageWriter):
 
-    async def __ainit__(self, experiment, endpoint, acquisitions=None):
-        await TangoMixin.__ainit__(self, experiment.walker.device, endpoint)
+    async def __ainit__(self, experiment, endpoints, acquisitions=None):
+        await TangoMixin.__ainit__(self, experiment.walker.device, endpoints)
         await base.ImageWriter.__ainit__(self, experiment=experiment, acquisitions=acquisitions)
 
-    @TangoMixin.cancel_remote
-    @remote
-    async def write_sequence(self, name):
-        return await self.walker.write_sequence(name=name)
+    def _make_consumers(self, acquisitions):
+        """Attach all acquisitions."""
+        consumers = {}
+
+        def prepare_wrapper(name):
+            async def write_sequence():
+                # Make sure the directory exists
+                async with self.walker:
+                    # Even though acquisition name is fixed, we don't know where in the file
+                    # system we are, so this must be determined dynamically when the writing
+                    # is about to start
+                    # This makes sure the directory exists
+                    await self.walker.descend(name)
+                    # Ascent immediately because walker descends to *name*
+                    await self.walker.ascend()
+                    # This returns a background task
+                    task = self.walker.write_sequence(name)
+
+                await task
+
+            return write_sequence
+
+        for acq in acquisitions:
+            consumers[acq] = TangoConsumer(
+                self._device, self._endpoints[acq], prepare_wrapper(acq.name)
+            )
+
+        return consumers
 
 
 class LiveView(base.LiveView):
 
-    async def __ainit__(self, viewer, endpoint, experiment, acquisitions=None):
-        self.endpoint = endpoint
+    async def __ainit__(self, viewer, endpoints, experiment, acquisitions=None):
+        self.endpoints = endpoints
         await base.LiveView.__ainit__(self,
                                       viewer,
                                       experiment=experiment,
                                       acquisitions=acquisitions)
-        self._orig_limits = await viewer.get_limits()
 
-    async def connect_endpoint(self):
-        self._viewer.subscribe(self.endpoint.client_endpoint)
+    def _make_consumers(self, acquisitions):
+        consumers = {}
 
-    async def disconnect_endpoint(self):
-        self._viewer.unsubscribe()
+        async def consume():
+            pass
 
-    @remote
-    async def consume(self):
-        try:
-            if await self._viewer.get_limits() == 'stream':
-                self._viewer.unsubscribe()
-                # Force viewer to update the limits by unsubscribing and re-subscribing after
-                # setting limits to stream
-                await self._viewer.set_limits('stream')
-                self._viewer.subscribe(self.endpoint.client_endpoint)
-        finally:
-            self._orig_limits = await self._viewer.get_limits()
+        for acq in acquisitions:
+            consumers[acq] = LiveViewConsumer(self._viewer, self.endpoints[acq], consume)
+
+        return consumers
 
 
 class _TangoProxyArgs:
@@ -149,14 +237,14 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
         self,
         device,
         experiment,
-        endpoint,
+        endpoints,
         acquisitions=None,
         do_normalization=True,
         average_normalization=True,
         slice_directory='online-slices',
         viewer=None
     ):
-        await TangoMixin.__ainit__(self, device, endpoint)
+        await TangoMixin.__ainit__(self, device, endpoints)
 
         await base.OnlineReconstruction.__ainit__(
             self,
@@ -169,20 +257,35 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
             viewer=viewer
         )
 
-    @TangoMixin.cancel_remote
-    @remote
+    def _make_consumers(self, acquisitions):
+        consumers = {}
+        darks = base.get_acq_by_name(acquisitions, 'darks')
+        flats = base.get_acq_by_name(acquisitions, 'flats')
+        radios = base.get_acq_by_name(acquisitions, 'radios')
+
+        if self._do_normalization:
+            consumers[darks] = TangoConsumer(
+                self._device, self._endpoints[darks], self.update_darks
+            )
+            consumers[flats] = TangoConsumer(
+                self._device, self._endpoints[flats], self.update_flats
+            )
+
+        consumers[radios] = TangoConsumer(
+            self._device, self._endpoints[radios], self.reconstruct
+        )
+
+        return consumers
+
     async def update_darks(self):
         await self._device.update_darks()
 
-    @TangoMixin.cancel_remote
-    @remote
     async def update_flats(self):
         await self._device.update_flats()
 
     async def get_volume_shape(self):
         return await self._device.get_volume_shape()
 
-    @TangoMixin.cancel_remote
     async def _reconstruct(self, cached=False, slice_directory=None):
         path = ""
         if self.walker and not await self.get_slice_metric():
@@ -196,12 +299,15 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
                         await self.get_slice_directory() if slice_directory is None
                         else slice_directory
                     )
-        if cached:
-            await self._device.rereconstruct(path)
-        else:
-            await self._device.reconstruct(path)
+        try:
+            if cached:
+                await self._device.rereconstruct(path)
+            else:
+                await self._device.reconstruct(path)
+        except BaseException as e:
+            self._device.cancel()
+            raise
 
-    @remote
     async def reconstruct(self):
         await base.OnlineReconstruction.reconstruct(self)
 
