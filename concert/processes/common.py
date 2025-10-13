@@ -9,7 +9,7 @@ from typing import List, Optional, Tuple, Dict
 import numpy as np
 import scipy.ndimage as sdi
 import skimage.registration as skr
-from concert.base import SoftLimitError, AsyncObject
+from concert.base import LimitError, AsyncObject
 from concert.coroutines.base import background, broadcast
 from concert.coroutines.sinks import Result
 from concert.quantities import q, Quantity
@@ -21,7 +21,7 @@ from concert.devices.motors.base import LinearMotor, RotationMotor
 from concert.devices.shutters.base import Shutter
 from concert.devices.cameras.base import Camera
 from concert.progressbar import wrap_iterable
-from concert.typing import ArrayLike, FrameProducer_T, FramesProducer_T, CoroFunc_T
+from concert.typing import ArrayLike, FrameProducer_T, FramesProducer_T, CoroFunc_T, Motor_T
 
 
 LOG = logging.getLogger(__name__)
@@ -488,6 +488,10 @@ class AlignmentParams:
     - linear delta movement to determine correct direction
     - angular delta movement to determine correct direction
     - epsilon pixel error tolerance, needed especially during centering the sample
+    - backlash compensation relative distance for linear motors
+    - backlash compensation relative angle for rotation motors
+    - backlash compensation absolute distance for linear motors
+    - backlash compensation absolute angle for rotation motors
     """
     max_iterations: int = 50
     init_gain: float = 1.0
@@ -500,6 +504,10 @@ class AlignmentParams:
     delta_move_mm: Quantity = 0.01 * q.mm
     delta_move_deg: Quantity = 0.1 * q.deg
     px_eps: float = 2.0
+    bl_comp_rel_lin: Quantity = 0.1 * q.mm
+    bl_comp_rel_rot: Quantity = 0.1 * q.deg
+    bl_comp_abs_lin: Quantity = -2 * q.mm
+    bl_comp_abs_rot: Quantity = -5 * q.deg
 
 
 def get_noop_logger() -> logging.Logger:
@@ -613,7 +621,7 @@ async def make_step(
     if np.any(np.sign(move_rel)):
         try:
             await motor.move(move_rel * q.deg)
-        except SoftLimitError:
+        except LimitError:
             logger.debug(f"{rot_type} motor encountered soft-limit error")
             return pose_last, ang_last
     else:
@@ -823,6 +831,65 @@ async def get_sample_shifts(
     return shift_yx[0], abs(shift_yx[1]) / 2
 
 
+async def move_relative(
+        motor: Motor_T, move_by: Quantity,
+        align_params: AlignmentParams, logger: logging.Logger = get_noop_logger()) -> None:
+    """
+    Makes a backlash-compensated relative move.
+
+    Backlash refers to the small amount of lost motion or mechanical slack that occurs whenever a
+    motion system reverses direction. In high-precision linear or rotary stages, it arises from
+    clearances between mating components such as screw threads, gears, or couplings. When direction
+    changes, the driving element must take up this slack before the driven part begins to move,
+    resulting in a temporary position error. It can prevent us from converging to minima of the
+    angular errors and should be taken into account for motor movement.
+
+    To compensate for backlash we take a uni-directional approach with an assumption. We assume that
+    any +ve directional movement of the motor is feasible without the mechanical slack. When we
+    change direction from +ve to -ve or vice versa we need to deal with backlash. According to this
+    assumption we make +ve relative moves as estimated by alignment algorithm. During -ve relative
+    moves we incorporate a direct and a backup strategy.
+
+    As part of the direct strategy we overshoot by a large -ve displacement in absolute sense using
+    `bl_comp_abs_rot` or `bl_comp_abs_lin`. Then we start our approach to the target towards the +ve
+    direction. However, large -ve displacement can hit the device limits. If that's the case we
+    restore the previous position and overshoot towards -ve direction by a small distance
+    `bl_comp_rel_rot` or `bl_comp_rel_lin` in relative sense and then come back to target towards
+    the +ve direction. These small relative distances should be big-enough to cover the systematic
+    backlash. However, during these compensatory movements we encounter backlash upon changing
+    direcions from +ve to -ve and vice versa. Hence, accuracy of the movement depends upon, which
+    face of the gear is engaged when we start the movement.
+    
+    NOTE: We can consider a preload routine before starting the alignment to be more deterministic
+    about gear face being engaged.
+
+    :param motor: linear or rotation motor used for alignment
+    :type motor: `concert.typing.Motor_T`
+    :param move_by: relative distance to move the motor
+    :type move_by: `concert.quantities.Quantity`
+    :param align_params: configurations specific to alignment
+    :type align_params: `concert.processes.common.AlignmentParams`
+    :param logger: optional logger
+    :type logger: logging.Logger
+    """
+    curr_pose: Quantity = await motor.get_position()
+    logger.debug(f"move_relative: current={curr_pose} move_by={move_by}")
+    if np.sign(move_by) > 0:
+        await motor.move(move_by)
+        return
+    try:
+        start_pose: Quantity = align_params.bl_comp_abs_rot if isinstance(motor, RotationMotor) \
+            else align_params.bl_comp_abs_lin
+        await motor.set_position(start_pose)
+        await motor.move(curr_pose - start_pose + move_by)
+    except LimitError:
+        await motor.set_position(curr_pose)
+        bl_comp: Quantity = align_params.bl_comp_rel_rot if isinstance(motor, RotationMotor) \
+            else align_params.bl_comp_rel_lin
+        await motor.move(move_by - bl_comp)
+        await motor.move(bl_comp)
+
+
 async def center_sample_on_axis(
         acq_devices: AcquisitionDevices, acq_params: AcquisitionParams,
         align_devices: AlignmentDevices, align_params: AlignmentParams,
@@ -875,14 +942,23 @@ async def center_sample_on_axis(
     :type logger: logging.Logger
     """
     async def _move_corrective(motor: LinearMotor, offset: float, start_ang_deg: Quantity) -> float:
-        await motor.move(align_params.delta_move_mm)
+        # await motor.move(align_params.delta_move_mm)
+        await move_relative(
+            motor=motor, move_by=align_params.delta_move_mm,
+            align_params=align_params, logger=logger)
         _, _offset = await get_sample_shifts(
             acq_devices=acq_devices, acq_params=acq_params,
             start_ang_deg=start_ang_deg, use_threshold=use_threshold)
-        await motor.move(-align_params.delta_move_mm)
+        # await motor.move(-align_params.delta_move_mm)
+        await move_relative(
+            motor=motor, move_by=-align_params.delta_move_mm,
+            align_params=align_params, logger=logger)
         if _offset > offset:
             offset = -offset
-        await motor.move(offset * pixel_size_um)
+        # await motor.move(offset * pixel_size_um)
+        await move_relative(
+            motor=motor, move_by=offset * pixel_size_um,
+            align_params=align_params, logger=logger)
         _, _new_offset = await get_sample_shifts(
             acq_devices=acq_devices, acq_params=acq_params,
             start_ang_deg=start_ang_deg, use_threshold=use_threshold)
@@ -972,22 +1048,40 @@ async def center_stage_in_projection(
     while z_offset > align_params.px_eps or stage_offset > align_params.px_eps:
         # Make step adjustment for z-motor (vertically orthogonal to beam direction)
         if z_offset > align_params.px_eps:
-            await acq_devices.z_motor.move(align_params.delta_move_mm)
+            # await acq_devices.z_motor.move(align_params.delta_move_mm)
+            await move_relative(
+                motor=acq_devices.z_motor, move_by=align_params.delta_move_mm,
+                align_params=align_params, logger=logger)
             _z_offset, _ = await offset_from_projection_center(
                 acq_devices=acq_devices, acq_params=acq_params, use_threshold=use_threshold)
-            await acq_devices.z_motor.move(-align_params.delta_move_mm)
+            # await acq_devices.z_motor.move(-align_params.delta_move_mm)
+            await move_relative(
+                motor=acq_devices.z_motor, move_by=-align_params.delta_move_mm,
+                align_params=align_params, logger=logger)
             if _z_offset > z_offset:
                 z_offset = -z_offset
-            await acq_devices.z_motor.move(z_offset * pixel_size_um)
+            # await acq_devices.z_motor.move(z_offset * pixel_size_um)
+            await move_relative(
+                motor=acq_devices.z_motor, move_by=z_offset * pixel_size_um,
+                align_params=align_params, logger=logger)
         # Make step adjustment for stage motor (horizontally orthogonal to beam direction)
         if stage_offset > align_params.px_eps:
-            await acq_devices.flat_motor.move(align_params.delta_move_mm)
+            # await acq_devices.flat_motor.move(align_params.delta_move_mm)
+            await move_relative(
+                motor=acq_devices.flat_motor, move_by=align_params.delta_move_mm,
+                align_params=align_params, logger=logger)
             _, _stage_offset = await offset_from_projection_center(
                 acq_devices=acq_devices, acq_params=acq_params, use_threshold=use_threshold)
-            await acq_devices.flat_motor.move(-align_params.delta_move_mm)
+            # await acq_devices.flat_motor.move(-align_params.delta_move_mm)
+            await move_relative(
+                motor=acq_devices.flat_motor, move_by=-align_params.delta_move_mm,
+                align_params=align_params, logger=logger)
             if _stage_offset > stage_offset:
                 stage_offset = -stage_offset
-            await acq_devices.flat_motor.move(stage_offset * pixel_size_um)
+            # await acq_devices.flat_motor.move(stage_offset * pixel_size_um)
+            await move_relative(
+                motor=acq_devices.flat_motor, move_by=stage_offset * pixel_size_um,
+                align_params=align_params, logger=logger)
         z_offset, stage_offset = await offset_from_projection_center(
             acq_devices=acq_devices, acq_params=acq_params, use_threshold=use_threshold)
     logger.debug(f"{func_name}: after: z_offset = {z_offset} stage_offset = {stage_offset}")
@@ -1076,22 +1170,28 @@ async def align_rotation_stage_comparative(
     misalignment.
 
     NOTE: After roll angle adjustment we move sample back to rotation axis and reset tomo angle to
-    0 degree. At this state, if there is no pitch angle error, no displacement would be perceived
-    upon rotating the sample. If there is a pitch angle error there would be proportional vertical
-    displacement only. To estimate the pitch angle error two specific aspects are relevant.
-    
-    - Before estimating pitch we assume to have off-centered the sample using linear motor parallel
-    to beam direction. If we now set tomo position to 90 degrees and cross-correlate projections
-    taken at angular displacements of [90, 270] degrees there would be no vertical displacement and
-    horizontal displacement would capture the off-centering parallel to beam direction. Vertical
-    displacement would be theoretically zero because rotary stage is tilted in the same direction as
-    beam. At 90 degrees and 270 degrees sample remains at the same height. 
+    0 degree. Since we centered the sample before starting the angular corrections now irrespective
+    of any potential pitch angle error we expect no displacement upon rotation. But we need to
+    off-center again, this time parallel to beam direction to estimate the pitch angle error because
+    we need the 'opposite' and 'adjacent' values from vertical and horizontal offsets.
 
-    - To capture the vertical displacement, right after off-centering in parallel to beam direction
-    we need to cross-correlate the projections at angular displacements of [0, 180] degrees. This
-    has the opposite situation to the [90, 270] degrees. With [0, 180] degrees we should have the
-    sample in the same horizontal position (zero displacement) at both ends of rotation, only
-    vertical displacement is captured.
+    To estimate these offsets two specific aspects are relevant.
+    
+    - We first need to off-center the sample using linear motor parallel to beam direction. If we
+    now set tomo position to 90 degrees and cross-correlate projections taken at angular range of
+    [90, 270] we would are expected to see only horizontal offset (proportional to off-centering)
+    and vertical offset should be theoretically zero. In context of alignment we rotate tomo stage
+    to 90 degrees to be able to see how far we are from axis along the direction parallel to beam.
+    And when we rotate to 270 degrees position starting from 90 degrees position in absolute sense
+    sample remains theoretically at the same height at start and end positions. Hence, from this
+    angular range we can only estimate the 'adjacent' (horizontal offset from center) part.
+
+    - To capture the 'opposite' (vertical offset) part, right after off-centering parallel to beam
+    direction we need to cross-correlate the projections at angular range of [0, 180] degrees. This
+    has the opposite situation to the [90, 270] degrees range. With [0, 180] degrees range, if there
+    exist a pitch angle error we would only see the vertical offset of the sample positions at start
+    and end of he rotation. In this case before and after the rotation sample remains theoretically
+    at the same horizontal position.
 
     STEP 3: Off-center the sample parallel to beam direction and iteratively correct pitch (lamino)
     angle misalignment.
@@ -1128,7 +1228,10 @@ async def align_rotation_stage_comparative(
         await align_devices.rot_motor_roll.move(-delta_move)
         if abs(_roll) > abs(curr_roll):
             curr_roll = -curr_roll
-        await align_devices.rot_motor_roll.move(curr_roll)
+        # await align_devices.rot_motor_roll.move(curr_roll)
+        await move_relative(
+            motor=align_devices.rot_motor_roll, move_by=curr_roll,
+            align_params=align_params, logger=logger)
         return await _get_roll()
     
     async def _get_pitch() -> Quantity:
@@ -1149,7 +1252,10 @@ async def align_rotation_stage_comparative(
         await align_devices.rot_motor_pitch.move(-delta_move)
         if abs(_pitch) > abs(curr_pitch):
             curr_pitch = -curr_pitch
-        await align_devices.rot_motor_pitch.move(curr_pitch)
+        # await align_devices.rot_motor_pitch.move(curr_pitch)
+        await move_relative(
+            motor=align_devices.rot_motor_pitch, move_by=curr_pitch,
+            align_params=align_params, logger=logger)
         return await _get_pitch()
 
     func_name = "align_rotation_stage_comparative"
@@ -1169,27 +1275,33 @@ async def align_rotation_stage_comparative(
         pixel_size_um=pixel_size_um, use_threshold=use_threshold)
     # STEP 2: Off-center the sample orthogonal to beam direction and iteratively correct roll angle
     # misalignment.
+    roll_iter = 0
     await align_devices.align_motor_obd.move(align_params.offset_obd)
     roll_ang_err: Quantity = await _get_roll()
     logger.debug(f"{func_name} roll before misalignment: {abs(roll_ang_err)}")
     while abs(roll_ang_err) > acq_params.align_metric:
+        logger.debug(f"{func_name} roll correction iteration: {roll_iter}")
         roll_ang_err = await _step_roll(curr_roll=roll_ang_err)
         await align_devices.align_motor_obd.move(-align_params.offset_obd)
         await center_stage_in_projection(
             acq_devices=acq_devices, acq_params=acq_params, align_params=align_params,
             pixel_size_um=pixel_size_um, use_threshold=use_threshold)
+        roll_iter += 1
     logger.debug(f"{func_name} roll after misalignment: {abs(roll_ang_err)}")
-    # STEP 3: Off-center the sample parallel to beam direction and iteratively correct pitch (lamino)
-    # angle misalignment.
+    # STEP 3: Off-center the sample parallel to beam direction and iteratively correct pitch
+    # (lamino) angle misalignment.
+    pitch_iter = 0
     await align_devices.align_motor_pbd.move(align_params.offset_pbd)
     pitch_ang_err: Quantity = await _get_pitch()
     logger.debug(f"{func_name} pitch before misalignment: {abs(pitch_ang_err)}")
     while abs(pitch_ang_err) > acq_params.align_metric:
+        logger.debug(f"{func_name} pitch correction iteration: {pitch_iter}")
         pitch_ang_err = await _step_pitch(curr_pitch=pitch_ang_err)
         await align_devices.align_motor_pbd.move(-align_params.offset_pbd)
         await center_stage_in_projection(
             acq_devices=acq_devices, acq_params=acq_params, align_params=align_params,
             pixel_size_um=pixel_size_um, use_threshold=use_threshold)
+        pitch_iter += 1
     logger.debug(f"{func_name} pitch after misalignment: {abs(pitch_ang_err)}")
     await acq_devices.tomo_motor.set_position(0 * q.deg)
 ####################################################################################################

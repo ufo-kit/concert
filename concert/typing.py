@@ -8,6 +8,7 @@ Facilitates type annotations for concert
 from typing import Protocol, Any, Callable, Union
 from typing import List, Sequence, Tuple
 from typing import Awaitable, Coroutine
+from concert.devices.motors.base import LinearMotor, RotationMotor
 
 ####################################################################################################
 # Abstract types to be used across the codebase
@@ -25,6 +26,8 @@ FrameProducer_T = Awaitable[ArrayLike]
 FramesProducer_T = Awaitable[List[ArrayLike]]
 # Function that takes no parameter and produces a coroutine object
 CoroFunc_T = Callable[[], Coroutine[None, None, None]]
+# A Motor object for which a positional Quantity can be set
+Motor_T = Union[LinearMotor, RotationMotor]
 ####################################################################################################
 
 ####################################################################################################
