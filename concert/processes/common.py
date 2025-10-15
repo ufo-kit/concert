@@ -499,15 +499,13 @@ class AlignmentParams:
     eps_pose: Quantity = 0.01 * q.deg
     eps_ang_diff: Quantity = 1e-7 * q.deg
     ceil_rel_move: Quantity = 1 * q.deg
-    offset_obd: Quantity = 0.5 * q.mm
-    offset_pbd: Quantity = 0.5 * q.mm
+    offset_obd: Quantity = 0.2 * q.mm
+    offset_pbd: Quantity = 0.4 * q.mm
     delta_move_mm: Quantity = 0.01 * q.mm
     delta_move_deg: Quantity = 0.1 * q.deg
     px_eps: float = 2.0
     bl_comp_rel_lin: Quantity = 0.1 * q.mm
     bl_comp_rel_rot: Quantity = 0.1 * q.deg
-    bl_comp_abs_lin: Quantity = -2 * q.mm
-    bl_comp_abs_rot: Quantity = -5 * q.deg
 
 
 def get_noop_logger() -> logging.Logger:
@@ -844,24 +842,19 @@ async def move_relative(
     resulting in a temporary position error. It can prevent us from converging to minima of the
     angular errors and should be taken into account for motor movement.
 
-    To compensate for backlash we take a uni-directional approach with an assumption. We assume that
-    any +ve directional movement of the motor is feasible without the mechanical slack. When we
-    change direction from +ve to -ve or vice versa we need to deal with backlash. According to this
-    assumption we make +ve relative moves as estimated by alignment algorithm. During -ve relative
-    moves we incorporate a direct and a backup strategy.
+    To compensate for backlash we take a uni-directional approach with an assumption, that any +ve
+    directional movement of the motor is feasible without the mechanical slack. When we change
+    direction from +ve to -ve or vice versa we need to take backlash into account. Our objective is
+    to make relative movements in a way that backlash remains constant and consistently in the -ve
+    direction when we make the final move which always has to be in the +ve direction according to
+    our assumption.
 
-    As part of the direct strategy we overshoot by a large -ve displacement in absolute sense using
-    `bl_comp_abs_rot` or `bl_comp_abs_lin`. Then we start our approach to the target towards the +ve
-    direction. However, large -ve displacement can hit the device limits. If that's the case we
-    restore the previous position and overshoot towards -ve direction by a small distance
-    `bl_comp_rel_rot` or `bl_comp_rel_lin` in relative sense and then come back to target towards
-    the +ve direction. These small relative distances should be big-enough to cover the systematic
-    backlash. However, during these compensatory movements we encounter backlash upon changing
-    direcions from +ve to -ve and vice versa. Hence, accuracy of the movement depends upon, which
-    face of the gear is engaged when we start the movement.
-    
-    NOTE: We can consider a preload routine before starting the alignment to be more deterministic
-    about gear face being engaged.
+    To account for backlash we overshoot towards -ve direction by a small distance `bl_comp_rel_rot`
+    or `bl_comp_rel_lin` in relative sense and then come back by the same amount toward the +ve
+    direction. These small relative distances should be big-enough to cover the systematic backlash.
+    Accuracy in motor movement in this manner relies on the preload step at the begining, where we
+    try to ensure that gears are touching the face in the +ve direction while backlash remains in
+    the -ve direction.
 
     :param motor: linear or rotation motor used for alignment
     :type motor: `concert.typing.Motor_T`
@@ -872,22 +865,16 @@ async def move_relative(
     :param logger: optional logger
     :type logger: logging.Logger
     """
-    curr_pose: Quantity = await motor.get_position()
-    logger.debug(f"move_relative: current={curr_pose} move_by={move_by}")
+    logger.debug(f"To move = {move_by}")
     if np.sign(move_by) > 0:
+        print(f"Tried to move = {move_by}")
         await motor.move(move_by)
         return
-    try:
-        start_pose: Quantity = align_params.bl_comp_abs_rot if isinstance(motor, RotationMotor) \
-            else align_params.bl_comp_abs_lin
-        await motor.set_position(start_pose)
-        await motor.move(curr_pose - start_pose + move_by)
-    except LimitError:
-        await motor.set_position(curr_pose)
-        bl_comp: Quantity = align_params.bl_comp_rel_rot if isinstance(motor, RotationMotor) \
-            else align_params.bl_comp_rel_lin
-        await motor.move(move_by - bl_comp)
-        await motor.move(bl_comp)
+    bl_comp: Quantity = align_params.bl_comp_rel_rot if isinstance(motor, RotationMotor) \
+        else align_params.bl_comp_rel_lin
+    print(f"Tried to move = {move_by - bl_comp}")
+    await motor.move(move_by - bl_comp)
+    await motor.move(bl_comp)
 
 
 async def center_sample_on_axis(
@@ -1118,11 +1105,15 @@ async def align_rotation_stage_comparative(
     degrees of rotation, generally we want to first center the sample on rotation axis and
     projection as a preparatory step before off-centering for alignment. It provides us with a
     clean slate to start actual steps of alignment.
+
+    STEP 0: Preloading is done as a prerequisite to backlash-compensated relative move of the
+    motors implemented in the function `move_relative`, which describes the countermeasure against
+    backlash.
     
-    STEP 0: This implementation assumes that sample is brought into FOV and can be rotated by 360
+    STEP 1: This implementation assumes that sample is brought into FOV and can be rotated by 360
     degrees without sending it outside FOV. We can do this manually.
     
-    STEP 1: Centering is a two-step procedure, firstly we center the sample on axis of rotation
+    STEP 2: Centering is a two-step procedure, firstly we center the sample on axis of rotation
     and then we center the rotation stage w.r.t. projection. Axis of rotation is the geometric
     center of the tomographic rotation motor. Motor `align_motor_obd` takes the sample away from
     center in the horizontally-orthogonal direction to the beam. This offset distance then becomes
@@ -1166,7 +1157,7 @@ async def align_rotation_stage_comparative(
     correction. Since we off-center to estimate the error, making even a small angular adjustment
     to axial rotation motors in off-centered situation may cause the sample go outside FOV.
 
-    STEP 2: Off-center the sample orthogonal to beam direction and iteratively correct roll angle
+    STEP 3: Off-center the sample orthogonal to beam direction and iteratively correct roll angle
     misalignment.
 
     NOTE: After roll angle adjustment we move sample back to rotation axis and reset tomo angle to
@@ -1193,7 +1184,7 @@ async def align_rotation_stage_comparative(
     and end of he rotation. In this case before and after the rotation sample remains theoretically
     at the same horizontal position.
 
-    STEP 3: Off-center the sample parallel to beam direction and iteratively correct pitch (lamino)
+    STEP 4: Off-center the sample parallel to beam direction and iteratively correct pitch (lamino)
     angle misalignment.
 
     :param acq_devices: devices, which are collectively required for acquisition
@@ -1212,6 +1203,16 @@ async def align_rotation_stage_comparative(
     :type logger: logging.Logger
     """
     logger.debug=print # TODO: For quick debugging, remove later
+
+    async def _preload(motor: Motor_T) -> None:
+        """
+        Ensures that gear of the `motor` touches the face on the +ve side to ensure accuracy of
+        subsequent moves with backlash compensation.
+        """
+        bl_comp: Quantity = align_params.bl_comp_rel_rot if isinstance(motor, RotationMotor) \
+        else align_params.bl_comp_rel_lin
+        await motor.move(-2 * bl_comp)
+        await motor.move(2 * bl_comp)
 
     async def _get_roll() -> Quantity:
         """Estimates roll angle error"""
@@ -1262,9 +1263,14 @@ async def align_rotation_stage_comparative(
     logger.debug("#" * 3 * len(f"Start: {func_name}"))
     logger.debug(f"Start: {func_name}")
     logger.debug("#" * 3 * len(f"Start: {func_name}"))
-    # STEP 0: Sample is brought into FOV and a 360 degrees rotation is possible without sending it
+    # STEP 0: Preload
+    await _preload(align_devices.align_motor_obd)
+    await _preload(align_devices.align_motor_pbd)
+    await _preload(align_devices.rot_motor_roll)
+    await _preload(align_devices.rot_motor_pitch)
+    # STEP 1: Sample is brought into FOV and a 360 degrees rotation is possible without sending it
     # outside FOV.
-    # STEP 1: Center the sample w.r.t. the projection in two steps, firstly centering the sample
+    # STEP 2: Center the sample w.r.t. the projection in two steps, firstly centering the sample
     # to the axis of rotation and then centering the tomo stage to the projection by center of mass.
     await center_sample_on_axis(
         acq_devices=acq_devices, acq_params=acq_params,
@@ -1273,7 +1279,7 @@ async def align_rotation_stage_comparative(
     await center_stage_in_projection(
         acq_devices=acq_devices, acq_params=acq_params, align_params=align_params,
         pixel_size_um=pixel_size_um, use_threshold=use_threshold)
-    # STEP 2: Off-center the sample orthogonal to beam direction and iteratively correct roll angle
+    # STEP 3: Off-center the sample orthogonal to beam direction and iteratively correct roll angle
     # misalignment.
     roll_iter = 0
     await align_devices.align_motor_obd.move(align_params.offset_obd)
@@ -1288,7 +1294,7 @@ async def align_rotation_stage_comparative(
             pixel_size_um=pixel_size_um, use_threshold=use_threshold)
         roll_iter += 1
     logger.debug(f"{func_name} roll after misalignment: {abs(roll_ang_err)}")
-    # STEP 3: Off-center the sample parallel to beam direction and iteratively correct pitch
+    # STEP 4: Off-center the sample parallel to beam direction and iteratively correct pitch
     # (lamino) angle misalignment.
     pitch_iter = 0
     await align_devices.align_motor_pbd.move(align_params.offset_pbd)
