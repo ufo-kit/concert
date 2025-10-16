@@ -9,6 +9,9 @@ from typing import List, Optional, Tuple, Dict
 import numpy as np
 import scipy.ndimage as sdi
 import skimage.filters as sfl
+import skimage.feature as sft
+import skimage.measure as sms
+from skimage.measure._regionprops import RegionProperties
 import skimage.registration as skr
 from concert.base import LimitError, AsyncObject
 from concert.coroutines.base import background, broadcast
@@ -519,13 +522,58 @@ class AlignmentState:
     """
     Encapsulates elements of the state management for the alignment
 
-    - patches dictionary contains a patch of our sample for each of the terminal angles, which we
-    use to determine, if the sample has gone outside FOV in an unanticipated manner.
     - checkpoints dictionary tracks last known positions of the motors involved in the alignment.
+    - patches dictionary contains a patch of our sample for each of the terminal angles.
+    - baseline_scores contains the estimated certainty scores for the sample definitely being
+    inside FOV.
+    - uncertainty_threshold is the maximum uncertainty to allow to conclude that the sample is in
+    fact inside FOV.
+
+    TODO: Checkpoint based system is not fully implemented yet. It is supposed to serve state
+    management during alignment and help in recovering from anomalies like sample going outside FOV.
+    The idea for the checkpoints dictionary is to track the last known 'good' motor positions for
+    which sample was definitely in FOV. In conjunction to that we need a stack which tracks the
+    adjustments / relative movements made to the respective motors in order. At any given point in
+    time if we detect the sample outside FOV we can pop the last movement from the stack which has
+    caused it and try to recover from that.
     """
-    patches: Dict[str, ArrayLike]
     checkpoints: Dict[str, Quantity]
-    dim: int = 100
+    patches: Dict[str, ArrayLike]
+    baseline_scores: Dict[str, float]
+    dim: int = 200
+    uncertainty_threshold: float = 0.2
+
+    def __str__(self) -> str:
+        val = "Motor Positions:\n"
+        for key, value in self.checkpoints.items():
+            val += f" {key} = {value}\n"
+        val += "Baseline Scores (expected close to 1.0):\n"
+        for key, value in self.baseline_scores.items():
+            val += f" {key} degree = {value}\n"
+        return val
+
+    def sample_in_FOV(self, frame: ArrayLike, angle: int) -> bool:
+        """
+        Evaluates if sample is inside FOV for the given `frame` and `angle`.
+
+        We derive a cofidence score by matching a template patch for the given `angle` to the
+        `frame`. This score is then used to compute a relative certainty against respective baseline
+        score for the `angle` and from that we compute an uncertainty metric, which is compared
+        against the configured threshold. In principle, we are asking, how uncertain we are that the
+        sample is inside FOV against the maximum uncertainty that we want to allow.
+
+        :param frame: projection to evaluate
+        :type frame: `concert.typing.ArrayLike`
+        :param angle: angle to select the patch and score
+        :type angle: int
+        :return: if smaple inside FOV
+        :rtype: bool
+        """
+        score = np.max(sft.match_template(
+            image=frame, template=self.patches[str(angle)], pad_input=True))
+        relative_likelihood = (score / self.baseline_scores[str(angle)])
+        uncertainty = 1 - relative_likelihood
+        return uncertainty < self.uncertainty_threshold
 
 
 def get_noop_logger() -> logging.Logger:
@@ -767,22 +815,30 @@ async def align_rotation_stage_ellipse_fit(
     logger.debug(f"End: {func_name}")
 
 
-def make_binary(projection: ArrayLike, sigma: int) -> ArrayLike:
+def make_binary(
+        projection: ArrayLike, sigma: int, logger: logging.Logger = get_noop_logger()) -> ArrayLike:
     """
     Exploits the high absorption of the sample to make a binary image from the projection
+    
+    NOTE: We use try-except block here to be able to work with simulation camera. For real
+    acquisitions an exception inside this block is unlikely.
 
     :param projection: projection
     :type projection: `concert.typing.ArrayLike`
     :param sigma: sigma value for low-pass filtering
     :type sigma: int
     """
-    img: ArrayLike = projection.astype(np.float32)
-    img = (img - np.min(img)) / (np.max(img) - np.min(img))
-    smoothed: ArrayLike = sfl.gaussian(img, sigma=sigma)
-    seg: float = sfl.threshold_otsu(smoothed)
-    mask: ArrayLike = smoothed > seg
-    if projection.shape == mask.shape:
-        return mask
+    logger.debug = print # TODO 
+    try:
+        img: ArrayLike = projection.astype(np.float32)
+        img = (img - np.min(img)) / (np.max(img) - np.min(img))
+        smoothed: ArrayLike = sfl.gaussian(img, sigma=sigma)
+        seg: float = sfl.threshold_otsu(smoothed)
+        mask: ArrayLike = smoothed > seg
+        if projection.shape == mask.shape:
+            return mask
+    except ValueError:
+        logger.debug("make_binary: could not create mask, falling back to intensity thresholding")
     fallback: ArrayLike = projection.copy()
     fallback[projection < projection.max() / 2] = projection.min()
     return fallback
@@ -790,7 +846,8 @@ def make_binary(projection: ArrayLike, sigma: int) -> ArrayLike:
 
 async def get_sample_shifts(
         acq_devices: AcquisitionDevices, acq_params: AcquisitionParams,
-        start_ang_deg: Quantity, use_binary: bool) -> Tuple[float, float]:
+        align_params: AlignmentParams,  align_state: AlignmentState,
+        start_ang_deg: Quantity) -> Tuple[float, float]:
     """
     Estimates the linear shifts of the sample across a 180 degrees rotation along given cartesian
     axis for which the function is called.
@@ -837,10 +894,12 @@ async def get_sample_shifts(
     :type acq_devices: `concert.processes.common.AcquisitionDevices`
     :param acq_params: configurations specific to acquisition
     :type acq_params: `concert.processes.common.AcquisitionParams`
+    :param align_params: configurations specific to alignment
+    :type align_params: `concert.processes.common.AlignmentParams`
+    :param align_state: alignment state
+    :type align_state: `concert.processes.common.AlignmentState`
     :param start_angle: initial angle(degrees) to set before measuring offset
     :type start_angle: `concert.quantities.Quantity`
-    :param use_binary: use binary image to compute sample offsets
-    :type use_binary: bool
     :return: vertical shift of sample caused by misalignment and distance of sample from center
     of rotation
     :rtype: Tuple[float, float]
@@ -849,36 +908,68 @@ async def get_sample_shifts(
     producer: FrameProducer_T = acquire_frames(
         acq_devices.camera, acq_devices.tomo_motor, 1, acq_devices.shutter, acq_devices.flat_motor,
         acq_params.flat_position)
-    frame0: ArrayLike = [frame async for frame in producer][0]
+    ref_frame: ArrayLike = np.asarray([frame async for frame in producer][0])
+    if not align_state.sample_in_FOV(frame=ref_frame, angle=start_ang_deg.magnitude):
+        raise ProcessError("sample went outside FOV before rotation, aborting")
     await acq_devices.tomo_motor.move(180 * q.deg)
     producer =  acquire_frames(
         acq_devices.camera, acq_devices.tomo_motor, 1, acq_devices.shutter, acq_devices.flat_motor,
         acq_params.flat_position)
-    frame180: ArrayLike = [frame async for frame in producer][0]
-    ref_img: ArrayLike = make_binary(np.asarray(frame0), sigma=acq_params.sigma) \
-        if use_binary else np.asarray(frame0)
-    mov_img: ArrayLike = make_binary(np.asarray(frame180), sigma=acq_params.sigma) \
-        if use_binary else np.asarray(frame180)
+    mov_frame: ArrayLike = np.asarray([frame async for frame in producer][0])
+    if not align_state.sample_in_FOV(frame=mov_frame, angle=start_ang_deg.magnitude + 180):
+        raise ProcessError("sample went outside FOV after rotation, aborting")
+    ref_img: ArrayLike = make_binary(projection=ref_frame, sigma=acq_params.sigma) \
+        if align_params.use_binary else ref_frame
+    mov_img: ArrayLike = make_binary(projection=mov_frame, sigma=acq_params.sigma) \
+        if align_params.use_binary else mov_frame
     shift_yx, _, _ = skr.phase_cross_correlation(
         reference_image=ref_img, moving_image=mov_img, upsample_factor=4)
     await acq_devices.tomo_motor.move(-180 * q.deg)
     return shift_yx[0], abs(shift_yx[1]) / 2
 
 
-async def init_state(
-        acq_devices: AcquisitionDevices, acq_params: AcquisitionParams) -> AlignmentState:
+async def init_alignment_state(
+        acq_devices: AcquisitionDevices, acq_params: AcquisitionParams,
+        align_devices: AlignmentDevices) -> AlignmentState:
     """
-    Initialize state by collecting the patches and recording the motor positions.
+    Initializes alignment state
+
+    - STEP 1: Record relevant motor positions before starting with the alignment
+    - STEP 2: For each terminal angle, grab a frame, extract a patch containing the sample, use
+    template matching to get a baseline certainty score for sample definitely being inside FOV.
+
+    :param acq_devices: devices, which are collectively required for acquisition
+    :type acq_devices: `concert.processes.common.AcquisitionDevices`
+    :param acq_params: configurations specific to acquisition
+    :type acq_params: `concert.processes.common.AcquisitionParams`
+    :param align_devices: devices which are collectively required for alignment
+    :type align_devices: `concert.processes.common.AlignmentDevices`
+    :return: initial alignment state
+    :rtype: `concert.processes.common.AlignmentState`
     """
-    state = AlignmentState()
+    state = AlignmentState(checkpoints={}, patches={}, baseline_scores={})
+    # Record all relevant motor positions
+    for motor_str in ["flat_motor", "z_motor"]:
+        state.checkpoints[motor_str] = await getattr(acq_devices, motor_str).get_position()
+    for motor_str in ["align_motor_obd", "align_motor_pbd", "rot_motor_roll", "rot_motor_pitch"]:
+        state.checkpoints[motor_str] = await getattr(align_devices, motor_str).get_position()
+    # Record patches and baseline scores for the terminal angles
     for angle in [0, 90, 180, 270]:
         await acq_devices.tomo_motor.set_position(angle * q.deg)
         producer: FrameProducer_T = acquire_frames(
-            acq_devices.camera, acq_devices.tomo_motor, 1, acq_devices.shutter, acq_devices.flat_motor,
-            acq_params.flat_position)
-        frame: ArrayLike = [frame async for frame in producer][0]
-        # TODO: Extract patch and record motor positions
-    return NotImplementedError
+            acq_devices.camera, acq_devices.tomo_motor, 1, acq_devices.shutter,
+            acq_devices.flat_motor, acq_params.flat_position)
+        frame: ArrayLike = np.asarray([frame async for frame in producer][0])
+        mask: ArrayLike = make_binary(projection=frame, sigma=acq_params.sigma)
+        regions: List[RegionProperties] = sms.regionprops(label_image=sms.label(mask))
+        cnt_y, cnt_x = sorted(regions, key=lambda r: r.area, reverse=True)[0].centroid
+        dim = state.dim // 2
+        state.patches[str(angle)] = frame[
+            int(cnt_y) - dim:int(cnt_y) + dim, int(cnt_x)- dim:int(cnt_x) + dim]
+        state.baseline_scores[str(angle)] = np.max(
+            sft.match_template(image=frame, template=state.patches[str(angle)], pad_input=True))
+    await acq_devices.tomo_motor.set_position(0 * q.deg)
+    return state
 
 
 async def move_relative(
@@ -917,14 +1008,12 @@ async def move_relative(
     :param logger: optional logger
     :type logger: logging.Logger
     """
-    logger.debug(f"To move = {move_by}")
+    logger.debug=print # TODO: For quick debugging, remove later
     if np.sign(move_by) > 0:
-        print(f"Tried to move = {move_by}")
         await motor.move(move_by)
         return
     bl_comp: Quantity = align_params.bl_comp_rel_rot if isinstance(motor, RotationMotor) \
         else align_params.bl_comp_rel_lin
-    print(f"Tried to move = {move_by - bl_comp}")
     await motor.move(move_by - bl_comp)
     await motor.move(bl_comp)
 
@@ -932,7 +1021,8 @@ async def move_relative(
 async def center_sample_on_axis(
         acq_devices: AcquisitionDevices, acq_params: AcquisitionParams,
         align_devices: AlignmentDevices, align_params: AlignmentParams,
-        pixel_size_um: Quantity, logger: logging.Logger = get_noop_logger()) -> None:
+        align_state: AlignmentState, pixel_size_um: Quantity,
+        logger: logging.Logger = get_noop_logger()) -> None:
     """
     Adjusts alignment motors orthogonal to the beam direction, `align_motor_obd` and parallel to the
     beam direction, `align_motor_pbd` to center the sample on rotation axis. This is prerequisite
@@ -972,19 +1062,23 @@ async def center_sample_on_axis(
     :type align_devices: `concert.processes.common.AlignmentDevices`
     :param align_params: configurations specific to alignment
     :type align_params: `concert.processes.common.AlignmentParams`
+    :param align_state: alignment state
+    :type align_state: `concert.processes.common.AlignmentState`
     :param pixel_size_um: pixel size in microns
     :type pixel_size_um: `concert.quantities.Quantity`
     :param logger: optional logger
     :type logger: logging.Logger
     """
+    logger.debug=print # TODO: For quick debugging, remove later
+
     async def _move_corrective(motor: LinearMotor, offset: float, start_ang_deg: Quantity) -> float:
         # await motor.move(align_params.delta_move_mm)
         await move_relative(
             motor=motor, move_by=align_params.delta_move_mm,
             align_params=align_params, logger=logger)
         _, _offset = await get_sample_shifts(
-            acq_devices=acq_devices, acq_params=acq_params,
-            start_ang_deg=start_ang_deg, use_binary=align_params.use_binary)
+            acq_devices=acq_devices, acq_params=acq_params, align_params=align_params,
+            align_state=align_state, start_ang_deg=start_ang_deg)
         # await motor.move(-align_params.delta_move_mm)
         await move_relative(
             motor=motor, move_by=-align_params.delta_move_mm,
@@ -996,20 +1090,18 @@ async def center_sample_on_axis(
             motor=motor, move_by=offset * pixel_size_um,
             align_params=align_params, logger=logger)
         _, _new_offset = await get_sample_shifts(
-            acq_devices=acq_devices, acq_params=acq_params,
-            start_ang_deg=start_ang_deg, use_binary=align_params.use_binary)
+            acq_devices=acq_devices, acq_params=acq_params, align_params=align_params,
+            align_state=align_state, start_ang_deg=start_ang_deg)
         return _new_offset
     
-    logger.debug=print # TODO: For quick debugging, remove later
-    func_name = "center_sample_on_axis"
     # Get initial distances from center of rotation
     _, offset_obd = await get_sample_shifts(
-        acq_devices=acq_devices, acq_params=acq_params,
-        start_ang_deg=0 * q.deg, use_binary=align_params.use_binary)
+        acq_devices=acq_devices, acq_params=acq_params, align_params=align_params,
+        align_state=align_state, start_ang_deg=0 * q.deg)
     _, offset_pbd = await get_sample_shifts(
-        acq_devices=acq_devices, acq_params=acq_params,
-        start_ang_deg=90 * q.deg, use_binary=align_params.use_binary)
-    logger.debug(f"{func_name}: before: offset_obd = {offset_obd} offset_pbd = {offset_pbd}")
+        acq_devices=acq_devices, acq_params=acq_params, align_params=align_params,
+        align_state=align_state, start_ang_deg=90 * q.deg)
+    logger.debug(f">> before: offset_obd = {offset_obd} offset_pbd = {offset_pbd}")
     while offset_obd > align_params.px_eps or offset_pbd > align_params.px_eps:
         # Make step adjustment for alignment motor orthogonal to beam direction
         if offset_obd > align_params.px_eps:
@@ -1019,12 +1111,12 @@ async def center_sample_on_axis(
         if offset_pbd > align_params.px_eps:
             offset_pbd = await _move_corrective(
                 motor=align_devices.align_motor_pbd, offset=offset_pbd, start_ang_deg=90 * q.deg)
-    logger.debug(f"{func_name}: after: offset_obd = {offset_obd} offset_pbd = {offset_pbd}")
+    logger.debug(f">> after: offset_obd = {offset_obd} offset_pbd = {offset_pbd}")
 
 
 async def offset_from_projection_center(
         acq_devices: AcquisitionDevices, acq_params: AcquisitionParams,
-        use_binary: bool) -> Tuple[float, float]:
+        align_params: AlignmentParams) -> Tuple[float, float]:
     """
     Derives the distance in pixels between geometric center of the projection and center of mass
     in XY detector plane. These values are useful to adjust tomographic stage motor (horizontally
@@ -1035,17 +1127,17 @@ async def offset_from_projection_center(
     :type acq_devices: `concert.processes.common.AcquisitionDevices`
     :param acq_params: configurations specific to acquisition
     :type acq_params: `concert.processes.common.AcquisitionParams`
-    :param use_binary: use binary image to compute center of mass
-    :type use_binary: bool
+    :param align_params: configurations specific to alignment
+    :type align_params: `concert.processes.common.AlignmentParams`
     :return: distance between the geometric center of projection and center of mass 
     :rtype: Tuple[float, float]
     """
     producer: FrameProducer_T = acquire_frames(
         acq_devices.camera, acq_devices.tomo_motor, 1, acq_devices.shutter, acq_devices.flat_motor,
         acq_params.flat_position)
-    frame: ArrayLike = [frame async for frame in producer][0]
-    ref_img: ArrayLike = make_binary(np.asarray(frame), sigma=acq_params.sigma) \
-        if use_binary else np.asarray(frame)
+    frame: ArrayLike = np.asarray([frame async for frame in producer][0])
+    ref_img: ArrayLike = make_binary(frame, sigma=acq_params.sigma) \
+        if align_params.use_binary else frame
     ycm, xcm = sdi.center_of_mass(ref_img)
     yc_proj, xc_proj = frame.shape[0] / 2, frame.shape[1] / 2
     z_offset, stage_offset = abs(yc_proj - ycm), abs(xc_proj - xcm)
@@ -1072,10 +1164,9 @@ async def center_stage_in_projection(
     :type logger: logging.Logger
     """
     logger.debug=print # TODO: For quick debugging, remove later
-    func_name = "center_stage_in_projection"
     z_offset, stage_offset = await offset_from_projection_center(
-        acq_devices=acq_devices, acq_params=acq_params, use_binary=align_params.use_binary)
-    logger.debug(f"{func_name}: before: z_offset = {z_offset} stage_offset = {stage_offset}")
+        acq_devices=acq_devices, acq_params=acq_params, align_params=align_params)
+    logger.debug(f">> before: z_offset = {z_offset} stage_offset = {stage_offset}")
     while z_offset > align_params.px_eps or stage_offset > align_params.px_eps:
         # Make step adjustment for z-motor (vertically orthogonal to beam direction)
         if z_offset > align_params.px_eps:
@@ -1084,7 +1175,7 @@ async def center_stage_in_projection(
                 motor=acq_devices.z_motor, move_by=align_params.delta_move_mm,
                 align_params=align_params, logger=logger)
             _z_offset, _ = await offset_from_projection_center(
-                acq_devices=acq_devices, acq_params=acq_params, use_binary=align_params.use_binary)
+                acq_devices=acq_devices, acq_params=acq_params, align_params=align_params)
             # await acq_devices.z_motor.move(-align_params.delta_move_mm)
             await move_relative(
                 motor=acq_devices.z_motor, move_by=-align_params.delta_move_mm,
@@ -1102,7 +1193,7 @@ async def center_stage_in_projection(
                 motor=acq_devices.flat_motor, move_by=align_params.delta_move_mm,
                 align_params=align_params, logger=logger)
             _, _stage_offset = await offset_from_projection_center(
-                acq_devices=acq_devices, acq_params=acq_params, use_binary=align_params.use_binary)
+                acq_devices=acq_devices, acq_params=acq_params, align_params=align_params)
             # await acq_devices.flat_motor.move(-align_params.delta_move_mm)
             await move_relative(
                 motor=acq_devices.flat_motor, move_by=-align_params.delta_move_mm,
@@ -1114,8 +1205,8 @@ async def center_stage_in_projection(
                 motor=acq_devices.flat_motor, move_by=stage_offset * pixel_size_um,
                 align_params=align_params, logger=logger)
         z_offset, stage_offset = await offset_from_projection_center(
-            acq_devices=acq_devices, acq_params=acq_params, use_binary=align_params.use_binary)
-    logger.debug(f"{func_name}: after: z_offset = {z_offset} stage_offset = {stage_offset}")
+            acq_devices=acq_devices, acq_params=acq_params, align_params=align_params)
+    logger.debug(f">> after: z_offset = {z_offset} stage_offset = {stage_offset}")
 
 
 @background
@@ -1148,13 +1239,13 @@ async def align_rotation_stage_comparative(
     degrees of rotation, generally we want to first center the sample on rotation axis and
     projection as a preparatory step before off-centering for alignment. It provides us with a
     clean slate to start actual steps of alignment.
-
-    STEP 0: Preloading is done as a prerequisite to backlash-compensated relative move of the
-    motors implemented in the function `move_relative`, which describes the countermeasure against
-    backlash.
     
-    STEP 1: This implementation assumes that sample is brought into FOV and can be rotated by 360
+    STEP 0: This implementation assumes that sample is brought into FOV and can be rotated by 360
     degrees without sending it outside FOV. We can do this manually.
+
+    STEP 1: Preload and initialize alignment state. Preloading is done as a prerequisite to
+    backlash-compensated relative move of the motors implemented in the function `move_relative`,
+    which describes the countermeasure against backlash.
     
     STEP 2: Centering is a two-step procedure, firstly we center the sample on axis of rotation
     and then we center the rotation stage w.r.t. projection. Axis of rotation is the geometric
@@ -1258,8 +1349,8 @@ async def align_rotation_stage_comparative(
     async def _get_roll() -> Quantity:
         """Estimates roll angle error"""
         ver_obd_px, hor_obd_px = await get_sample_shifts(
-            acq_devices=acq_devices, acq_params=acq_params,
-            start_ang_deg=0 * q.deg, use_binary=align_params.use_binary)
+            acq_devices=acq_devices, acq_params=acq_params, align_params=align_params,
+            align_state=align_state, start_ang_deg=0 * q.deg)
         return np.rad2deg(np.arctan2(ver_obd_px, 2 * hor_obd_px)) * q.deg
     
     async def _step_roll(curr_roll: Quantity) -> Quantity:
@@ -1279,11 +1370,11 @@ async def align_rotation_stage_comparative(
     async def _get_pitch() -> Quantity:
         """Estimates pitch angle error"""
         ver_pbd_px, _ = await get_sample_shifts(
-            acq_devices=acq_devices, acq_params=acq_params,
-            start_ang_deg=0 * q.deg, use_binary=align_params.use_binary)
+            acq_devices=acq_devices, acq_params=acq_params, align_params=align_params,
+            align_state=align_state, start_ang_deg=0 * q.deg)
         _, hor_pbd_px = await get_sample_shifts(
-            acq_devices=acq_devices, acq_params=acq_params,
-            start_ang_deg=90 * q.deg, use_binary=align_params.use_binary)
+            acq_devices=acq_devices, acq_params=acq_params, align_params=align_params,
+            align_state=align_state, start_ang_deg=90 * q.deg)
         return np.rad2deg(np.arctan2(ver_pbd_px, 2 * hor_pbd_px)) * q.deg
     
     async def _step_pitch(curr_pitch: Quantity) -> Quantity:
@@ -1302,58 +1393,67 @@ async def align_rotation_stage_comparative(
 
     func_name = "align_rotation_stage_comparative"
     logger.debug("#" * 3 * len(f"Start: {func_name}"))
-    logger.debug(f"Start: {func_name}")
+    logger.debug(f"{func_name}")
     logger.debug("#" * 3 * len(f"Start: {func_name}"))
-    #########################
-    # STATE
-    # TODO: Initialize and use state
-    #########################
-    # STEP 0: Preload
+    # STEP 0: Sample is brought into FOV and a 360 degrees rotation is possible without sending it
+    # outside FOV.
+    # STEP 1: Preload and initialize alignment state.
+    logger.debug("Start: preload for backlash compensation.")
     await _preload(align_devices.align_motor_obd)
     await _preload(align_devices.align_motor_pbd)
     await _preload(align_devices.rot_motor_roll)
     await _preload(align_devices.rot_motor_pitch)
-    # STEP 1: Sample is brought into FOV and a 360 degrees rotation is possible without sending it
-    # outside FOV.
-    # STEP 2: Center the sample w.r.t. the projection in two steps, firstly centering the sample
-    # to the axis of rotation and then centering the tomo stage to the projection by center of mass.
+    logger.debug("Done: preload.")
+    logger.debug("Start: state initialization before alignment.")
+    align_state: AlignmentState = await init_alignment_state(
+        acq_devices=acq_devices, acq_params=acq_params, align_devices=align_devices)
+    logger.debug(f"Done: state initialized as:\n{align_state}")
+    # STEP 2: Center sample into projection in two steps, firstly centering the sample to the axis
+    # and then centering the tomo stage to the projection by center of mass.
+    logger.debug("Start: centering sample on axis.")
     await center_sample_on_axis(
         acq_devices=acq_devices, acq_params=acq_params,
-        align_devices=align_devices, align_params=align_params, pixel_size_um=pixel_size_um)
+        align_devices=align_devices, align_params=align_params,
+        align_state=align_state, pixel_size_um=pixel_size_um)
+    logger.debug("Done: sample centered on axis.")
+    logger.debug("Start: centering sample in projection.")
     await center_stage_in_projection(
         acq_devices=acq_devices, acq_params=acq_params, align_params=align_params,
         pixel_size_um=pixel_size_um)
+    logger.debug("Done: sample centered in projection.")
     # STEP 3: Off-center the sample orthogonal to beam direction and iteratively correct roll angle
     # misalignment.
+    logger.debug("Start: alignment.")
     roll_iter = 0
     await align_devices.align_motor_obd.move(align_params.offset_obd)
     roll_ang_err: Quantity = await _get_roll()
-    logger.debug(f"{func_name} roll before misalignment: {abs(roll_ang_err)}")
+    logger.debug(f"::roll before misalignment: {abs(roll_ang_err)}")
     while abs(roll_ang_err) > acq_params.align_metric:
-        logger.debug(f"{func_name} roll correction iteration: {roll_iter}")
+        logger.debug(f"::roll-correction iteration: {roll_iter}")
         roll_ang_err = await _step_roll(curr_roll=roll_ang_err)
         await align_devices.align_motor_obd.move(-align_params.offset_obd)
         await center_stage_in_projection(
             acq_devices=acq_devices, acq_params=acq_params, align_params=align_params,
             pixel_size_um=pixel_size_um)
         roll_iter += 1
-    logger.debug(f"{func_name} roll after misalignment: {abs(roll_ang_err)}")
+    logger.debug(f"::roll after misalignment: {abs(roll_ang_err)}")
     # STEP 4: Off-center the sample parallel to beam direction and iteratively correct pitch
     # (lamino) angle misalignment.
     pitch_iter = 0
     await align_devices.align_motor_pbd.move(align_params.offset_pbd)
     pitch_ang_err: Quantity = await _get_pitch()
-    logger.debug(f"{func_name} pitch before misalignment: {abs(pitch_ang_err)}")
+    logger.debug(f"::pitch before misalignment: {abs(pitch_ang_err)}")
     while abs(pitch_ang_err) > acq_params.align_metric:
-        logger.debug(f"{func_name} pitch correction iteration: {pitch_iter}")
+        logger.debug(f"::pitch correction iteration: {pitch_iter}")
         pitch_ang_err = await _step_pitch(curr_pitch=pitch_ang_err)
         await align_devices.align_motor_pbd.move(-align_params.offset_pbd)
         await center_stage_in_projection(
             acq_devices=acq_devices, acq_params=acq_params, align_params=align_params,
             pixel_size_um=pixel_size_um)
         pitch_iter += 1
-    logger.debug(f"{func_name} pitch after misalignment: {abs(pitch_ang_err)}")
+    logger.debug(f"::pitch after misalignment: {abs(pitch_ang_err)}")
     await acq_devices.tomo_motor.set_position(0 * q.deg)
+    logger.debug("Done: alignment.")
 ####################################################################################################
 
 
