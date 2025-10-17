@@ -221,7 +221,7 @@ async def acquire_frames(camera, rotation_motor, num_frames, shutter=None, flat_
                     flat = np.ones(frame.shape)
                     dark = np.zeros(frame.shape)
                 frame = flat_correct(frame, flat, dark=dark)
-                frame = np.nan_to_num(-np.log(frame))
+                # frame = np.nan_to_num(-np.log(frame)) TODO: Rethink for dummy camera
                 # Huge numbers can also cause trouble
                 frame[np.abs(frame) > 1e6] = 0
                 yield frame
@@ -428,6 +428,25 @@ class AcquisitionDevices:
 
 
 @dataclass
+class AcquisitionContext:
+    """
+    Encapsulates devices and parameters for acquisition
+
+    - reference to devices which are relevant for acquiring frames using camera
+    - flag indicating if flat field correction should be done for the acquired frames
+    - flag indicating if absorption transformation is needed
+    - optional flat position (only relevant if `flat_field_correct` is true)
+
+    TODO: Augment context to incorporate number of frames if it needs to support multi-frame
+    acquisition.
+    """
+    devices: AcquisitionDevices
+    flat_field_correct: bool
+    absorptivity: bool
+    flat_position: Optional[Quantity] = None
+
+
+@dataclass
 class AcquisitionParams:
     """
     Encapsulates parameters relevant for projections acquisition
@@ -558,9 +577,15 @@ class AlignmentState:
 
         We derive a cofidence score by matching a template patch for the given `angle` to the
         `frame`. This score is then used to compute a relative certainty against respective baseline
-        score for the `angle` and from that we compute an uncertainty metric, which is compared
-        against the configured threshold. In principle, we are asking, how uncertain we are that the
-        sample is inside FOV against the maximum uncertainty that we want to allow.
+        score for the `angle`. Baseline score is obtained by matching the template patch with the
+        projection it is expected form, hence baseline scores are approximately 1, representing a
+        definite match. While evaluating if the sample is inside FOV we take the same template patch
+        for the appropriate angle and get a new `score`. If template is indeed matched (sample in
+        FOV) then new `score` is approximately equal to `baseline score` making `relative
+        likelihood` high and in turn `uncertainty` low. In contrast, when new `score` is low (sample
+        is likely outside FOV) then `relative likelihood` is low making `uncertanty` high. We
+        threshold on this uncertainty. In principle, we are asking, how uncertain we are that the
+        sample is inside FOV against the maximum threshold `uncertainty` that we want to allow.
 
         :param frame: projection to evaluate
         :type frame: `concert.typing.ArrayLike`
@@ -569,10 +594,10 @@ class AlignmentState:
         :return: if smaple inside FOV
         :rtype: bool
         """
-        score = np.max(sft.match_template(
-            image=frame, template=self.patches[str(angle)], pad_input=True))
+        score: float = np.max(
+            sft.match_template(image=frame, template=self.patches[str(angle)], pad_input=True))
         relative_likelihood = (score / self.baseline_scores[str(angle)])
-        uncertainty = 1 - relative_likelihood
+        uncertainty = 1.0 - relative_likelihood
         return uncertainty < self.uncertainty_threshold
 
 
@@ -584,6 +609,44 @@ def get_noop_logger() -> logging.Logger:
     return logger
 
 
+async def acquire(ctx: AcquisitionContext) -> ArrayLike:
+    """
+    Acquires a frame using context provided for acquisition
+
+    :param ctx: context for acquisition
+    :type ctx: `concert.processes.common.AcquisitionContext`
+    :return: acquired frame
+    :rtype: `concert.typing.ArrayLike`
+    """
+    if await ctx.devices.camera.get_state() == 'recording':
+        await ctx.devices.camera.stop_recording()
+    await ctx.devices.camera['trigger_source'].stash()
+    await ctx.devices.camera.set_trigger_source(ctx.devices.camera.trigger_sources.SOFTWARE)
+    try:
+        async with ctx.devices.camera.recording():
+            await ctx.devices.camera.trigger()
+            frame: ArrayLike = await ctx.devices.camera.grab()
+            if ctx.flat_field_correct:
+                if await ctx.devices.shutter.get_state() != 'closed':
+                    await ctx.devices.shutter.close()
+                    await ctx.devices.camera.trigger()
+                    dark: ArrayLike = await ctx.devices.camera.grab()
+                    await ctx.devices.shutter.close()
+                radio_pose: Quantity = await ctx.devices.flat_motor.get_position()
+                await ctx.devices.flat_motor.set_position(ctx.flat_position)
+                await ctx.devices.camera.trigger()
+                flat: ArrayLike = await ctx.devices.camera.grab()
+                await ctx.devices.flat_motor.set_position(radio_pose)
+                frame = flat_correct(radio=frame, flat=flat, dark=dark)
+            if ctx.absorptivity:
+                frame = np.nan_to_num(-np.log(frame))
+            # Threshold unusually high signal response from camera
+            frame[np.abs(frame) > 1e6] = 0
+    finally:
+        await ctx.devices.camera['trigger_source'].restore()
+    return frame
+
+
 async def extract_ellipse_points(producer: FramesProducer_T, radius: int) -> List[ArrayLike]:
     """
     Finds sphere centers from incoming frames using correlation.
@@ -593,7 +656,7 @@ async def extract_ellipse_points(producer: FramesProducer_T, radius: int) -> Lis
     :param radius: radius of the sphere in pixels
     :type radius: int
     :return: extracted ellipse centroids
-    :rtype: List[ArrayLike]
+    :rtype: List[`concert.typing.ArrayLike`]
     """
     return await find_sphere_centers_corr(producer, radius=radius)
 
@@ -820,8 +883,10 @@ def make_binary(
     """
     Exploits the high absorption of the sample to make a binary image from the projection
     
-    NOTE: We use try-except block here to be able to work with simulation camera. For real
+    TODO: We use try-except block here to be able to work with simulation camera. For real
     acquisitions an exception inside this block is unlikely.
+    
+    TODO: With the new acquire function integrated we can remove try-except block.
 
     :param projection: projection
     :type projection: `concert.typing.ArrayLike`
