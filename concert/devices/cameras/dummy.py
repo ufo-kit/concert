@@ -222,12 +222,23 @@ class TomographyStageCamera(Base):
 
     """A dummy camera which places an object on the tomography stack."""
 
-    async def __ainit__(self, shape=(512, 512), pixel_size=None, sphere_radius=None):
+    async def __ainit__(
+        self,
+        shape=(512, 512),
+        pixel_size=None,
+        sphere_radius=None,
+        noise=False,
+        xray=False,
+        incoming_intensity=1000
+    ):
         await super().__ainit__()
         self.stage = await TomographyStage()
         self._shape = shape
         self._pixel_size = 1 * q.um if pixel_size is None else pixel_size
         self._sphere_radius = sphere_radius if sphere_radius else int(min(shape) / 30)
+        self._xray = xray
+        self._incoming_intensity = incoming_intensity
+        self._noise = noise
 
     async def get_center(self):
         """Sample is by default located at (0, 0, 0), this computes the new position based on motor
@@ -276,4 +287,13 @@ class TomographyStageCamera(Base):
         x += self._shape[1] // 2
         y += self._shape[0] // 2
 
-        return make_sphere(self._shape, self._sphere_radius, (y, x), fast=True)
+        sphere = make_sphere(self._shape, self._sphere_radius, (y, x), fast=True)
+
+        if self._xray:
+            mu = -np.log(0.3) / sphere.max()    # Minimum intensity 0.3
+            sphere = self._incoming_intensity * np.exp(-mu * sphere)
+
+            if self._noise:
+                sphere = np.random.poisson(sphere)
+
+        return sphere
