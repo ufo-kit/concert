@@ -62,6 +62,9 @@ class _PositionMixin(object):
                 self._moving = True
                 while (direction * self._position) < (direction * position) and self._moving:
                     self._position += direction * motion_velocity * MOVEMENT_TIME_STEPS
+                    if self._backlash is None:
+                        # No backlash, no discrepancy between motor position and actual mechanism position
+                        self._actual_position = self._position
                     await asyncio.sleep(MOVEMENT_TIME_STEPS.to(q.s).magnitude)
                     if self._position < self._lower_hard_limit:
                         # Do not use self._position which may be off at this point
