@@ -5,7 +5,7 @@ from concert.imageprocessing import find_needle_tips, find_sphere_centers
 from concert.processes.common import align_rotation_axis, ProcessError
 from concert.processes.common import align_rotation_stage_comparative
 from concert.processes.common import AcquisitionDevices, AcquisitionParams
-from concert.processes.common import AlignmentDevices, AlignmentParams
+from concert.processes.common import AlignmentDevices, AlignmentContext
 from concert.devices.cameras.dummy import TomographyStageCamera
 from concert.tests import slow, TestCase
 from concert.tests.util.rotationaxis import SimulationCamera
@@ -180,7 +180,7 @@ class TestDummyAlignment_Comparative(TestCase):
             rot_motor_roll=self.roll,
             align_motor_pbd=self.align_par,
             align_motor_obd=self.align_ortho)
-        self.align_params = AlignmentParams()
+        self.align_params = AlignmentContext()
 
     @slow
     async def test_align_pitch_roll(self) -> None:
