@@ -505,7 +505,7 @@ class AlignmentContext:
     eps_ang_diff: Quantity = 1e-7 * q.deg
     ceil_rel_move: Quantity = 1 * q.deg
     offset_obd: Quantity = 0.2 * q.mm
-    offset_pbd: Quantity = 0.4 * q.mm
+    offset_pbd: Quantity = 0.2 * q.mm
     delta_move_mm: Quantity = 0.01 * q.mm
     delta_move_deg: Quantity = 0.1 * q.deg
     pixel_err_eps: float = 2.0
@@ -1087,18 +1087,15 @@ async def center_sample_on_axis(
     logger.debug=print # TODO: For quick debugging, remove later
 
     async def _move_corrective(motor: LinearMotor, offset: float, start_ang_deg: Quantity) -> float:
-        # await motor.move(align_params.delta_move_mm)
         await move_relative(
             motor=motor, move_by=align_ctx.delta_move_mm, align_ctx=align_ctx, logger=logger)
         _, _offset = await get_sample_shifts(
             acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state,
             start_ang_deg=start_ang_deg)
-        # await motor.move(-align_params.delta_move_mm)
         await move_relative(
             motor=motor, move_by=-align_ctx.delta_move_mm, align_ctx=align_ctx, logger=logger)
         if _offset > offset:
             offset = -offset
-        # await motor.move(offset * pixel_size_um)
         await move_relative(
             motor=motor, move_by=offset * align_ctx.pixel_size_um, align_ctx=align_ctx,
             logger=logger)
@@ -1169,36 +1166,30 @@ async def center_stage_in_projection(
     while z_offset > align_ctx.pixel_err_eps or stage_offset > align_ctx.pixel_err_eps:
         # Make step adjustment for z-motor (vertically orthogonal to beam direction)
         if z_offset > align_ctx.pixel_err_eps:
-            # await acq_ctx.devices.z_motor.move(align_params.delta_move_mm)
             await move_relative(
                 motor=acq_ctx.devices.z_motor, move_by=align_ctx.delta_move_mm,
                 align_ctx=align_ctx, logger=logger)
             _z_offset, _ = await offset_from_projection_center(acq_ctx=acq_ctx, align_ctx=align_ctx)
-            # await acq_ctx.devices.z_motor.move(-align_params.delta_move_mm)
             await move_relative(
                 motor=acq_ctx.devices.z_motor, move_by=-align_ctx.delta_move_mm,
                 align_ctx=align_ctx, logger=logger)
             if _z_offset > z_offset:
                 z_offset = -z_offset
-            # await acq_ctx.devices.z_motor.move(z_offset * pixel_size_um)
             await move_relative(
                 motor=acq_ctx.devices.z_motor, move_by=z_offset * align_ctx.pixel_size_um,
                 align_ctx=align_ctx, logger=logger)
         # Make step adjustment for stage motor (horizontally orthogonal to beam direction)
         if stage_offset > align_ctx.pixel_err_eps:
-            # await acq_ctx.devices.flat_motor.move(align_params.delta_move_mm)
             await move_relative(
                 motor=acq_ctx.devices.flat_motor, move_by=align_ctx.delta_move_mm,
                 align_ctx=align_ctx, logger=logger)
             _, _stage_offset = await offset_from_projection_center(
                 acq_ctx=acq_ctx, align_ctx=align_ctx)
-            # await acq_ctx.devices.flat_motor.move(-align_params.delta_move_mm)
             await move_relative(
                 motor=acq_ctx.devices.flat_motor, move_by=-align_ctx.delta_move_mm,
                 align_ctx=align_ctx, logger=logger)
             if _stage_offset > stage_offset:
                 stage_offset = -stage_offset
-            # await acq_ctx.devices.flat_motor.move(stage_offset * pixel_size_um)
             await move_relative(
                 motor=acq_ctx.devices.flat_motor, move_by=stage_offset * align_ctx.pixel_size_um,
                 align_ctx=align_ctx, logger=logger)
@@ -1339,41 +1330,59 @@ async def align_rotation_stage_comparative(
 
     async def _get_roll() -> Quantity:
         """Estimates roll angle error"""
+        await move_relative(
+            motor=align_ctx.devices.align_motor_obd, move_by=align_ctx.offset_obd,
+            align_ctx=align_ctx, logger=logger)
         ver_obd_px, hor_obd_px = await get_sample_shifts(
             acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, start_ang_deg=0 * q.deg)
+        await move_relative(
+            motor=align_ctx.devices.align_motor_obd, move_by=-align_ctx.offset_obd,
+            align_ctx=align_ctx, logger=logger)
         return np.rad2deg(np.arctan2(ver_obd_px, 2 * hor_obd_px)) * q.deg
     
     async def _step_roll(curr_roll: Quantity) -> Quantity:
         """Makes a corrective step for roll angle error"""
         delta_move: Quantity = np.sign(curr_roll) * align_ctx.delta_move_deg
-        await align_ctx.devices.rot_motor_roll.move(delta_move)
+        await move_relative(
+            motor=align_ctx.devices.rot_motor_roll, move_by=delta_move, align_ctx=align_ctx,
+            logger=logger)
         _roll: Quantity = await _get_roll()
-        await align_ctx.devices.rot_motor_roll.move(-delta_move)
+        await move_relative(
+            motor=align_ctx.devices.rot_motor_roll, move_by=-delta_move, align_ctx=align_ctx,
+            logger=logger)
         if abs(_roll) > abs(curr_roll):
             curr_roll = -curr_roll
-        # await align_ctx.devices.rot_motor_roll.move(curr_roll)
         await move_relative(
             motor=align_ctx.devices.rot_motor_roll, move_by=curr_roll, align_ctx=align_ctx,
             logger=logger)
         return await _get_roll()
-    
+
     async def _get_pitch() -> Quantity:
         """Estimates pitch angle error"""
+        await move_relative(
+            motor=align_ctx.devices.align_motor_pbd, move_by=align_ctx.offset_pbd,
+            align_ctx=align_ctx, logger=logger)
         ver_pbd_px, _ = await get_sample_shifts(
             acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, start_ang_deg=0 * q.deg)
         _, hor_pbd_px = await get_sample_shifts(
             acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, start_ang_deg=90 * q.deg)
+        await move_relative(
+            motor=align_ctx.devices.align_motor_pbd, move_by=-align_ctx.offset_pbd,
+            align_ctx=align_ctx, logger=logger)
         return np.rad2deg(np.arctan2(ver_pbd_px, 2 * hor_pbd_px)) * q.deg
     
     async def _step_pitch(curr_pitch: Quantity) -> Quantity:
         """Makes a corrective step for pitch angle error"""
         delta_move: Quantity = np.sign(curr_pitch) * align_ctx.delta_move_deg
-        await align_ctx.devices.rot_motor_pitch.move(delta_move)
+        await move_relative(
+            motor=align_ctx.devices.rot_motor_pitch, move_by=delta_move,
+            align_ctx=align_ctx, logger=logger)
         _pitch: Quantity = await _get_pitch()
-        await align_ctx.devices.rot_motor_pitch.move(-delta_move)
+        await move_relative(
+            motor=align_ctx.devices.rot_motor_pitch, move_by=-delta_move,
+            align_ctx=align_ctx, logger=logger)
         if abs(_pitch) > abs(curr_pitch):
             curr_pitch = -curr_pitch
-        # await align_ctx.devices.rot_motor_pitch.move(curr_pitch)
         await move_relative(
             motor=align_ctx.devices.rot_motor_pitch, move_by=curr_pitch,
             align_ctx=align_ctx, logger=logger)
@@ -1387,6 +1396,8 @@ async def align_rotation_stage_comparative(
     # outside FOV.
     # STEP 1: Preload and initialize alignment state.
     logger.debug("Start: preload for backlash compensation.")
+    await _preload(acq_ctx.devices.flat_motor)
+    await _preload(acq_ctx.devices.z_motor)
     await _preload(align_ctx.devices.align_motor_obd)
     await _preload(align_ctx.devices.align_motor_pbd)
     await _preload(align_ctx.devices.rot_motor_roll)
@@ -1401,43 +1412,43 @@ async def align_rotation_stage_comparative(
     await center_sample_on_axis(
         acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, logger=logger)
     logger.debug("Done: sample centered on axis.")
-    logger.debug("Start: centering sample in projection.")
-    await center_stage_in_projection(acq_ctx=acq_ctx, align_ctx=align_ctx, logger=logger)
-    logger.debug("Done: sample centered in projection.")
     # NOTE: Alignment metric is a measure of resolution sensitivity. We derive it as an angular
     # error threshold which represents maximum `align_ctx.pixel_sensitivity` pixels of resolution
     # loss vertically against `acq_ctx.width` pixels horizontally.
     align_metric: Quantity = np.rad2deg(
         np.arctan(align_ctx.pixel_sensitivity / acq_ctx.width)) * q.deg
-    logger.debug(f"Calculated: alignment metric = {align_metric}")
+    logger.debug(f"Calculated: alignment metric: {align_metric}")
     # STEP 3: Off-center the sample orthogonal to beam direction and iteratively correct roll angle
     # misalignment.
     logger.debug("Start: alignment.")
     roll_iter = 0
-    await align_ctx.devices.align_motor_obd.move(align_ctx.offset_obd)
     roll_ang_err: Quantity = await _get_roll()
-    logger.debug(f"::roll before misalignment: {abs(roll_ang_err)}")
+    logger.debug(f"::roll before iterations: {abs(roll_ang_err)}")
     while abs(roll_ang_err) > align_metric:
-        logger.debug(f"::roll-correction iteration: {roll_iter}")
         roll_ang_err = await _step_roll(curr_roll=roll_ang_err)
-        await align_ctx.devices.align_motor_obd.move(-align_ctx.offset_obd)
         await center_stage_in_projection(acq_ctx=acq_ctx, align_ctx=align_ctx, logger=logger)
         roll_iter += 1
-    logger.debug(f"::roll after misalignment: {abs(roll_ang_err)}")
+        logger.debug(f"::::roll-correction iteration: {roll_iter} roll: {abs(roll_ang_err)}")
+        if roll_iter == align_ctx.max_iterations:
+            logger.debug("::::max roll iterations reached")
+    logger.debug(f"::roll after iterations: {abs(roll_ang_err)}")
     # STEP 4: Off-center the sample parallel to beam direction and iteratively correct pitch
     # (lamino) angle misalignment.
     pitch_iter = 0
-    await align_ctx.devices.align_motor_pbd.move(align_ctx.offset_pbd)
     pitch_ang_err: Quantity = await _get_pitch()
-    logger.debug(f"::pitch before misalignment: {abs(pitch_ang_err)}")
+    logger.debug(f"::pitch before iterations: {abs(pitch_ang_err)}")
     while abs(pitch_ang_err) > align_metric:
-        logger.debug(f"::pitch correction iteration: {pitch_iter}")
         pitch_ang_err = await _step_pitch(curr_pitch=pitch_ang_err)
-        await align_ctx.devices.align_motor_pbd.move(-align_ctx.offset_pbd)
         await center_stage_in_projection(acq_ctx=acq_ctx, align_ctx=align_ctx, logger=logger)
         pitch_iter += 1
-    logger.debug(f"::pitch after misalignment: {abs(pitch_ang_err)}")
+        logger.debug(f"::::pitch-correction iteration: {pitch_iter} pitch: {abs(pitch_ang_err)}")
+        if pitch_iter == align_ctx.max_iterations:
+            logger.debug("::::max pitch iterations reached")
+    logger.debug(f"::pitch after iterations: {abs(pitch_ang_err)}")
     await acq_ctx.devices.tomo_motor.set_position(0 * q.deg)
+    logger.debug("Start: centering sample in projection.")
+    await center_stage_in_projection(acq_ctx=acq_ctx, align_ctx=align_ctx, logger=logger)
+    logger.debug("Done: sample centered in projection.")
     logger.debug("Done: alignment.")
 ####################################################################################################
 
