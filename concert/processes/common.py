@@ -486,6 +486,7 @@ class AlignmentContext:
     - epsilon value for difference in motor positions in consecutive iterations
     - epsilon value for difference in estimated angles in consecutive iterations
     - ceiling value for relative movement to prevent explosive motor movement
+    - angular offset to be applied to tomographic rotation motor for correction
     - off-centering distance for alignment motor moving orthogonal to beam
     - off-centering distance for alignment motor moving parallel to beam
     - linear delta movement to determine correct direction
@@ -504,8 +505,9 @@ class AlignmentContext:
     eps_pose_diff: Quantity = 0.01 * q.deg
     eps_ang_diff: Quantity = 1e-7 * q.deg
     ceil_rel_move: Quantity = 1 * q.deg
-    offset_obd: Quantity = 0.2 * q.mm
-    offset_pbd: Quantity = 0.2 * q.mm
+    offset_rot_tomo: Quantity = 0 * q.deg
+    offset_lin_obd: Quantity = 0.2 * q.mm
+    offset_lin_pbd: Quantity = 0.2 * q.mm
     delta_move_mm: Quantity = 0.01 * q.mm
     delta_move_deg: Quantity = 0.1 * q.deg
     pixel_err_eps: float = 2.0
@@ -790,7 +792,7 @@ async def align_rotation_stage_ellipse_fit(
         coros = broadcast(producer, *acq_consumers)
         # Setting tomographic rotation motor to zero degree after a full circular rotation is a
         # safety measure against potential malfunction.
-        await acq_ctx.devices.tomo_motor.set_position(0 * q.deg)
+        await acq_ctx.devices.tomo_motor.set_position(0 * q.deg + align_ctx.offset_rot_tomo)
         centroids = []
         try:
             centroids = (await asyncio.gather(*coros))[1]
@@ -939,16 +941,16 @@ async def get_sample_shifts(
     of rotation
     :rtype: Tuple[float, float]
     """
-    await acq_ctx.devices.tomo_motor.set_position(start_ang_deg)
+    await acq_ctx.devices.tomo_motor.set_position(start_ang_deg + align_ctx.offset_rot_tomo)
     ref_frame: ArrayLike = await acquire_single(ctx=acq_ctx)
     if not align_state.sample_in_FOV(frame=ref_frame, angle=start_ang_deg.magnitude):
         raise ProcessError("sample went outside FOV before rotation, aborting")
+    ref_img: ArrayLike = make_binary(projection=ref_frame, sigma=acq_ctx.sigma) \
+        if align_ctx.use_binary else ref_frame
     await acq_ctx.devices.tomo_motor.move(180 * q.deg)
     mov_frame: ArrayLike = await acquire_single(ctx=acq_ctx)
     if not align_state.sample_in_FOV(frame=mov_frame, angle=start_ang_deg.magnitude + 180):
         raise ProcessError("sample went outside FOV after rotation, aborting")
-    ref_img: ArrayLike = make_binary(projection=ref_frame, sigma=acq_ctx.sigma) \
-        if align_ctx.use_binary else ref_frame
     mov_img: ArrayLike = make_binary(projection=mov_frame, sigma=acq_ctx.sigma) \
         if align_ctx.use_binary else mov_frame
     shift_yx, _, _ = skr.phase_cross_correlation(
@@ -981,7 +983,7 @@ async def init_alignment_state(
         state.checkpoints[motor_str] = await getattr(align_ctx.devices, motor_str).get_position()
     # Record patches and baseline scores for the terminal angles
     for angle in [0, 90, 180, 270]:
-        await acq_ctx.devices.tomo_motor.set_position(angle * q.deg)
+        await acq_ctx.devices.tomo_motor.set_position(angle * q.deg + align_ctx.offset_rot_tomo)
         frame: ArrayLike = await acquire_single(ctx=acq_ctx)
         mask: ArrayLike = make_binary(projection=frame, sigma=acq_ctx.sigma)
         regions: List[RegionProperties] = sms.regionprops(label_image=sms.label(mask))
@@ -991,7 +993,7 @@ async def init_alignment_state(
             int(cnt_y) - dim:int(cnt_y) + dim, int(cnt_x)- dim:int(cnt_x) + dim]
         state.baseline_scores[str(angle)] = np.max(
             sft.match_template(image=frame, template=state.patches[str(angle)], pad_input=True))
-    await acq_ctx.devices.tomo_motor.set_position(0 * q.deg)
+    await acq_ctx.devices.tomo_motor.set_position(0 * q.deg + align_ctx.offset_rot_tomo)
     return state
 
 
@@ -1224,9 +1226,9 @@ async def align_rotation_stage_comparative(
         beam direction.
 
     Once the sample is brought into the FOV and been ensured that it remains in FOV across 360
-    degrees of rotation, generally we want to first center the sample on rotation axis and
-    projection as a preparatory step before off-centering for alignment. It provides us with a
-    clean slate to start actual steps of alignment.
+    degrees of rotation, generally we want to first center the sample on rotation axis preparatory
+    step before off-centering for alignment. It provides us with a clean slate to start actual
+    steps of alignment.
     
     STEP 0: This implementation assumes that sample is brought into FOV and can be rotated by 360
     degrees without sending it outside FOV. We can do this manually.
@@ -1331,12 +1333,12 @@ async def align_rotation_stage_comparative(
     async def _get_roll() -> Quantity:
         """Estimates roll angle error"""
         await move_relative(
-            motor=align_ctx.devices.align_motor_obd, move_by=align_ctx.offset_obd,
+            motor=align_ctx.devices.align_motor_obd, move_by=align_ctx.offset_lin_obd,
             align_ctx=align_ctx, logger=logger)
         ver_obd_px, hor_obd_px = await get_sample_shifts(
             acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, start_ang_deg=0 * q.deg)
         await move_relative(
-            motor=align_ctx.devices.align_motor_obd, move_by=-align_ctx.offset_obd,
+            motor=align_ctx.devices.align_motor_obd, move_by=-align_ctx.offset_lin_obd,
             align_ctx=align_ctx, logger=logger)
         return np.rad2deg(np.arctan2(ver_obd_px, 2 * hor_obd_px)) * q.deg
     
@@ -1360,14 +1362,14 @@ async def align_rotation_stage_comparative(
     async def _get_pitch() -> Quantity:
         """Estimates pitch angle error"""
         await move_relative(
-            motor=align_ctx.devices.align_motor_pbd, move_by=align_ctx.offset_pbd,
+            motor=align_ctx.devices.align_motor_pbd, move_by=align_ctx.offset_lin_pbd,
             align_ctx=align_ctx, logger=logger)
         ver_pbd_px, _ = await get_sample_shifts(
             acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, start_ang_deg=0 * q.deg)
         _, hor_pbd_px = await get_sample_shifts(
             acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, start_ang_deg=90 * q.deg)
         await move_relative(
-            motor=align_ctx.devices.align_motor_pbd, move_by=-align_ctx.offset_pbd,
+            motor=align_ctx.devices.align_motor_pbd, move_by=-align_ctx.offset_lin_pbd,
             align_ctx=align_ctx, logger=logger)
         return np.rad2deg(np.arctan2(ver_pbd_px, 2 * hor_pbd_px)) * q.deg
     
@@ -1445,7 +1447,7 @@ async def align_rotation_stage_comparative(
         if pitch_iter == align_ctx.max_iterations:
             logger.debug("::::max pitch iterations reached")
     logger.debug(f"::pitch after iterations: {abs(pitch_ang_err)}")
-    await acq_ctx.devices.tomo_motor.set_position(0 * q.deg)
+    await acq_ctx.devices.tomo_motor.set_position(0 * q.deg + align_ctx.offset_rot_tomo)
     logger.debug("Start: centering sample in projection.")
     await center_stage_in_projection(acq_ctx=acq_ctx, align_ctx=align_ctx, logger=logger)
     logger.debug("Done: sample centered in projection.")
