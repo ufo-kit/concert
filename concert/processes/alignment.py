@@ -26,7 +26,11 @@ class AlignmentState:
     - patches dictionary contains a patch of our sample for each of the terminal angles.
     - baseline_scores contains the estimated certainty scores for the sample definitely being
     inside FOV.
-    - uncertainty_threshold is the maximum uncertainty to allow to conclude that the sample is in
+    - optional cached dark field
+    - optional cached flat-field
+    - optional derived sphere radius
+    - patch dimension
+    - score_epsilon is the maximum uncertainty to allow to conclude that the sample is in
     fact inside FOV.
 
     TODO: Checkpoint based system is not fully implemented yet. It is supposed to serve state
@@ -42,6 +46,7 @@ class AlignmentState:
     baseline_scores: Dict[str, float]
     dark: Optional[ArrayLike] = None
     flat: Optional[ArrayLike] = None
+    sphere_radius: Optional[int] = None
     dim: int = 200
     score_epsilon: float = 0.2
 
@@ -53,6 +58,7 @@ class AlignmentState:
         val += "Baseline Scores (expected close to 1.0):\n"
         for key, value in self.baseline_scores.items():
             val += f" {key} degree = {value}\n"
+        val += f"Sphere Radius = {self.sphere_radius}"
         return val
 
     def sample_in_FOV(self, frame: ArrayLike, angle: int) -> bool:
@@ -83,7 +89,7 @@ class AlignmentState:
         return abs(self.baseline_scores[str(angle)] - abs(score)) < self.score_epsilon
 
 
-async def acquire_single(ctx: AcquisitionContext, align_state: AlignmentState) -> ArrayLike:
+async def acquire_single(acq_ctx: AcquisitionContext, align_state: AlignmentState) -> ArrayLike:
     """
     Acquires a single frame using context provided for acquisition.
 
@@ -100,24 +106,24 @@ async def acquire_single(ctx: AcquisitionContext, align_state: AlignmentState) -
     # await ctx.devices.camera['trigger_source'].stash()
     # await ctx.devices.camera.set_trigger_source(ctx.devices.camera.trigger_sources.SOFTWARE)
     # try:
-    frame: ArrayLike = await ctx.devices.camera.grab()
+    frame: ArrayLike = await acq_ctx.devices.camera.grab()
     try:
-        if ctx.flat_field_correct:
+        if acq_ctx.flat_field_correct:
             if align_state.dark is None:
-                if await ctx.devices.shutter.get_state() != 'closed':
-                    await ctx.devices.shutter.close()
+                if await acq_ctx.devices.shutter.get_state() != 'closed':
+                    await acq_ctx.devices.shutter.close()
                 # await ctx.devices.camera.trigger()
-                align_state.dark = await ctx.devices.camera.grab()
-            if await ctx.devices.shutter.get_state() != 'open':
-                await ctx.devices.shutter.open()
+                align_state.dark = await acq_ctx.devices.camera.grab()
+            if await acq_ctx.devices.shutter.get_state() != 'open':
+                await acq_ctx.devices.shutter.open()
             if align_state.flat is None:
-                radio_pose: Quantity = await ctx.devices.flat_motor.get_position()
-                await ctx.devices.flat_motor.set_position(ctx.flat_position)
+                radio_pose: Quantity = await acq_ctx.devices.flat_motor.get_position()
+                await acq_ctx.devices.flat_motor.set_position(acq_ctx.flat_position)
                 # await ctx.devices.camera.trigger()
-                align_state.flat = await ctx.devices.camera.grab()
-                await ctx.devices.flat_motor.set_position(radio_pose)
+                align_state.flat = await acq_ctx.devices.camera.grab()
+                await acq_ctx.devices.flat_motor.set_position(radio_pose)
             frame = flat_correct(radio=frame, flat=align_state.flat, dark=align_state.dark)
-        if ctx.absorptivity:
+        if acq_ctx.absorptivity:
             frame = np.nan_to_num(-np.log(frame))
     finally:
         pass
@@ -153,21 +159,27 @@ async def init_alignment_state(
     for motor_str in ["align_motor_obd", "align_motor_pbd", "rot_motor_roll", "rot_motor_pitch"]:
         state.checkpoints[motor_str] = await getattr(align_ctx.devices, motor_str).get_position()
     # Record patches and baseline scores for the terminal angles
-    for angle in [0, 90, 180, 270]:
-        await acq_ctx.devices.tomo_motor.set_position(angle * q.deg + align_ctx.offset_rot_tomo)
-        frame: ArrayLike = await acquire_single(ctx=acq_ctx, align_state=state)
-        mask: ArrayLike = align_ctx.proc_func(frame)
-        regions: List[RegionProperties] = sms.regionprops(label_image=sms.label(mask))
-        cnt_y, cnt_x = sorted(regions, key=lambda r: r.eccentricity)[0].centroid
-        dim = state.dim // 2
-        state.patches[str(angle)] = frame[
-            int(cnt_y) - dim:int(cnt_y) + dim, int(cnt_x)- dim:int(cnt_x) + dim]
-        state.baseline_scores[str(angle)] = np.max(
-            sft.match_template(image=frame, template=state.patches[str(angle)], pad_input=True))
-        viewer = await PyQtGraphViewer(show_refresh_rate=True)
-        await viewer.set_title(f"Angle = {str(angle)}")
-        await viewer.show(state.patches[str(angle)])
-    await acq_ctx.devices.tomo_motor.set_position(0 * q.deg + align_ctx.offset_rot_tomo)
+    try:
+        for angle in [0, 90, 180, 270]:
+            await acq_ctx.devices.tomo_motor.set_position(angle * q.deg + align_ctx.offset_rot_tomo)
+            frame: ArrayLike = await acquire_single(acq_ctx=acq_ctx, align_state=state)
+            mask: ArrayLike = align_ctx.proc_func(frame)
+            region: RegionProperties = sorted(
+                sms.regionprops(label_image=sms.label(mask)),
+                key=lambda r: r.eccentricity)[0]
+            cnt_y, cnt_x = int(region.centroid[0]), int(region.centroid[1])
+            dim = state.dim // 2
+            state.patches[str(angle)] = frame[cnt_y - dim:cnt_y + dim, cnt_x - dim:cnt_x + dim]
+            if not state.sphere_radius: state.sphere_radius = int(region.perimeter / (2 * np.pi))
+            state.baseline_scores[str(angle)] = np.max(
+                sft.match_template(image=frame, template=state.patches[str(angle)], pad_input=True))
+            viewer = await PyQtGraphViewer(show_refresh_rate=True)
+            await viewer.set_title(f"Angle = {str(angle)}")
+            await viewer.show(state.patches[str(angle)])
+    except Exception:
+        raise ProcessError("review proc_func and ensure 360 rotation is possible within FOV")
+    finally:
+        await acq_ctx.devices.tomo_motor.set_position(0 * q.deg + align_ctx.offset_rot_tomo)
     logger.debug(f"Done: state initialized as:\n{state}")
     return state
 
@@ -231,30 +243,59 @@ async def get_sample_shifts(
     of rotation
     :rtype: Tuple[float, float]
     """
-    def _clean_mask(frame: ArrayLike) -> ArrayLike:
-        """Creates a clean mask keeping sphere region"""
-        regions = sms.regionprops(label_image=sms.label(frame))
-        region = sorted(regions, key=lambda r: r.eccentricity)[0]
-        mask = np.zeros_like(frame, dtype=np.float32)
-        mask[tuple(zip(*region.coords))] = 1.0
-        return mask
+    def _process(frame: ArrayLike, tomo_angle: int) -> ArrayLike:
+        """
+        Checks for sample being inside FOV and optionally synthesizes the frame if offsets are
+        to be determined by phase cross-correlation. Synthetic frame is a binary image having only
+        the sample being in the foreground.
+        """
+        if not align_state.sample_in_FOV(frame=frame, angle=tomo_angle):
+            raise ProcessError("sample went outside FOV, aborting")
+        if align_ctx.offset_method == align_ctx.PHASE_CROSS_CORR:
+            region: RegionProperties = sorted(
+                sms.regionprops(label_image=sms.label(align_ctx.proc_func(frame))),
+                key=lambda r: r.eccentricity)[0]
+            synth: ArrayLike = np.zeros_like(frame, dtype=np.float32)
+            synth[tuple(zip(*region.coords))] = 1.0
+            return synth
+        return frame
+    
+    def _offsets(ref_img: ArrayLike, mov_img: ArrayLike, tomo_angle: int) -> Tuple[float, float]:
+        """
+        Derives vertical and horizontal offsets using either phase_cross_correlation of synthesized
+        frames or matching pre-recorded template patches on individual frames.
+        """
+        if align_ctx.offset_method == align_ctx.PHASE_CROSS_CORR:
+            shift_yx, _, _ = skr.phase_cross_correlation(
+            reference_image=ref_img, moving_image=mov_img, upsample_factor=4)
+            return shift_yx[0], abs(shift_yx[1]) / 2
+        if align_ctx.TEMPLATE_MATCH:
+            ref_patch: ArrayLike = align_state.patches[str(tomo_angle)]
+            mov_patch: ArrayLike = align_state.patches[str(tomo_angle + 180)]
+            ref_match: ArrayLike = sft.match_template(
+                image=ref_img, template=ref_patch, pad_input=True)
+            mov_match: ArrayLike = sft.match_template(
+                image=mov_img, template=mov_patch, pad_input=True)
+            ref_ind: ArrayLike = np.unravel_index(np.argmax(ref_match), ref_match.shape)
+            ref_x, ref_y = ref_ind[::-1]
+            mov_ind: ArrayLike = np.unravel_index(np.argmax(mov_match), mov_match.shape)
+            mov_x, mov_y = mov_ind[::-1]
+            return ref_y - mov_y, abs(ref_x - mov_x) / 2
 
     await acq_ctx.devices.tomo_motor.set_position(tomo_angle + align_ctx.offset_rot_tomo)
-    ref_frame: ArrayLike = await acquire_single(ctx=acq_ctx, align_state=align_state)
-    if not align_state.sample_in_FOV(frame=ref_frame, angle=tomo_angle.magnitude):
-        raise ProcessError("sample went outside FOV before rotation, aborting")
-    ref_img: ArrayLike = _clean_mask(frame=align_ctx.proc_func(ref_frame))
+    ref_img: ArrayLike = _process(
+        frame=await acquire_single(acq_ctx=acq_ctx, align_state=align_state),
+        tomo_angle=tomo_angle.magnitude)
     if align_ctx.viewer: await align_ctx.viewer.show(ref_img)
     await acq_ctx.devices.tomo_motor.move(180 * q.deg)
-    mov_frame: ArrayLike = await acquire_single(ctx=acq_ctx, align_state=align_state)
-    if not align_state.sample_in_FOV(frame=mov_frame, angle=tomo_angle.magnitude + 180):
-        raise ProcessError("sample went outside FOV after rotation, aborting")
-    mov_img: ArrayLike = _clean_mask(frame=align_ctx.proc_func(mov_frame))
+    mov_img: ArrayLike = _process(
+        frame=await acquire_single(acq_ctx=acq_ctx, align_state=align_state),
+        tomo_angle=tomo_angle.magnitude + 180)
     if align_ctx.viewer: await align_ctx.viewer.show(mov_img)
-    shift_yx, _, _ = skr.phase_cross_correlation(
-        reference_image=ref_img, moving_image=mov_img, upsample_factor=4)
     await acq_ctx.devices.tomo_motor.move(-180 * q.deg)
-    return shift_yx[0], abs(shift_yx[1]) / 2
+    ofs = _offsets(ref_img=ref_img, mov_img=mov_img, tomo_angle=tomo_angle.magnitude)
+    print(f"Calculated offset = {ofs}")
+    return ofs
 
 
 async def move_relative(
@@ -366,8 +407,7 @@ async def center_sample_on_axis(
             motor=motor, move_by=offset * align_ctx.pixel_size_um, align_ctx=align_ctx,
             logger=logger)
         _, _new_offset = await get_sample_shifts(
-            acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state,
-            tomo_angle=tomo_angle)
+            acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, tomo_angle=tomo_angle)
         return _new_offset
     
     # Get initial distances from center of rotation
@@ -376,15 +416,20 @@ async def center_sample_on_axis(
     _, offset_pbd = await get_sample_shifts(
         acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, tomo_angle=90 * q.deg)
     logger.debug(f">> before: offset_obd = {offset_obd} offset_pbd = {offset_pbd}")
+    obd_iter, pbd_iter = 0, 0
     while offset_obd > align_ctx.pixel_err_eps or offset_pbd > align_ctx.pixel_err_eps:
         # Make step adjustment for alignment motor orthogonal to beam direction
-        if offset_obd > align_ctx.pixel_err_eps:
+        if offset_obd > align_ctx.pixel_err_eps and obd_iter < align_ctx.max_iterations:
             offset_obd = await _move_corrective(
                 motor=align_ctx.devices.align_motor_obd, offset=offset_obd, tomo_angle=0 * q.deg)
+            obd_iter += 1
+            logger.debug(f">>>> centering-obd iter = {obd_iter} offset_obd = {offset_obd}")
         # Make step adjustment for alignment motor parallel to beam direction.
-        if offset_pbd > align_ctx.pixel_err_eps:
+        if offset_pbd > align_ctx.pixel_err_eps and pbd_iter < align_ctx.max_iterations:
             offset_pbd = await _move_corrective(
                 motor=align_ctx.devices.align_motor_pbd, offset=offset_pbd, tomo_angle=90 * q.deg)
+            pbd_iter += 1
+            logger.debug(f">>>> centering-pbd iter = {pbd_iter} offset_pbd = {offset_pbd}")
     logger.debug(f">> after: offset_obd = {offset_obd} offset_pbd = {offset_pbd}")
 
 
@@ -407,7 +452,7 @@ async def offset_from_projection_center(
     :return: distance between the geometric center of projection and center of mass 
     :rtype: Tuple[float, float]
     """
-    frame: ArrayLike = await acquire_single(ctx=acq_ctx, align_state=align_state)
+    frame: ArrayLike = await acquire_single(acq_ctx=acq_ctx, align_state=align_state)
     patch = align_state.patches[str(tomo_angle.magnitude)]
     matched = sft.match_template(image=frame, template=patch, pad_input=True)
     indices = np.unravel_index(np.argmax(matched), matched.shape)
@@ -443,9 +488,10 @@ async def center_stage_in_projection(
     z_offset, stage_offset = await offset_from_projection_center(
         acq_ctx=acq_ctx, align_state=align_state, tomo_angle=tomo_angle)
     logger.debug(f">> before: z_offset = {z_offset} stage_offset = {stage_offset}")
+    z_offset_iter, stage_offset_iter = 0, 0
     while z_offset > align_ctx.pixel_err_eps or stage_offset > align_ctx.pixel_err_eps:
         # Make step adjustment for z-motor (vertically orthogonal to beam direction)
-        if z_offset > align_ctx.pixel_err_eps:
+        if z_offset > align_ctx.pixel_err_eps and z_offset_iter < align_ctx.max_iterations:
             await move_relative(
                 motor=acq_ctx.devices.z_motor, move_by=align_ctx.delta_move_mm,
                 align_ctx=align_ctx, logger=logger)
@@ -459,8 +505,10 @@ async def center_stage_in_projection(
             await move_relative(
                 motor=acq_ctx.devices.z_motor, move_by=z_offset * align_ctx.pixel_size_um,
                 align_ctx=align_ctx, logger=logger)
+            z_offset_iter += 1
+            logger.debug(f">>>> z iter = {z_offset_iter} z_offset = {z_offset}")
         # Make step adjustment for stage motor (horizontally orthogonal to beam direction)
-        if stage_offset > align_ctx.pixel_err_eps:
+        if stage_offset > align_ctx.pixel_err_eps and stage_offset_iter < align_ctx.max_iterations:
             await move_relative(
                 motor=acq_ctx.devices.flat_motor, move_by=align_ctx.delta_move_mm,
                 align_ctx=align_ctx, logger=logger)
@@ -474,6 +522,8 @@ async def center_stage_in_projection(
             await move_relative(
                 motor=acq_ctx.devices.flat_motor, move_by=stage_offset * align_ctx.pixel_size_um,
                 align_ctx=align_ctx, logger=logger)
+            stage_offset_iter += 1
+            logger.debug(f">>>> stage iter = {stage_offset_iter} stage_offset = {stage_offset}")
         z_offset, stage_offset = await offset_from_projection_center(
             acq_ctx=acq_ctx, align_state=align_state, tomo_angle=tomo_angle)
     logger.debug(f">> after: z_offset = {z_offset} stage_offset = {stage_offset}")
@@ -718,6 +768,7 @@ async def align_rotation_stage_comparative(
         logger.debug(f"::::roll-correction iteration: {roll_iter} roll: {abs(roll_ang_err)}")
         if roll_iter == align_ctx.max_iterations:
             logger.debug("::::max roll iterations reached")
+            break
     logger.debug(f"::roll after iterations: {abs(roll_ang_err)}")
     # STEP 4: Off-center the sample parallel to beam direction and iteratively correct pitch
     # (lamino) angle misalignment.
@@ -731,6 +782,7 @@ async def align_rotation_stage_comparative(
         logger.debug(f"::::pitch-correction iteration: {pitch_iter} pitch: {abs(pitch_ang_err)}")
         if pitch_iter == align_ctx.max_iterations:
             logger.debug("::::max pitch iterations reached")
+            break
     logger.debug(f"::pitch after iterations: {abs(pitch_ang_err)}")
     await acq_ctx.devices.tomo_motor.set_position(0 * q.deg + align_ctx.offset_rot_tomo)
     logger.debug("Start: centering sample in projection.")

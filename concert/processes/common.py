@@ -487,6 +487,7 @@ class AlignmentContext:
     - backlash compensation relative angle for rotation motors
     - image processing function to apply on the acquired frame
     - optional viewer to display processed frame
+    - method to use for deriving offsets, one of ["phase_cross_corr", "template_match"]
     """
     devices: AlignmentDevices
     pixel_size_um: Quantity
@@ -508,6 +509,10 @@ class AlignmentContext:
     bl_comp_rel_rot: Quantity = 0.1 * q.deg
     proc_func: Callable[[ArrayLike], ArrayLike] = lambda x: x
     viewer: Optional[PyQtGraphViewer] = None
+    offset_method: str = "phase_cross_corr"
+
+    PHASE_CROSS_CORR: str = "phase_cross_corr"
+    TEMPLATE_MATCH: str = "template_match"
 
 
 def get_noop_logger() -> logging.Logger:
