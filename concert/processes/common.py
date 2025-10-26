@@ -488,6 +488,10 @@ class AlignmentContext:
     - image processing function to apply on the acquired frame
     - optional viewer to display processed frame
     - method to use for deriving offsets, one of ["phase_cross_corr", "template_match"]
+
+    TODO: Remove unnecessary attributes and make the class capable to handle the relative movement.
+    In that way algorithm is not cluttered with move_relative calls. In fact make a base class
+    which brings this capability and have AcquisitionContext and AlignmentContext extend from it.
     """
     devices: AlignmentDevices
     pixel_size_um: Quantity
@@ -501,7 +505,7 @@ class AlignmentContext:
     ceil_rel_move: Quantity = 1 * q.deg
     offset_rot_tomo: Quantity = 0 * q.deg
     offset_lin_obd: Quantity = 0.2 * q.mm
-    offset_lin_pbd: Quantity = 0.2 * q.mm
+    offset_lin_pbd: Quantity = 2 * q.mm
     delta_move_mm: Quantity = 0.1 * q.mm
     delta_move_deg: Quantity = 0.1 * q.deg
     pixel_err_eps: float = 2.0

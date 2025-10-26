@@ -293,9 +293,7 @@ async def get_sample_shifts(
         tomo_angle=tomo_angle.magnitude + 180)
     if align_ctx.viewer: await align_ctx.viewer.show(mov_img)
     await acq_ctx.devices.tomo_motor.move(-180 * q.deg)
-    ofs = _offsets(ref_img=ref_img, mov_img=mov_img, tomo_angle=tomo_angle.magnitude)
-    print(f"Calculated offset = {ofs}")
-    return ofs
+    return _offsets(ref_img=ref_img, mov_img=mov_img, tomo_angle=tomo_angle.magnitude)
 
 
 async def move_relative(
@@ -403,34 +401,48 @@ async def center_sample_on_axis(
             motor=motor, move_by=-align_ctx.delta_move_mm, align_ctx=align_ctx, logger=logger)
         if _offset > offset:
             offset = -offset
-        await move_relative(
-            motor=motor, move_by=offset * align_ctx.pixel_size_um, align_ctx=align_ctx,
-            logger=logger)
+        # TODO NOTE : This is a bad quick & dirty example. Refactor it well-reasoned semantic to
+        # incorporate the idea of making smaller movements.
+        if tomo_angle.magnitude == 90:
+            await move_relative(
+                motor=motor, move_by=offset / 2 * align_ctx.pixel_size_um, align_ctx=align_ctx,
+                logger=logger)
+        else:
+            await move_relative(
+                motor=motor, move_by=offset * align_ctx.pixel_size_um, align_ctx=align_ctx,
+                logger=logger)
         _, _new_offset = await get_sample_shifts(
             acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, tomo_angle=tomo_angle)
         return _new_offset
     
+    # TODO: Avoid tangling two optimizations inside one loop like we have separated the centroid of
+    # orthogonal and parallel motors. Approach one optimization from other. When one is done it
+    # makes the second optimization easier.
+    
     # Get initial distances from center of rotation
     _, offset_obd = await get_sample_shifts(
-        acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, tomo_angle=0 * q.deg)
-    _, offset_pbd = await get_sample_shifts(
-        acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, tomo_angle=90 * q.deg)
-    logger.debug(f">> before: offset_obd = {offset_obd} offset_pbd = {offset_pbd}")
-    obd_iter, pbd_iter = 0, 0
-    while offset_obd > align_ctx.pixel_err_eps or offset_pbd > align_ctx.pixel_err_eps:
+            acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, tomo_angle=0 * q.deg)
+    logger.debug(f">> before: offset_obd = {offset_obd}")
+    obd_iter = 0
+    while offset_obd > align_ctx.pixel_err_eps and obd_iter < align_ctx.max_iterations:
         # Make step adjustment for alignment motor orthogonal to beam direction
-        if offset_obd > align_ctx.pixel_err_eps and obd_iter < align_ctx.max_iterations:
-            offset_obd = await _move_corrective(
+        offset_obd = await _move_corrective(
                 motor=align_ctx.devices.align_motor_obd, offset=offset_obd, tomo_angle=0 * q.deg)
-            obd_iter += 1
-            logger.debug(f">>>> centering-obd iter = {obd_iter} offset_obd = {offset_obd}")
-        # Make step adjustment for alignment motor parallel to beam direction.
-        if offset_pbd > align_ctx.pixel_err_eps and pbd_iter < align_ctx.max_iterations:
-            offset_pbd = await _move_corrective(
+        logger.debug(f">>>> centering-obd iter = {obd_iter} offset_obd = {offset_obd}")
+        obd_iter += 1
+    logger.debug(f">> after: offset_obd = {offset_obd}")
+
+    # Make step adjustment for alignment motor parallel to beam direction.
+    _, offset_pbd = await get_sample_shifts(
+            acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, tomo_angle=90 * q.deg)
+    logger.debug(f">> before: offset_pbd = {offset_pbd}")
+    pbd_iter = 0
+    while offset_pbd > align_ctx.pixel_err_eps and pbd_iter < align_ctx.max_iterations:
+        offset_pbd = await _move_corrective(
                 motor=align_ctx.devices.align_motor_pbd, offset=offset_pbd, tomo_angle=90 * q.deg)
-            pbd_iter += 1
-            logger.debug(f">>>> centering-pbd iter = {pbd_iter} offset_pbd = {offset_pbd}")
-    logger.debug(f">> after: offset_obd = {offset_obd} offset_pbd = {offset_pbd}")
+        logger.debug(f">>>> centering-pbd iter = {pbd_iter} offset_pbd = {offset_pbd}")
+        pbd_iter += 1
+    logger.debug(f">> after: offset_pbd = {offset_pbd}")
 
 
 async def offset_from_projection_center(
@@ -463,15 +475,15 @@ async def offset_from_projection_center(
     return z_offset, stage_offset
 
 
-async def center_stage_in_projection(
+async def center_axis_in_projection(
         acq_ctx: AcquisitionContext,
         align_ctx: AlignmentContext,
         align_state: AlignmentState,
         tomo_angle: Quantity,
         logger: logging.Logger = get_noop_logger()) -> None:
     """
-    Adjusts the vertical motor(`z_motor`) and horizontal motor(`flat_motor`) to put the center of
-    mass of the sample in the middle of the projection.
+    Adjusts the vertical `z_motor` and horizontal motor `flat_motor` to put the rotation axis in
+    the middle of the projection.
    
     :param acq_ctx: context for acquisition
     :type acq_ctx: `concert.processes.common.AcquisitionContext`
@@ -489,6 +501,9 @@ async def center_stage_in_projection(
         acq_ctx=acq_ctx, align_state=align_state, tomo_angle=tomo_angle)
     logger.debug(f">> before: z_offset = {z_offset} stage_offset = {stage_offset}")
     z_offset_iter, stage_offset_iter = 0, 0
+    # TODO: Avoid tangling two optimizations inside one loop like we have separated the centroid of
+    # orthogonal and parallel motors. Approach one optimization from other. When one is done it
+    # makes the second optimization easier.
     while z_offset > align_ctx.pixel_err_eps or stage_offset > align_ctx.pixel_err_eps:
         # Make step adjustment for z-motor (vertically orthogonal to beam direction)
         if z_offset > align_ctx.pixel_err_eps and z_offset_iter < align_ctx.max_iterations:
@@ -665,14 +680,8 @@ async def align_rotation_stage_comparative(
 
     async def _get_roll() -> Quantity:
         """Estimates roll angle error"""
-        await move_relative(
-            motor=align_ctx.devices.align_motor_obd, move_by=align_ctx.offset_lin_obd,
-            align_ctx=align_ctx, logger=logger)
         ver_obd_px, hor_obd_px = await get_sample_shifts(
             acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, tomo_angle=0 * q.deg)
-        await move_relative(
-            motor=align_ctx.devices.align_motor_obd, move_by=-align_ctx.offset_lin_obd,
-            align_ctx=align_ctx, logger=logger)
         return np.rad2deg(np.arctan2(ver_obd_px, 2 * hor_obd_px)) * q.deg
     
     async def _step_roll(curr_roll: Quantity) -> Quantity:
@@ -694,17 +703,10 @@ async def align_rotation_stage_comparative(
 
     async def _get_pitch() -> Quantity:
         """Estimates pitch angle error"""
-        await move_relative(
-            motor=align_ctx.devices.align_motor_pbd, move_by=align_ctx.offset_lin_pbd,
-            align_ctx=align_ctx, logger=logger)
         ver_pbd_px, _ = await get_sample_shifts(
             acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, tomo_angle=0 * q.deg)
-        _, hor_pbd_px = await get_sample_shifts(
-            acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, tomo_angle=90 * q.deg)
-        await move_relative(
-            motor=align_ctx.devices.align_motor_pbd, move_by=-align_ctx.offset_lin_pbd,
-            align_ctx=align_ctx, logger=logger)
-        return np.rad2deg(np.arctan2(ver_pbd_px, 2 * hor_pbd_px)) * q.deg
+        hor_pbd_px = align_ctx.offset_lin_pbd.to(q.um) / align_ctx.pixel_size_um
+        return np.rad2deg(np.arctan2(ver_pbd_px, 2 * hor_pbd_px.magnitude)) * q.deg
     
     async def _step_pitch(curr_pitch: Quantity) -> Quantity:
         """Makes a corrective step for pitch angle error"""
@@ -749,6 +751,13 @@ async def align_rotation_stage_comparative(
     await center_sample_on_axis(
         acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, logger=logger)
     logger.debug("Done: sample centered on axis.")
+    logger.debug("Start: centering axis in projection.")
+    # TODO: Centering axis in projection is necessary and it has to be accurate because we count
+    # on it for misalignment before roll angle calculation.
+    await center_axis_in_projection(
+        acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state,
+        tomo_angle=0 * q.deg, logger=logger)
+    logger.debug("Done: axis centered in projection.")
     # NOTE: Alignment metric is a measure of resolution sensitivity. We derive it as an angular
     # error threshold which represents maximum `align_ctx.pixel_sensitivity` pixels of resolution
     # loss vertically against `acq_ctx.width` pixels horizontally.
@@ -758,6 +767,12 @@ async def align_rotation_stage_comparative(
     # STEP 3: Off-center the sample orthogonal to beam direction and iteratively correct roll angle
     # misalignment.
     _flush_flat_fields()
+    # Off-center proportional to right edge of the projection short by 3 * radius pixels.
+    offset_lin_obd_px = (acq_ctx.width // 2) - (3 * align_state.sphere_radius)
+    offset_lin_obd_mm = (offset_lin_obd_px * align_ctx.pixel_size_um).to(q.mm)
+    await move_relative(
+            motor=align_ctx.devices.align_motor_obd, move_by=offset_lin_obd_mm, 
+            align_ctx=align_ctx, logger=logger)
     logger.debug("Start: alignment.")
     roll_iter = 0
     roll_ang_err: Quantity = await _get_roll()
@@ -769,10 +784,16 @@ async def align_rotation_stage_comparative(
         if roll_iter == align_ctx.max_iterations:
             logger.debug("::::max roll iterations reached")
             break
+    await move_relative(
+            motor=align_ctx.devices.align_motor_obd, move_by=-offset_lin_obd_mm,
+            align_ctx=align_ctx, logger=logger)
     logger.debug(f"::roll after iterations: {abs(roll_ang_err)}")
     # STEP 4: Off-center the sample parallel to beam direction and iteratively correct pitch
     # (lamino) angle misalignment.
     _flush_flat_fields()
+    await move_relative(
+            motor=align_ctx.devices.align_motor_pbd, move_by=align_ctx.offset_lin_pbd,
+            align_ctx=align_ctx, logger=logger)
     pitch_iter = 0
     pitch_ang_err: Quantity = await _get_pitch()
     logger.debug(f"::pitch before iterations: {abs(pitch_ang_err)}")
@@ -784,9 +805,12 @@ async def align_rotation_stage_comparative(
             logger.debug("::::max pitch iterations reached")
             break
     logger.debug(f"::pitch after iterations: {abs(pitch_ang_err)}")
+    await move_relative(
+            motor=align_ctx.devices.align_motor_pbd, move_by=-align_ctx.offset_lin_pbd,
+            align_ctx=align_ctx, logger=logger)
     await acq_ctx.devices.tomo_motor.set_position(0 * q.deg + align_ctx.offset_rot_tomo)
     logger.debug("Start: centering sample in projection.")
-    await center_stage_in_projection(
+    await center_axis_in_projection(
         acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state,
         tomo_angle=0 * q.deg, logger=logger)
     logger.debug("Done: sample centered in projection.")
