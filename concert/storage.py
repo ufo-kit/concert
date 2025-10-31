@@ -523,17 +523,15 @@ class RemoteDirectoryWalker(Walker):
         # with reasonable defaults.
         if root:
             self._root = root
-            await self.device.write_attribute(attr_name="root", value=root)
+            await self.device.write_attribute("root", root)
         else:
             self._root = (await self.device["root"]).value
         # Synchronizing internal state
         await self.home()
-        await self.device.write_attribute(attr_name="writer_class",
-                                          value=wrt_cls)
-        await self.device.write_attribute(attr_name="dsetname", value=dsetname)
-        await self.device.write_attribute(attr_name="start_index",
-                                          value=start_index)
-        await self.device.write_attribute(attr_name="bytes_per_file", value=bytes_per_file)
+        await self.device.write_attribute("writer_class", wrt_cls)
+        await self.device.write_attribute("dsetname", dsetname)
+        await self.device.write_attribute("start_index", start_index)
+        await self.device.write_attribute("bytes_per_file", bytes_per_file)
         self._commdata = None
         await super().__ainit__(root=self._root, dsetname=dsetname)
 
@@ -551,7 +549,7 @@ class RemoteDirectoryWalker(Walker):
 
     async def _set_endpoint(self, value: str) -> None:
         """Sets endpoint in remote context"""
-        await self.device.write_attribute(attr_name="endpoint", value=value)
+        await self.device.write_attribute("endpoint", value)
 
     async def _get_current(self):
         """Provides current from remote context"""
@@ -566,7 +564,7 @@ class RemoteDirectoryWalker(Walker):
     async def home(self) -> None:
         """Return to root remotely and inside its own context (which is
         implemented in the super class)"""
-        await self.device.write_attribute(attr_name="current", value=self._root)
+        await self.device.write_attribute("current", self._root)
         await super().home()
 
     async def exists(self, *paths: str) -> bool:
@@ -585,7 +583,7 @@ class RemoteDirectoryWalker(Walker):
         old_endpoint = await self.get_endpoint()
         await self.set_endpoint(self._commdata.client_endpoint)
         old_dsetname = await self.get_dsetname()
-        await self.device.write_attribute(attr_name="dsetname", value=dsetname or old_dsetname)
+        await self.device.write_attribute("dsetname", dsetname or old_dsetname)
 
         try:
             f = self.device.write_sequence("")
@@ -601,7 +599,7 @@ class RemoteDirectoryWalker(Walker):
                 await f
         finally:
             await self.set_endpoint(old_endpoint)
-            await self.device.write_attribute(attr_name="dsetname", value=old_dsetname)
+            await self.device.write_attribute("dsetname", old_dsetname)
 
     @background
     async def write_sequence(self, name: Optional[str] = "") -> None:
