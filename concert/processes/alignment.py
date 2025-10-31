@@ -22,8 +22,8 @@ class BacklashCompRelMovMixin:
     """
     Facilitates backlash-compensated relative movement for motors.
 
-    - relative movement distance to counter backlash for linear motors.
-    - relative movement distance to counter backlash for rotation motors.
+    - **bl_comp_lin**: relative movement distance to counter backlash for linear motors.
+    - **bl_comp_rot**: relative movement distance to counter backlash for rotation motors.
     """
 
     bl_comp_lin: Quantity = 0.1 * q.mm
@@ -66,11 +66,11 @@ class AcquisitionDevices:
     """
     Encapsulates relevant devices which are collectively used for frame acquisition.
 
-    - reference to camera.
-    - reference to shutter.
-    - reference to tomographic rotation motor.
-    - reference to linear motor moving tomographic rotation stage horizontally.
-    - reference to linear motor moving tomographic rotation stage vertically.
+    - **camera**: reference to camera.
+    - **shutter**: reference to shutter.
+    - **tomo_motor**: reference to tomographic rotation motor.
+    - **flat_motor**: reference to linear motor moving tomographic rotation stage horizontally.
+    - **z_motor**: reference to linear motor moving tomographic rotation stage vertically.
     """
     camera: Camera
     shutter: Shutter
@@ -84,13 +84,14 @@ class AcquisitionContext(BacklashCompRelMovMixin):
     """
     Encapsulates devices and configurations for frame acquisition.
 
-    - reference to devices which are relevant for acquiring frames using camera.
-    - height of the projections.
-    - width of the projections.
-    - flag indicating if flat field correction should be done for the acquired frames.
-    - flag indicating if absorptivity needs to ve calculated.
-    - optional position of the flat motor to move sample away from beam (only relevant if \
-    `flat_field_correct` is true).
+    - **devices**: reference to devices which are relevant for acquiring frames using camera.
+    - **height**: height of the projections.
+    - **width**: width of the projections.
+    - **flat_field_correct**: flag indicating if flat field correction should be done for the \
+        acquired frames.
+    - **absorptivity**: flag indicating if absorptivity needs to ve calculated.
+    - **flat_position**: optional position of the flat motor to move sample away from beam \
+        (only relevant if flat_field_correct` is true).
     """
     devices: AcquisitionDevices
     height: int
@@ -106,10 +107,11 @@ class AlignmentDevices:
     Encapsulates relevant devices for alignment fo which we might need to make frequent small
     adjustments.
 
-    - rotation motor for pitch angle correction.
-    - rotation motor for roll angle correction.
-    - linear alignment motor to move sample horizontally parallel to the beam.
-    - linear alignment motor to move sample horizontally orthogonal to the beam.
+    - **rot_motor_pitch**: rotation motor for pitch angle correction.
+    - **rot_motor_roll**: rotation motor for roll angle correction.
+    - **align_motor_pbd**: linear alignment motor to move sample horizontally parallel to the beam.
+    - **align_motor_obd**: linear alignment motor to move sample horizontally orthogonal to the \
+        beam.
     """
     rot_motor_pitch: RotationMotor
     rot_motor_roll: RotationMotor
@@ -122,20 +124,21 @@ class AlignmentContext(BacklashCompRelMovMixin):
     """
     Encapsulates devices and configurations for the alignment method.
 
-    - reference to the devices, which are relevant for alignment of tomographic stage.
-    - pixel size in micrometer.
-    - max iterations for alignment.
-    - pixel sensitivity to derive a metric to evaluate alignment.
-    - angular offset to be applied to tomographic rotation motor, defaults to no offset.
-    - off-centering distance for alignment motor moving parallel to beam.
-    - linear delta distance to determine correct direction.
-    - angular delta distance to determine correct direction.
-    - epsilon pixel error tolerance during centering the sample.
-    - proportional adjustment to be made before moving motors (experimental).
-    - image processing function to separate sphere from background.
-    - optional viewer to display frames for debugging.
-    - method to derive vertical and horizontal shifts, one of \
-    ["phase_cross_corr", "template_match"].
+    - **devices**: reference to the devices, which are relevant for alignment of tomographic stage.
+    - **pixel_size_um**: pixel size in micrometer.
+    - **max_iterations**: max iterations for alignment.
+    - **pixel_sensitivity**: pixel sensitivity to derive a metric to evaluate alignment.
+    - **offset_tomo**: angular offset to be applied to tomographic rotation motor, defaults to no \
+        offset.
+    - **off_cent_pbd**: off-centering distance for alignment motor moving parallel to beam.
+    - **del_dist_lin**: linear delta distance to determine correct direction.
+    - **del_dist_rot**: angular delta distance to determine correct direction.
+    - **pixel_err_eps**: epsilon pixel error tolerance during centering the sample.
+    - **adjust_move**: proportional adjustment to be made before moving motors (experimental).
+    - **proc_func**: image processing function to separate sphere from background.
+    - **viewer**: optional viewer to display frames for debugging.
+    - **offset_method**: method to derive vertical and horizontal shifts, one of \
+        ["phase_cross_corr", "template_match"].
     """
     devices: AlignmentDevices
     pixel_size_um: Quantity
@@ -168,15 +171,15 @@ class AlignmentState:
     """
     Encapsulates elements of the state management for the alignment.
 
-    - checkpoints - last known motor positions for which sample was in FOV.
-    - patches - contains a patch of our sample for each of the terminal angles.
-    - baseline_scores - confidence scores for the sample being inside FOV.
-    - optional cached dark field.
-    - optional cached flat-field.
-    - sphere radius, to be derived during state initialization.
-    - patch dimension.
-    - score_epsilon is the maximum uncertainty to allow to conclude that the sample is in \
-    fact inside FOV.
+    - **checkpoints**: last known motor positions for which sample was in FOV.
+    - **patches**: contains a patch of our sample for each of the terminal angles.
+    - **baseline_scores**: confidence scores for the sample being inside FOV.
+    - **dark**: optional cached dark field.
+    - **flat**: optional cached flat-field.
+    - **sphere_radius**: sphere radius, to be derived during state initialization.
+    - **dim**: patch dimension.
+    - **score_epsilon**: maximum uncertainty to allow to conclude that the sample is in fact \
+        inside FOV.
 
     TODO: Checkpoint based system is not fully implemented yet. It is supposed to serve state
     management during alignment and help in recovering from anomalies like sample going outside FOV.
@@ -231,9 +234,9 @@ async def acquire_frame(acq_ctx: AcquisitionContext, align_state: AlignmentState
     Acquires a single frame using context provided for acquisition.
 
     :param ctx: context for acquisition
-    :type ctx: `concert.processes.common.AcquisitionContext`
+    :type ctx: `concert.processes.alignment.AcquisitionContext`
     :param align_state: state for alignment
-    :type align_state: `concert.processes.common.AcquisitionState`
+    :type align_state: `concert.processes.alignment.AcquisitionState`
     :return: acquired frame
     :rtype: `concert.typing.ArrayLike`
     """
@@ -271,11 +274,11 @@ async def init_alignment_state(
         - show extracted patch using runtime viewer as sanity check.
 
     :param acq_ctx: context for acquisition
-    :type acq_ctx: `concert.processes.common.AcquisitionContext`
+    :type acq_ctx: `concert.processes.alignment.AcquisitionContext`
     :param align_ctx: context for alignment
-    :type align_ctx: `concert.processes.common.AlignmentContext`
+    :type align_ctx: `concert.processes.alignment.AlignmentContext`
     :return: initial alignment state
-    :rtype: `concert.processes.common.AlignmentState`
+    :rtype: `concert.processes.alignment.AlignmentState`
     """
     logger.debug = print  # TODO: For quick debugging, remove later
 
@@ -323,11 +326,11 @@ async def get_sample_shifts(
     parameter `tomo_angle` marks the starting angle before rotation.
 
     :param acq_ctx: context for acquisition
-    :type acq_ctx: `concert.processes.common.AcquisitionContext`
+    :type acq_ctx: `concert.processes.alignment.AcquisitionContext`
     :param align_ctx: context for alignment
-    :type align_ctx: `concert.processes.common.AlignmentContext`
+    :type align_ctx: `concert.processes.alignment.AlignmentContext`
     :param align_state: alignment state
-    :type align_state: `concert.processes.common.AlignmentState`
+    :type align_state: `concert.processes.alignment.AlignmentState`
     :param tomo_angle: initial angle(degrees) to set before measuring offset
     :type tomo_angle: `concert.quantities.Quantity`
     :return: vertical shift of sample caused by misalignment and distance of sample from center
@@ -391,11 +394,11 @@ async def center_sample_on_axis(
     to the beam direction, `align_motor_pbd` to center the sample on rotation axis.
 
     :param acq_ctx: context for acquisition
-    :type acq_ctx: `concert.processes.common.AcquisitionContext`
+    :type acq_ctx: `concert.processes.alignment.AcquisitionContext`
     :param align_ctx: context for alignment
-    :type align_ctx: `concert.processes.common.AlignmentContext`
+    :type align_ctx: `concert.processes.alignment.AlignmentContext`
     :param align_state: alignment state
-    :type align_state: `concert.processes.common.AlignmentState`
+    :type align_state: `concert.processes.alignment.AlignmentState`
     :param logger: optional logger
     :type logger: logging.Logger
     """
@@ -451,9 +454,9 @@ async def offset_from_projection_center(
     sample placed at the axis of rotation.
 
     :param acq_ctx: context for acquisition
-    :type acq_ctx: `concert.processes.common.AcquisitionContext`
+    :type acq_ctx: `concert.processes.alignment.AcquisitionContext`
     :param align_state: managed state for alignment
-    :type align_state: `concert.processes.common.AlignmentContext`
+    :type align_state: `concert.processes.alignment.AlignmentContext`
     :param tomo_angle: angle of the tomo rotation motor
     :type tomo_angle: `concert.quantities.Quantity`
     :return: distance between the geometric center of projection and center of mass
@@ -479,11 +482,11 @@ async def center_axis_in_projection(
     in the middle of the projection.
 
     :param acq_ctx: context for acquisition
-    :type acq_ctx: `concert.processes.common.AcquisitionContext`
+    :type acq_ctx: `concert.processes.alignment.AcquisitionContext`
     :param align_ctx: context for alignment
-    :type align_ctx: `concert.processes.common.AlignmentContext`
+    :type align_ctx: `concert.processes.alignment.AlignmentContext`
     :param align_state: managed state for alignment
-    :type align_state: `concert.processes.common.AlignmentState`
+    :type align_state: `concert.processes.alignment.AlignmentState`
     :param logger: optional logger
     :type logger: logging.Logger
     """
@@ -540,11 +543,11 @@ async def align_tomography_generic(
     Aligns rotation stage for parallel beam CT geometry.
 
     :param acq_ctx: context for acquisition
-    :type acq_ctx: `concert.processes.common.AcquisitionContext`
+    :type acq_ctx: `concert.processes.alignment.AcquisitionContext`
     :param align_ctx: context for alignment
-    :type align_ctx: `concert.processes.common.AlignmentContext`
+    :type align_ctx: `concert.processes.alignment.AlignmentContext`
     :param align_state: state managed for alignment
-    :type align_state: `concert.processes.common.AlignmentState`
+    :type align_state: `concert.processes.alignment.AlignmentState`
     :param logger: optional logger
     :type logger: logging.Logger
     """

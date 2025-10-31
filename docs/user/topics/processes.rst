@@ -119,14 +119,46 @@ and facilitates ease of use.
     :members:
     :show-inheritance:
 
+:class:`concert.processes.alignment.AlignmentContext` includes two attributes, which need special
+note, namely **viewer** and **proc_func**. Viewer is an instance of
+:class:`concert.ext.viewers.PyQtGraphViewer`, which helps in monitoring the frames being
+acquired and processed for computing the offsets. It is a helpful for debugging. Proc_func on the
+other hand, serves as a key utility to track the sphere. Given the inherent uncertainty of the beam
+it is challenging to standardize an image processing protocol, which can help us to isolate the
+sphere from the background in all possible circumstances. We therefore make this image processing
+routine a dynamic configuration. It is a function, which takes a single image as input and yields
+a binary mask as output, which separates the sphere from the background. A practical example of this
+function could look like the following::
+
+    import numpy as np
+    import skimage.filters as sfl
+    from concert.typing import ArrayLike
+
+    def proc_func(projection: ArrayLike) -> ArrayLike:
+        img: ArrayLike = projection.astype(np.float32)
+        smoothed: ArrayLike = sfl.gaussian(img, sigma=10)
+        seg: float = sfl.threshold_yen(smoothed)
+        mask: ArrayLike = smoothed > seg
+        assert(projection.shape == mask.shape)
+        return mask
+
 State encapsulates the essence of anomaly detection during the execution of the algorithm. Most
 common anomaly is the sample going outside FOV during the alignment, which is possible for various
 reasons. We want the algorithm to detect and gracefully react to such circumstances by either
 attempting a recovery or at the very least leaving the system in a stable state. Class
 :class:`concert.processes.alignment.AlignmentState` provides the building blocks for the same.
+One of the key building blocks is a patch from the projections containing our metal sphere for each
+of the terminal angles `[0, 90, 180, 270]`. Aforementioned
+:class:`concert.processes.alignment.AlignmentContext.proc_func` is a key attribute for this.
+These patches can be used during alignment to very accurately compute offset of the sample
+from axis of rotation and detect, if sample has gone outside field of view.
 
 .. autoclass:: concert.processes.alignment.AlignmentState
     :members:
+
+State is explicitly initialized using:
+
+.. autofunction:: concert.processes.alignment.init_alignment_state
 
 Centering Sample on Rotation Axis
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
