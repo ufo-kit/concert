@@ -64,7 +64,7 @@ class AbstractTangoDevice(Protocol):
         """
         ...
 
-    async def write_attribute(self, attr_name: str, value: Any) -> None:
+    async def write_attribute(self, attr: str, value: Any) -> None:
         """Lets the caller write a device attribute
 
         :param attr_name: attribute name

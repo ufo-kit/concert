@@ -47,8 +47,8 @@ class MockWalkerDevice:
         self.mock_device.deregister_logger = mock.AsyncMock(
                 side_effect=self._side_effect_deregister_logger)  # noqa E126
 
-    async def write_attribute(self, attr_name: str, value: Any) -> None:
-        await self.mock_device.write_attribute(attr_name=attr_name, value=value)
+    async def write_attribute(self, attr: str, value: Any) -> None:
+        await self.mock_device.write_attribute(attr, value)
 
     def get_attribute_list(self) -> Sequence[str]:
         return []
