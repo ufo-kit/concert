@@ -13,3 +13,4 @@ User manual
     topics/processing.rst
     topics/experiments.rst
     topics/directors.rst
+    topics/processes.rst
