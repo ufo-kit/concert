@@ -8,6 +8,7 @@ from concert.config import DISTRIBUTED_TANGO_TIMEOUT
 from concert.coroutines.base import background
 from concert.experiments.addons import base
 from concert.experiments.base import Consumer
+from concert.helpers import CommData
 from concert.quantities import q
 from typing import Awaitable
 
@@ -119,8 +120,9 @@ class TangoMixin:
 
     :param device: a Tango device proxy
     :param endpoints: a dictionary mapping acquisitions to their endpoints. The key is the name of the acquisition.
+        A single CommData object can also be provided to use the same endpoint for all acquisitions.
     """
-    async def __ainit__(self, device, endpoints: dict) -> Awaitable:
+    async def __ainit__(self, device, endpoints: dict | CommData) -> Awaitable:
         self._device = device
         self._device.set_timeout_millis(DISTRIBUTED_TANGO_TIMEOUT)
         self._endpoints = endpoints
@@ -138,9 +140,11 @@ class Benchmarker(TangoMixin, base.Benchmarker):
     def _make_consumers(self, acquisitions):
         consumers = {}
 
+        use_same_endpoint = type(self._endpoints) is CommData
+
         for acq in acquisitions:
             consumers[acq] = TangoConsumer(
-                self._device, self._endpoints[acq.name], self.start_timer, corofunc_args=(acq.name,)
+                self._device, self._endpoints if use_same_endpoint else self._endpoints[acq.name], self.start_timer, corofunc_args=(acq.name,)
             )
 
         return consumers
@@ -184,9 +188,11 @@ class ImageWriter(TangoMixin, base.ImageWriter):
 
             return write_sequence
 
+        use_same_endpoint = type(self._endpoints) is CommData
+
         for acq in acquisitions:
             consumers[acq] = TangoConsumer(
-                self._device, self._endpoints[acq.name], prepare_wrapper(acq.name)
+                self._device, self._endpoints if use_same_endpoint else self._endpoints[acq.name], prepare_wrapper(acq.name)
             )
 
         return consumers
@@ -207,8 +213,10 @@ class LiveView(base.LiveView):
         async def consume():
             pass
 
+        use_same_endpoint = type(self._endpoints) is CommData
+
         for acq in acquisitions:
-            consumers[acq] = LiveViewConsumer(self._viewer, self.endpoints[acq.name], consume)
+            consumers[acq] = LiveViewConsumer(self._viewer, self._endpoints if use_same_endpoint else  self.endpoints[acq.name], consume)
 
         return consumers
 
@@ -266,16 +274,19 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
         flats = base.get_acq_by_name(acquisitions, 'flats')
         radios = base.get_acq_by_name(acquisitions, 'radios')
 
+        use_same_endpoint = type(self._endpoints) is CommData
+
+
         if self._do_normalization:
             consumers[darks] = TangoConsumer(
-                self._device, self._endpoints[darks.name], self.update_darks
+                self._device, self._endpoints if use_same_endpoint else self._endpoints[darks.name], self.update_darks
             )
             consumers[flats] = TangoConsumer(
-                self._device, self._endpoints[flats.name], self.update_flats
+                self._device, self._endpoints if use_same_endpoint else self._endpoints[flats.name], self.update_flats
             )
 
         consumers[radios] = TangoConsumer(
-            self._device, self._endpoints[radios.name], self.reconstruct
+            self._device, self._endpoints if use_same_endpoint else self._endpoints[radios.name], self.reconstruct
         )
 
         return consumers
