@@ -397,21 +397,16 @@ class Experiment(RunnableParameterizable):
 
     def add(self, acquisition):
         """
-        Add *acquisition* to the acquisition list and make it accessible as
-        an attribute::
+        Add *acquisition* to the acquisition list.
 
-            frames = Acquisition(...)
+            frames = Acquisition('frames', ...)
             experiment.add(frames)
-            # This is possible
-            experiment.frames
         """
         self._acquisitions.append(acquisition)
-        setattr(self, acquisition.name, acquisition)
 
     def remove(self, acquisition):
         """Remove *acquisition* from experiment."""
         self._acquisitions.remove(acquisition)
-        delattr(self, acquisition.name)
 
     def swap(self, first, second):
         """
