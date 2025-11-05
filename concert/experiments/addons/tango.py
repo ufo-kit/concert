@@ -116,6 +116,9 @@ class TangoMixin:
 
     """TangoMixin does not need a producer becuase the backend processes image streams which do not
     come via concert.
+
+    :param device: a Tango device proxy
+    :param endpoints: a dictionary mapping acquisitions to their endpoints. The key is the name of the acquisition.
     """
     async def __ainit__(self, device, endpoints: dict) -> Awaitable:
         self._device = device
@@ -137,7 +140,7 @@ class Benchmarker(TangoMixin, base.Benchmarker):
 
         for acq in acquisitions:
             consumers[acq] = TangoConsumer(
-                self._device, self._endpoints[acq], self.start_timer, corofunc_args=(acq.name,)
+                self._device, self._endpoints[acq.name], self.start_timer, corofunc_args=(acq.name,)
             )
 
         return consumers
@@ -183,7 +186,7 @@ class ImageWriter(TangoMixin, base.ImageWriter):
 
         for acq in acquisitions:
             consumers[acq] = TangoConsumer(
-                self._device, self._endpoints[acq], prepare_wrapper(acq.name)
+                self._device, self._endpoints[acq.name], prepare_wrapper(acq.name)
             )
 
         return consumers
@@ -205,7 +208,7 @@ class LiveView(base.LiveView):
             pass
 
         for acq in acquisitions:
-            consumers[acq] = LiveViewConsumer(self._viewer, self.endpoints[acq], consume)
+            consumers[acq] = LiveViewConsumer(self._viewer, self.endpoints[acq.name], consume)
 
         return consumers
 
@@ -265,14 +268,14 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
 
         if self._do_normalization:
             consumers[darks] = TangoConsumer(
-                self._device, self._endpoints[darks], self.update_darks
+                self._device, self._endpoints[darks.name], self.update_darks
             )
             consumers[flats] = TangoConsumer(
-                self._device, self._endpoints[flats], self.update_flats
+                self._device, self._endpoints[flats.name], self.update_flats
             )
 
         consumers[radios] = TangoConsumer(
-            self._device, self._endpoints[radios], self.reconstruct
+            self._device, self._endpoints[radios.name], self.reconstruct
         )
 
         return consumers
