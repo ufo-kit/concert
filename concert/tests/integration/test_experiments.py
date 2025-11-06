@@ -215,12 +215,11 @@ class TestExperiment(TestExperimentBase):
             self.experiment.acquisitions.remove(self.bar)
 
     def test_add(self):
-        self.assertEqual(self.experiment.foo, self.foo)
-        self.assertEqual(self.experiment.bar, self.bar)
+        self.assertEqual(self.experiment.get_acquisition("foo"), self.foo)
+        self.assertEqual(self.experiment.get_acquisition("bar"), self.bar)
 
     def test_remove(self):
         self.experiment.remove(self.bar)
-        self.assertFalse(hasattr(self.experiment, 'bar'))
         self.assertNotIn(self.bar, self.experiment.acquisitions)
 
     async def test_prepare(self):

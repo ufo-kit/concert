@@ -7,7 +7,6 @@ from abc import abstractmethod
 import numpy as np
 
 from concert.base import Parameterizable, Parameter, Quantity, Selection
-from concert.experiments.base import Consumer as AcquisitionConsumer
 from concert.coroutines.base import background
 from concert.quantities import q
 
@@ -92,18 +91,6 @@ class Benchmarker(Addon):
     async def __ainit__(self, experiment, acquisitions=None):
         await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
 
-    def _make_consumers(self, acquisitions):
-        consumers = {}
-
-        for acq in acquisitions:
-            consumers[acq] = AcquisitionConsumer(
-                self.start_timer,
-                corofunc_args=(acq.name,),
-                addon=self if self.start_timer.remote else None
-            )
-
-        return consumers
-
     async def start_timer(self, *args, **kwargs):
         raise NotImplementedError
 
@@ -131,45 +118,6 @@ class ImageWriter(Addon):
         self.walker = experiment.walker
         await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
 
-    def _make_consumers(self, acquisitions):
-        """Attach all acquisitions."""
-        consumers = {}
-
-        def prepare_wrapper(acquisition):
-            async def prepare_and_write(*args):
-                # Make sure the directory exists
-                async with self.walker:
-                    try:
-                        await self.walker.descend(acquisition.name)
-                        # Even though acquisition name is fixed, we don't know where in the file
-                        # system we are, so this must be determined dynamically when the writing
-                        # is about to start
-                        if self.write_sequence.remote:
-                            coro = self.write_sequence(acquisition.name)
-                        else:
-                            coro = self.write_sequence(acquisition.name, producer=args[0])
-                    finally:
-                        await self.walker.ascend()
-
-                await coro
-
-            return prepare_and_write
-
-        addon = self if self.write_sequence.remote else None
-        for acq in acquisitions:
-            consumers[acq] = AcquisitionConsumer(prepare_wrapper(acq), addon=addon)
-            consumers[acq].corofunc.remote = self.write_sequence.remote
-
-        return consumers
-
-    def write_sequence(self, name, producer=None):
-        """Organize image writing to subdirectory *name* and return a coroutine which does the
-        actual writing. This function is called inside the context manager of the walker and thus
-        guarantees the correct base path of the experiment but also `async with self.walker' is not
-        allowed here because it would block.
-        """
-        raise NotImplementedError
-
 
 class Consumer(Addon):
 
@@ -184,15 +132,6 @@ class Consumer(Addon):
     async def __ainit__(self, consumer, experiment, acquisitions=None):
         await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
         self._consumer = consumer
-
-    def _make_consumers(self, acquisitions):
-        consumers = {}
-
-        addon = self if self.consume.remote else None
-        for acq in acquisitions:
-            consumers[acq] = AcquisitionConsumer(self.consume, addon=addon)
-
-        return consumers
 
     def consume(self, *args, **kwargs):
         raise NotImplementedError
@@ -209,17 +148,8 @@ class LiveView(Addon):
     """
 
     async def __ainit__(self, viewer, experiment, acquisitions=None):
-        await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
         self._viewer = viewer
-
-    def _make_consumers(self, acquisitions):
-        consumers = {}
-
-        addon = self if self.consume.remote else None
-        for acq in acquisitions:
-            consumers[acq] = AcquisitionConsumer(self.consume, addon=addon)
-
-        return consumers
+        await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
 
     def consume(self, *args, **kwargs):
         raise NotImplementedError
@@ -246,21 +176,6 @@ class Accumulator(Addon):
         self._shapes = shapes
         self._dtype = dtype
         await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
-
-    def _make_consumers(self, acquisitions):
-        shapes = (None,) * len(acquisitions) if self._shapes is None else self._shapes
-        consumers = {}
-
-        addon = self if self.accumulate.remote else None
-        for i, acq in enumerate(acquisitions):
-            consumers[acq] = AcquisitionConsumer(
-                self.accumulate,
-                corofunc_args=(acq.name,),
-                corofunc_kwargs={'shape': shapes[i], 'dtype': self._dtype},
-                addon=addon
-            )
-
-        return consumers
 
     async def accumulate(self, *args, **kwargs):
         raise NotImplementedError
@@ -319,27 +234,6 @@ class OnlineReconstruction(Addon):
         await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
         await self.set_slice_directory(slice_directory)
         await self.register_args()
-
-    def _make_consumers(self, acquisitions):
-        consumers = {}
-
-        addon = self if self.reconstruct.remote else None
-        if self._do_normalization:
-            consumers[get_acq_by_name(acquisitions, 'darks')] = AcquisitionConsumer(
-                self.update_darks,
-                addon=addon
-            )
-            consumers[get_acq_by_name(acquisitions, 'flats')] = AcquisitionConsumer(
-                self.update_flats,
-                addon=addon
-            )
-
-        consumers[get_acq_by_name(acquisitions, 'radios')] = AcquisitionConsumer(
-            self.reconstruct,
-            addon=addon
-        )
-
-        return consumers
 
     async def get_slice(self, x=None, y=None, z=None):
         if len(await self.get_volume_shape()) != 3:
@@ -508,24 +402,6 @@ class PhaseGratingSteppingFourierProcessing(Addon):
         self.visibility_contrast = None
         self.diff_phase_in_rad = None
         await super().__ainit__(experiment=experiment)
-
-    def _make_consumers(self, acquisitions):
-        consumers = {}
-        addon = self if self.process_stepping.remote else None
-        consumers[get_acq_by_name(acquisitions, 'darks')] = AcquisitionConsumer(
-            self.process_darks,
-            addon=addon
-        )
-        consumers[get_acq_by_name(acquisitions, 'reference_stepping')] = AcquisitionConsumer(
-            self.process_stepping,
-            addon=addon
-        )
-        consumers[get_acq_by_name(acquisitions, 'object_stepping')] = AcquisitionConsumer(
-            self.process_stepping,
-            addon=addon
-        )
-
-        return consumers
 
     async def get_object_intensity(self):
         raise NotImplementedError

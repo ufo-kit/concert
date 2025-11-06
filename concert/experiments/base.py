@@ -24,7 +24,6 @@ from concert.base import (
 )
 from concert.helpers import get_basename
 from concert.loghandler import AsyncLoggingHandlerCloser
-from functools import partial
 
 
 LOG = logging.getLogger(__name__)
@@ -39,32 +38,29 @@ class Consumer:
     :param corofunc: a consumer coroutine function
     :param corofunc_args: a list or tuple of *corofunc* arguemnts
     :param corofunc_kwargs: a list or tuple of *corofunc* keyword arguemnts
-    :param addon: a :class:`~concert.experiments.addons.Addon` object
     """
-    def __init__(self, corofunc, corofunc_args=(), corofunc_kwargs=None, addon=None):
+    def __init__(self, corofunc, corofunc_args=(), corofunc_kwargs=None):
         self._corofunc = corofunc
-        self.addon = addon
         self.args = corofunc_args
         self.kwargs = {} if corofunc_kwargs is None else corofunc_kwargs
+
+    @property
+    def remote(self):
+        return False
 
     @property
     def corofunc(self):
         return self._corofunc
 
     async def __call__(self, producer):
-        corofunc = self._corofunc
-        if producer:
-            corofunc = partial(self._corofunc, producer)
-
         st = time.perf_counter()
-        await corofunc(*self.args, **self.kwargs)
+        await self.corofunc(producer, *self.args, **self.kwargs)
         LOG.debug('%s finished in %.3f s', self._corofunc.__qualname__, time.perf_counter() - st)
 
 
 class Acquisition(RunnableParameterizable):
     """
-    An acquisition acquires data, gets it and sends it to consumers. This is a base class for local
-    and remote acquisitions and must not be used directly.
+    An acquisition acquires data, gets it and sends it to consumers.
 
     .. py:attribute:: name
 
@@ -118,7 +114,7 @@ class Acquisition(RunnableParameterizable):
 
     def add_consumer(self, consumer):
         """Add *consumer*, *remote* must match this acquisition mode."""
-        if self.remote ^ consumer.corofunc.remote:
+        if self.remote ^ consumer.remote:
             raise ConsumerError("Cannot attach local consumers to remote producers and vice versa")
         self._consumers.append(consumer)
         LOG.debug('Adding %s to acquisition %s', consumer.__class__.__name__, self.name)
@@ -167,13 +163,12 @@ class Acquisition(RunnableParameterizable):
 
         # Connect the producer to all consumers
         for consumer in self._consumers:
-            if consumer.addon is not None:
-                await self.producer.register_endpoint(consumer.addon.endpoint)
-                await consumer.addon.connect_endpoint()
+            await self.producer.register_endpoint(consumer.endpoint)
+            await consumer.connect_endpoint()
 
         tasks = [start(producer_coro())]
         self._producer_task = tasks[0]
-        tasks += [start(consumer(None)) for consumer in self._consumers]
+        tasks += [start(consumer()) for consumer in self._consumers]
         LOG.debug(
             "`%s': starting producer `%s' and consumers %s",
             self.name,
@@ -215,9 +210,8 @@ class Acquisition(RunnableParameterizable):
         finally:
             # No matter what happens disconnect the producers and consumers to have a clean state
             for consumer in self._consumers:
-                if consumer.addon is not None:
-                    await self.producer.unregister_endpoint(consumer.addon.endpoint)
-                    await consumer.addon.disconnect_endpoint()
+                await self.producer.unregister_endpoint(consumer.endpoint)
+                await consumer.disconnect_endpoint()
 
     @background
     @check(source=['standby', 'error', 'cancelled'], target=['standby', 'cancelled'])
@@ -403,21 +397,16 @@ class Experiment(RunnableParameterizable):
 
     def add(self, acquisition):
         """
-        Add *acquisition* to the acquisition list and make it accessible as
-        an attribute::
+        Add *acquisition* to the acquisition list.
 
-            frames = Acquisition(...)
+            frames = Acquisition('frames', ...)
             experiment.add(frames)
-            # This is possible
-            experiment.frames
         """
         self._acquisitions.append(acquisition)
-        setattr(self, acquisition.name, acquisition)
 
     def remove(self, acquisition):
         """Remove *acquisition* from experiment."""
         self._acquisitions.remove(acquisition)
-        delattr(self, acquisition.name)
 
     def swap(self, first, second):
         """
