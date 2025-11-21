@@ -114,6 +114,29 @@ class Benchmarker(Addon):
         raise NotImplementedError
 
 
+class SampleDetector(Addon):
+
+    """Sample detection addon."""
+
+    async def __ainit__(self, experiment, acquisitions=None):
+        await super().__ainit__(experiment, acquisitions=acquisitions)
+
+    def _make_consumers(self, acquisitions):
+        consumers = {}
+
+        for acq in acquisitions:
+            consumers[acq] = AcquisitionConsumer(
+                self.stream_detect,
+                addon=self if self.stream_detect.remote else None,
+                reliable=False if self.stream_detect.remote else True
+            )
+
+        return consumers
+
+    async def stream_detect(self):
+        raise NotImplementedError
+
+
 class ImageWriter(Addon):
 
     """An addon which writes images to disk.

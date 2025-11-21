@@ -81,6 +81,21 @@ class Benchmarker(TangoMixin, base.Benchmarker):
         await self._device.reset()
 
 
+class SampleDetector(TangoMixin, base.SampleDetector):
+
+    async def __ainit__(self, experiment, device, endpoint, acquisitions=None):
+        await TangoMixin.__ainit__(self, device, endpoint)
+        await base.SampleDetector.__ainit__(self, experiment, acquisitions=acquisitions)
+
+    @TangoMixin.cancel_remote
+    @remote
+    async def stream_detect(self):
+        await self._device.stream_detect()
+
+    async def get_maximum_rectangle(self):
+        return await self._device.get_maximum_rectangle()
+
+
 class ImageWriter(TangoMixin, base.ImageWriter):
 
     async def __ainit__(self, experiment, endpoint, acquisitions=None):
