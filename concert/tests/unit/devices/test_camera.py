@@ -101,14 +101,14 @@ class TestDummyCamera(TestCase):
                 await self.camera.register_endpoint(
                     CommData("localhost", 8991 + i, "tcp", zmq.PUSH, 0)
                 )
-                receiver = ZmqReceiver(endpoint=f"tcp://localhost:{8991+i}")
+                receiver = await ZmqReceiver(endpoint=f"tcp://localhost:{8991+i}")
 
                 self.camera.set_mirror(mirrored)
                 self.camera.set_rotate(rotated)
                 async with self.camera.recording():
                     await self.camera.grab_send(1)
                     (metadata, image) = await receiver.receive_image()
-                receiver.close()
+                await receiver.close()
                 i += 1
                 meta = {"mirror": mirrored, "rotate": rotated}
                 np.testing.assert_equal(

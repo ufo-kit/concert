@@ -253,7 +253,7 @@ class Camera(Device):
         :type endpoint: concert.helpers.CommData
         """
         if endpoint in self._senders:
-            self._senders[endpoint].close()
+            await self._senders[endpoint].close()
             del self._senders[endpoint]
 
     async def register_endpoint(self, endpoint: CommData) -> None:
@@ -266,7 +266,7 @@ class Camera(Device):
         if endpoint in self._senders:
             raise ValueError("zmq endpoint already in list")
 
-        self._senders[endpoint] = ZmqSender(
+        self._senders[endpoint] = await ZmqSender(
             endpoint.server_endpoint,
             reliable=endpoint.socket_type == zmq.PUSH,
             sndhwm=endpoint.sndhwm
@@ -274,7 +274,7 @@ class Camera(Device):
 
     async def unregister_all(self) -> None:
         for sender in self._senders.values():
-            sender.close()
+            await sender.close()
         self._senders = {}
 
     @abstractmethod

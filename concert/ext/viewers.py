@@ -409,7 +409,9 @@ class _ImageUpdaterBase(abc.ABC):
             self._loop = asyncio.get_event_loop()
         if self._receiver:
             self.unsubscribe()
-        self._receiver = ZmqReceiver(endpoint=address, reliable=False, rcvhwm=1)
+        self._receiver = self._loop.run_until_complete(
+            ZmqReceiver(endpoint=address, reliable=False, rcvhwm=1)
+        )
 
     def recv_array(self):
         available = self._loop.run_until_complete(self._receiver.is_message_available())
@@ -425,8 +427,11 @@ class _ImageUpdaterBase(abc.ABC):
         return available
 
     def unsubscribe(self, arg):
+        if not self._loop:
+            return
+
         if self._receiver:
-            self._receiver.close()
+            self._loop.run_until_complete(self._receiver.close())
         self._receiver = None
 
 

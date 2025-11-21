@@ -151,8 +151,8 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
             bytes_per_file=2 ** 40,
         )
         if self._sender:
-            self._sender.close()
-        self._sender = ZmqSender(endpoint=f"{protocol}://*:{port}", reliable=True)
+            await self._sender.close()
+        self._sender = await ZmqSender(endpoint=f"{protocol}://*:{port}", reliable=True)
 
     async def _reconstruct(self, cached=False, slice_directory=""):
         if cached:
