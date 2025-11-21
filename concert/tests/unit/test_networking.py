@@ -18,29 +18,29 @@ CLIENT = "tcp://localhost:9999"
 SERVER = "tcp://*:9999"
 
 
-def setup_broadcaster():
-    sender = ZmqSender(endpoint="tcp://*:19997")
+async def setup_broadcaster():
+    sender = await ZmqSender(endpoint="tcp://*:19997")
     senders = (("tcp://*:19998", True, None), ("tcp://*:19999", False, 1))
-    broadcast = ZmqBroadcaster("tcp://localhost:19997", senders)
+    broadcast = await ZmqBroadcaster("tcp://localhost:19997", senders)
     # Receivers must be created after broadcast servers, otherwise first image would be lost. This
     # however does not happen at normal runtime, only during tests.
-    receiver_1 = ZmqReceiver(endpoint="tcp://localhost:19998", reliable=True)
-    receiver_2 = ZmqReceiver(endpoint="tcp://localhost:19999", reliable=False, rcvhwm=1)
+    receiver_1 = await ZmqReceiver(endpoint="tcp://localhost:19998", reliable=True)
+    receiver_2 = await ZmqReceiver(endpoint="tcp://localhost:19999", reliable=False, rcvhwm=1)
 
     return (sender, broadcast, receiver_1, receiver_2)
 
 
 class TestZmq(TestCase):
-    def setUp(self):
+    async def asyncSetUp(self):
         super(TestZmq, self).setUp()
         self.context = zmq.asyncio.Context()
-        self.sender = ZmqSender(endpoint=SERVER)
-        self.receiver = ZmqReceiver(endpoint=CLIENT)
+        self.sender = await ZmqSender(endpoint=SERVER)
+        self.receiver = await ZmqReceiver(endpoint=CLIENT)
         self.image = np.ones((12, 16), dtype="uint16")
 
-    def tearDown(self):
-        self.sender.close()
-        self.receiver.close()
+    async def asyncTearDown(self):
+        await self.sender.close()
+        await self.receiver.close()
 
     def test_zmq_create_image_metadata(self):
         # numpy
@@ -58,28 +58,28 @@ class TestZmq(TestCase):
         # End
         self.assertEqual(zmq_create_image_metadata(None), {"end": True})
 
-    def test_connect(self):
+    async def test_connect(self):
         # re-connection must work
-        self.receiver.connect(CLIENT)
-        self.sender.connect(SERVER)
+        await self.receiver.connect(CLIENT)
+        await self.sender.connect(SERVER)
 
     async def test_close(self):
-        self.sender.close()
+        await self.sender.close()
         with self.assertRaises(NetworkingError):
             await self.sender.send_image(self.image)
 
     async def test_contextmanager(self):
-        self.sender.close()
-        with ZmqSender(SERVER) as sender:
+        await self.sender.close()
+        async with await ZmqSender(SERVER) as sender:
             pass
 
         with self.assertRaises(NetworkingError):
             await sender.send_image(self.image)
 
-    def test_sndhwm(self):
-        self.sender.close()
+    async def test_sndhwm(self):
+        await self.sender.close()
         with self.assertRaises(ValueError):
-            sender = ZmqSender(endpoint=SERVER, sndhwm=-1)
+            sender = await ZmqSender(endpoint=SERVER, sndhwm=-1)
 
     async def test_is_message_available(self):
         self.assertFalse(await self.receiver.is_message_available(polling_timeout=10 * q.ms))
@@ -93,11 +93,11 @@ class TestZmq(TestCase):
 
     async def test_publish_subscribe(self):
         # Make new ones
-        self.sender.close()
-        self.receiver.close()
+        await self.sender.close()
+        await self.receiver.close()
 
-        sender = ZmqSender(endpoint=SERVER, reliable=False, sndhwm=1)
-        receiver = ZmqReceiver(endpoint=CLIENT, reliable=False, rcvhwm=1)
+        sender = await ZmqSender(endpoint=SERVER, reliable=False, sndhwm=1)
+        receiver = await ZmqReceiver(endpoint=CLIENT, reliable=False, rcvhwm=1)
         # Start ahead to make sure we catch the image
         f = start(receiver.receive_image())
         await start(sender.send_image(self.image))
@@ -113,25 +113,26 @@ class TestZmq(TestCase):
             pass
 
         # Stop requested
-        await start(self.sender.send_image(self.image))
-        await start(self.sender.send_image(self.image))
+        for i in range(10):
+            await start(self.sender.send_image(self.image))
         await start(self.sender.send_image(None))
 
         i = 0
         async for _ in self.receiver.subscribe(return_metadata=False):
             i += 1
-            self.receiver.stop()
+            f = start(self.receiver.stop())
 
-        self.assertEqual(i, 1)
+        await f
+        self.assertLessEqual(1, i)
 
     async def test_broadcast_immediate_shutdown(self):
-        sender, broadcast, receiver_1, receiver_2 = setup_broadcaster()
+        sender, broadcast, receiver_1, receiver_2 = await setup_broadcaster()
         f = start(broadcast.serve())
         await broadcast.shutdown()
         await asyncio.wait_for(f, 1)
 
     async def test_broadcast(self):
-        sender, broadcast, receiver_1, receiver_2 = setup_broadcaster()
+        sender, broadcast, receiver_1, receiver_2 = await setup_broadcaster()
         f = start(broadcast.serve())
         # Start ahead to make sure we catch the image
         f_sub = start(receiver_2.receive_image())
@@ -145,11 +146,11 @@ class TestZmq(TestCase):
         await f
 
     async def test_receiver_timeout(self):
-        receiver = ZmqReceiver(endpoint=CLIENT, reliable=True, timeout=0.3 * q.s)
+        receiver = await ZmqReceiver(endpoint=CLIENT, reliable=True, timeout=0.3 * q.s)
         with self.assertRaises(TimeoutError):
             await receiver.receive_image()
 
     async def test_sender_timeout(self):
-        sender = ZmqSender(endpoint="tcp://*:19999", timeout=0.3 * q.s)
+        sender = await ZmqSender(endpoint="tcp://*:19999", timeout=0.3 * q.s)
         with self.assertRaises(TimeoutError):
             await sender.send_image(self.image)

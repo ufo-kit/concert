@@ -587,7 +587,7 @@ class RemoteDirectoryWalker(Walker):
 
         try:
             f = self.device.write_sequence("")
-            with ZmqSender(
+            async with await ZmqSender(
                 self._commdata.server_endpoint,
                 reliable=self._commdata.socket_type == zmq.PUSH,
                 sndhwm=self._commdata.sndhwm

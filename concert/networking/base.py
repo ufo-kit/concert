@@ -7,6 +7,7 @@ import numpy as np
 import time
 import zmq
 import zmq.asyncio
+from concert.base import AsyncObject
 from concert.quantities import q
 from concert.config import AIODEBUG, PERFDEBUG
 from concert.helpers import ImageWithMetadata
@@ -130,6 +131,11 @@ def zmq_create_image_metadata(image):
         return result
 
 
+async def zmq_receive_json(socket):
+    """Receive a dictionary from a zmq *socket*."""
+    return await socket.recv_json()
+
+
 async def zmq_receive_image(socket):
     """Receive image data from a zmq *socket*."""
     if socket is None:
@@ -152,6 +158,13 @@ async def zmq_receive_image(socket):
     array = ImageWithMetadata(array, metadata=metadata).convert()
 
     return (metadata, array)
+
+
+async def zmq_send_json(socket, metadata):
+    try:
+        await socket.send_json(metadata, zmq.NOBLOCK)
+    except zmq.Again:
+        LOG.debug('No listeners or queue full on %s', socket.get(zmq.LAST_ENDPOINT))
 
 
 async def zmq_send_image(socket, image, metadata=None):
@@ -193,7 +206,7 @@ def zmq_setup_sending_socket(context, endpoint, reliable, sndhwm):
     return socket
 
 
-class ZmqBase(abc.ABC):
+class ZmqBase(AsyncObject, abc.ABC):
 
     """
     Base for sending/receiving zmq image streams.
@@ -207,7 +220,7 @@ class ZmqBase(abc.ABC):
     is approximate.
     """
 
-    def __init__(self, endpoint=None, reliable=True, polling_timeout=100 * q.ms, timeout=None):
+    async def __ainit__(self, endpoint=None, reliable=True, polling_timeout=100 * q.ms, timeout=None):
         self._endpoint = endpoint
         self._poller = zmq.asyncio.Poller()
         self._polling_timeout = polling_timeout
@@ -216,14 +229,14 @@ class ZmqBase(abc.ABC):
         self._context = zmq.asyncio.Context()
         self._socket = None
         if endpoint:
-            self.connect(endpoint)
+            await self.connect(endpoint)
 
     @property
     def endpoint(self):
         """endpoint in form transport://address"""
         return self._endpoint
 
-    def connect(self, endpoint):
+    async def connect(self, endpoint):
         """Connect to an *endpoint* which must not be None. If it's the same one as the one we are
         connected to now nothing happens, otherwise current socket is disconnected and the new
         connection is made.
@@ -236,24 +249,24 @@ class ZmqBase(abc.ABC):
                 # We are connected to the desired endpoint already
                 return
             # New endpoint specified, first disconnect
-            self.close()
+            await self.close()
 
         self._endpoint = endpoint
         self._setup_socket()
 
-    def close(self):
+    async def close(self):
         """Close the socket."""
         if self._socket:
             self._socket.close()
             self._socket = None
 
-    def __enter__(self):
+    async def __aenter__(self):
         LOG.log(AIODEBUG, 'ZMQ Socket connection enter')
         return self
 
-    def __exit__(self, exc_type, exc, tb):
+    async def __aexit__(self, exc_type, exc, tb):
         LOG.log(AIODEBUG, 'ZMQ Socket connection exit')
-        self.close()
+        await self.close()
 
     @abstractmethod
     def _setup_socket(self):
@@ -275,7 +288,7 @@ class ZmqSender(ZmqBase):
     is approximate.
     """
 
-    def __init__(
+    async def __ainit__(
         self,
         endpoint=None,
         reliable=True,
@@ -284,7 +297,7 @@ class ZmqSender(ZmqBase):
         timeout=None
     ):
         self._sndhwm = sndhwm
-        super().__init__(
+        await super().__ainit__(
             endpoint=endpoint,
             reliable=reliable,
             polling_timeout=polling_timeout,
@@ -301,10 +314,10 @@ class ZmqSender(ZmqBase):
         )
         self._poller.register(self._socket, zmq.POLLOUT)
 
-    def close(self):
+    async def close(self):
         if self._socket:
             self._poller.unregister(self._socket)
-        super().close()
+        await super().close()
 
     async def is_consumer_available(self, polling_timeout=None):
         """Wait on the socket *polling_timeout* and if a consumer is available return True, False
@@ -318,8 +331,8 @@ class ZmqSender(ZmqBase):
 
         return self._socket in sockets and sockets[self._socket] == zmq.POLLOUT
 
-    async def send_image(self, image):
-        """Send *image*."""
+    async def _send_payload(self, payload, send_func):
+        """Send *payload*."""
         timeout = self._timeout.to(q.s).magnitude if self._timeout else None
         num_tries = 0
         st = time.perf_counter()
@@ -328,13 +341,21 @@ class ZmqSender(ZmqBase):
             if not self._socket:
                 raise NetworkingError("Cannot send over a closed socket.")
             if await self.is_consumer_available():
-                await zmq_send_image(self._socket, image)
+                await send_func(self._socket, payload)
                 break
             else:
                 num_tries += 1
 
             if timeout and time.perf_counter() - st > timeout:
                 raise TimeoutError("Sending timeout exceeded")
+
+    async def send_image(self, image):
+        """Send *image*."""
+        await self._send_payload(image, zmq_send_image)
+
+    async def send_json(self, metadata):
+        """Send *metadata*, which is a dictionary."""
+        await self._send_payload(metadata, zmq_send_json)
 
 
 class ZmqReceiver(ZmqBase):
@@ -351,7 +372,7 @@ class ZmqReceiver(ZmqBase):
     is approximate.
     """
 
-    def __init__(
+    async def __ainit__(
         self,
         endpoint=None,
         reliable=True,
@@ -360,8 +381,9 @@ class ZmqReceiver(ZmqBase):
         timeout=None
     ):
         self._rcvhwm = rcvhwm
+        self._stopped = None
         self._request_stop = False
-        super().__init__(
+        await super().__ainit__(
             endpoint=endpoint,
             reliable=reliable,
             polling_timeout=polling_timeout,
@@ -379,14 +401,28 @@ class ZmqReceiver(ZmqBase):
         self._socket.connect(self._endpoint)
         self._poller.register(self._socket, zmq.POLLIN)
 
-    def stop(self):
-        """Stop receiving data."""
-        self._request_stop = True
+    async def stop(self):
+        """
+        Stop receiving data. Never await this in an async for loop like this::
+                async for _ in receiver.subscribe():
+                    await receiver.stop()
 
-    def close(self):
+        becuase it will lead to deadlock.
+        """
+        if not self._stopped:
+            # Not subscribed
+            return
+
+        self._request_stop = True
+        await self._stopped.wait()
+
+    async def close(self):
+        """Stop receiving and close the socket."""
+        # Stop receiving data
+        await self.stop()
         if self._socket:
             self._poller.unregister(self._socket)
-        super().close()
+        await super().close()
 
     async def is_message_available(self, polling_timeout=None):
         """Wait on the socket *polling_timeout* and if an image is available return True, False
@@ -400,8 +436,8 @@ class ZmqReceiver(ZmqBase):
 
         return self._socket in sockets and sockets[self._socket] == zmq.POLLIN
 
-    async def receive_image(self):
-        """Receive image."""
+    async def _receive_payload(self, recv_func):
+        """Receive payload with *recv_func*."""
         timeout = self._timeout.to(q.s).magnitude if self._timeout else None
         num_tries = 0
         st = time.perf_counter()
@@ -411,19 +447,35 @@ class ZmqReceiver(ZmqBase):
                 raise NetworkingError("Cannot receive over a closed socket.")
             if await self.is_message_available():
                 # There is something to consume
-                return await zmq_receive_image(self._socket)
+                return await recv_func(self._socket)
             elif self._request_stop:
-                return (None, None)
+                return None
             else:
                 num_tries += 1
             if timeout and time.perf_counter() - st > timeout:
                 raise TimeoutError("Receiving timeout exceeded")
 
+    async def receive_image(self):
+        """Receive *image* with metadata."""
+        result = await self._receive_payload(zmq_receive_image)
+
+        if result is None:
+            result = (None, None)
+
+        return result
+
+    async def receive_json(self):
+        """Receive metadata as a dictionary."""
+        return await self._receive_payload(zmq_receive_json)
+
     async def subscribe(self, return_metadata=False):
         """Receive images."""
-        i = 0
-        finished = False
+        if self._stopped:
+            self._stopped.clear()
+        else:
+            self._stopped = asyncio.Event()
 
+        i = 0
         try:
             while True:
                 metadata, image = await self.receive_image()
@@ -457,6 +509,7 @@ class ZmqReceiver(ZmqBase):
                 flush_i += 1
             if flush_i:
                 LOG.debug("Flushed %d messages", flush_i)
+            self._stopped.set()
 
 
 class ZmqBroadcaster(ZmqReceiver):
@@ -471,8 +524,8 @@ class ZmqBroadcaster(ZmqReceiver):
     high water mark (use 1 for always getting the newest image, only applicable for non-reliable
     case)
     """
-    def __init__(self, endpoint, broadcast_endpoints, polling_timeout=100 * q.ms):
-        super().__init__(endpoint, polling_timeout=polling_timeout)
+    async def __ainit__(self, endpoint, broadcast_endpoints, polling_timeout=100 * q.ms):
+        await super().__ainit__(endpoint, polling_timeout=polling_timeout)
         self._broadcast_sockets = set([])
         self._poller_out = zmq.asyncio.Poller()
         self._finished = None
@@ -559,7 +612,7 @@ class ZmqBroadcaster(ZmqReceiver):
 
         if self._finished and not self._finished.is_set():
             # We have been started and are not finished
-            self.stop()
+            await self.stop()
             # Wait for the forwarding to finish gracefully
             await self._finished.wait()
 
