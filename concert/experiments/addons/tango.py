@@ -104,20 +104,20 @@ class LiveView(base.LiveView):
         self._orig_limits = await viewer.get_limits()
 
     async def connect_endpoint(self):
-        self._viewer.subscribe(self.endpoint.client_endpoint)
+        self._viewer.subscribe(self.endpoint.client_endpoint, "image")
 
     async def disconnect_endpoint(self):
-        self._viewer.unsubscribe()
+        self._viewer.unsubscribe(self.endpoint.client_endpoint)
 
     @remote
     async def consume(self):
         try:
             if await self._viewer.get_limits() == 'stream':
-                self._viewer.unsubscribe()
+                self._viewer.unsubscribe(self.endpoint.client_endpoint)
                 # Force viewer to update the limits by unsubscribing and re-subscribing after
                 # setting limits to stream
                 await self._viewer.set_limits('stream')
-                self._viewer.subscribe(self.endpoint.client_endpoint)
+                self._viewer.subscribe(self.endpoint.client_endpoint, "image")
         finally:
             self._orig_limits = await self._viewer.get_limits()
 
