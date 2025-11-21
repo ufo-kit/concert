@@ -1,6 +1,6 @@
 from concert.session.utils import setup_logging, SubCommand
 
-SERVER_NAMES = ['benchmarker', 'reco', 'walker', 'frc']
+SERVER_NAMES = ['benchmarker', 'reco', 'walker', 'sampledetect', 'frc']
 
 
 class TangoCommand(SubCommand):
@@ -61,6 +61,9 @@ class TangoCommand(SubCommand):
         if server == "frc":
             from concert.ext.tangoservers import frc
             server_class = {'class': frc.TangoFourierRingCorrelation}
+        if server == "sampledetect":
+            from concert.ext.tangoservers import sampledetect
+            server_class = {'class': sampledetect.SampleDetect}
 
         setup_logging(server, to_stream=True, filename=logfile, loglevel=loglevel)
 
