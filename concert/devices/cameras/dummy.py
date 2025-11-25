@@ -7,6 +7,7 @@ from concert.coroutines.base import run_in_executor
 from concert.quantities import q
 from concert.base import check, transition, Quantity
 from concert.devices.cameras import base
+from concert.devices.motors.dummy import TomographyStage
 from concert.readers import TiffSequenceReader
 
 
@@ -215,3 +216,84 @@ class BufferedCamera(Camera, base.BufferedMixin):
     async def _readout_real(self):
         for i in range(3):
             yield await self.grab()
+
+
+class TomographyStageCamera(Base):
+
+    """A dummy camera which places an object on the tomography stack."""
+
+    async def __ainit__(
+        self,
+        shape=(512, 512),
+        pixel_size=None,
+        sphere_radius=None,
+        noise=False,
+        xray=False,
+        incoming_intensity=1000
+    ):
+        await super().__ainit__()
+        self.stage = await TomographyStage()
+        self._shape = shape
+        self._pixel_size = 1 * q.um if pixel_size is None else pixel_size
+        self._sphere_radius = sphere_radius if sphere_radius else int(min(shape) / 30)
+        self._xray = xray
+        self._incoming_intensity = incoming_intensity
+        self._noise = noise
+
+    async def get_center(self):
+        """Sample is by default located at (0, 0, 0), this computes the new position based on motor
+        positions.
+        """
+        from concert.geometry import rotate, translate, X_AX, Y_AX, Z_AX
+
+        def _vectorize(value, position):
+            shift = [0, 0, 0]
+            shift[position] = value.magnitude
+
+            return shift * value.units
+
+        parallel_below = _vectorize(await self.stage.vertical_motor_below.get_actual_position(), 2)
+        ortho_below = _vectorize(await self.stage.orthogonal_motor_below.get_actual_position(), 0)
+        parallel_above = _vectorize(await self.stage.parallel_motor_above.get_actual_position(), 1)
+        ortho_above = _vectorize(await self.stage.orthogonal_motor_above.get_actual_position(), 0)
+        lamino_angle = await self.stage.lamino_motor.get_actual_position()
+        roll_angle = await self.stage.roll_motor.get_actual_position()
+        tomo_angle = await self.stage.tomo_motor.get_actual_position()
+
+        mat_lamino = rotate(lamino_angle, X_AX, shift=-self.stage.lamino_motor_z_offset)
+        mat_roll = rotate(roll_angle, Y_AX, shift=-self.stage.roll_motor_z_offset)
+        mat_tomo = rotate(tomo_angle, Z_AX)
+        mat_parallel_above = translate(parallel_above)
+        mat_parallel_below = translate(parallel_below)
+        mat_ortho_above = translate(ortho_above)
+        mat_ortho_below = translate(ortho_below)
+
+        mat = np.dot(mat_parallel_below, mat_ortho_below)
+        mat = np.dot(mat, mat_lamino)
+        mat = np.dot(mat, mat_roll)
+        mat = np.dot(mat, mat_tomo)
+        mat = np.dot(mat, mat_parallel_above)
+        mat = np.dot(mat, mat_ortho_above)
+
+        # The nominal center is (0, 0, 0) -> multiplying the transformation matrix with this
+        # is equivalent to taking the last matrix column (stripped of the last homogeneous
+        # coordinate)
+        return mat[:-1, -1] * 1e3 * q.mm
+        
+    async def _grab_real(self):
+        from concert.imageprocessing import make_sphere
+
+        x, _, y = (await self.get_center() / self._pixel_size).to_base_units().magnitude  # in pixels
+        x += self._shape[1] // 2
+        y += self._shape[0] // 2
+
+        sphere = make_sphere(self._shape, self._sphere_radius, (y, x), fast=True)
+
+        if self._xray:
+            mu = -np.log(0.3) / sphere.max()    # Minimum intensity 0.3
+            sphere = self._incoming_intensity * np.exp(-mu * sphere)
+
+            if self._noise:
+                sphere = np.random.poisson(sphere)
+
+        return sphere
