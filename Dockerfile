@@ -21,6 +21,7 @@ RUN apt-get update && apt-get install -y \
     libgirepository-1.0-dev \
     ninja-build \
     libzmq5-dev \
+	libjson-c-dev \
     libjson-glib-dev \
     iputils-ping \
     iproute2 \
