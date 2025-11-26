@@ -94,16 +94,23 @@ class SampleDetect(TangoRemoteProcessing):
         return torch.cuda.is_available()
 
     @DebugIt(show_args=True)
-    @command(dtype_in=CmdArgType.DevEncoded, dtype_out=[int, int, int, int])
+    @command(dtype_in=CmdArgType.DevEncoded, dtype_out=[int, int, int, int, int])
     def sample_detect(self, data):
+        """
+        Detect sample in image *data*. Returns the bounding box and confidence in one list:
+        [x0, y0, x1, y1, confidence]. Returned confidence is the original confidence from interval
+        [0, 1] multiplied by 1000 and converted to int.
+        """
         encoding, image = data
         width, height, dtype = encoding.split("/")
         image = np.frombuffer(image, dtype=dtype).reshape(int(height), int(width))
-        bbox = self._sample_detect(image)
+        bbox, confidence = self._sample_detect(image)
         if bbox is None:
-            bbox = [0, 0, 0, 0]
+            result = [0, 0, 0, 0, 0]
+        else:
+            result = bbox + [int(np.round(confidence * 1000))]
 
-        return bbox
+        return result
 
     def _sample_detect(self, image):
         device = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -127,14 +134,14 @@ class SampleDetect(TangoRemoteProcessing):
 
         self.debug_stream("sample at: %s, confidence: %.3f", bbox, confidence)
 
-        return bbox
+        return (bbox, confidence)
 
     async def _stream_detect(self):
         self._bboxes = []
         last = None
 
         async for image in self._receiver.subscribe():
-            bbox = self._sample_detect(image)
+            bbox, confidence = self._sample_detect(image)
             if bbox is None:
                 bbox = [0, 0, 0, 0]
             else:
