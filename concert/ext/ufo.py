@@ -513,6 +513,8 @@ class GeneralBackprojectManager(Parameterizable):
     async def __ainit__(self, args, average_normalization=True, regions=None, copy_inputs=False):
         await super().__ainit__()
         self.args = args
+        self._orig_width = args.width
+        self._orig_height = args.height
         self.regions = regions
         self.copy_inputs = copy_inputs
         self.projections = None
@@ -822,6 +824,8 @@ class GeneralBackprojectManager(Parameterizable):
         self._flats_condition.done = False
         self._processing_task = None
         self._num_received_projections = self._num_processed_projections = 0
+        self.args.width = self._orig_width
+        self.args.height = self._orig_height
 
     @background
     async def update_darks(self, producer):
