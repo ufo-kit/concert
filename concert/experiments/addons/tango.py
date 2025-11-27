@@ -87,6 +87,14 @@ class SampleDetector(TangoMixin, base.SampleDetector):
         await TangoMixin.__ainit__(self, device, endpoint)
         await base.SampleDetector.__ainit__(self, experiment, acquisitions=acquisitions)
 
+    async def detect(self, image):
+        encoding = f"{image.shape[1]}/{image.shape[0]}/{image.dtype}"
+        blob = image.tobytes()
+
+        result = await self._device.sample_detect((encoding, blob))
+
+        return (result[:4], result[4] / 1000)
+
     @TangoMixin.cancel_remote
     @remote
     async def stream_detect(self):
