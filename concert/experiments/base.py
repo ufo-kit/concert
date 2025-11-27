@@ -273,13 +273,14 @@ class Experiment(RunnableParameterizable):
     log_devices_at_finish = Parameter()
 
     async def __ainit__(self, acquisitions, walker=None, separate_scans=True,
-                        name_fmt='scan_{:>04}'):
+                        name_fmt='scan_{:>04}', metadata_handler=None):
         self._acquisitions = []
         for acquisition in acquisitions:
             self.add(acquisition)
         self.walker = walker
         self._separate_scans = separate_scans
         self._name_fmt = name_fmt
+        self._metadata_handler = metadata_handler
         self._current_name = ""
         self._iteration = 0
         self.log = LOG
@@ -503,6 +504,14 @@ class Experiment(RunnableParameterizable):
                         exp_metadata: str = await self._prepare_metadata_str()
                         await self.walker.log_to_json(payload=exp_metadata,
                                                       filename="experiment_finish.json")
+                if self._metadata_handler:
+                    exp_metadata = json.loads(await self._prepare_metadata_str())
+                    catalogued = self._metadata_handler.dispatch_dataset(
+                        ds_name=self._current_name,
+                        src_dir=await self.walker.get_current(),
+                        metadata=exp_metadata)
+                    if catalogued:
+                        self.log.info(f"Catalogued {self._current_name}:")
             except Exception as e:
                 LOG.warning(f"Error `{e}' while finalizing experiment")
                 raise StateError('error', msg=str(e))
