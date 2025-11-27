@@ -7,6 +7,7 @@ import sys
 from tango import CmdArgType, DebugIt, InfoIt
 from tango.server import attribute, AttrWriteType, command
 from .base import TangoRemoteProcessing
+from concert.imageprocessing import convert_image_to_nbit
 from concert.networking.base import ZmqSender
 try:
     from ultralytics import YOLO
@@ -115,7 +116,10 @@ class SampleDetect(TangoRemoteProcessing):
     def _sample_detect(self, image):
         device = "cuda:0" if torch.cuda.is_available() else "cpu"
         result = self._model.predict(
-            source=_grayscale_to_rgb(image), max_det=1, conf=self._min_confidence, device=device
+            source=convert_image_to_nbit(image, num_bits=8, num_channels=3),
+            max_det=1,
+            conf=self._min_confidence,
+            device=device
         )
         if len(result[0]):
             result = result[0].boxes[0]
@@ -171,13 +175,3 @@ class SampleDetect(TangoRemoteProcessing):
             ]
 
         return bbox
-
-
-def _grayscale_to_rgb(image, percentile=0.1):
-    lower = np.percentile(image, percentile)
-    upper = np.percentile(image, 100 - percentile)
-
-    img_clipped = np.clip(image, lower, upper)
-    img_8bit = (((img_clipped - lower) / (upper - lower)) * 255).astype(np.uint8)
-
-    return np.dstack((img_8bit,) * 3)
