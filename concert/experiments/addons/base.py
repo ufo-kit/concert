@@ -456,6 +456,14 @@ class OnlineReconstruction(Addon):
     async def get_volume_shape(self):
         ...
 
+    @abstractmethod
+    async def get_best_slice_index(self):
+        ...
+
+    @abstractmethod
+    async def reset_manager(self):
+        ...
+
     async def reconstruct(self, *args, **kwargs):
         await self._reconstruct(*args, **kwargs)
         await self._show_slice()
@@ -470,7 +478,10 @@ class OnlineReconstruction(Addon):
 
     async def _show_slice(self):
         if self.viewer and len(await self.get_volume_shape()) == 3:
-            index = len(np.arange(*await self.get_region())) // 2
+            if await self.get_z_parameter() == "center-position-x":
+                index = await self.get_best_slice_index()
+            else:
+                index = len(np.arange(*await self.get_region())) // 2
             await self.viewer.show(await self.get_slice(z=index))
             await self.viewer.set_title(await self.experiment.get_current_name())
 

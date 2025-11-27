@@ -1,4 +1,6 @@
 """Tango device for online 3D reconstruction from zmq image stream."""
+import functools
+import multiprocessing
 import numpy as np
 from tango import DebugIt, CmdArgType, PipeWriteType
 from tango.server import command, pipe
@@ -7,6 +9,7 @@ from concert.coroutines.base import async_generate
 from concert.ext.ufo import GeneralBackprojectManager, LocalGeneralBackprojectArgs
 from concert.networking.base import get_tango_device, ZmqSender
 from concert.storage import RemoteDirectoryWalker
+from multiprocessing.pool import ThreadPool
 from ...config import DISTRIBUTED_TANGO_TIMEOUT
 
 MAX_DIM = 100000
@@ -108,7 +111,7 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     @DebugIt()
     @command()
     async def reset_manager(self):
-        return await self._manager.reset()
+        return self._manager.reset()
 
     @DebugIt()
     @command(dtype_out=str)
@@ -170,6 +173,18 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     @command(dtype_in=str)
     async def reconstruct(self, slice_directory):
         await self._reconstruct(cached=False, slice_directory=slice_directory)
+
+    @DebugIt()
+    @command(dtype_out=int)
+    async def get_best_slice_index(self):
+        if self._manager.volume is None:
+            raise RuntimeError("Volume is empty")
+
+        pool = ThreadPool(processes=max(1, multiprocessing.cpu_count() - 2))
+        func = functools.partial(compute_sag_metric, self._manager.volume)
+        result = pool.map(func, np.arange(self._manager.volume.shape[0]))
+
+        return np.argmin(result)
 
     @DebugIt(show_args=True)
     @command(dtype_in=str)
@@ -259,3 +274,7 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
             result.append(doc)
 
         return result
+
+
+def compute_sag_metric(volume, index):
+    return np.sum(np.abs(np.gradient(volume[index])))
