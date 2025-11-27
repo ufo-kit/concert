@@ -173,7 +173,6 @@ class TangoRemoteWalker(TangoRemoteProcessing):
     async def write_image(self, data):
         encoding, image = data
         name, width, height, num_channels, dtype = encoding.split(":")
-        print(name, width, height, dtype)
         num_channels = int(num_channels)
         shape = (int(height), int(width))
         if num_channels > 1:
