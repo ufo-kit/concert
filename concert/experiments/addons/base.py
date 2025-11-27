@@ -133,6 +133,10 @@ class SampleDetector(Addon):
 
         return consumers
 
+    async def detect(self, image):
+        """Detect sample in *image*."""
+        raise NotImplementedError
+
     async def stream_detect(self):
         raise NotImplementedError
 
