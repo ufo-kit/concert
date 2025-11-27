@@ -284,6 +284,11 @@ class Walker(Parameterizable):
             if name:
                 await self.ascend()
 
+    @abstractmethod
+    async def write_image(self, image, filename):
+        """Write *image* to *filename*."""
+        ...
+
     @background
     async def write(self,
                     producer: AsyncIterable[ArrayLike],
@@ -362,6 +367,9 @@ class DummyWalker(Walker):
         """Provides a no-op logging handler as a placeholder"""
         return NoOpLoggingHandler()
 
+    async def write_image(self, image, filename):
+        pass
+
 
 class DirectoryWalker(Walker):
     """
@@ -436,6 +444,13 @@ class DirectoryWalker(Walker):
             self._start_index,
             self._bytes_per_file
         )
+
+    async def write_image(self, image, filename):
+        writer = TiffWriter(os.path.join(self._current, filename), 0)
+        try:
+            writer.write(image)
+        finally:
+            writer.close()
 
     def _dset_exists(self, dsetname: str) -> bool:
         """Check if *dsetname* exists on the current level."""
@@ -600,6 +615,14 @@ class RemoteDirectoryWalker(Walker):
         finally:
             await self.set_endpoint(old_endpoint)
             await self.device.write_attribute("dsetname", old_dsetname)
+
+    @background
+    async def write_image(self, image, filename):
+        num_channels = 1 if image.ndim == 2 else image.shape[2]
+        meta = f"{filename}:{image.shape[1]}:{image.shape[0]}:{num_channels}:{image.dtype}"
+        blob = image.tobytes()
+
+        await self.device.write_image((meta, blob))
 
     @background
     async def write_sequence(self, name: Optional[str] = "") -> None:
