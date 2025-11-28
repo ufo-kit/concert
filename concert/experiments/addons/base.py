@@ -343,6 +343,7 @@ class OnlineReconstruction(Addon):
         self.walker = experiment.walker
         self._slice_directory = None
         self.viewer = viewer
+        self._best_slice = None
         await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
         await self.set_slice_directory(slice_directory)
         await self.register_args()
@@ -461,14 +462,24 @@ class OnlineReconstruction(Addon):
         ...
 
     @abstractmethod
-    async def get_best_slice_index(self):
+    async def _get_best_slice_index(self):
         ...
+
+    async def get_best_slice_index(self):
+        if await self.get_z_parameter() == "center-position-x":
+            if self._best_slice is None:
+                self._best_slice = await self._get_best_slice_index()
+            return self._best_slice
+        else:
+            # Nothing to be computed, but let us return a reasonable default
+            return 0
 
     @abstractmethod
     async def reset_manager(self):
         ...
 
     async def reconstruct(self, *args, **kwargs):
+        self._best_slice = None
         await self._reconstruct(*args, **kwargs)
         await self._show_slice()
 
@@ -477,6 +488,7 @@ class OnlineReconstruction(Addon):
         """Rereconstruct cached projections and saved them to *slice_directory*, which is a full
         path.
         """
+        self._best_slice = None
         await self._rereconstruct(slice_directory=slice_directory)
         await self._show_slice()
 

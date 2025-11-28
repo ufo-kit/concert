@@ -205,7 +205,7 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
     async def get_volume_shape(self):
         return await self._device.get_volume_shape()
 
-    async def get_best_slice_index(self):
+    async def _get_best_slice_index(self):
         return await self._device.get_best_slice_index()
 
     async def reset_manager(self):
