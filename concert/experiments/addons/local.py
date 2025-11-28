@@ -130,7 +130,7 @@ class OnlineReconstruction(base.OnlineReconstruction):
             raise RuntimeError("Volume not available yet")
         return self._manager.volume.shape
 
-    async def get_best_slice_index(self):
+    async def _get_best_slice_index(self):
         def compute_sag_metric(volume, index):
             return np.sum(np.abs(np.gradient(volume[index])))
 
