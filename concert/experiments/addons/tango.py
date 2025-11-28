@@ -81,6 +81,29 @@ class Benchmarker(TangoMixin, base.Benchmarker):
         await self._device.reset()
 
 
+class SampleDetector(TangoMixin, base.SampleDetector):
+
+    async def __ainit__(self, experiment, device, endpoint, acquisitions=None):
+        await TangoMixin.__ainit__(self, device, endpoint)
+        await base.SampleDetector.__ainit__(self, experiment, acquisitions=acquisitions)
+
+    async def detect(self, image):
+        encoding = f"{image.shape[1]}/{image.shape[0]}/{image.dtype}"
+        blob = image.tobytes()
+
+        result = await self._device.sample_detect((encoding, blob))
+
+        return (result[:4], result[4] / 1000)
+
+    @TangoMixin.cancel_remote
+    @remote
+    async def stream_detect(self):
+        await self._device.stream_detect()
+
+    async def get_maximum_rectangle(self):
+        return await self._device.get_maximum_rectangle()
+
+
 class ImageWriter(TangoMixin, base.ImageWriter):
 
     async def __ainit__(self, experiment, endpoint, acquisitions=None):
@@ -104,20 +127,20 @@ class LiveView(base.LiveView):
         self._orig_limits = await viewer.get_limits()
 
     async def connect_endpoint(self):
-        self._viewer.subscribe(self.endpoint.client_endpoint)
+        self._viewer.subscribe(self.endpoint.client_endpoint, "image")
 
     async def disconnect_endpoint(self):
-        self._viewer.unsubscribe()
+        self._viewer.unsubscribe(self.endpoint.client_endpoint)
 
     @remote
     async def consume(self):
         try:
             if await self._viewer.get_limits() == 'stream':
-                self._viewer.unsubscribe()
+                self._viewer.unsubscribe(self.endpoint.client_endpoint)
                 # Force viewer to update the limits by unsubscribing and re-subscribing after
                 # setting limits to stream
                 await self._viewer.set_limits('stream')
-                self._viewer.subscribe(self.endpoint.client_endpoint)
+                self._viewer.subscribe(self.endpoint.client_endpoint, "image")
         finally:
             self._orig_limits = await self._viewer.get_limits()
 
@@ -181,6 +204,12 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
 
     async def get_volume_shape(self):
         return await self._device.get_volume_shape()
+
+    async def _get_best_slice_index(self):
+        return await self._device.get_best_slice_index()
+
+    async def reset_manager(self):
+        await self._device.reset_manager()
 
     @TangoMixin.cancel_remote
     async def _reconstruct(self, cached=False, slice_directory=None):

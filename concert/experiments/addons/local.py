@@ -1,5 +1,8 @@
+import functools
+import multiprocessing
 import os
 import numpy as np
+from multiprocessing.pool import ThreadPool
 from concert.coroutines.base import async_generate, background
 from concert.coroutines.sinks import Accumulate
 from concert.experiments.addons import base
@@ -126,6 +129,20 @@ class OnlineReconstruction(base.OnlineReconstruction):
         if self._manager.volume is None:
             raise RuntimeError("Volume not available yet")
         return self._manager.volume.shape
+
+    async def _get_best_slice_index(self):
+        def compute_sag_metric(volume, index):
+            return np.sum(np.abs(np.gradient(volume[index])))
+
+        pool = ThreadPool(processes=max(1, multiprocessing.cpu_count() - 2))
+        func = functools.partial(compute_sag_metric, self._manager.volume)
+        result = pool.map(func, np.arange(self._manager.volume.shape[0]))
+
+        return np.argmin(result)
+
+    async def reset_manager(self):
+        if self._manager:
+            self._manager.reset()
 
     async def _reconstruct(self, producer=None, slice_directory=None):
         if producer is None:

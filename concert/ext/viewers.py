@@ -12,6 +12,7 @@ from typing import Callable
 from concert.base import Parameterizable, Parameter
 from concert.coroutines.base import background, run_in_executor
 from concert.quantities import q
+from concert.helpers import ImageWithMetadata
 
 
 LOG = logging.getLogger(__name__)
@@ -142,13 +143,15 @@ class ViewerBase(Parameterizable):
         """Resume the viewer."""
         self._paused = False
 
-    def subscribe(self, address):
+    def subscribe(self, address, content):
+        if content not in ["image", "metadata"]:
+            raise ValueError("Content must be one of `image', `metadata'")
         self._ensure_updater_runs()
-        self._queue.put(('subscribe', address))
+        self._queue.put(('subscribe', (address, content)))
 
-    def unsubscribe(self):
+    def unsubscribe(self, address):
         if self._proc and self._proc.is_alive():
-            self._queue.put(('unsubscribe', None))
+            self._queue.put(('unsubscribe', address))
 
     def _ensure_updater_runs(self):
         """
@@ -333,6 +336,12 @@ class PyQtGraphViewer(ImageViewerBase):
         return _PyQtGraphUpdater(self._queue, limits=self._limits, title=self._title,
                                  show_refresh_rate=self._show_refresh_rate)
 
+    async def draw_rectangle(self, bbox):
+        self._queue.put(("sample-bbox", bbox))
+
+    async def clear_rectangle(self):
+        self._queue.put(("clear-bbox", None))
+
 
 class PyplotImageViewer(ImageViewerBase):
 
@@ -394,7 +403,7 @@ class _ImageUpdaterBase(abc.ABC):
 
     """Image updated base."""
     def __init__(self):
-        self._receiver = None
+        self._receivers = {}
         self._loop = None
         self.commands = {
             'subscribe': self.subscribe,
@@ -402,32 +411,57 @@ class _ImageUpdaterBase(abc.ABC):
             'title': self.change_title
         }
 
-    def subscribe(self, address):
+    def subscribe(self, data):
         import asyncio
         from concert.networking.base import ZmqReceiver
+
+        endpoint, content = data
+
         if not self._loop:
             self._loop = asyncio.get_event_loop()
-        if self._receiver:
-            self.unsubscribe()
-        self._receiver = ZmqReceiver(endpoint=address, reliable=False, rcvhwm=1)
+        if endpoint in self._receivers:
+            self.unsubscribe(endpoint)
+        # Less polling time useful when there are multiple receivers
+        self._receivers[endpoint] = self._loop.run_until_complete(
+            ZmqReceiver(endpoint=endpoint, reliable=False, rcvhwm=1, polling_timeout=10 * q.ms)
+        )
+        # Tag receiver to receive specific content
+        self._receivers[endpoint].content = content
 
     def recv_array(self):
-        available = self._loop.run_until_complete(self._receiver.is_message_available())
+        any_available = False
 
-        if available:
-            meta, image = self._loop.run_until_complete(self._receiver.receive_image())
-            if image is None:
-                # No actual image data available
-                available = False
-            else:
-                self.commands['image'](image)
+        for receiver in list(self._receivers.values()):
+            available = self._loop.run_until_complete(receiver.is_message_available())
 
-        return available
+            if available:
+                if receiver.content == "image":
+                    meta, image = self._loop.run_until_complete(receiver.receive_image())
+                    if image is None:
+                        # No actual image data available
+                        available = False
+                    else:
+                        self.commands['image'](image)
+                if receiver.content == "metadata":
+                    meta = self._loop.run_until_complete(receiver.receive_json())
+                    for key, value in meta.items():
+                        if key in self.commands:
+                            self.commands[key](value)
 
-    def unsubscribe(self, arg):
-        if self._receiver:
-            self._receiver.close()
-        self._receiver = None
+            if available:
+                any_available = True
+
+        return any_available
+
+    def unsubscribe(self, endpoint):
+        if not self._loop:
+            # We are not subscribed
+            return
+
+        if endpoint in self._receivers:
+            self._loop.run_until_complete(self._receivers[endpoint].close())
+
+        del self._receivers[endpoint]
 
 
 class _PyQtGraphUpdater(_ImageUpdaterBase):
@@ -443,6 +477,7 @@ class _PyQtGraphUpdater(_ImageUpdaterBase):
         self.show_refresh_rate = show_refresh_rate
         self.text = None
         self.plot = None
+        self.rect = None
         # main graphics window
         self.view = None
         self.last_text_time = time.perf_counter()
@@ -452,6 +487,8 @@ class _PyQtGraphUpdater(_ImageUpdaterBase):
                 'image': self.proces_image,
                 'clim': self.update_limits,
                 'show-fps': self.toggle_show_refresh_rate,
+                'sample-bbox': self.process_bbox,
+                'clear-bbox': self.clear_bbox,
             }
         )
 
@@ -463,7 +500,7 @@ class _PyQtGraphUpdater(_ImageUpdaterBase):
         except Empty:
             # Taking orders has priority, but if no order is available on the queu then receive an
             # image if subscribed
-            if self._receiver:
+            if self._receivers:
                 self.recv_array()
 
     def update_all(self, image):
@@ -554,6 +591,31 @@ class _PyQtGraphUpdater(_ImageUpdaterBase):
             if self.text:
                 self.view.removeItem(self.text)
             self.text = None
+
+    def process_bbox(self, bbox):
+        if not self.view:
+            # No image displayed yet
+            return
+
+        x_0 = bbox[0]
+        y_0 = bbox[1]
+        width = bbox[2] - bbox[0]
+        height = bbox[3] - bbox[1]
+
+        if self.rect is None:
+            import pyqtgraph as pg
+            from pyqtgraph.Qt import QtWidgets
+
+            self.rect = QtWidgets.QGraphicsRectItem(x_0, y_0, width, height)
+            self.rect.setPen(pg.mkPen('#5050D3', width=2))
+            self.view.addItem(self.rect)
+        else:
+            self.rect.setRect(x_0, y_0, width, height)
+
+    def clear_bbox(self, arg):
+        if self.view and self.rect:
+            self.view.removeItem(self.rect)
+            self.rect = None
 
     def change_title(self, title):
         self.title = title
@@ -797,7 +859,7 @@ class _PyplotImageUpdaterBase(_PyplotUpdaterBase, _ImageUpdaterBase):
 
     def on_empty(self):
         """Try to process image from a socket."""
-        if self._receiver:
+        if self._receivers:
             return self.recv_array()
         return False
 
