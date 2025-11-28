@@ -324,6 +324,19 @@ class Experiment(RunnableParameterizable):
         else:
             self._devices_to_log[name] = device
 
+    def remove_device_from_log(self, name: str):
+        """
+        Remove a device from log.
+
+        :param name: Name of the device
+        """
+        if name in self._devices_to_log:
+            del self._devices_to_log[name]
+        elif name in self._devices_to_log_optional:
+            del self._devices_to_log_optional[name]
+        else:
+            raise ValueError(f"Device {name} not found in log devices")
+
     async def _prepare_metadata_str(self) -> str:
         """Prepares the experiment metadata to be written to file. It is
         a dictionary which potentially encapsulates one or more dictionary

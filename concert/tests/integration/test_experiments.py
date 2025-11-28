@@ -333,7 +333,7 @@ class TestExperimentLogging(unittest.IsolatedAsyncioTestCase):
         self._device = MockWalkerDevice()
         self._walker = await RemoteDirectoryWalker(device=self._device)
         foo = await Acquisition("foo", self.produce, acquire=self.acquire)
-        foo.add_consumer(AcquisitionConsumer(self.consume)), Tuple
+        foo.add_consumer(AcquisitionConsumer(self.consume))
         bar = await Acquisition("bar", self.produce, acquire=self.acquire)
         self._acquisitions = [foo, bar]
         self.num_produce = 2
@@ -416,3 +416,28 @@ class TestExperimentLogging(unittest.IsolatedAsyncioTestCase):
         self._experiment.add_device_to_log("BrokenDevice", broken_device, optional=True)
         # Test that the experiment does not fail when an optional device is broken
         await self._experiment.run()
+
+
+class TestExperimentLoggRemoval(TestCase):
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self._devices = [await Camera(), await LinearMotor()]
+        self._experiment = await ExperimentSimple(walker=await DummyWalker(root=tempfile.mkdtemp()))
+        self._experiment._devices_to_log = {}
+        self._experiment._devices_to_log_optional = {}
+
+    async def test_remove_device_logging(self):
+        self._experiment.add_device_to_log("device_to_be_removed", self._devices[0])
+        self._experiment.add_device_to_log("device_to_be_removed_optional", self._devices[1], optional=True)
+
+        self.assertIn("device_to_be_removed", self._experiment._devices_to_log)
+        self.assertIn("device_to_be_removed_optional", self._experiment._devices_to_log_optional)
+
+        self._experiment.remove_device_from_log("device_to_be_removed")
+        self.assertNotIn("device_to_be_removed", self._experiment._devices_to_log)
+
+        self._experiment.remove_device_from_log("device_to_be_removed_optional")
+        self.assertNotIn("device_to_be_removed_optional", self._experiment._devices_to_log_optional)
+
+        self.assertRaises(ValueError, self._experiment.remove_device_from_log, "device_to_be_removed")
+        self.assertRaises(ValueError, self._experiment.remove_device_from_log, "device_to_be_removed_optional")
