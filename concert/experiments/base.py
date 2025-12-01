@@ -510,8 +510,8 @@ class Experiment(RunnableParameterizable):
                         ds_name=self._current_name,
                         src_dir=await self.walker.get_current(),
                         metadata=exp_metadata)
-                    if catalogued:
-                        self.log.info(f"Catalogued {self._current_name}:")
+                    if not catalogued:
+                        self.log.error(f"Could not catalogue: {self._current_name}:")
             except Exception as e:
                 LOG.warning(f"Error `{e}' while finalizing experiment")
                 raise StateError('error', msg=str(e))

@@ -1,12 +1,11 @@
 """
 handler.py
 ----------
-
 Implements functionalities for basic metadata handling.
 """
 from datetime import datetime
 import json
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 import requests
 from requests import Response
 import urllib3
@@ -15,6 +14,10 @@ from concert.metadata.utils import ProposalDTO, DatasetDTO
 
 urllib3.disable_warnings(SubjectAltNameWarning)
 urllib3.disable_warnings(InsecureRequestWarning)
+
+class MetadataHandlingError(RuntimeError):
+    """Defines error type for remote metadata handling"""
+    pass
 
 class MetadataHandler:
     """Dispatches acquisition metadata payload to a remote endpoint"""
@@ -35,6 +38,7 @@ class MetadataHandler:
         """
         self._base_endpoint = endpoint
         self._secret = secret
+        self._proposal_id = None
         self._fetch_token()
 
     def _fetch_token(self) -> None:
@@ -73,14 +77,14 @@ class MetadataHandler:
                 json=payload, params=self._params, verify=False)
         return response
 
-    def _create_proposal(self, proposal: ProposalDTO) -> Optional[str]:
+    def _create_proposal(self, proposal: ProposalDTO) -> Tuple[bool, str]:
         endpoint = self._base_endpoint +  "/proposals"
         response = self ._remote_dispatch_post(
             endpoint=endpoint,
             payload=proposal.model_dump(exclude_none=True))
         if response.status_code != 201:
-            return None
-        return response.json()['proposalId']
+            return False, response.text
+        return True, response.json()['proposalId']
 
     def _create_dataset(self, dataset: DatasetDTO) -> bool:
         endpoint = self._base_endpoint + "/datasets"
@@ -103,7 +107,10 @@ class MetadataHandler:
         proposal = ProposalDTO(
             ownerGroup="IPS", proposalId=pid, firstname="Tomas",
             lastname="Farago", email="tomas.farago@kit.edu", title=title)
-        self._proposal_id = self._create_proposal(proposal=proposal)
+        ok, response = self._create_proposal(proposal=proposal)
+        if not ok:
+            raise MetadataHandlingError(response)
+        self._proposal_id = response
 
     def dispatch_dataset(self, ds_name: str, src_dir: str, metadata: Dict[str, Any]) -> bool:
         """
@@ -121,7 +128,7 @@ class MetadataHandler:
             owner="Tomas Farago", contactEmail="tomas.farago@kit.edu",
             sourceFolder=src_dir, creationLocation="DESY - PETRA III - P23",
             creationTime=datetime.today().isoformat(), proposalId=self._proposal_id,
-            description=f"Serial-MicroCT of {ds_name}", datasetName=ds_name,
+            description=f"Serial-MicroCT Dataset - {ds_name}", datasetName=ds_name,
             scientificMetadata=metadata
         )
         return self._create_dataset(dataset=dataset)
