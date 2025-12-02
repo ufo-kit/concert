@@ -51,6 +51,7 @@ class SampleDetect(TangoRemoteProcessing):
         self._min_confidence = 0.25
         self._sender = None
         self._sending_port = 0
+        self._bboxes = []
 
     @InfoIt()
     async def get_model_path(self):
@@ -151,7 +152,6 @@ class SampleDetect(TangoRemoteProcessing):
             else:
                 self._bboxes.append(bbox)
             if self._sender and last != bbox:
-                print("send", bbox)
                 await self._sender.send_json({"sample-bbox": bbox})
             last = bbox
 
@@ -161,17 +161,18 @@ class SampleDetect(TangoRemoteProcessing):
         await self._process_stream(self._stream_detect())
 
     @DebugIt(show_ret=True)
-    @command(dtype_out=[int, int, int, int])
-    async def get_maximum_rectangle(self):
+    @command(dtype_in=float, dtype_out=[int, int, int, int])
+    async def get_maximum_rectangle(self, percentile):
         if self._bboxes == []:
             bbox = [0, 0, 0, 0]
         else:
             bboxes = np.array(self._bboxes)
+            minmax = np.percentile(bboxes, (percentile, 100 - percentile), axis=0)
             bbox = [
-                np.min(bboxes[:, 0]),
-                np.min(bboxes[:, 1]),
-                np.max(bboxes[:, 2]),
-                np.max(bboxes[:, 3]),
+                int(minmax[0, 0]),
+                int(minmax[0, 1]),
+                int(minmax[1, 2]),
+                int(minmax[1, 3]),
             ]
 
         return bbox
