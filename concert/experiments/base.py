@@ -506,12 +506,12 @@ class Experiment(RunnableParameterizable):
                                                       filename="experiment_finish.json")
                 if self._metadata_handler:
                     exp_metadata = json.loads(await self._prepare_metadata_str())
-                    catalogued = self._metadata_handler.dispatch_dataset(
+                    catalogued, response = self._metadata_handler.dispatch_dataset(
                         ds_name=self._current_name,
                         src_dir=await self.walker.get_current(),
                         metadata=exp_metadata)
                     if not catalogued:
-                        self.log.error(f"Could not catalogue: {self._current_name}:")
+                        self.log.error(f"Could not catalogue: {self._current_name}, reason: {response}")
             except Exception as e:
                 LOG.warning(f"Error `{e}' while finalizing experiment")
                 raise StateError('error', msg=str(e))

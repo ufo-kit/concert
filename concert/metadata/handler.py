@@ -70,8 +70,9 @@ class MetadataHandler:
         response = requests.post(
             url=endpoint, headers=self._header,
             json=payload, params=self._params, verify=False)
-        if response.status_code == 401:
+        if response.status_code in [401, 403]:
             self._fetch_token()
+            print("Catalog app auth token refreshed")
             response = requests.post(
                 url=endpoint, headers=self._header,
                 json=payload, params=self._params, verify=False)
@@ -81,19 +82,19 @@ class MetadataHandler:
         endpoint = self._base_endpoint +  "/proposals"
         response = self ._remote_dispatch_post(
             endpoint=endpoint,
-            payload=proposal.model_dump(exclude_none=True))
+            payload=json.loads(proposal.json(exclude_none=True)))  # BaseModel.json is deprecated
         if response.status_code != 201:
             return False, response.text
         return True, response.json()['proposalId']
 
-    def _create_dataset(self, dataset: DatasetDTO) -> bool:
+    def _create_dataset(self, dataset: DatasetDTO) -> Tuple[bool, str]:
         endpoint = self._base_endpoint + "/datasets"
         response = self._remote_dispatch_post(
             endpoint=endpoint,
-            payload=dataset.model_dump(exclude_none=True))
+            payload=json.loads(dataset.json(exclude_none=True)))  # BaseModel.json is deprecated
         if response.status_code != 201:
-            return False
-        return True
+            return False, response.text
+        return True, ""
 
     def register_proposal(self, pid: str, title: str) -> None:
         """
@@ -112,7 +113,7 @@ class MetadataHandler:
             raise MetadataHandlingError(response)
         self._proposal_id = response
 
-    def dispatch_dataset(self, ds_name: str, src_dir: str, metadata: Dict[str, Any]) -> bool:
+    def dispatch_dataset(self, ds_name: str, src_dir: str, metadata: Dict[str, Any]) -> Tuple[bool, str]:
         """
         Dispatches a dataset to data catalog
 
