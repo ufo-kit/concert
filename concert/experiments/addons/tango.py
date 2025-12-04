@@ -100,8 +100,8 @@ class SampleDetector(TangoMixin, base.SampleDetector):
     async def stream_detect(self):
         await self._device.stream_detect()
 
-    async def get_maximum_rectangle(self):
-        return await self._device.get_maximum_rectangle()
+    async def get_maximum_rectangle(self, percentile=10.0):
+        return await self._device.get_maximum_rectangle(percentile)
 
 
 class ImageWriter(TangoMixin, base.ImageWriter):
