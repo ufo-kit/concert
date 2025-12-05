@@ -92,6 +92,9 @@ class AcquisitionContext(BacklashCompRelMovMixin):
     - **absorptivity**: flag indicating if absorptivity needs to ve calculated.
     - **flat_position**: optional position of the flat motor to move sample away from beam \
         (only relevant if flat_field_correct` is true).
+    - **vert_crop_start**: vertical crop starting pixel, defaults to 0, meaning start from top
+        pixel.
+    - **vert_crop_end**: vertical crop end pixel, defaults to -1, meaning end at the last pixel.
     """
     devices: AcquisitionDevices
     height: int
@@ -99,6 +102,8 @@ class AcquisitionContext(BacklashCompRelMovMixin):
     flat_field_correct: bool
     absorptivity: bool
     flat_position: Optional[Quantity] = None
+    vert_crop_start: int = 0
+    vert_crop_end: int = -1
 
 
 @dataclass
@@ -256,7 +261,7 @@ async def acquire_frame(acq_ctx: AcquisitionContext, align_state: AlignmentState
         frame = flat_correct(radio=frame, flat=align_state.flat, dark=align_state.dark)
     if acq_ctx.absorptivity:
         frame = np.nan_to_num(-np.log(frame))
-    return np.asarray(frame)
+    return np.asarray(frame)[acq_ctx.vert_crop_start:acq_ctx.vert_crop_end, :]
 
 
 async def init_alignment_state(
