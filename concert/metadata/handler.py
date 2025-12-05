@@ -66,6 +66,10 @@ class MetadataHandler:
     def _params(self) -> Dict[str, str]:
         return {"access_token": self._token}
     
+    @property
+    def _get_timestamp(self) -> str:
+        return "{:%Y-%m-%d_%H:%M:%S}".format(datetime.now())
+    
     def _remote_dispatch_post(self, endpoint: str, payload: Dict[str, Any]) -> Response:
         response = requests.post(
             url=endpoint, headers=self._header,
@@ -125,11 +129,11 @@ class MetadataHandler:
         :type metadata: str
         """
         dataset = DatasetDTO(
-            pid=ds_name, ownerGroup="IPS", principalInvestigator="Tomas Farago",
-            owner="Tomas Farago", contactEmail="tomas.farago@kit.edu",
-            sourceFolder=src_dir, creationLocation="DESY - PETRA III - P23",
-            creationTime=datetime.today().isoformat(), proposalId=self._proposal_id,
-            description=f"Serial-MicroCT Dataset - {ds_name}", datasetName=ds_name,
-            scientificMetadata=metadata
+            pid=f"{ds_name}-{self._get_timestamp}", ownerGroup="IPS",
+            principalInvestigator="Tomas Farago", owner="Tomas Farago",
+            contactEmail="tomas.farago@kit.edu", sourceFolder=src_dir,
+            creationLocation="DESY - PETRA III - P23", creationTime=datetime.now().isoformat(),
+            proposalId=self._proposal_id, description=f"Serial-MicroCT Dataset - {ds_name}",
+            datasetName=ds_name, scientificMetadata=metadata
         )
         return self._create_dataset(dataset=dataset)
