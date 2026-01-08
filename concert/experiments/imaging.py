@@ -419,7 +419,7 @@ class RadiographyLogic(Experiment):
     projections."""
 
     async def __ainit__(self, walker, flat_motor, radio_position, flat_position, camera, num_flats,
-                        num_darks, num_projections, separate_scans=True, metadata_handler=None):
+                        num_darks, num_projections, separate_scans=True, metadata_handlers=None):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -454,7 +454,7 @@ class RadiographyLogic(Experiment):
         flats_acq = await Acquisition("flats", self._take_flats, producer=camera)
         radios_acq = await Acquisition("radios", self._take_radios, producer=camera)
         await super().__ainit__([darks_acq, flats_acq, radios_acq], walker,
-                                separate_scans=separate_scans, metadata_handler=metadata_handler)
+                                separate_scans=separate_scans, metadata_handlers=metadata_handlers)
         self.install_parameters(
             {"flat_position": Quantity(flat_motor_unit, check=check(source=_runnable_state)),
              "radio_position": Quantity(flat_motor_unit,
@@ -620,7 +620,7 @@ class TomographyLogic(RadiographyLogic):
     async def __ainit__(self, walker, flat_motor, tomography_motor, radio_position,
                         flat_position, camera, num_flats=200, num_darks=200, num_projections=3000,
                         angular_range=180 * q.deg, start_angle=0 * q.deg, separate_scans=True,
-                        metadata_handler=None):
+                        metadata_handlers=None):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -651,7 +651,7 @@ class TomographyLogic(RadiographyLogic):
         await super().__ainit__(
             walker, flat_motor, radio_position, flat_position,
             camera, num_flats, num_darks, num_projections,
-            separate_scans=separate_scans, metadata_handler=metadata_handler
+            separate_scans=separate_scans, metadata_handlers=metadata_handlers
         )
         await self.set_angular_range(angular_range)
         await self.set_start_angle(start_angle)

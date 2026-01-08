@@ -23,7 +23,7 @@ from concert.base import (
     RunnableParameterizable
 )
 from concert.helpers import get_basename
-from concert.loghandler import AsyncLoggingHandlerCloser
+from concert.loghandler import RemoteLoggingHandler
 from functools import partial
 
 
@@ -273,14 +273,14 @@ class Experiment(RunnableParameterizable):
     log_devices_at_finish = Parameter()
 
     async def __ainit__(self, acquisitions, walker=None, separate_scans=True,
-                        name_fmt='scan_{:>04}', metadata_handler=None):
+                        name_fmt='scan_{:>04}', metadata_handlers=None):
         self._acquisitions = []
         for acquisition in acquisitions:
             self.add(acquisition)
         self.walker = walker
         self._separate_scans = separate_scans
         self._name_fmt = name_fmt
-        self._metadata_handler = metadata_handler
+        self._metadata_handlers = metadata_handlers
         self._current_name = ""
         self._iteration = 0
         self.log = LOG
@@ -476,7 +476,7 @@ class Experiment(RunnableParameterizable):
             if separate_scans:
                 await self.walker.descend((await self.get_name_fmt()).format(iteration))
             if os.path.exists(await self.walker.get_current()):
-                handler: AsyncLoggingHandlerCloser = await self.walker.register_logger(
+                handler: RemoteLoggingHandler = await self.walker.register_logger(
                     logger_name=self.__class__.__name__,
                     log_level=logging.NOTSET,
                     file_name="experiment.log"
@@ -500,18 +500,14 @@ class Experiment(RunnableParameterizable):
             try:
                 await self.finish()
                 if self.walker:
-                    if await self.get_log_devices_at_finish():
-                        exp_metadata: str = await self._prepare_metadata_str()
-                        await self.walker.log_to_json(payload=exp_metadata,
-                                                      filename="experiment_finish.json")
-                if self._metadata_handler:
-                    exp_metadata = json.loads(await self._prepare_metadata_str())
-                    catalogued, response = self._metadata_handler.dispatch_dataset(
-                        ds_name=self._current_name,
-                        src_dir=await self.walker.get_current(),
-                        metadata=exp_metadata)
-                    if not catalogued:
-                        self.log.error(f"Could not catalogue: {self._current_name}, reason: {response}")
+                    if await self.get_log_devices_at_finish() and self._metadata_handlers:
+                        for hdlr in self._metadata_handlers:
+                            await hdlr.handle(
+                                metadata=await self._prepare_metadata_str(),
+                                filename="experiment_finish.json",
+                                ds_name=self._current_name,
+                                src_dir=await self.walker.get_current()
+                            )
             except Exception as e:
                 LOG.warning(f"Error `{e}' while finalizing experiment")
                 raise StateError('error', msg=str(e))

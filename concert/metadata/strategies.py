@@ -1,25 +1,58 @@
 """
-handler.py
-----------
-Implements functionalities for basic metadata handling.
+Docstring for concert.metadata.strategies
 """
+from abc import ABC, abstractmethod
+from typing import Any, Dict, Optional, Tuple
 from datetime import datetime
 import json
-from typing import Any, Dict, Optional, Tuple
 import requests
 from requests import Response
 import urllib3
 from urllib3.exceptions import SubjectAltNameWarning, InsecureRequestWarning
+from concert.storage import Walker
 from concert.metadata.utils import ProposalDTO, DatasetDTO
 
 urllib3.disable_warnings(SubjectAltNameWarning)
 urllib3.disable_warnings(InsecureRequestWarning)
 
+
 class MetadataHandlingError(RuntimeError):
     """Defines error type for remote metadata handling"""
     pass
 
-class MetadataHandler:
+
+class MetadataHandler(ABC):
+    """
+    Abstract metadata handler
+    """
+
+    @abstractmethod
+    async def handle(self, metadata: str, **kwargs) -> None:
+        """
+        Persists metadata using underlying handling strategy.
+        
+        :param metadata: metadata
+        :type metadata: str
+        """
+        pass
+
+
+class FileHandler(MetadataHandler):
+    """
+    Docstring for FileHandler
+    """
+
+    _walker: Walker
+
+    def __init__(self, walker: Walker) -> None:
+        self._walker = walker
+
+    async def handle(self, metadata: str, **kwargs) -> None:
+        filename = kwargs.get("filename", "experiment.json")
+        await self._walker.log_to_json(payload=metadata, filename=filename)
+    
+
+class DatabaseHandler(MetadataHandler):
     """Dispatches acquisition metadata payload to a remote endpoint"""
 
     _base_endpoint: str
@@ -117,7 +150,7 @@ class MetadataHandler:
             raise MetadataHandlingError(response)
         self._proposal_id = response
 
-    def dispatch_dataset(self, ds_name: str, src_dir: str, metadata: Dict[str, Any]) -> Tuple[bool, str]:
+    async def handle(self, metadata: str, **kwargs) -> None:
         """
         Dispatches a dataset to data catalog
 
@@ -128,12 +161,14 @@ class MetadataHandler:
         :param metadata: experimental metadata
         :type metadata: str
         """
+        ds_name = kwargs.get("ds_name", "generic_raw_dataset")
+        src_dir = kwargs.get("src_dir", "")
         dataset = DatasetDTO(
             pid=f"{ds_name}-{self._get_timestamp}", ownerGroup="IPS",
             principalInvestigator="Tomas Farago", owner="Tomas Farago",
             contactEmail="tomas.farago@kit.edu", sourceFolder=src_dir,
             creationLocation="DESY - PETRA III - P23", creationTime=datetime.now().isoformat(),
             proposalId=self._proposal_id, description=f"Serial-MicroCT Dataset - {ds_name}",
-            datasetName=ds_name, scientificMetadata=metadata
+            datasetName=ds_name, scientificMetadata=json.loads(metadata)
         )
-        return self._create_dataset(dataset=dataset)
+        self._create_dataset(dataset=dataset)

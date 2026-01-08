@@ -91,7 +91,7 @@ class ContinuousTomographyLogic(SynchrotronMixin, imaging.ContinuousTomographyLo
     async def __ainit__(self, walker, flat_motor, tomography_motor, radio_position, flat_position,
                         camera, shutter, num_flats=200, num_darks=200, num_projections=3000,
                         angular_range=180 * q.deg, start_angle=0 * q.deg, separate_scans=True,
-                        metadata_handler=None):
+                        metadata_handlers=None):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -132,7 +132,7 @@ class ContinuousTomographyLogic(SynchrotronMixin, imaging.ContinuousTomographyLo
             angular_range=angular_range,
             start_angle=start_angle,
             separate_scans=separate_scans,
-            metadata_handler=metadata_handler
+            metadata_handlers=metadata_handlers
         )
 
 
