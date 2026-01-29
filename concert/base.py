@@ -372,21 +372,21 @@ class Parameter(object):
     @memoize
     def setter_name(self):
         if self.fset:
-            return self.fset.__name__
+            return self.fset.__class__.__name__
 
         return '_set_' + self.name
 
     @memoize
     def getter_name(self):
         if self.fget:
-            return self.fget.__name__
+            return self.fget.__class__.__name__
 
         return '_get_' + self.name
 
     @memoize
     def getter_name_target(self):
         if self.fget_target:
-            return self.fget_target.__name__
+            return self.fget_target.__class__.__name__
 
         return '_get_target_' + self.name
 
@@ -1283,8 +1283,8 @@ class Parameterizable(AsyncObject, abc.ABC):
             self._install_parameter(param)
 
         # Obtain the object-dot notation.
-        merged_dict = dict(list(self.__class__.__dict__.items()) + list(params.items()))
-        self.__class__ = type(self.__class__.__name__, self.__class__.__bases__, merged_dict)
+        #merged_dict = dict(list(self.__class__.__dict__.items()) + list(params.items()))
+        #self.__class__ = type(self.__class__.__name__, self.__class__.__bases__, merged_dict)
 
     def _install_parameter(self, param):
         if isinstance(param, Quantity):
@@ -1301,18 +1301,21 @@ class Parameterizable(AsyncObject, abc.ABC):
         getter_name = 'get_' + param.name
         setter_name = 'set_' + param.name
         target_getter_name = 'get_target_' + param.name
-        if getter_name not in self.__class__.__dict__:
+        if getter_name not in self.__dict__:
             def get_parameter(instance, wait_on=None):
                 return instance[param.name].get(wait_on=wait_on)
-            setattr(self.__class__, getter_name, get_parameter)
-        if setter_name not in self.__class__.__dict__:
+            #setattr(self, getter_name, get_parameter)
+            self.__dict__[getter_name] = types.MethodType(get_parameter, self)
+        if setter_name not in self.__dict__:
             def set_parameter(instance, parameter_value, wait_on=None):
                 return instance[param.name].set(parameter_value, wait_on=wait_on)
-            setattr(self.__class__, setter_name, set_parameter)
-        if target_getter_name not in self.__class__.__dict__:
+            #setattr(self, setter_name, set_parameter)
+            self.__dict__[setter_name] = types.MethodType(set_parameter, self)
+        if target_getter_name not in self.__dict__:
             def get_target_parameter(instance, wait_on=None):
                 return instance[param.name].get_target(wait_on=wait_on)
-            setattr(self.__class__, target_getter_name, get_target_parameter)
+            #setattr(self, target_getter_name, get_target_parameter)
+            self.__dict__[target_getter_name] = types.MethodType(get_target_parameter, self)
 
         if not hasattr(self, '_set_' + param.name):
             setattr(self, '_set_' + param.name, _setter_not_implemented)
