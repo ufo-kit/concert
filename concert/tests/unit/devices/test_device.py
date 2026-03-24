@@ -63,10 +63,11 @@ class TestDevice(TestCase):
 
     def test_str(self):
         from concert.session.utils import get_default_table
-        table = get_default_table(["Parameter", "Value"])
+        table = get_default_table(["Parameter", "Value", "Target", "lower", "upper",
+                                   "lower user", "upper user", "lower external", "upper external"])
         table.border = False
-        table.add_row(["readonly", "1"])
-        table.add_row(["writeonly", "N/A"])
+        table.add_row(["readonly", "1", "N/A", "", "", "", "", "", ""])
+        table.add_row(["writeonly", "N/A", "N/A", "", "", "", "", "", ""])
         self.assertEqual(str(self.device), table.get_string())
 
     async def test_context_manager(self):
