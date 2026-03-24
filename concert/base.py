@@ -12,7 +12,6 @@ from concert.helpers import memoize, get_state_from_awaitable
 from concert.coroutines.base import background, get_event_loop, run_in_loop, wait_until
 from concert.quantities import q
 
-
 LOG = logging.getLogger(__name__)
 _RUN_IN_LOOP_ERR_TMPL = "Someone is trying to use `{}' " \
                         "inside `async def' code which is not allowed, please " \
@@ -33,6 +32,10 @@ def _getter_not_implemented(*args):
 
 def _getter_target_not_implemented(*args):
     raise AccessorNotImplementedError
+
+
+async def _none():
+    return None
 
 
 async def _execute_func(func, instance, *args, **kwargs):
@@ -66,6 +69,7 @@ def _find_object_by_name(instance):
     """Find variable name by *instance*. This is supposed to be used only in the
     :meth:`.Parameter.__set__`.
     """
+
     def _is_name_ok(instance_name):
         return instance_name and instance_name not in ['instance', 'self']
 
@@ -131,7 +135,6 @@ class TransitionNotAllowed(FSMError):
 
 
 class StateError(Exception):
-
     """Raised in state check functions of devices."""
 
     def __init__(self, error_state, msg=None):
@@ -143,25 +146,21 @@ class StateError(Exception):
 
 
 class UnitError(ValueError):
-
     """Raised when an operation is passed value with an incompatible unit."""
     pass
 
 
 class LimitError(ValueError):
-
     """Raised when an operation is passed a value that exceeds a limit."""
     pass
 
 
 class SoftLimitError(LimitError):
-
     """Raised when a soft limit is hit on the device."""
     pass
 
 
 class HardLimitError(StateError):
-
     """Raised when device goes into hardlimit error state."""
 
     def __init__(self, error_state='hard-limit', msg=None):
@@ -169,7 +168,6 @@ class HardLimitError(StateError):
 
 
 class ParameterError(Exception):
-
     """Raised when a parameter is accessed that does not exists."""
 
     def __init__(self, parameter):
@@ -178,12 +176,10 @@ class ParameterError(Exception):
 
 
 class AccessorNotImplementedError(NotImplementedError):
-
     """Raised when a setter or getter is not implemented."""
 
 
 class ReadAccessError(Exception):
-
     """Raised when user tries to read a parameter that cannot be read."""
 
     def __init__(self, parameter):
@@ -193,7 +189,6 @@ class ReadAccessError(Exception):
 
 
 class TargetAccessError(Exception):
-
     """Raised when user tries to read parameter's target value that cannot be read."""
 
     def __init__(self, parameter):
@@ -203,7 +198,6 @@ class TargetAccessError(Exception):
 
 
 class WriteAccessError(Exception):
-
     """Raised when user tries to read a parameter that cannot be read."""
 
     def __init__(self, parameter):
@@ -213,7 +207,6 @@ class WriteAccessError(Exception):
 
 
 class SelectionError(Exception):
-
     """Raised when user tries to set selection parameter to unknown value."""
 
     def __init__(self, parameter, value, values):
@@ -223,7 +216,6 @@ class SelectionError(Exception):
 
 
 class LockError(Exception):
-
     """Raised when parameter is locked."""
 
     pass
@@ -235,6 +227,7 @@ def transition(immediate=None, target=None, state_name='state'):
     and cleanup logic must take place in the callable to be wrapped.
     *state_name* can be used to define the state if multiple states are used.
     """
+
     def wrapped(func):
         @functools.wraps(func)
         async def call_func(instance, *args, **kwargs):
@@ -278,6 +271,7 @@ def check(source: Union[str, List[str]] = '*', target: Union[str, List[str]] = '
     target states.
     *state_name* can be used to define the state if multiple states are used.
     """
+
     async def check_now(instance, allowed_states, state_str):
         state = await instance[state_name].get()
         if state not in allowed_states and '*' not in allowed_states:
@@ -318,7 +312,6 @@ def check(source: Union[str, List[str]] = '*', target: Union[str, List[str]] = '
 
 
 class Parameter(object):
-
     """A parameter with getter and setter.
 
     Parameters are similar to normal Python properties and can additionally
@@ -371,23 +364,14 @@ class Parameter(object):
 
     @memoize
     def setter_name(self):
-        if self.fset:
-            return self.fset.__name__
-
         return '_set_' + self.name
 
     @memoize
     def getter_name(self):
-        if self.fget:
-            return self.fget.__name__
-
         return '_get_' + self.name
 
     @memoize
     def getter_name_target(self):
-        if self.fget_target:
-            return self.fget_target.__name__
-
         return '_get_target_' + self.name
 
     @memoize
@@ -448,7 +432,6 @@ class Parameter(object):
 
 
 class State(Parameter):
-
     """
     Finite state machine.
 
@@ -505,7 +488,6 @@ class State(Parameter):
 
 
 class Selection(Parameter):
-
     """A :class:`.Parameter` that can take a value out of pre-defined list."""
 
     def __init__(self, iterable, fget=None, fset=None, check=None, help=None):
@@ -520,7 +502,6 @@ class Selection(Parameter):
 
 
 class Quantity(Parameter):
-
     """A :class:`.Parameter` associated with a unit."""
 
     def __init__(self, unit, fget=None, fset=None, fget_target=None, lower=None, upper=None,
@@ -550,6 +531,96 @@ class Quantity(Parameter):
     def convert(self, value):
         return value.to(self.unit)
 
+    @memoize
+    def lower_user_setter_name(self):
+        return '_set_' + self.name + '_lower_user_limit'
+
+    @memoize
+    def lower_user_getter_name(self):
+        return '_get_' + self.name + "_lower_user_limit"
+
+    @memoize
+    def upper_user_setter_name(self):
+        return '_set_' + self.name + '_upper_user_limit'
+
+    @memoize
+    def upper_user_getter_name(self):
+        return '_get_' + self.name + "_upper_user_limit"
+
+    @memoize
+    def lower_external_getter_name(self):
+        return '_get_' + self.name + "_lower_external_limit"
+
+    @memoize
+    def upper_external_getter_name(self):
+        return '_get_' + self.name + "_upper_external_limit"
+
+    @memoize
+    def get_lower_user_getter(self, instance):
+        if self.user_lower_getter:
+            lower_user = functools.partial(self.user_lower_getter, instance)
+        elif hasattr(instance, self.lower_user_getter_name()):
+            lower_user = getattr(instance, self.lower_user_getter_name())
+        else:
+            lower_user = _getter_not_implemented
+
+        return lower_user
+
+    @memoize
+    def get_upper_user_getter(self, instance):
+        if self.user_upper_getter:
+            upper_user = functools.partial(self.user_upper_getter, instance)
+        elif hasattr(instance, self.upper_user_getter_name()):
+            upper_user = getattr(instance, self.upper_user_getter_name())
+        else:
+            upper_user = _getter_not_implemented
+
+        return upper_user
+
+    @memoize
+    def get_lower_external_getter(self, instance):
+        if self.external_lower_getter:
+            lower_external = self.external_lower_getter
+        elif hasattr(instance, self.lower_external_getter_name()):
+            lower_external = getattr(instance, self.lower_external_getter_name())
+        else:
+            lower_external = _none
+
+        return lower_external
+
+    @memoize
+    def get_upper_external_getter(self, instance):
+        if self.external_upper_getter:
+            upper_external = self.external_upper_getter
+        elif hasattr(instance, self.upper_external_getter_name()):
+            upper_external = getattr(instance, self.upper_external_getter_name())
+        else:
+            upper_external = _none
+
+        return upper_external
+
+    @memoize
+    def get_lower_user_setter(self, instance):
+        if self.user_lower_setter:
+            lower_user = functools.partial(self.user_lower_setter, instance)
+        elif hasattr(instance, self.lower_user_setter_name()):
+            lower_user = getattr(instance, self.lower_user_setter_name())
+        else:
+            lower_user = _setter_not_implemented
+
+        return lower_user
+
+    @memoize
+    def get_upper_user_setter(self, instance):
+        if self.user_upper_setter:
+            upper_user = functools.partial(self.user_upper_setter, instance)
+        elif hasattr(instance, self.upper_user_setter_name()):
+            upper_user = getattr(instance, self.upper_user_setter_name())
+        else:
+            upper_user = _setter_not_implemented
+
+        return upper_user
+
 
 def quantity(unit=None, lower=None, upper=None, data=None, check=None, help=None):
     """
@@ -577,7 +648,6 @@ def quantity(unit=None, lower=None, upper=None, data=None, check=None, help=None
 
 
 class ParameterValue(object):
-
     """Value object of a :class:`.Parameter`."""
 
     def __init__(self, instance, parameter):
@@ -752,6 +822,7 @@ class ParameterValue(object):
         """Lock parameter for writing. If *permament* is True the parameter
         cannot be unlocked anymore.
         """
+
         def unlock_not_allowed():
             raise LockError("Parameter `{}' cannot be unlocked".format(self._parameter.name))
 
@@ -768,6 +839,7 @@ class ParameterValue(object):
         """Wait until the parameter value is *value*. *sleep_time* is the time to sleep
         between consecutive checks. *timeout* specifies the maximum waiting time.
         """
+
         async def condition():
             return await self.get() == value
 
@@ -775,7 +847,6 @@ class ParameterValue(object):
 
 
 class StateValue(ParameterValue):
-
     """Special :class:`.ParameterValue` implementing state parameter."""
 
     @background
@@ -813,6 +884,7 @@ class QuantityValue(ParameterValue):
 
     def lock_limits(self, permanent=False):
         """Lock limits, if *permanent* is True the limits cannot be unlocked anymore."""
+
         def unlock_not_allowed():
             raise LockError('Limits are locked permanently')
 
@@ -867,7 +939,12 @@ class QuantityValue(ParameterValue):
             raise ValueError('Lower limit must be lower than upper')
         if self._user_lower_setter:
             await self._user_lower_setter(value)
-        else:
+            return
+
+        try:
+            setter = self._parameter.get_lower_user_setter(self._instance)
+            await setter(value, *self._parameter.data_args)
+        except AccessorNotImplementedError:
             self._lower = value
 
     @property
@@ -913,7 +990,12 @@ class QuantityValue(ParameterValue):
             raise ValueError('Upper limit must be greater than lower')
         if self._user_upper_setter:
             await self._user_upper_setter(value)
-        else:
+            return
+
+        try:
+            setter = self._parameter.get_upper_user_setter(self._instance)
+            await setter(value, *self._parameter.data_args)
+        except AccessorNotImplementedError:
             self._upper = value
 
     @property
@@ -928,10 +1010,14 @@ class QuantityValue(ParameterValue):
 
     @background
     async def get_upper_user(self):
-        if self._user_upper_getter is None:
+        if self._user_upper_getter:
+            return await self._user_upper_getter(*self._parameter.data_args)
+
+        try:
+            getter = self._parameter.get_upper_user_getter(self._instance)
+            return await getter(*self._parameter.data_args)
+        except AccessorNotImplementedError:
             return self._upper
-        else:
-            return await self._user_upper_getter()
 
     @property
     def lower_user(self):
@@ -945,10 +1031,14 @@ class QuantityValue(ParameterValue):
 
     @background
     async def get_lower_user(self):
-        if self._user_lower_getter is None:
+        if self._user_lower_getter:
+            return await self._user_lower_getter(*self._parameter.data_args)
+
+        try:
+            getter = self._parameter.get_lower_user_getter(self._instance)
+            return await getter(*self._parameter.data_args)
+        except AccessorNotImplementedError:
             return self._lower
-        else:
-            return await self._user_lower_getter()
 
     @property
     def lower_external(self):
@@ -960,12 +1050,12 @@ class QuantityValue(ParameterValue):
             )
         )
 
-    @background
     async def get_lower_external(self):
-        if self._external_lower_getter is None:
+        try:
+            getter = self._parameter.get_lower_external_getter(self._instance)
+            return await getter(*self._parameter.data_args)
+        except AccessorNotImplementedError:
             return None
-        else:
-            return await self._external_lower_getter()
 
     @property
     def upper_external(self):
@@ -977,12 +1067,12 @@ class QuantityValue(ParameterValue):
             )
         )
 
-    @background
     async def get_upper_external(self):
-        if self._external_upper_getter is None:
+        try:
+            getter = self._parameter.get_upper_external_getter(self._instance)
+            return await getter(*self._parameter.data_args)
+        except AccessorNotImplementedError:
             return None
-        else:
-            return await self._external_upper_getter()
 
     @property
     async def info_table(self):
@@ -1057,6 +1147,7 @@ class QuantityValue(ParameterValue):
         actual value and *value*. *sleep_time* is the time to sleep between consecutive checks.
         *timeout* specifies the maximum waiting time.
         """
+
         async def condition():
             """Take care of rountind errors"""
             diff = await self.get() - value
@@ -1080,7 +1171,6 @@ class QuantityValue(ParameterValue):
 
 
 class SelectionValue(ParameterValue):
-
     """Descriptor for :class:`.Selection` class."""
 
     def __init__(self, instance, selection):
@@ -1105,7 +1195,6 @@ class SelectionValue(ParameterValue):
 
 
 class AsyncType(abc.ABCMeta):
-
     """
     Metaclass which allows an awaitable constructor `__ainit__(...)' instead of `__init__(...)' and
     thus enables async object initialization `obj = await Class(...)'. `__ainit__(...)` must return
@@ -1185,7 +1274,6 @@ class AsyncObject(metaclass=AsyncType):
 
 
 class Parameterizable(AsyncObject, abc.ABC):
-
     """
     Collection of parameters.
 
@@ -1219,6 +1307,126 @@ class Parameterizable(AsyncObject, abc.ABC):
 
         param.position = 0 * q.mm
         print param.position
+
+
+    Setting limits and values can be handles in two ways::
+
+        lower_foo = None
+        upper_foo = None
+        position_foo = 0 * q.mm
+
+
+        def get_lower_foo_softlimit():
+            global lower_foo
+            return lower_foo
+
+
+        def get_upper_foo_softlimit():
+            global upper_foo
+            return upper_foo
+
+
+        def set_lower_foo_softlimit(value):
+            global lower_foo
+            lower_foo = value
+
+
+        def set_upper_foo_softlimit(value):
+            global upper_foo
+            upper_foo = value
+
+
+        def get_foo_from_hardware():
+            global position_foo
+            return position_foo
+
+
+        def send_foo_to_hardware(value):
+            global position_foo
+            position_foo = value
+
+
+        from concert.base import Quantity, Parameterizable
+
+
+        class DeviceWithClassGetter(Parameterizable):
+            foo = Quantity(q.mm)
+
+            async def __ainit__(self):
+                await super().__ainit__()
+
+            async def _get_foo(self):
+                return get_foo_from_hardware()
+
+            async def _set_foo(self, value):
+                send_foo_on_hardware(value)
+
+            async def _get_foo_lower_external_limit(self):
+                return -4 * q.mm
+
+            async def _get_foo_upper_external_limit(self):
+                return 4 * q.mm
+
+            async def _get_foo_lower_user_limit(self):
+                return get_lower_foo_softlimit()
+
+            async def _get_foo_upper_user_limit(self):
+                return get_upper_foo_softlimit()
+
+            async def _set_foo_lower_user_limit(self, val):
+                return set_lower_foo_softlimit(val)
+
+            async def _set_foo_upper_user_limit(self, val):
+                return set_upper_foo_softlimit(val)
+
+
+        lower_bar = None
+        upper_bar = None
+        position_bar = 0 * q.mm
+
+
+        async def get_lower_bar_softlimit():
+            global lower_bar
+            return lower_bar
+
+
+        async def get_upper_bar_softlimit():
+            global upper_bar
+            return upper_bar
+
+
+        async def set_lower_bar_softlimit(value):
+            global lower_bar
+            lower_bar = value
+
+
+        async def set_upper_bar_softlimit(value):
+            global upper_bar
+            upper_bar = value
+
+
+        async def get_bar_from_hardware(cls):
+            global position_bar
+            return position_bar
+
+
+        async def send_bar_to_hardware(cls, value):
+            global position_bar
+            position_bar = value
+
+
+        class DeviceWithSetterInConstructor(Parameterizable):
+            bar = Quantity(q.mm,
+                        fget=get_bar_from_hardware,
+                        fset=send_bar_to_hardware,
+                        user_lower_getter=get_lower_bar_softlimit,
+                        user_upper_getter=get_upper_bar_softlimit,
+                        user_lower_setter=set_lower_bar_softlimit,
+                        user_upper_setter=set_upper_bar_softlimit)
+
+            async def __ainit__(self):
+                await super().__ainit__()
+
     """
 
     async def __ainit__(self):
@@ -1260,15 +1468,49 @@ class Parameterizable(AsyncObject, abc.ABC):
     async def info_table(self):
         from concert.session.utils import get_default_table
 
-        table = get_default_table(["Parameter", "Value"])
+        table = get_default_table(
+            ["Parameter", "Value", "Target", "lower", "upper", "lower user", "upper user",
+             "lower external", "upper external"])
         table.border = False
+        table.vertical_char = "|"
+        table.vrules = True
 
         for param in self:
             try:
                 value = str(await param.get())
             except ReadAccessError:
                 value = 'N/A'
-            table.add_row([param.name, value])
+            try:
+                target = str(await param.get_target())
+            except TargetAccessError:
+                target = 'N/A'
+            try:
+                lower_limit = str(await param.get_lower())
+            except AttributeError:
+                lower_limit = ''
+            try:
+                upper_limit = str(await param.get_upper())
+            except AttributeError:
+                upper_limit = ''
+            try:
+                lower_external_limit = str(await param.get_lower_external())
+            except AttributeError:
+                lower_external_limit = ''
+            try:
+                upper_external_limit = str(await param.get_upper_external())
+            except AttributeError:
+                upper_external_limit = ''
+            try:
+                lower_user_limit = str(await param.get_lower_user())
+            except AttributeError:
+                lower_user_limit = ''
+            try:
+                upper_user_limit = str(await param.get_upper_user())
+            except AttributeError:
+                upper_user_limit = ''
+
+            table.add_row([param.name, value, target, lower_limit, upper_limit, lower_user_limit,
+                           upper_user_limit, lower_external_limit, upper_external_limit])
 
         return table
 
@@ -1304,14 +1546,17 @@ class Parameterizable(AsyncObject, abc.ABC):
         if getter_name not in self.__class__.__dict__:
             def get_parameter(instance, wait_on=None):
                 return instance[param.name].get(wait_on=wait_on)
+
             setattr(self.__class__, getter_name, get_parameter)
         if setter_name not in self.__class__.__dict__:
             def set_parameter(instance, parameter_value, wait_on=None):
                 return instance[param.name].set(parameter_value, wait_on=wait_on)
+
             setattr(self.__class__, setter_name, set_parameter)
         if target_getter_name not in self.__class__.__dict__:
             def get_target_parameter(instance, wait_on=None):
                 return instance[param.name].get_target(wait_on=wait_on)
+
             setattr(self.__class__, target_getter_name, get_target_parameter)
 
         if not hasattr(self, '_set_' + param.name):
