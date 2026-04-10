@@ -20,7 +20,7 @@ from concert.base import (
     Parameter,
     Selection,
     StateError,
-    RunnableParameterizable
+    RunnableParameterizable, TargetAccessError
 )
 from concert.helpers import get_basename
 from concert.loghandler import AsyncLoggingHandlerCloser
@@ -337,14 +337,42 @@ class Experiment(RunnableParameterizable):
         for name, device in self._devices_to_log.items():
             device_data = {}
             for param in device:
-                device_data[param.name] = str(await param.get())
+                device_data[param.name] = {}
+                device_data[param.name]["value"] = str(await param.get())
+                try:
+                    device_data[param.name]["target"] = str(await param.get_target())
+                except TargetAccessError:
+                    pass
+                try:
+                    device_data[param.name]["lower_limit"] = str(await param.get_lower())
+                    device_data[param.name]["upper_limit"] = str(await param.get_upper())
+                    device_data[param.name]["lower_user_limit"] = str(await param.get_lower_user())
+                    device_data[param.name]["upper_user_limit"] = str(await param.get_upper_user())
+                    device_data[param.name]["lower_external_limit"] = str(await param.get_lower_external())
+                    device_data[param.name]["upper_external_limit"] = str(await param.get_upper_external())
+                except AttributeError:
+                    pass
             metadata[name] = device_data
 
         for name, device in self._devices_to_log_optional.items():
             device_data = {}
             for param in device:
                 try:
-                    device_data[param.name] = str(await param.get())
+                    device_data[param.name] = {}
+                    device_data[param.name]["value"] = str(await param.get())
+                    try:
+                        device_data[param.name]["target"] = str(await param.get_target())
+                    except TargetAccessError:
+                        pass
+                    try:
+                        device_data[param.name]["lower_limit"] = str(await param.get_lower())
+                        device_data[param.name]["upper_limit"] = str(await param.get_upper())
+                        device_data[param.name]["lower_user_limit"] = str(await param.get_lower_user())
+                        device_data[param.name]["upper_user_limit"] = str(await param.get_upper_user())
+                        device_data[param.name]["lower_external_limit"] = str(await param.get_lower_external())
+                        device_data[param.name]["upper_external_limit"] = str(await param.get_upper_external())
+                    except AttributeError:
+                        pass
                 except Exception as e:
                     self.log.info(f"Error while logging optional device {name}")
                     self.log.info(e)
