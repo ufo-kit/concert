@@ -51,16 +51,17 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     """
     Tango device for online 3D reconstruction from zmq image stream.
     """
-    _args = LocalGeneralBackprojectArgs()
     _default = {}
 
-    for arg, settings in _args.parameters.items():
+    # Temporary instance used only at class definition time to introspect parameters
+    # and dynamically generate Tango attributes. The actual per-instance _args is
+    # created in init_device().
+    _temp_args = LocalGeneralBackprojectArgs()
+
+    for arg, settings in _temp_args.parameters.items():
         dtype = settings.get('type')
         default = settings.get('default')
         if arg == 'gpus':
-            from gi.repository import Ufo
-            res = Ufo.Resources()
-            setattr(_args, arg, [i for i in range(len(res.get_gpu_nodes()))])
             exec(FMT.format(arg, '(int,)'))
         elif settings.get('action') == 'store_true':
             exec(FMT.format(arg, 'bool'))
@@ -85,7 +86,7 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
             _default[arg] = '' if dtype == str else dtype(0)
 
     # Do not infect the class with temp variables
-    del arg, dtype, settings
+    del arg, dtype, settings, _temp_args
 
     find_parameter_args = pipe(
         label="find_parameter_args",
@@ -96,6 +97,12 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     async def init_device(self):
         """Inits device and communciation"""
         await super().init_device()
+
+        self._args = LocalGeneralBackprojectArgs()
+        # Set available GPU nodes on the instance-level args object
+        from gi.repository import Ufo
+        res = Ufo.Resources()
+        self._args.gpus = [i for i in range(len(res.get_gpu_nodes()))]
 
         self._manager = await GeneralBackprojectManager(
             self._args,
