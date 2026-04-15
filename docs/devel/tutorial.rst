@@ -470,7 +470,7 @@ An example of an acquisition could look like this::
     # *producer* is not specified, *Consumer* class handles this
     acquisition.add_consumer(Consumer(consume, corofunc_args=("foo",)))
     # Now we can run the acquisition
-    await acquisition()
+    await acquisition.run()
 
 
 `Local` consumers must always take at least one argument, which is the producer

@@ -35,6 +35,7 @@ from concert.devices.cameras.dummy import Camera
 from concert.devices.shutters.dummy import Shutter
 from concert.devices.motors.dummy import LinearMotor
 from concert.helpers import CommData
+from concert.loghandler import RemoteLoggingHandler
 from concert.tests import TestCase, suppressed_logging, assert_almost_equal
 from concert.storage import DirectoryWalker, DummyWalker, RemoteDirectoryWalker
 from concert.tests.util.mocks import MockWalkerDevice
@@ -142,9 +143,16 @@ class TestAcquisition(TestCase):
         self.acquisition.add_consumer(AcquisitionConsumer(self.consume))
 
     async def test_run(self):
-        await self.acquisition()
+        await self.acquisition.run()
         self.assertTrue(self.acquired)
         self.assertEqual(1, self.item)
+        self.assertEqual('standby', await self.acquisition.get_state())
+
+    async def test_run_is_the_only_execution_entrypoint(self):
+        self.assertFalse(hasattr(self.acquisition, '__call__'))
+
+        with self.assertRaises(TypeError):
+            self.acquisition()
 
     async def acquire(self):
         self.acquired = True
@@ -458,8 +466,8 @@ class TestExperimentLogging(unittest.IsolatedAsyncioTestCase):
             self._item = item
 
     async def test_experiment_logging(self) -> None:
-        self._experiment.set_log_devices_at_start(True)
-        self._experiment.set_log_devices_at_start(True)
+        await self._experiment.set_log_devices_at_start(True)
+        await self._experiment.set_log_devices_at_start(True)
         _ = await self._experiment.run()
         self.assertEqual(self._visited, len(self._experiment.acquisitions))
         self.assertEqual(self._acquired, len(self._experiment.acquisitions))
@@ -473,26 +481,26 @@ class TestExperimentLogging(unittest.IsolatedAsyncioTestCase):
         mock_device = self._walker.device.mock_device
 
         mock_device.reset_mock()
-        self._experiment.set_log_devices_at_start(True)
-        self._experiment.set_log_devices_at_finish(True)
+        await self._experiment.set_log_devices_at_start(True)
+        await self._experiment.set_log_devices_at_finish(True)
         _ = await self._experiment.run()
         self.assertEqual(mock_device.log_to_json.call_count, 2)
 
         mock_device.reset_mock()
-        self._experiment.set_log_devices_at_start(False)
-        self._experiment.set_log_devices_at_finish(True)
+        await self._experiment.set_log_devices_at_start(False)
+        await self._experiment.set_log_devices_at_finish(True)
         _ = await self._experiment.run()
         self.assertEqual(mock_device.log_to_json.call_count, 1)
 
         mock_device.reset_mock()
-        self._experiment.set_log_devices_at_start(True)
-        self._experiment.set_log_devices_at_finish(False)
+        await self._experiment.set_log_devices_at_start(True)
+        await self._experiment.set_log_devices_at_finish(False)
         _ = await self._experiment.run()
         self.assertEqual(mock_device.log_to_json.call_count, 1)
 
         mock_device.reset_mock()
-        self._experiment.set_log_devices_at_start(False)
-        self._experiment.set_log_devices_at_finish(False)
+        await self._experiment.set_log_devices_at_start(False)
+        await self._experiment.set_log_devices_at_finish(False)
         _ = await self._experiment.run()
         self.assertEqual(mock_device.log_to_json.call_count, 0)
 
@@ -504,6 +512,8 @@ class TestExperimentLogging(unittest.IsolatedAsyncioTestCase):
         # Test that the experiment fails when a non-optional device is broken
         with self.assertRaises(BrokenDeviceException):
             await self._experiment.run()
+        self.assertFalse(any(isinstance(handler, RemoteLoggingHandler)
+                             for handler in self._experiment.log.handlers))
 
         self._experiment._devices_to_log = {}
         self._experiment._devices_to_log_optional = {}

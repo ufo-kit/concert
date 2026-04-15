@@ -112,6 +112,11 @@ class DirectorTest(TestCase):
         self.assertEqual(await self.director.get_state(), "standby")
         self.assertEqual(await self.experiment.get_iteration(), 5)
 
+    async def test_constructor_arguments_are_forwarded(self):
+        director = await Director(experiment=self.experiment, num_iterations=0,
+                                  name_fmt="director_{:03d}")
+        self.assertEqual("director_{:03d}", await director.get_name_fmt())
+
 
 @slow
 class DirectorTestBrokenExperiment(TestCase):
@@ -216,7 +221,7 @@ class TestableLoggingDirector(BaseDirector):
         return await self._get_iteration_name(iteration)
 
     async def get_iteration(self) -> int:
-        return self._get_current_iteration()
+        return await self._get_current_iteration()
 
 
 class TestDirectorLogging(unittest.IsolatedAsyncioTestCase):
