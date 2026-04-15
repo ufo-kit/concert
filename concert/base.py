@@ -2,14 +2,21 @@
 """Core module Parameters"""
 import abc
 import asyncio
+import json
+import os
+import time
+
 import numpy as np
 import logging
 import functools
 import inspect
 import types
 from typing import List, Union
-from concert.helpers import memoize, get_state_from_awaitable
+
+import concert
+from concert.helpers import memoize, get_state_from_awaitable, get_basename
 from concert.coroutines.base import background, get_event_loop, run_in_loop, wait_until
+from concert.loghandler import AsyncLoggingHandlerCloser
 from concert.quantities import q
 
 
@@ -1354,19 +1361,216 @@ class Parameterizable(AsyncObject, abc.ABC):
 
 class RunnableParameterizable(Parameterizable):
     state = State()
+    separate_scans = Parameter()
+    name_fmt = Parameter()
+    iteration = Parameter()
+    current_name = Parameter(help="Name of the current iteration")
+    log_file_prefix = Parameter()
+    log_level = Selection(['critical', 'error', 'warning', 'info', 'debug'])
+    log_devices_at_start = Parameter()
+    log_devices_at_finish = Parameter()
 
-    async def __ainit__(self):
+
+    async def __ainit__(self, walker=None, separate_scans=True,
+                        name_fmt='scan_{:>04}'):
+        self._log_file_prefix = None
+        self.log = LOG
+        self._devices_to_log = {}
+        self._devices_to_log_optional = {}
+        self._log_devices_at_start = None
+        self._log_devices_at_finish = None
+        self.ready_to_prepare_next_outer_loop = asyncio.Event()
+
+        # 'ready_to_prepare_next_sample' was not the ideal name. We leave this for backward compatibility
+        self.ready_to_prepare_next_sample = self.ready_to_prepare_next_outer_loop
         await super().__ainit__()
         self._run_awaitable = None
+        self.walker = walker
+        await self.set_log_file_prefix("runnable")
+        await self.set_log_devices_at_start(True)
+        await self.set_log_devices_at_finish(True)
+        self._separate_scans = separate_scans
+        self._name_fmt = name_fmt
+        self._current_name = ""
+        self._iteration = 0
+
+        if separate_scans and walker:
+            # The data is not supposed to be overwritten, so find an iteration which
+            # hasn't been used yet
+            while await self.walker.exists(self._name_fmt.format(self._iteration)):
+                self._iteration += 1
+
 
     async def _get_state(self):
         return await get_state_from_awaitable(self._run_awaitable)
 
+    async def _get_iteration(self):
+        return self._iteration
+
+    async def _set_iteration(self, iteration):
+        self._iteration = iteration
+
+    async def _get_current_name(self):
+        return self._current_name
+
+    async def _get_separate_scans(self):
+        return self._separate_scans
+
+    async def _set_separate_scans(self, separate_scans):
+        self._separate_scans = separate_scans
+
+    async def _get_name_fmt(self):
+        return self._name_fmt
+
+    async def _set_name_fmt(self, fmt):
+        self._name_fmt = fmt
+
+
+    async def _set_log_devices_at_start(self, log):
+        self._log_devices_at_start = bool(log)
+
+    async def _get_log_devices_at_start(self):
+        return self._log_devices_at_start
+
+    async def _set_log_devices_at_finish(self, log):
+        self._log_devices_at_finish = bool(log)
+
+    async def _get_log_devices_at_finish(self):
+        return self._log_devices_at_finish
+
+    async def _get_log_level(self):
+        return logging.getLevelName(self.log.getEffectiveLevel()).lower()
+
+    async def _set_log_level(self, level):
+        self.log.setLevel(level.upper())
+
+    async def prepare(self):
+        """Gets executed before every experiment run."""
+        pass
+
+    async def finish(self):
+        """Gets executed after every experiment run."""
+        pass
+
+
+    def add_device_to_log(self, name: str, device: concert.devices.base.Device, optional=False):
+        """
+        Add a device to log.
+
+        :param name: Name of the device
+        :param device: Device to log
+        :param optional: If True, an exception when trying to log the device will not cause an
+            error.
+        """
+        if optional:
+            self._devices_to_log_optional[name] = device
+        else:
+            self._devices_to_log[name] = device
+
+    async def _prepare_metadata_str(self) -> str:
+        """Prepares the experiment metadata to be written to file. It is
+        a dictionary which potentially encapsulates one or more dictionary
+        objects.
+        """
+        metadata = {}
+        exp_params = {}
+        for param in self:
+            exp_params[param.name] = str(await param.get())
+        metadata["experiment"] = exp_params
+        for name, device in self._devices_to_log.items():
+            device_data = {}
+            for param in device:
+                device_data[param.name] = str(await param.get())
+            metadata[name] = device_data
+
+        for name, device in self._devices_to_log_optional.items():
+            device_data = {}
+            for param in device:
+                try:
+                    device_data[param.name] = str(await param.get())
+                except Exception as e:
+                    self.log.info(f"Error while logging optional device {name}")
+                    self.log.info(e)
+            metadata[name] = device_data
+        return json.dumps(metadata, indent=4)
+
+
+    async def _get_log_file_prefix(self):
+        return self._log_file_prefix
+
+    async def _set_log_file_prefix(self, prefix: str):
+        self._log_file_prefix = str(prefix)
+
+
+    async def early_prepare(self):
+        """
+        Function that is called at first in the run() BEFORE the first logging starts.
+
+        This can be used if devices need to be configured in a way that they produce proper logging results.
+        """
+        pass
+
+    async def late_finish(self):
+        pass
+
     @background
     @check(source=['standby', 'error', 'cancelled'], target=['standby', 'cancelled'])
     async def run(self):
-        self._run_awaitable = self._run()
-        await self._run_awaitable
+        self.ready_to_prepare_next_outer_loop.clear()
+        await self.early_prepare()
+        start_time = time.time()
+        handler = None
+        iteration = await self.get_iteration()
+        separate_scans = await self.get_separate_scans()
+
+        if self.walker:
+            if separate_scans:
+                await self.walker.descend((await self.get_name_fmt()).format(iteration))
+            if os.path.exists(await self.walker.get_current()):
+                handler: AsyncLoggingHandlerCloser = await self.walker.register_logger(
+                    logger_name=self.__class__.__name__,
+                    log_level=logging.NOTSET,
+                    file_name=f"{await self.get_log_file_prefix()}.log"
+                )
+                self.log.addHandler(handler)
+                if await self.get_log_devices_at_start():
+                    log_metadata: str = await self._prepare_metadata_str()
+                    await self.walker.log_to_json(payload=log_metadata,
+                                                  filename=f"{await self.get_log_file_prefix()}_start.json")
+            self._current_name = get_basename(await self.walker.get_current())
+        self.log.info(await self.info_table)
+        for name, device in self._devices_to_log.items():
+            self.log.info(f"Device {name}:")
+            self.log.info(await device.info_table)
+        LOG.debug('Run with iteration %d start', iteration)
+
+        try:
+            await self.prepare()
+            self._run_awaitable = self._run()
+            await self._run_awaitable
+        finally:
+            try:
+                await self.finish()
+                if self.walker:
+                    if await self.get_log_devices_at_finish():
+                        log_metadata: str = await self._prepare_metadata_str()
+                        await self.walker.log_to_json(payload=log_metadata,
+                                                      filename=f"{await self.get_log_file_prefix()}_finish.json")
+                await self.late_finish()
+            except Exception as e:
+                LOG.warning(f"Error `{e}' while finalizing run().")
+                raise StateError('error', msg=str(e))
+            finally:
+                self.ready_to_prepare_next_sample.set()
+                if separate_scans and self.walker:
+                    await self.walker.ascend()
+                LOG.debug('Experiment iteration %d duration: %.2f s',
+                          iteration, time.time() - start_time)
+                if handler:
+                    await handler.aclose()
+                    self.log.removeHandler(handler)
+                await self.set_iteration(iteration + 1)
+
 
     @abc.abstractmethod
     @background
