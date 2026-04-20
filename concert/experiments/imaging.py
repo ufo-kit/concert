@@ -147,18 +147,28 @@ class RemoteAutoDAQMixin:
     """
     Remote radiography DAQ mixin.
     """
-    async def _produce_frames(self, number, **kwargs):
-        """
-        Remote generator of frames.
-        Sets the camera to auto-trigger and then grabs and sends *number* of frames.
+    # async def _produce_frames(self, number, **kwargs):
+    #     """
+    #     Remote generator of frames.
+    #     Sets the camera to auto-trigger and then grabs and sends *number* of frames.
 
-        :param number: Number of frames that are generated
-        :type number: int
-        """
+    #     :param number: Number of frames that are generated
+    #     :type number: int
+    #     """
+    #     await self._camera.set_trigger_source("AUTO")
+    #     async with self._camera.recording():
+    #         await self._camera.grab_send(number)
+
+    #     return number
+    
+    async def _produce_frames(self, number, **kwargs):
+        producer = getattr(self, "_producer", None)
+        if producer is not None and hasattr(producer, "grab_send"):
+            return await producer.grab_send(number, stream="frames", end=True)
+        # fallback to legacy camera behavior
         await self._camera.set_trigger_source("AUTO")
         async with self._camera.recording():
             await self._camera.grab_send(number)
-
         return number
 
     @remote
