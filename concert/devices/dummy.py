@@ -7,7 +7,6 @@ from concert.config import AIODEBUG
 from concert.devices.base import Device
 from concert.quantities import q
 
-
 LOG = logging.getLogger(__name__)
 
 
@@ -20,7 +19,6 @@ async def get_evalue(instance):
 
 
 class DummyDevice(Device):
-
     """A dummy device."""
 
     position = Quantity(unit=q.mm)
@@ -120,7 +118,6 @@ class DummyDevice(Device):
 
 
 class SelectionDevice(Device):
-
     """A dummy device with a selection."""
 
     selection = Selection(list(range(3)))
@@ -134,3 +131,131 @@ class SelectionDevice(Device):
 
     async def _set_selection(self, selection):
         self._selection = selection
+
+
+lower_foo = None
+upper_foo = None
+position_foo = 0 * q.mm
+
+
+def get_lower_foo_softlimit():
+    global lower_foo
+    return lower_foo
+
+
+def get_upper_foo_softlimit():
+    global upper_foo
+    return upper_foo
+
+
+def set_lower_foo_softlimit(value):
+    global lower_foo
+    lower_foo = value
+
+
+def set_upper_foo_softlimit(value):
+    global upper_foo
+    upper_foo = value
+
+
+def get_foo_from_hardware():
+    global position_foo
+    return position_foo
+
+
+def send_foo_to_hardware(value):
+    global position_foo
+    position_foo = value
+
+
+from concert.base import Quantity
+
+
+class DeviceWithClassGetter(Device):
+    """
+    Example of a device that uses setters/getters for limits in the device class.
+
+    A real device would talk to the hardware or a database for storing/receiving the values.
+    """
+    foo = Quantity(q.mm)
+
+    async def __ainit__(self):
+        await super().__ainit__()
+
+    async def _get_foo(self):
+        return get_foo_from_hardware()
+
+    async def _set_foo(self, value):
+        send_foo_to_hardware(value)
+
+    async def _get_foo_lower_external_limit(self):
+        return -4 * q.mm
+
+    async def _get_foo_upper_external_limit(self):
+        return 4 * q.mm
+
+    async def _get_foo_lower_user_limit(self):
+        return get_lower_foo_softlimit()
+
+    async def _get_foo_upper_user_limit(self):
+        return get_upper_foo_softlimit()
+
+    async def _set_foo_lower_user_limit(self, val):
+        return set_lower_foo_softlimit(val)
+
+    async def _set_foo_upper_user_limit(self, val):
+        return set_upper_foo_softlimit(val)
+
+
+lower_bar = None
+upper_bar = None
+position_bar = 0 * q.mm
+
+
+async def get_lower_bar_softlimit():
+    global lower_bar
+    return lower_bar
+
+
+async def get_upper_bar_softlimit():
+    global upper_bar
+    return upper_bar
+
+
+async def set_lower_bar_softlimit(value):
+    global lower_bar
+    lower_bar = value
+
+
+async def set_upper_bar_softlimit(value):
+    global upper_bar
+    upper_bar = value
+
+
+async def get_bar_from_hardware(cls):
+    global position_bar
+    return position_bar
+
+
+async def send_bar_to_hardware(cls, value):
+    global position_bar
+    position_bar = value
+
+
+class DeviceWithSetterInConstructor(Device):
+    """
+    Example of a device that uses setters/getters for limits passed to the Quantity constructor.
+
+    A real device would talk to the hardware or a database for storing/receiving the values.
+    """
+
+    bar = Quantity(q.mm,
+                   fget=get_bar_from_hardware,
+                   fset=send_bar_to_hardware,
+                   user_lower_getter=get_lower_bar_softlimit,
+                   user_upper_getter=get_upper_bar_softlimit,
+                   user_lower_setter=set_lower_bar_softlimit,
+                   user_upper_setter=set_upper_bar_softlimit)
+
+    async def __ainit__(self):
+        await super().__ainit__()
