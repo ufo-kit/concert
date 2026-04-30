@@ -47,7 +47,9 @@ Devices
     :show-inheritance:
     :members:
 
+.. autoclass:: concert.devices.dummy.DeviceWithClassGetter
 
+.. autoclass:: concert.devices.dummy.DeviceWithSetterInConstructor
 Asynchronous execution
 ----------------------
 
