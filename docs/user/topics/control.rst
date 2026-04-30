@@ -111,9 +111,12 @@ one can do::
 Limits
 ------
 
-Limits allow you to restrict setting :class:`.Quantity` to a certain range. You
-can specify the :attr:`.Quantity.lower` and :attr:`.Quantity.upper` limits. Usage::
-
+Limits allow you to restrict setting :class:`.Quantity` to a certain range.
+Concert features two types of limits: *user_limits* and *external_limits*. User limits are set by the user and can be
+changed at any time.
+External limits are set by the device and cannot be changed by the user. Both types of limits are checked when setting
+a parameter value, and if the value is outside the limits, an error is raised.
+You can specify the :attr:`.Quantity.lower` and :attr:`.Quantity.upper` limits. Usage::
     # Blocking version
     motor['position'].lower = -10 * q.mm
     print(motor['position'].lower)
@@ -140,6 +143,15 @@ can specify the :attr:`.Quantity.lower` and :attr:`.Quantity.upper` limits. Usag
     motor['position'].lock_limits(permanent=True)
     # This will not work anymore until you restart the session
     motor['position'].unlock_limits()
+
+Reading :attr:`.Quantity.lower` and :attr:`.Quantity.upper` will give you the current limits that is the most narrow
+range between user and external limits. If you want to know the user and external limits separately, you can use
+:attr:`.Quantity.lower_external` and :attr:`.Quantity.upper_external`.
+Writing to :attr:`.Quantity.lower` and :attr:`.Quantity.upper` will set the user limits (:attr:`.Quantity.lower_user`
+and :attr:`.Quantity.upper_user`).
+An example how to implement the limits can be found in :class:`.DeviceWithClassGetter` and
+:class:`.DeviceWithSetterInConstructor` and in the documentation of
+:class:`.Parameterizable`.
 
 
 Emergency stop
