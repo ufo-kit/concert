@@ -22,6 +22,12 @@ User documentation
     user/getstarted
     user/topics
 
+Scientist documentation
+
+.. toctree::
+    :maxdepth: 2
+
+    scientist/setup
 
 Developer documentation
 =======================
