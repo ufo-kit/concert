@@ -167,6 +167,41 @@ class UserLimitDevice(BaseDevice):
         self.upper_via_func = value
 
 
+class ParameterizableWithClassLimit(Parameterizable):
+    foo = Quantity(q.mm)
+
+    async def __ainit__(self):
+        self._foo = None
+        self._foo_lower_user = None
+        self._foo_upper_user = None
+        self._foo_upper_external = None
+        self._foo_lower_external = None
+        await super().__ainit__()
+
+    async def _get_foo(self):
+        return self._foo
+
+    async def _set_foo(self, value):
+        self._foo = value
+
+    async def _get_foo_lower_user_limit(self):
+        return self._foo_lower_user
+
+    async def _get_foo_upper_user_limit(self):
+        return self._foo_upper_user
+
+    async def _set_foo_lower_user_limit(self, value):
+        self._foo_lower_user = value
+
+    async def _set_foo_upper_user_limit(self, value):
+        self._foo_upper_user = value
+
+    async def _get_foo_upper_external_limit(self):
+        return self._foo_upper_external
+
+    async def _get_foo_lower_external_limit(self):
+        return self._foo_lower_external
+
 class AccessorCheckDevice(Parameterizable):
 
     foo = Quantity(q.m)
@@ -453,10 +488,55 @@ class TestQuantity(TestCase):
         self.assertEqual(await dev['foo'].get_upper(), 1 * q.mm)
         self.assertEqual(dev.upper_via_func, 1 * q.mm)
 
+    async def test_user_limits_fallback_to_internal_storage(self):
+        dev = await FooDevice(0 * q.mm)
+
+        self.assertIsNone(await dev['foo'].get_lower_user())
+        self.assertIsNone(await dev['foo'].get_upper_user())
+
+        await dev['foo'].set_lower(-2 * q.mm)
+        await dev['foo'].set_upper(2 * q.mm)
+        self.assertEqual(await dev['foo'].get_lower_user(), -2 * q.mm)
+        self.assertEqual(await dev['foo'].get_upper_user(), 2 * q.mm)
+
+    async def test_external_limits_default_to_none_when_not_implemented(self):
+        dev = await FooDevice(0 * q.mm)
+
+        self.assertIsNone(await dev['foo'].get_lower_external())
+        self.assertIsNone(await dev['foo'].get_upper_external())
+
     async def test_external_limits_info_table(self):
         dev = await ExternalLimitDevice(0 * q.mm)
         await dev['foo'].info_table
 
+
+class TestLimitsInClass(TestCase):
+    async def asyncSetUp(self):
+        self._device = await ParameterizableWithClassLimit()
+
+    async def test_user_limits(self):
+        await self._device['foo'].set_lower(-1 * q.mm)
+        await self._device['foo'].set_upper(1 * q.mm)
+        self.assertEqual(await self._device['foo'].get_lower_user(), -1 * q.mm)
+        self.assertEqual(await self._device['foo'].get_upper_user(), 1 * q.mm)
+
+        with self.assertRaises(SoftLimitError):
+            await self._device.set_foo(2*q.mm)
+
+        await self._device['foo'].set_lower(None)
+        await self._device['foo'].set_upper(None)
+        await self._device.set_foo(2*q.mm)
+
+    async def test_external_limits(self):
+        await self._device['foo'].set_lower(None)
+        await self._device['foo'].set_upper(None)
+        self.assertEqual(await self._device['foo'].get_lower(), None)
+        self.assertEqual(await self._device['foo'].get_upper(), None)
+
+        self._device._foo_upper_external = 5 * q.mm
+        self._device._foo_lower_external = -5 * q.mm
+        self.assertEqual(await self._device['foo'].get_lower(), -5 * q.mm)
+        self.assertEqual(await self._device['foo'].get_upper(), 5 * q.mm)
 
 class TestSelection(TestCase):
 
