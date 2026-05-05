@@ -591,19 +591,6 @@ class StartCommand(SubCommand):
         sys.path.append(cs.path())
         path = filename or cs.path(session)
 
-        if non_interactive:
-            with open(path, "rb") as f:
-                eval_source(f.read(), {}, filename=path)
-        else:
-            self.run_shell(path=path, session=session)
-
-    def run_shell(self, path=None, session=None):
-        import IPython
-        import traitlets.config
-
-        print("Welcome to Concert {0}".format(concert.__version__))
-
-        ip_config = traitlets.config.Config()
         if path and path.endswith('.py'):
             lockdir = os.path.join(os.path.expanduser("~"), ".concert")
             os.makedirs(lockdir, mode=0o755, exist_ok=True)
@@ -636,6 +623,22 @@ class StartCommand(SubCommand):
                 with open(lockfile, 'w'):
                     pass
                 atexit.register(delete_lock_file, lockfile)
+
+
+        if non_interactive:
+            with open(path, "rb") as f:
+                eval_source(f.read(), {}, filename=path)
+        else:
+            self.run_shell(path=path, session=session, lockfile=lockfile)
+
+    def run_shell(self, path=None, session=None, lockfile=None):
+        import IPython
+        import traitlets.config
+
+        print("Welcome to Concert {0}".format(concert.__version__))
+
+        ip_config = traitlets.config.Config()
+        if path and path.endswith('.py'):
 
             docstring = cs.get_docstring(path)
             if docstring:
