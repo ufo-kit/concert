@@ -588,8 +588,10 @@ class _PyQtGraphUpdater(_ImageUpdaterBase):
         timer.timeout.connect(self.process)
         # 0 ms delay -> be as fast as possible
         timer.start(0)
-
-        app.exec_()
+        try:
+            app.exec()
+        except AttributeError:
+            app.exec_()
 
 
 class _PyplotUpdaterBase(abc.ABC):
