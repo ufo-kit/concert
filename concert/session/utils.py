@@ -255,7 +255,7 @@ except Exception as e:
     import signal
     import sys
     import traceback
-    print("\\nAn error occured while starting session `{0}':")
+    print("\\nAn error occurred while starting session `{0}':")
     print("-------------------------------------------" + "-" * len('{0}'))
     print(traceback.format_exc(), file=sys.stderr)
     if os.path.exists(r"{1}"):
