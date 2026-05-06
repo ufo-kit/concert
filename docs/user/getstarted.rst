@@ -144,6 +144,16 @@ several times, use ``MULTIINSTANCE = True | False`` for specifying this. If the
 means the session can run only once (have one instance). This is useful for
 experiment sessions which use various resources and set up remote connections.
 
+If you have singe devices that allow only single access, you can add them in the session variable ``DEVICE_LOCKS``.
+A running session creates a lock-file for this device and prevents other session from staring if they also want to use
+the same device.
+This is useful for example for a camera which can be used by only one session at a time.::
+
+    # Session 1
+    DEVICE_LOCKS = ['camera_a', 'device_b]
+
+    # Session 2
+    DEVICE_LOCKS = ['camera_a', 'device_c]
 
 Adding devices
 --------------
