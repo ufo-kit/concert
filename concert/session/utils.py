@@ -602,7 +602,7 @@ class StartCommand(SubCommand):
                         f"If you are sure there are no running instances, delete `{lockfile}' "
                         "and start again."
                     )
-                    raise SessionLockException(session)
+                    raise SessionLockException(session, lockfile)
                 with open(lockfile, 'w'):
                     pass
                 atexit.register(delete_lock_file, lockfile)
@@ -618,7 +618,7 @@ class StartCommand(SubCommand):
                     )
                     locked_devices.append(device_lock)
                 if locked_devices:
-                    raise DeviceLockException(locked_devices)
+                    raise DeviceLockException(locked_devices, lockfile)
 
                 with open(lockfile, 'w'):
                     pass
@@ -826,8 +826,9 @@ class BroadcastCommand(SubCommand):
 class SessionLockException(Exception):
     """Raised if a locked session is tried to be started."""
 
-    def __init__(self, session):
-        self.msg = f"Tried to start session {session} with present lockfile."
+    def __init__(self, session, lockfile):
+        self.msg = (f"Tried to start session {session} with present lockfile. "
+                    f"If you are sure there are no running instances, delete `{lockfile}'and start again.")
 
     def __str__(self):
         return self.msg
@@ -836,8 +837,9 @@ class SessionLockException(Exception):
 class DeviceLockException(Exception):
     """Raised if a session with present device locks is tried to be started"""
 
-    def __init__(self, devices):
-        self.msg = f"Tried to start session with present device locks {devices}."
+    def __init__(self, devices, lockfiles):
+        self.msg = (f"Tried to start session with present device locks {devices}. "
+                    f"If you are sure there are no using these devices, delete `{lockfiles}'and start again.")
 
     def __str__(self):
         return self.msg
