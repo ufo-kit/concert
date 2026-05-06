@@ -590,7 +590,8 @@ class StartCommand(SubCommand):
         # Add session path, so that sessions can import other sessions
         sys.path.append(cs.path())
         path = filename or cs.path(session)
-
+        if session is None and path and path.endswith('.py'):
+            session = path[:-3]
         if path and path.endswith('.py'):
             lockdir = os.path.join(os.path.expanduser("~"), ".concert")
             os.makedirs(lockdir, mode=0o755, exist_ok=True)
