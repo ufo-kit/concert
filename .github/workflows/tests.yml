@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
       fail-fast: false
 
     steps:
@@ -43,11 +43,11 @@ jobs:
       run: |
         coverage run --source=concert -m pytest --ignore=concert/tests/integration/scenarios -m "not skip_ci" 
     - name: Convert coverage to xml
-      if: matrix.python-version == '3.12'
+      if: matrix.python-version == '3.14'
       run: |
         coverage xml --omit="concert/tests/util/_package/_module.py"
     - name: Upload coverage to Codecov
-      if: matrix.python-version == '3.12'
+      if: matrix.python-version == '3.14'
       uses: codecov/codecov-action@v2
       with:
         fail_ci_if_error: true
