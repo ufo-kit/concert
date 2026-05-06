@@ -1,7 +1,7 @@
 Concert
 =======
 
-.. image:: https://img.shields.io/badge/Python-3.8+-blue
+.. image:: https://img.shields.io/badge/Python-3.10+-blue
     :target: https://www.python.org/downloads
 
 .. image:: https://badge.fury.io/py/concert.svg
@@ -19,7 +19,7 @@ Concert
 
 
 *Concert* is a light-weight control system interface to control Tango and native
-devices. It requires Python >= 3.8. It can be used as a library::
+devices. It requires Python >= 3.10. It can be used as a library::
 
     from concert.quantities import q
     from concert.devices.motors.dummy import LinearMotor
