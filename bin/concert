@@ -144,12 +144,12 @@ class LogCommand(SubCommand):
             cs.exit_if_not_exists(session)
 
             if follow:
-                cmd = 'tail -f {} | grep --line-buffered "{}:"'.format(logfile, session)
+                cmd = 'tail -F {} | grep --line-buffered "{}:"'.format(logfile, session)
             else:
                 cmd = 'grep "{0}:" {1} | less'.format(session, logfile)
         else:
             if follow:
-                cmd = 'tail -f {}'.format(logfile)
+                cmd = 'tail -F {}'.format(logfile)
             else:
                 cmd = 'less {}'.format(logfile)
 
