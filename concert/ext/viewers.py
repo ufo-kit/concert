@@ -8,7 +8,10 @@ import time
 import logging
 from abc import abstractmethod
 from queue import Empty
-from typing import Callable
+from typing import Callable, Optional, Tuple
+
+from concert.experiments.addons.base import OnlineReconstruction
+
 from concert.base import Parameterizable, Parameter
 from concert.coroutines.base import background, run_in_executor
 from concert.quantities import q
@@ -276,6 +279,8 @@ class ImageViewerBase(ViewerBase):
     show_refresh_rate = Parameter(help='Display current refresh rate')
     limits = Parameter(help='Black and white point')
     downsampling = Parameter(help='Display only every n-th pixel')
+    colormap = Parameter(help='Colormap')
+
 
     async def __ainit__(self, limits: str = 'stream', downsampling: int = 1, title: str = "",
                         show_refresh_rate: bool = False, force: bool = False):
@@ -283,6 +288,7 @@ class ImageViewerBase(ViewerBase):
         self._show_refresh_rate = show_refresh_rate
         self._downsampling = downsampling
         self._limits = limits
+        self._colormap = "gray"
 
     @background
     async def __call__(self, producer: Callable, size: int = None, force: bool = None):
@@ -315,6 +321,14 @@ class ImageViewerBase(ViewerBase):
         self._queue.put(('clim', limits))
         self._limits = limits
 
+    async def _get_colormap(self):
+        return self._colormap
+
+    async def _set_colormap(self, colormap):
+        """Set colormp of the shown image to *colormap*."""
+        self._colormap = colormap
+        self._queue.put(('colormap', colormap))
+
     async def _get_show_refresh_rate(self):
         return self._show_refresh_rate
 
@@ -333,6 +347,41 @@ class PyQtGraphViewer(ImageViewerBase):
         return _PyQtGraphUpdater(self._queue, limits=self._limits, title=self._title,
                                  show_refresh_rate=self._show_refresh_rate)
 
+    @background
+    async def show_reco_scan(self, reco: OnlineReconstruction):
+        volume = await reco.get_volume()
+        region = await reco.get_region()
+        await self.set_title(await reco.get_z_parameter())
+        await self.show(volume)
+        self.set_z_region(region)
+
+    @background
+    async def play(self, fps=20):
+        await self.set_z_index(0)
+        self._queue.put(('play', fps))
+
+    @background
+    async def set_z_index(self, index):
+        """Set the z index for the displayed image."""
+        self._queue.put(('z-index', index))
+
+    def set_z_region(self, region):
+        """Set the z region for the displayed image."""
+        self._queue.put(('z-region', region))
+
+    async def _set_colormap(self, colormap):
+        import pyqtgraph as pg
+
+        colormaps = pg.colormap.listMaps()
+        for source in ["matplotlib", "colorcet"]:
+            try:
+                colormaps += pg.colormap.listMaps(source)
+            except:
+                pass
+
+        if colormap not in colormaps:
+            raise ViewerError("colormap must be one of {}".format(", ".join(colormaps)))
+        await super()._set_colormap(colormap)
 
 class PyplotImageViewer(ImageViewerBase):
 
@@ -347,8 +396,6 @@ class PyplotImageViewer(ImageViewerBase):
         Whether to use the fast version without colorbar
 
     """
-
-    colormap = Parameter(help='Colormap')
 
     async def __ainit__(self, imshow_kwargs: dict = None, fast: bool = True, limits: str = 'stream',
                         downsampling: int = 1, title: str = "", show_refresh_rate: bool = False,
@@ -381,13 +428,6 @@ class PyplotImageViewer(ImageViewerBase):
         self._colormap = self._imshow_kwargs["cmap"]
         if "interpolation" not in self._imshow_kwargs:
             self._imshow_kwargs["interpolation"] = "nearest"
-
-    async def _get_colormap(self):
-        return self._colormap
-
-    async def _set_colormap(self, colormap):
-        """Set colormp of the shown image to *colormap*."""
-        self._queue.put(('colormap', colormap))
 
 
 class _ImageUpdaterBase(abc.ABC):
@@ -447,13 +487,19 @@ class _PyQtGraphUpdater(_ImageUpdaterBase):
         self.view = None
         self.last_text_time = time.perf_counter()
         self.last_time = time.perf_counter()
+        self.z_region = None
         self.commands.update(
             {
                 'image': self.proces_image,
                 'clim': self.update_limits,
                 'show-fps': self.toggle_show_refresh_rate,
+                'z-region': self.set_z_region,
+                'colormap': self.set_colormap,
+                'play': self.play,
+                'z-index': self.set_z_index,
             }
         )
+        self._last_mouse_position = None
 
     def process(self):
         """Process commands from queue."""
@@ -469,7 +515,8 @@ class _PyQtGraphUpdater(_ImageUpdaterBase):
     def update_all(self, image):
         """Display *image*."""
         now = time.perf_counter()
-        self.view.imageItem.setImage(image, autoLevels=self.clim == 'auto')
+        self.view.setImage(image, autoLevels=self.clim == 'auto', autoHistogramRange=self.clim == 'auto',
+                           autoRange=False)
         if self.clim == 'stream':
             self.clim = (float(image.min()), float(image.max()))
             self.sync_image_and_clim()
@@ -486,19 +533,37 @@ class _PyQtGraphUpdater(_ImageUpdaterBase):
 
         self.last_time = now
 
+    def play(self, fps):
+        self.view.play(fps)
+
     def _pg_mouse_moved(self, ev):
         if self.view.imageItem.sceneBoundingRect().contains(ev):
-            image = self.view.imageItem.image
             pos = self.view.imageItem.mapFromScene(ev)
             x = int(pos.x() + 0.5)
             y = int(pos.y() + 0.5)
-            if y < image.shape[0] and x < image.shape[1]:
-                self.view.view.setTitle(
-                    f'{self.title} x={x} y={y} [{self.view.imageItem.image[y, x]:g}]',
-                    bold=True
-                )
+            self._last_mouse_position = (x, y)
+            self._update_title()
+
+    def _update_title(self):
+        if self.view is None:
+            return
+        z_pos = None
+        if self.z_region is not None:
+            z_pos = self.z_region[0] + self.view.currentIndex * self.z_region[2]
+
+        if self._last_mouse_position:
+            x, y = self._last_mouse_position
+            position_info = f'x={x} y={y} [{self.view.imageItem.image[y-1, x-1]:g}]'
         else:
-            self.view.view.setTitle(f'{self.title}')
+            position_info = ""
+
+        if len(self.view.image.shape) == 2:
+            self.view.view.setTitle(f'{self.title} {position_info}', bold=True)
+        else:
+            z_info = f'z={self.view.currentIndex}'
+            if z_pos is not None:
+                z_info += f' [{z_pos}]'
+            self.view.view.setTitle(f'{self.title} {position_info} {z_info}', bold=True)
 
     def proces_image(self, image):
         """Process current *image* including window setup if it is a first image."""
@@ -510,6 +575,7 @@ class _PyQtGraphUpdater(_ImageUpdaterBase):
             self.plot = pg.PlotItem(title=self.title)
             self.view = pg.ImageView(view=self.plot)
             self.view.imageItem.scene().sigMouseMoved.connect(self._pg_mouse_moved)
+            self.view.timeLine.sigPositionChanged.connect(self._update_title)
             self.make_refresh_rate_text()
 
         self.update_all(image)
@@ -534,6 +600,37 @@ class _PyQtGraphUpdater(_ImageUpdaterBase):
             return
 
         self.sync_image_and_clim()
+
+    def set_z_index(self, index):
+        """Set the z index for the displayed image."""
+        if index is not None and not isinstance(index, int):
+            raise ValueError('Index must be an integer or None')
+        self.view.setCurrentIndex(index)
+
+    def set_z_region(self, region: Optional[Tuple[float, float, float]]):
+        """Set the z region for the displayed image."""
+        if region is not None and len(region) != 3:
+            raise ValueError('Region must be a tuple of 3 values or None')
+        self.z_region = region
+        self._update_title()
+
+    def set_colormap(self, colormap_name):
+        import pyqtgraph as pg
+        """Set the colormap of the shown image to *colormap*."""
+
+        colormaps = pg.colormap.listMaps()
+        colormap = None
+        for source in [None, "matplotlib", "colorcet"]:
+            colormaps = pg.colormap.listMaps(source)
+            if colormap_name in colormaps:
+                colormap = pg.colormap.get(colormap_name, source=source)
+                break
+
+        self.view.setColorMap(colormap)
+        self.view.updateImage()
+        # Synchronize histogram range and current image range drawn as lines
+        #self.view.ui.histogram.setLevels(self.clim)
+        #self.view.ui.histogram.setLookupTable(colormap)
 
     def sync_image_and_clim(self):
         self.view.imageItem.setLevels(self.clim)
