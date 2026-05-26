@@ -114,6 +114,33 @@ class Benchmarker(Addon):
         raise NotImplementedError
 
 
+class SampleDetector(Addon):
+
+    """Sample detection addon."""
+
+    async def __ainit__(self, experiment, acquisitions=None):
+        await super().__ainit__(experiment, acquisitions=acquisitions)
+
+    def _make_consumers(self, acquisitions):
+        consumers = {}
+
+        for acq in acquisitions:
+            consumers[acq] = AcquisitionConsumer(
+                self.stream_detect,
+                addon=self if self.stream_detect.remote else None,
+                reliable=False if self.stream_detect.remote else True
+            )
+
+        return consumers
+
+    async def detect(self, image):
+        """Detect sample in *image*."""
+        raise NotImplementedError
+
+    async def stream_detect(self):
+        raise NotImplementedError
+
+
 class ImageWriter(Addon):
 
     """An addon which writes images to disk.
@@ -316,6 +343,7 @@ class OnlineReconstruction(Addon):
         self.walker = experiment.walker
         self._slice_directory = None
         self.viewer = viewer
+        self._best_slice = None
         await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
         await self.set_slice_directory(slice_directory)
         await self.register_args()
@@ -433,7 +461,25 @@ class OnlineReconstruction(Addon):
     async def get_volume_shape(self):
         ...
 
+    @abstractmethod
+    async def _get_best_slice_index(self):
+        ...
+
+    async def get_best_slice_index(self):
+        if await self.get_z_parameter() == "center-position-x":
+            if self._best_slice is None:
+                self._best_slice = await self._get_best_slice_index()
+            return self._best_slice
+        else:
+            # Nothing to be computed, but let us return a reasonable default
+            return 0
+
+    @abstractmethod
+    async def reset_manager(self):
+        ...
+
     async def reconstruct(self, *args, **kwargs):
+        self._best_slice = None
         await self._reconstruct(*args, **kwargs)
         await self._show_slice()
 
@@ -442,12 +488,16 @@ class OnlineReconstruction(Addon):
         """Rereconstruct cached projections and saved them to *slice_directory*, which is a full
         path.
         """
+        self._best_slice = None
         await self._rereconstruct(slice_directory=slice_directory)
         await self._show_slice()
 
     async def _show_slice(self):
         if self.viewer and len(await self.get_volume_shape()) == 3:
-            index = len(np.arange(*await self.get_region())) // 2
+            if await self.get_z_parameter() == "center-position-x":
+                index = await self.get_best_slice_index()
+            else:
+                index = len(np.arange(*await self.get_region())) // 2
             await self.viewer.show(await self.get_slice(z=index))
             await self.viewer.set_title(await self.experiment.get_current_name())
 

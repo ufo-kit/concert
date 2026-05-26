@@ -473,3 +473,32 @@ def filter_low_frequencies(data, fwhm=32.):
     fltr = 1 - np.exp(- x ** 2 / (2 * f_sigma ** 2))
 
     return np.fft.ifft(np.fft.fft(data) * fltr).real + mean
+
+
+def convert_image_to_nbit(image, num_bits=8, percentile=0.1, num_channels=1):
+    """Convert *image* from any data type to an n-bit image. If *num_bits* <= 8, the output data
+    type is np.uint8, if it is <= 16, it is np.uint16, if <= 32, it is np.uint32, if <= 64, it is
+    np.uint64.  Set black point to the gray value coresponding to *percentile* and set white point
+    to the gray value corresponding to 100 - *percenpercentile*. *num_channels* specifies how many
+    channels will the output have, which is the last dimension. If *num_channels* is 1, than the
+    output shape is (height, width), if it is more than one it is (height, width, *num_channels*).
+    You can create an RGB image by specifying num_bits=8 and num_channels=3, which leads to output
+    shape (height, width, 3).
+    """
+    if num_bits <= 0 or num_bits > 64:
+        raise ValueError("num_bits must be in the range [1, 64]")
+    elif num_bits <= 8:
+        dtype = np.uint8
+    elif num_bits <= 16:
+        dtype = np.uint16
+    elif num_bits <= 32:
+        dtype = np.uint32
+    elif dtype <= 64:
+        dtype = np.uint64
+
+    lower, upper = np.percentile(image, (percentile, 100 - percentile))
+
+    img_clipped = np.clip(image, lower, upper)
+    converted = (((img_clipped - lower) / (upper - lower)) * (2 ** num_bits - 1)).astype(dtype)
+
+    return np.dstack((converted,) * num_channels) if num_channels > 1 else converted

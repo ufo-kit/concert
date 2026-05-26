@@ -41,10 +41,11 @@ class Consumer:
     :param corofunc_kwargs: a list or tuple of *corofunc* keyword arguemnts
     :param addon: a :class:`~concert.experiments.addons.Addon` object
     """
-    def __init__(self, corofunc, corofunc_args=(), corofunc_kwargs=None, addon=None):
+    def __init__(self, corofunc, corofunc_args=(), corofunc_kwargs=None, addon=None, reliable=True):
         self._corofunc = corofunc
         self.addon = addon
         self.args = corofunc_args
+        self.reliable = reliable
         self.kwargs = {} if corofunc_kwargs is None else corofunc_kwargs
 
     @property
@@ -173,7 +174,10 @@ class Acquisition(RunnableParameterizable):
 
         tasks = [start(producer_coro())]
         self._producer_task = tasks[0]
-        tasks += [start(consumer(None)) for consumer in self._consumers]
+        tasks += [start(consumer(None)) for consumer in self._consumers if consumer.reliable]
+        unreliable = set(
+            [start(consumer(None)) for consumer in self._consumers if not consumer.reliable]
+        )
         LOG.debug(
             "`%s': starting producer `%s' and consumers %s",
             self.name,
@@ -204,7 +208,7 @@ class Acquisition(RunnableParameterizable):
             # remotes might still be waiting for data, so cancel processing. Processing is
             # responsible for stopping the remote processing as well (e.g. call cancel_remote() on
             # a Tango addon)!
-            pending_result = await cancel_and_wait(tasks)
+            pending_result = await cancel_and_wait(tasks.union(unreliable))
             LOG.debug(
                 "`%s': `%s' during remote processing, results: `%s'",
                 self.name,

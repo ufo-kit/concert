@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+
+from concert.ext.tangoservers.sampledetect import SampleDetect
+from tango import GreenMode
+
+
+if __name__ == '__main__':
+    SampleDetect.run_server(green_mode=GreenMode.Asyncio)
