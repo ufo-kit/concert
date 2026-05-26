@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from logging.handlers import TimedRotatingFileHandler
 import math
 import os
 import abc
@@ -50,7 +51,7 @@ def setup_logging(name, to_stream=False, filename=None, loglevel=None):
         stream_handler.setFormatter(formatter)
         logger.addHandler(stream_handler)
     if filename:
-        file_handler = logging.FileHandler(filename)
+        file_handler = logging.handlers.TimedRotatingFileHandler(filename, when="D", backupCount=0)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
 

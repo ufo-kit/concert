@@ -144,12 +144,12 @@ class LogCommand(SubCommand):
             cs.exit_if_not_exists(session)
 
             if follow:
-                cmd = 'tail -f {} | grep --line-buffered "{}:"'.format(logfile, session)
+                cmd = 'tail -F {} | grep --line-buffered "{}:"'.format(logfile, session)
             else:
                 cmd = 'grep "{0}:" {1} | less'.format(session, logfile)
         else:
             if follow:
-                cmd = 'tail -f {}'.format(logfile)
+                cmd = 'tail -F {}'.format(logfile)
             else:
                 cmd = 'less {}'.format(logfile)
 
@@ -406,6 +406,8 @@ class StartCommand(SubCommand):
         print("Welcome to Concert {0}".format(concert.__version__))
 
         ip_config = traitlets.config.Config()
+        if session is not None:
+            ip_config.BaseIPythonApplication.profile = f"concert_{session}"
         if path and path.endswith('.py'):
             lockdir = os.path.join(os.path.expanduser("~"), ".concert")
             os.makedirs(lockdir, mode=0o755, exist_ok=True)
