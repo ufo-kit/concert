@@ -41,7 +41,8 @@ setup(
         'scipy',
         'tifffile',
         'pyzmq>=23.2.1',
-        'psutil'
+        'psutil',
+        'pynnex'
     ],
     test_suite='concert.tests',
 )

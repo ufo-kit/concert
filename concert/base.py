@@ -8,6 +8,9 @@ import functools
 import inspect
 import types
 from typing import List, Union
+
+from pynnex import emitter, with_emitters
+
 from concert.helpers import memoize, get_state_from_awaitable
 from concert.coroutines.base import background, get_event_loop, run_in_loop, wait_until
 from concert.quantities import q
@@ -647,6 +650,7 @@ def quantity(unit=None, lower=None, upper=None, data=None, check=None, help=None
     return wrapper
 
 
+@with_emitters
 class ParameterValue(object):
     """Value object of a :class:`.Parameter`."""
 
@@ -751,6 +755,11 @@ class ParameterValue(object):
         except AccessorNotImplementedError:
             raise TargetAccessError(self.name)
 
+    @emitter
+    def value_set(self):
+        """Signal emitted when the value is set."""
+        pass
+
     @background
     async def set(self, value, wait_on=None):
         """
@@ -767,6 +776,7 @@ class ParameterValue(object):
         try:
             setter = self._parameter.get_setter(self._instance)
             await setter(value, *self._parameter.data_args)
+            self.value_set.emit(value)
         except AccessorNotImplementedError:
             raise WriteAccessError(self.name)
 
@@ -868,6 +878,7 @@ class StateValue(ParameterValue):
                 raise ReadAccessError(self.name)
 
 
+@with_emitters
 class QuantityValue(ParameterValue):
 
     def __init__(self, instance, quantity):
@@ -882,6 +893,26 @@ class QuantityValue(ParameterValue):
         self._user_upper_setter = quantity.user_upper_setter
         self._limits_locked = False
 
+    @emitter
+    def signal_limits_locked(self):
+        """Signal emitted when the limits are locked."""
+        pass
+
+    @emitter
+    def signal_limits_unlocked(self):
+        """Signal emitted when the limits are unlocked."""
+        pass
+
+    @emitter
+    def lower_limit_changed(self):
+        """Signal emitted when the lower limit is changed."""
+        pass
+
+    @emitter
+    def upper_limit_changed(self):
+        """Signal emitted when the upper limit is changed."""
+        pass
+
     def lock_limits(self, permanent=False):
         """Lock limits, if *permanent* is True the limits cannot be unlocked anymore."""
 
@@ -889,12 +920,15 @@ class QuantityValue(ParameterValue):
             raise LockError('Limits are locked permanently')
 
         self._limits_locked = True
+        self.signal_limits_locked.emit()
+
         if permanent:
             self.unlock_limits = unlock_not_allowed
 
     def unlock_limits(self):
         """Unlock limits."""
         self._limits_locked = False
+        self.signal_limits_unlocked.emit()
 
     @property
     def lower(self):
@@ -946,6 +980,7 @@ class QuantityValue(ParameterValue):
             await setter(value, *self._parameter.data_args)
         except AccessorNotImplementedError:
             self._lower = value
+        self.lower_limit_changed.emit(value)
 
     @property
     def upper(self):
@@ -997,6 +1032,7 @@ class QuantityValue(ParameterValue):
             await setter(value, *self._parameter.data_args)
         except AccessorNotImplementedError:
             self._upper = value
+        self.upper_limit_changed.emit(value)
 
     @property
     def upper_user(self):
