@@ -134,10 +134,10 @@ class Camera(base.Camera):
 
         setattr(self.uca, 'enum_values', _Dummy())
 
-        def get_enum_bunch(enum):
+        def get_enum_bunch(prop):
             enum_map = {}
 
-            for key, value in list(enum.__enum_values__.items()):
+            for key, value in list(prop.__enum_values__.items()):
                 name = value.value_nick.upper().replace('-', '_')
                 enum_map[name] = key
 
@@ -146,7 +146,7 @@ class Camera(base.Camera):
         for prop in self.uca.props:
             if hasattr(prop, 'enum_class'):
                 setattr(self.uca.enum_values, prop.name.replace('-', '_'),
-                        get_enum_bunch(prop.default_value))
+                        get_enum_bunch(self.uca.get_property(prop.name)))
 
         self._uca_get_frame_rate = _new_getter_wrapper('frames-per-second')
         self._uca_set_frame_rate = _new_setter_wrapper('frames-per-second')
