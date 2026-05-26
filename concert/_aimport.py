@@ -18,11 +18,16 @@ _ASYNC_IMPORT_PATH = []
 
 
 def register(paths):
-    """Register entries in the list of *paths* for importing with enabled top-level await."""
+    """Register entries in the list of *paths* for importing with enabled top-level await.
+
+    Can be called multiple times to update the paths.
+    """
     global _ASYNC_IMPORT_PATH
 
-    if not _ASYNC_IMPORT_PATH:
-        _ASYNC_IMPORT_PATH = paths
+    _ASYNC_IMPORT_PATH = paths
+
+    # Only add the meta path finder if it's not already present
+    if not any(isinstance(finder, _AsyncMetaPathFinder) for finder in sys.meta_path):
         sys.meta_path.insert(0, _AsyncMetaPathFinder())
 
 
