@@ -5,18 +5,24 @@ typing.py
 ---------
 Facilitates type annotations for concert
 """
-from typing import Protocol, Any, NewType, Sequence, Tuple
-import numpy
+from typing import Protocol, Any, Union, Sequence, Tuple
+from concert.devices.motors.base import LinearMotor, RotationMotor
 
-# Defines ArrayLike as a new type
-# NOTE: We take this approach because NumPy>=1.20 offers ArrayLike as a
-# concrete type. At this point Tango has some discrepancy when it comes to
-# NumPy versions. In future this can(should) be replaced with
-# from numpy.typing import ArrayLike
-ArrayLike = NewType("ArrayLike", numpy.ndarray)
+####################################################################################################
+# Abstract Object Types
 
+# Image or n-dimensional array type
+try:
+    from numpy.typing import ArrayLike  # available in NumPy >= 1.20
+except ImportError:
+    from numpy import ndarray
+    ArrayLike = Union[ndarray, Sequence[float], float, int]
 
-#####################################################################
+# Generic motor type
+Motor_T = Union[LinearMotor, RotationMotor]
+####################################################################################################
+
+####################################################################################################
 # Abstract Tango Device Types
 class AbstractStreamHandler(Protocol):
     """
@@ -136,8 +142,3 @@ class RemoteDirectoryWalkerTangoDevice(
         consists of log path as identifier for logger, logging level and log message.
         """
         ...
-#####################################################################
-
-
-if __name__ == "__main__":
-    pass

@@ -1,4 +1,5 @@
 import pint
+from pint import Quantity
 
 q = pint.UnitRegistry()
 
