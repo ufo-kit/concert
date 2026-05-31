@@ -2,12 +2,10 @@
 import numpy as np
 from tango import DebugIt, CmdArgType, PipeWriteType
 from tango.server import command, pipe
-from .base import TangoRemoteProcessing
+from .base import TangoRemoteProcessing, RemoteWalkerMixin
 from concert.coroutines.base import async_generate
 from concert.ext.ufo import GeneralBackprojectManager, LocalGeneralBackprojectArgs
-from concert.networking.base import get_tango_device, ZmqSender
-from concert.storage import RemoteDirectoryWalker
-from ...config import DISTRIBUTED_TANGO_TIMEOUT
+from concert.networking.base import ZmqSender
 
 MAX_DIM = 100000
 
@@ -47,7 +45,7 @@ async def set_{0}(self, values):
 """
 
 
-class TangoOnlineReconstruction(TangoRemoteProcessing):
+class TangoOnlineReconstruction(TangoRemoteProcessing, RemoteWalkerMixin):
     """
     Tango device for online 3D reconstruction from zmq image stream.
     """
@@ -136,20 +134,9 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
     )
     async def setup_walker(self, args):
         """Slice walker for writing slices remotely."""
-        tango_remote = args[0]
-        root = args[1]
+        await super().setup_walker(args)
         protocol = args[2]
-        host = args[3]
         port = args[4]
-
-        walker_device = get_tango_device(tango_remote)
-        walker_device.set_timeout_millis(DISTRIBUTED_TANGO_TIMEOUT)
-        await walker_device.write_attribute('endpoint', f"{protocol}://{host}:{port}")
-        self._walker = await RemoteDirectoryWalker(
-            device=walker_device,
-            root=root,
-            bytes_per_file=2 ** 40,
-        )
         if self._sender:
             self._sender.close()
         self._sender = ZmqSender(endpoint=f"{protocol}://*:{port}", reliable=True)

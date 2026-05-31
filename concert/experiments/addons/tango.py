@@ -8,10 +8,13 @@ import numpy as np
 from concert.config import DISTRIBUTED_TANGO_TIMEOUT
 from concert.coroutines.base import background
 from concert.experiments.addons import base
-from concert.experiments.base import remote
+from concert.experiments.addons.base import get_acq_by_name
+from concert.experiments.base import remote, Acquisition, Experiment
 from concert.helpers import CommData
 from concert.quantities import q
-from typing import Awaitable
+from concert.typing import AbstractFRCDevice
+from typing import Awaitable, Dict, Set
+import numpy as np
 
 
 LOG = logging.getLogger(__name__)
@@ -245,3 +248,69 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
     async def _get_slice_z(self, index):
         shape = await self.get_volume_shape()
         return (await self._device.get_slice_z(index)).reshape(shape[1], shape[2])
+
+
+class FourierRingCorrelation(TangoMixin, base.Addon):
+    """
+    Tango addon for computing Fourier Ring Correlation during acquisition. It processes incoming
+    projections to estimate spatial resolution using FRC analysis.
+    """
+
+    async def __ainit__(
+            self,
+            device: AbstractFRCDevice,
+            endpoint: CommData,
+            experiment: Experiment,
+            num_darks: int,
+            num_flats: int,
+            num_radios: int) -> None:
+        """
+        :param device: tango device server proxy for FRC computation.
+        :type device: `concert.typing.AbstractFRCDevice`
+        :param endpoint: remote communication endpoint to receive stream.
+        :type endpoint: `concert.helpers.CommData`
+        :param experiment: concert experiment subclass.
+        :type experiment: `concert.experiments.base.Experiment`
+        :param acquisitions: acquisitions encapsulated by experiment.
+        :type acquisitions: Set[`concert.experiments.base.Acquisition`]
+        :param num_darks: number of dark field projections.
+        :type num_darks: int
+        :param num_flats: number of flat field projections.
+        :type num_flats: int
+        :param num_radios: number of radiogram projections.
+        :type num_radios: int
+        """
+        await TangoMixin.__ainit__(self, device, endpoint)
+        
+        # Meta attributes for acquisition
+        await self._device.write_attribute("attr_acq", np.array([num_darks, num_flats, num_radios],
+                                                                dtype=np.int_))
+        # TODO: Write other attributes
+        await base.Addon.__ainit__(self, experiment, None)
+
+    def _make_consumers(self, acquisitions: Set[Acquisition]) -> Dict[Acquisition,
+                                                                      base.AcquisitionConsumer]:
+        """Accumulates consumers for expected acquisitions"""
+        consumers: Dict[Acquisition, base.AcquisitionConsumer] = {}
+        consumers[base.get_acq_by_name(acquisitions, "darks")] = base.AcquisitionConsumer(
+                self.update_darks, addon=self)
+        consumers[base.get_acq_by_name(acquisitions, "flats")] = base.AcquisitionConsumer(
+                self.update_flats, addon=self)
+        consumers[base.get_acq_by_name(acquisitions, "radios")] = base.AcquisitionConsumer(
+                self.estimate_spatial_resolution, addon=self)
+        return consumers
+
+    @TangoMixin.cancel_remote
+    @remote
+    async def update_darks(self) -> None:
+        await self._device.update_darks()
+
+    @TangoMixin.cancel_remote
+    @remote
+    async def update_flats(self) -> None:
+        await self._device.update_flats()
+
+    @TangoMixin.cancel_remote
+    @remote
+    async def estimate_spatial_resolution(self) -> None:
+        await self._device.estimate_spatial_resolution(await self.experiment.walker.get_current())

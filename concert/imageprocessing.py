@@ -6,10 +6,25 @@ backprojection, flat field correction and other operations on images.
 import asyncio
 import numpy as np
 import logging
+from typing import Dict, Tuple, Union
+
+try:
+    import cupy as xp
+    import cupy.fft as xft
+    import cupyx.scipy.signal.windows as xp_windows
+
+    _has_cupy = True
+except ModuleNotFoundError:
+    print("cupy not available, defaulting to numpy")
+    import numpy as xp
+    import numpy.fft as xft
+    from scipy.signal.windows import tukey as xp_windows
+
+    _has_cupy = False
 from scipy.signal import fftconvolve
 from concert.coroutines.base import background, run_in_executor
 from concert.quantities import q
-
+from concert.typing import ArrayLike
 
 LOG = logging.getLogger(__name__)
 
@@ -54,7 +69,7 @@ async def find_needle_tips(producer):
         coros.append(run_in_executor(find_needle_tip, image))
 
     tips = [tip for tip in await asyncio.gather(*coros) if tip is not None]
-    LOG.debug('Needle tips: %s', np.array(tips).tolist())
+    LOG.debug("Needle tips: %s", np.array(tips).tolist())
 
     if len(tips) == 0:
         raise ValueError("No sample tip points found.")
@@ -85,13 +100,17 @@ async def find_sphere_centers_by_mass(producer, border_crossing_ok=True):
     must be absorption images. If *border_crossing_ok* is False skip images where sphere goes
     outside the field of view.
     """
+
     def _process_one(image):
         mask = segment_convex_object(image)
         mean_bg = image[mask == 0].mean()
         # Subtract mean of the background to correct for a global grey value offset
         tip = center_of_mass(image - mean_bg)
         if not border_crossing_ok and _touches_border(mask):
-            LOG.debug('Skipping border-crossing image with center of mass (x, y) = %s', tip[::-1])
+            LOG.debug(
+                "Skipping border-crossing image with center of mass (x, y) = %s",
+                tip[::-1],
+            )
             tip = None
 
         return tip
@@ -142,7 +161,7 @@ async def find_sphere_centers(producer, supersampling=1, correlation_threshold=N
         if in_fov:
             a = image
             found_completely_in_fov = True
-            LOG.debug('Sphere completely in FOV in image %d', i)
+            LOG.debug("Sphere completely in FOV in image %d", i)
 
     if not found_completely_in_fov:
         nonzero = [np.count_nonzero(msk) for msk in masks]
@@ -154,9 +173,14 @@ async def find_sphere_centers(producer, supersampling=1, correlation_threshold=N
     shifts = np.array([correlate(a, b, supersampling=supersampling)[:2] for b in images])
     if correlation_threshold:
         r = np.empty(len(shifts))
-        for (i, (dy, dx)) in enumerate(shifts):
-            r[i] = await run_in_executor(compute_pearson_correlation_coefficient,
-                                         a, images[i], int(np.round(dx)), int(np.round(dy)))
+        for i, (dy, dx) in enumerate(shifts):
+            r[i] = await run_in_executor(
+                compute_pearson_correlation_coefficient,
+                a,
+                images[i],
+                int(np.round(dx)),
+                int(np.round(dy)),
+            )
         LOG.debug("Correlation coefficients: %s", r)
         shifts = shifts[np.where(r > correlation_threshold)]
 
@@ -240,8 +264,7 @@ def segment_convex_object(image):
 def _touches_border(mask):
     y, x = np.where(mask)
 
-    return (min(y) == 0 or max(y) == mask.shape[0] - 1
-            or min(x) == 0 or max(x) == mask.shape[1] - 1)
+    return min(y) == 0 or max(y) == mask.shape[0] - 1 or min(x) == 0 or max(x) == mask.shape[1] - 1
 
 
 def _find_peak_subpix(peak, image, supersampling=16):
@@ -249,17 +272,18 @@ def _find_peak_subpix(peak, image, supersampling=16):
     steepest gradient in the region (peak[0] - 1, peak[0] + 1) in the high resolution line.
     """
     from scipy.ndimage import gaussian_filter1d
+
     dy = 8
     y_start = max(peak[0] - dy, 0)
-    line = image[y_start:min(peak[0] + dy, image.shape[0]), peak[1]]
+    line = image[y_start : min(peak[0] + dy, image.shape[0]), peak[1]]
     x = np.arange(len(line))
-    x_hd = np.arange(0, len(line) - 1 + 1. / supersampling, 1. / supersampling)
+    x_hd = np.arange(0, len(line) - 1 + 1.0 / supersampling, 1.0 / supersampling)
     line_hd = np.interp(x_hd, x, line)
     # FWHM of the low resolution pixel
-    sigma = supersampling / (2. * np.sqrt(2 * np.log(2)))
+    sigma = supersampling / (2.0 * np.sqrt(2 * np.log(2)))
     blurred = gaussian_filter1d(line_hd, sigma)
     middle = len(x) * supersampling // 2
-    g = np.abs(np.gradient(blurred))[middle - supersampling:middle + supersampling + 1]
+    g = np.abs(np.gradient(blurred))[middle - supersampling : middle + supersampling + 1]
     y = (np.argmax(g) + middle - supersampling) / supersampling + y_start
 
     return (y, peak[1])
@@ -272,8 +296,9 @@ def _get_boundary_coordinates(coordinates, max_val):
 
 def _is_corner_point(point, shape):
     """Test if the *point* lies in one of the image corners."""
-    return (point[1] == 0 or point[1] == shape[1] - 1) and\
-        (point[0] == 0 or point[0] == shape[0] - 1)
+    return (point[1] == 0 or point[1] == shape[1] - 1) and (
+        point[0] == 0 or point[0] == shape[0] - 1
+    )
 
 
 def _get_intersection_points(image):
@@ -384,8 +409,8 @@ def correlate(first, second, first_y=0, second_y=0, overlap_height=None, supersa
 
     height, width = first.shape
     hd_shape = (supersampling * height, supersampling * width)
-    first = resize(first, hd_shape, order=1, mode='reflect')
-    second = resize(second, hd_shape, order=1, mode='reflect')
+    first = resize(first, hd_shape, order=1, mode="reflect")
+    second = resize(second, hd_shape, order=1, mode="reflect")
     if supersampling > 1:
         ssh = supersampling // 2
         first = first[ssh:-ssh, ssh:-ssh]
@@ -400,8 +425,8 @@ def correlate(first, second, first_y=0, second_y=0, overlap_height=None, supersa
     else:
         second_y = second.shape[0] - overlap_height
 
-    first_sobel = sobel(first)[first_y:first_y + overlap_height]
-    second_sobel = sobel(second)[second_y:second_y + overlap_height]
+    first_sobel = sobel(first)[first_y : first_y + overlap_height]
+    second_sobel = sobel(second)[second_y : second_y + overlap_height]
     c = fftshift(ifft2(fft2(first_sobel) * np.conjugate(fft2(second_sobel))).real)
     dy, dx = np.unravel_index(c.argmax(), c.shape) - np.array(c.shape) / 2
     dy += second_y - first_y
@@ -455,21 +480,316 @@ def compute_rotation_axis(first_projection, last_projection):
     # to do cross-correlation by convolution we must also flip it
     # vertically, so the image is transposed and we can apply convolution
     # which will act as cross-correlation
-    convolved = fftconvolve(first_projection, last_projection[::-1, :], mode='same')
+    convolved = fftconvolve(first_projection, last_projection[::-1, :], mode="same")
     center = np.unravel_index(convolved.argmax(), convolved.shape)[1]
 
     return (width / 2 + center) / 2 * q.px
 
 
-def filter_low_frequencies(data, fwhm=32.):
+def filter_low_frequencies(data, fwhm=32.0):
     """Filter low frequencies in 1D *data*. *fwhm* is the FWHM of the gaussian used to filter out
     low frequencies in real space. The window is then computed as fft(1 - gauss).
     """
     mean = np.mean(data)
     sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
     # We compute the gaussian in Fourier space, so convert sigma first
-    f_sigma = 1. / (2 * np.pi * sigma)
+    f_sigma = 1.0 / (2 * np.pi * sigma)
     x = np.fft.fftfreq(len(data))
-    fltr = 1 - np.exp(- x ** 2 / (2 * f_sigma ** 2))
+    fltr = 1 - np.exp(-(x**2) / (2 * f_sigma**2))
 
     return np.fft.ifft(np.fft.fft(data) * fltr).real + mean
+
+
+def compute_frc(
+    img1: ArrayLike,
+    img2: ArrayLike,
+    eps: float = 1e-12,
+    apply_window: bool = True,
+    window_alpha: float = 0.125,
+    threshold_method: str = "1/7",
+) -> Dict[str, Union[ArrayLike, float]]:
+    """
+    Compute Fourier Ring Correlation (FRC) between two images and estimate spatial resolution.
+
+    FRC measures correlation between two images in Fourier space as a function of spatial
+    frequency, providing a resolution estimate based on threshold crossing points.
+
+    Algorithm:
+        1. Apply Tukey window (reduces FFT edge artifacts), subtract DC component
+        2. Compute 2D FFT of both images
+        3. Calculate cross-correlation and power spectra
+        4. Bin frequencies into concentric rings using radial distances
+        5. Accumulate correlations per ring via bincount
+        6. Compute FRC curve: normalized correlation per frequency ring
+        7. Generate classical threshold curve (1/7 or half-bit method)
+        8. Compute geometric bound (Miqueles et al., 2025) - ALWAYS computed
+
+    :param img1: first input image (must have same shape as img2)
+    :type img1: `concert.typing.ArrayLike`
+    :param img2: second input image (must have same shape as img1)
+    :type img2: `concert.typing.ArrayLike`
+    :param eps: numerical stability constant to avoid division by zero (default: 1e-12)
+    :type eps: float
+    :param apply_window: apply Tukey window to reduce FFT artifacts (default: True)
+    :type apply_window: bool
+    :param window_alpha: Tukey window alpha (0=rectangular, 1=Hann; default: 0.125)
+    :type window_alpha: float
+    :param threshold_method: classical threshold method:
+                             '1/7' - constant threshold at 1/7 ≈ 0.143
+                             'half_bit' - information-theoretic threshold:
+                                         (0.2071√n + 1.9102) / (1.2071√n + 0.9102)
+    :type threshold_method: str
+    :return: dictionary with keys:
+             - 'frequencies': spatial frequency array (cycles/pixel)
+             - 'frc': FRC curve (correlation per frequency bin)
+             - 'classical_threshold': selected threshold curve
+             - 'classical_crossing': frequency at classical threshold crossing (NaN if none)
+             - 'classical_resolution': resolution = 1/classical_crossing (pixels, NaN if no crossing)
+             - 'geometric_threshold': geometric lower bound (ALWAYS computed)
+             - 'geometric_crossing': frequency at geometric bound crossing (NaN if none)
+             - 'geometric_resolution': resolution = 1/geometric_crossing (pixels, NaN if no crossing)
+    :rtype: Dict[str, Union[ArrayLike, float]]
+
+    Notes:
+        Resolution extraction uses linear interpolation between adjacent frequency bins for
+        sub-bin precision. If no crossing found (FRC always above threshold), crossing
+        frequencies and resolutions are NaN.
+
+        Classical vs Geometric thresholds have DIFFERENT interpretations:
+
+        **Classical** (1/7, half_bit): UPPER BOUND on resolution
+            - Crossing indicates frequency where noise dominates signal
+            - Use for resolution claims: "features ≥ X pixels are reliably resolved"
+
+        **Geometric** (Miqueles et al., 2025): LOWER BOUND on expected correlation
+            - Based on reverse Cauchy-Schwarz inequality
+            - Quality assurance metric, NOT for resolution estimation
+            - Crossing suggests data quality issues - investigate systematic errors
+
+        Best practice: Report classical resolution with geometric_threshold as QA validation.
+
+    References:
+        - Van Heel, M. (1987). Similarity measures between images. Ultramicroscopy, 21(1), 95-100.
+        - Nieuwenhuizen et al. (2013). Measuring image resolution in optical nanoscopy.
+          Nature Methods, 10(6), 557-562. https://doi.org/10.1038/nmeth.2448
+        - Van Heel, M., & Schatz, M. (2005). Fourier shell correlation threshold criteria.
+          Journal of Structural Biology, 151(3), 250-262.
+        - Miqueles, E. X., Tonin, Y. R., & Luke, R. D. (2025). A Novel Bound for Fourier
+          Ring Correlation in Resolution Analysis. IEEE Transactions on Computational
+          Imaging, 11, 1047-1058. https://doi.org/10.1109/TCI.2025.3593881
+    """
+    # Validate input shapes - FRC requires comparable Fourier spaces
+    if img1.shape != img2.shape:
+        raise ValueError(
+            f"incompatible image shapes, image1 shape: {img1.shape}, image2 shape: {img2.shape}"
+        )
+
+    # Convert to array type (NumPy or CuPy depending on availability)
+    img1 = xp.asarray(img1, dtype=xp.float64)
+    img2 = xp.asarray(img2, dtype=xp.float64)
+    height, width = img1.shape
+
+    # Apply Tukey window to suppress FFT edge artifacts
+    if apply_window:
+        try:
+            tukey_1d = xp_windows.tukey(max(height, width), alpha=window_alpha)
+            window_2d = tukey_1d[:height, None] * tukey_1d[None, :width]
+            img1 = img1 * window_2d
+            img2 = img2 * window_2d
+        except Exception:
+            LOG.warning("Tukey window not available, proceeding without windowing")
+
+    # Remove DC component - prevents low-frequency dominance in FRC
+    img1 = img1 - img1.mean()
+    img2 = img2 - img2.mean()
+
+    # Compute 2D FFT for both images
+    freq1: ArrayLike = xft.fft2(img1)
+    freq2: ArrayLike = xft.fft2(img2)
+
+    # Cross-correlation spectrum: measures agreement in amplitude and phase
+    corr: ArrayLike = (freq1 * xp.conj(freq2)).real
+
+    # Power spectra: normalize for differences in signal strength
+    pow_spc1: ArrayLike = xp.abs(freq1) ** 2
+    pow_spc2: ArrayLike = xp.abs(freq2) ** 2
+
+    # Create frequency coordinate grid (units: cycles/pixel)
+    # fftfreq returns frequencies from -Nyquist to +Nyquist
+    freq_y, freq_x = xp.meshgrid(xft.fftfreq(height), xft.fftfreq(width), indexing="ij")
+
+    # Compute radial distance from origin for each frequency pixel using Pythagorean formula.
+    # This converts 2D frequency coordinates to scalar spatial frequency magnitudes
+    radial_distances: ArrayLike = xp.sqrt(freq_x**2 + freq_y**2)
+
+    # Number of frequency bins determined by Nyquist limit
+    # We can only resolve up to min(height, width) // 2 independent frequency rings
+    num_freq_bins: int = min(height, width) // 2
+
+    # Define bin edges as equally-spaced radii from 0 to maximum frequency
+    ring_radii = xp.linspace(0, radial_distances.max(), num_freq_bins + 1)
+
+    # Assign each frequency pixel to a frequency ring (bin) based on its radial distance
+    # digitize() finds which interval [ring_radii[i], ring_radii[i+1]) each distance falls into
+    # Returns integer array where value k means "this pixel belongs to ring k"
+    # Subtract 1 because digitize uses 1-based indexing but we need 0-based for bincount
+    bin_idx = xp.digitize(radial_distances.ravel(), bins=ring_radii) - 1
+
+    # Clip to valid range handles floating-point precision edge cases
+    bin_idx = xp.clip(bin_idx, 0, num_freq_bins - 1)
+
+    # At this point, bin_idx is a flattened array (same length as total pixels)
+    # where each element indicates which frequency ring that pixel contributes to
+
+    # Accumulate cross-correlations per frequency ring
+    # bincount(indices, weights) sums all weights that share the same index value
+    frc_num: ArrayLike = xp.bincount(bin_idx, weights=corr.ravel(), minlength=num_freq_bins)
+
+    # Similarly accumulate power spectra for normalization
+    # These represent total signal strength per frequency ring for each image
+    frc_denom1: ArrayLike = xp.bincount(bin_idx, weights=pow_spc1.ravel(), minlength=num_freq_bins)
+    frc_denom2: ArrayLike = xp.bincount(bin_idx, weights=pow_spc2.ravel(), minlength=num_freq_bins)
+
+    # Count pixels per ring (no weights) - used for reliability masking and thresholds
+    counts: ArrayLike = xp.bincount(bin_idx, minlength=num_freq_bins)
+
+    # Compute FRC: normalized correlation per frequency ring
+    # Formula: FRC(k) = Σ(corr_k) / √(Σ(pow1_k)  Σ(pow2_k))
+    # Add eps to denominator to prevent division by zero for empty/high-frequency rings
+    frc: ArrayLike = frc_num / (xp.sqrt(frc_denom1 * frc_denom2) + eps)
+
+    # Mask unreliable bins - rings with <10 pixels have poor statistical significance
+    frc = xp.where(counts > 10, frc, xp.nan)
+
+    # Compute representative frequency for each bin (bin center, not edge)
+    frequencies: ArrayLike = 0.5 * (ring_radii[:-1] + ring_radii[1:])
+
+    # Generate classical threshold curve based on selected method
+    if threshold_method == "1/7":
+        # Classic fixed threshold at 1/7 ≈ 0.143
+        threshold_curve = xp.ones_like(frequencies) * (1.0 / 7.0)
+    elif threshold_method == "half_bit":
+        # Information-theoretic threshold based on pixel counts per ring
+        # Formula: (snr√n + (factor+1)) / ((snr+1)√n + factor)
+        # where snr = 0.5√2 - 0.5 ≈ 0.2071, factor = √snr  2 ≈ 0.9102
+        nr_rt = xp.sqrt(counts)
+        snr_half_set = 0.5 * xp.sqrt(2) - 0.5
+        factor = xp.sqrt(snr_half_set) * 2
+        threshold_curve = (snr_half_set * nr_rt + (factor + 1)) / (
+            (snr_half_set + 1) * nr_rt + factor
+        )
+    else:
+        raise ValueError(
+            f"Unknown threshold_method '{threshold_method}'. " f"Valid options: '1/7', 'half_bit'"
+        )
+
+    # Compute geometric threshold.
+    # This is the lower bound from Miqueles et al. (2025) based on reverse Cauchy-Schwarz
+    fft1_shifted = xft.fftshift(freq1)
+    fft2_shifted = xft.fftshift(freq2)
+    mag1 = xp.abs(fft1_shifted)
+    mag2 = xp.abs(fft2_shifted)
+    M_per_ring = xp.bincount(
+        bin_idx,
+        weights=xp.maximum(mag1.ravel(), mag2.ravel()),
+        minlength=num_freq_bins,
+    )
+    M_per_ring = M_per_ring / xp.maximum(counts, 1)  # Average, not sum
+    geometric_threshold = 2.0 * xp.sqrt(M_per_ring) / (1.0 + M_per_ring)
+    geometric_threshold = xp.where(counts > 10, geometric_threshold, xp.nan)
+
+    # Extract spatial resolution from classical threshold crossing point
+    classical_crossing, classical_resolution = _extract_resolution(
+        frequencies, frc, threshold_curve, "classical"
+    )
+
+    # Extract spatial resolution from geometric threshold crossing point
+    geometric_crossing, geometric_resolution = _extract_resolution(
+        frequencies, frc, geometric_threshold, "geometric"
+    )
+
+    return {
+        "frequencies": frequencies,
+        "frc": frc,
+        "classical_threshold": threshold_curve,
+        "classical_crossing": classical_crossing,
+        "classical_resolution": classical_resolution,
+        "geometric_threshold": geometric_threshold,
+        "geometric_crossing": geometric_crossing,
+        "geometric_resolution": geometric_resolution,
+    }
+
+
+def _extract_resolution(
+    frequencies: ArrayLike,
+    frc_curve: ArrayLike,
+    threshold_curve: ArrayLike,
+    crossing_type: str = "classical",
+) -> Tuple[float, float]:
+    """
+    Extract resolution from FRC curve threshold crossing using linear interpolation.
+
+    :param frequencies: spatial frequency array (cycles/pixel)
+    :param frc_curve: FRC correlation values
+    :param threshold_curve: threshold values to compare against
+    :param crossing_type: 'classical' or 'geometric' (for logging purposes)
+    :return: (crossing_frequency, resolution) tuple, both NaN if no valid crossing
+    """
+    # Find all frequency bins where FRC drops below threshold
+    crossing_mask: ArrayLike = frc_curve < threshold_curve
+
+    # Search for first valid crossing where both bins have valid FRC values
+    crossing_frequency = float("nan")
+    resolution = float("nan")
+
+    for first_idx in range(1, len(frequencies)):
+        if (
+            crossing_mask[first_idx]
+            and not xp.isnan(frc_curve[first_idx])
+            and not xp.isnan(frc_curve[first_idx - 1])
+        ):
+            # Valid crossing found - use linear interpolation for sub-bin precision
+
+            # Extract values from adjacent bins for interpolation
+            f1 = float(frequencies[first_idx - 1])
+            f2 = float(frequencies[first_idx])
+            c1 = float(frc_curve[first_idx - 1])
+            c2 = float(frc_curve[first_idx])
+            t1 = float(threshold_curve[first_idx - 1])
+            t2 = float(threshold_curve[first_idx])
+
+            # Linear interpolation: solve for frequency where FRC = threshold
+            # Formula: f_cross = f1 + (t - c1) * (f2 - f1) / ((c2 - c1) - (t2 - t1))
+            denom = (c2 - c1) - (t2 - t1)
+            if abs(denom) < 1e-10:
+                # Near-parallel curves - fall back to midpoint
+                LOG.debug(
+                    "Near-parallel FRC and %s threshold curves - using midpoint interpolation",
+                    crossing_type,
+                )
+                crossing_frequency = (f1 + f2) / 2
+            else:
+                crossing_frequency = f1 - (c1 - t1) * (f2 - f1) / denom
+
+            # Convert crossing frequency to spatial resolution
+            if xp.isnan(crossing_frequency) or crossing_frequency <= 0:
+                LOG.debug(
+                    "Invalid %s crossing frequency %.4f - setting resolution to NaN",
+                    crossing_type,
+                    crossing_frequency,
+                )
+                resolution = float("nan")
+            else:
+                resolution = 1.0 / crossing_frequency
+                LOG.debug(
+                    "%s resolution extracted: %.4f cycles/pixel → %.2f pixels",
+                    crossing_type.capitalize(),
+                    crossing_frequency,
+                    resolution,
+                )
+            break
+
+    if xp.isnan(crossing_frequency):
+        LOG.debug("No valid %s threshold crossing found", crossing_type)
+
+    return crossing_frequency, resolution
