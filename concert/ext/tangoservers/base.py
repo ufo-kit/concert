@@ -2,8 +2,10 @@
 import asyncio
 import tango
 from concert.coroutines.base import start
-from concert.networking.base import ZmqReceiver
-from tango import InfoIt, DebugIt
+from concert.networking.base import ZmqReceiver, get_tango_device
+from concert.storage import RemoteDirectoryWalker
+from ...config import DISTRIBUTED_TANGO_TIMEOUT
+from tango import InfoIt, DebugIt, CmdArgType
 from tango.server import Device, attribute, DeviceMeta
 from tango.server import AttrWriteType, command
 
@@ -108,3 +110,37 @@ class TangoRemoteProcessing(Device, metaclass=DeviceMeta):
         """Stop processing immediately."""
         if self._task:
             self._task.cancel()
+
+
+class RemoteWalkerMixin:
+    """Mixin providing remote directory walker setup functionality for Tango device servers."""
+    
+    @DebugIt()
+    @command(
+        dtype_in=CmdArgType.DevVarStringArray,
+        doc_in="1. walker's tango server URI, "
+               "2. root path, "
+               "3. protocol, "
+               "4. host, "
+               "5. port "
+    )
+    async def setup_walker(self, args):
+        """Setup slice walker for writing remotely.
+        
+        :param args: tuple of (tango_remote_uri, root_path, protocol, host, port)
+        :type args: tuple[str, str, str, str, str]
+        """
+        tango_remote = args[0]
+        root = args[1]
+        protocol = args[2]
+        host = args[3]
+        port = args[4]
+        
+        walker_device = get_tango_device(tango_remote)
+        walker_device.set_timeout_millis(DISTRIBUTED_TANGO_TIMEOUT)
+        await walker_device.write_attribute('endpoint', f"{protocol}://{host}:{port}")
+        self._walker = await RemoteDirectoryWalker(
+            device=walker_device,
+            root=root,
+            bytes_per_file=2 ** 40,
+        )

@@ -5,15 +5,14 @@ typing.py
 ---------
 Facilitates type annotations for concert
 """
-from typing import Protocol, Any, NewType, Sequence, Tuple
+from typing import Protocol, Any, Union, Sequence, Tuple, TypeAlias
 import numpy
 
-# Defines ArrayLike as a new type
-# NOTE: We take this approach because NumPy>=1.20 offers ArrayLike as a
-# concrete type. At this point Tango has some discrepancy when it comes to
-# NumPy versions. In future this can(should) be replaced with
-# from numpy.typing import ArrayLike
-ArrayLike = NewType("ArrayLike", numpy.ndarray)
+try:
+    import cupy
+    ArrayLike: TypeAlias = Union[numpy.ndarray, cupy.ndarray]  # type: ignore[type-alias]
+except ImportError:
+    ArrayLike: TypeAlias = numpy.ndarray  # type: ignore[type-alias]
 
 
 #####################################################################
@@ -135,6 +134,24 @@ class RemoteDirectoryWalkerTangoDevice(
         Facilitates logging using a specific logger from the maintained loggers. Payload
         consists of log path as identifier for logger, logging level and log message.
         """
+        ...
+
+
+class AbstractFRCDevice(Protocol):
+    """
+    Abstract Fourier Ring Correlation device type.
+    """
+
+    async def update_darks(self) -> None:
+        """Accumulates the dark field projections"""
+        ...
+
+    async def update_flats(self) -> None:
+        """Accumulates the flat field projections"""
+        ...
+
+    async def estimate_spatial_resolution(self) -> None:
+        """Computes FRC for spatial resolution estimation from radiogram projections"""
         ...
 #####################################################################
 
