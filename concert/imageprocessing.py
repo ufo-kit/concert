@@ -63,7 +63,7 @@ async def find_needle_tips(producer):
         coros.append(run_in_executor(find_needle_tip, image))
 
     tips = [tip for tip in await asyncio.gather(*coros) if tip is not None]
-    LOG.debug('Needle tips: %s', np.array(tips).tolist())
+    LOG.debug("Needle tips: %s", np.array(tips).tolist())
 
     if len(tips) == 0:
         raise ValueError("No sample tip points found.")
@@ -94,13 +94,17 @@ async def find_sphere_centers_by_mass(producer, border_crossing_ok=True):
     must be absorption images. If *border_crossing_ok* is False skip images where sphere goes
     outside the field of view.
     """
+
     def _process_one(image):
         mask = segment_convex_object(image)
         mean_bg = image[mask == 0].mean()
         # Subtract mean of the background to correct for a global grey value offset
         tip = center_of_mass(image - mean_bg)
         if not border_crossing_ok and _touches_border(mask):
-            LOG.debug('Skipping border-crossing image with center of mass (x, y) = %s', tip[::-1])
+            LOG.debug(
+                "Skipping border-crossing image with center of mass (x, y) = %s",
+                tip[::-1],
+            )
             tip = None
 
         return tip
@@ -151,7 +155,7 @@ async def find_sphere_centers(producer, supersampling=1, correlation_threshold=N
         if in_fov:
             a = image
             found_completely_in_fov = True
-            LOG.debug('Sphere completely in FOV in image %d', i)
+            LOG.debug("Sphere completely in FOV in image %d", i)
 
     if not found_completely_in_fov:
         nonzero = [np.count_nonzero(msk) for msk in masks]
@@ -163,9 +167,14 @@ async def find_sphere_centers(producer, supersampling=1, correlation_threshold=N
     shifts = np.array([correlate(a, b, supersampling=supersampling)[:2] for b in images])
     if correlation_threshold:
         r = np.empty(len(shifts))
-        for (i, (dy, dx)) in enumerate(shifts):
-            r[i] = await run_in_executor(compute_pearson_correlation_coefficient,
-                                         a, images[i], int(np.round(dx)), int(np.round(dy)))
+        for i, (dy, dx) in enumerate(shifts):
+            r[i] = await run_in_executor(
+                compute_pearson_correlation_coefficient,
+                a,
+                images[i],
+                int(np.round(dx)),
+                int(np.round(dy)),
+            )
         LOG.debug("Correlation coefficients: %s", r)
         shifts = shifts[np.where(r > correlation_threshold)]
 
@@ -249,8 +258,7 @@ def segment_convex_object(image):
 def _touches_border(mask):
     y, x = np.where(mask)
 
-    return (min(y) == 0 or max(y) == mask.shape[0] - 1
-            or min(x) == 0 or max(x) == mask.shape[1] - 1)
+    return min(y) == 0 or max(y) == mask.shape[0] - 1 or min(x) == 0 or max(x) == mask.shape[1] - 1
 
 
 def _find_peak_subpix(peak, image, supersampling=16):
@@ -258,17 +266,18 @@ def _find_peak_subpix(peak, image, supersampling=16):
     steepest gradient in the region (peak[0] - 1, peak[0] + 1) in the high resolution line.
     """
     from scipy.ndimage import gaussian_filter1d
+
     dy = 8
     y_start = max(peak[0] - dy, 0)
-    line = image[y_start:min(peak[0] + dy, image.shape[0]), peak[1]]
+    line = image[y_start : min(peak[0] + dy, image.shape[0]), peak[1]]
     x = np.arange(len(line))
-    x_hd = np.arange(0, len(line) - 1 + 1. / supersampling, 1. / supersampling)
+    x_hd = np.arange(0, len(line) - 1 + 1.0 / supersampling, 1.0 / supersampling)
     line_hd = np.interp(x_hd, x, line)
     # FWHM of the low resolution pixel
-    sigma = supersampling / (2. * np.sqrt(2 * np.log(2)))
+    sigma = supersampling / (2.0 * np.sqrt(2 * np.log(2)))
     blurred = gaussian_filter1d(line_hd, sigma)
     middle = len(x) * supersampling // 2
-    g = np.abs(np.gradient(blurred))[middle - supersampling:middle + supersampling + 1]
+    g = np.abs(np.gradient(blurred))[middle - supersampling : middle + supersampling + 1]
     y = (np.argmax(g) + middle - supersampling) / supersampling + y_start
 
     return (y, peak[1])
@@ -281,8 +290,9 @@ def _get_boundary_coordinates(coordinates, max_val):
 
 def _is_corner_point(point, shape):
     """Test if the *point* lies in one of the image corners."""
-    return (point[1] == 0 or point[1] == shape[1] - 1) and\
-        (point[0] == 0 or point[0] == shape[0] - 1)
+    return (point[1] == 0 or point[1] == shape[1] - 1) and (
+        point[0] == 0 or point[0] == shape[0] - 1
+    )
 
 
 def _get_intersection_points(image):
@@ -393,8 +403,8 @@ def correlate(first, second, first_y=0, second_y=0, overlap_height=None, supersa
 
     height, width = first.shape
     hd_shape = (supersampling * height, supersampling * width)
-    first = resize(first, hd_shape, order=1, mode='reflect')
-    second = resize(second, hd_shape, order=1, mode='reflect')
+    first = resize(first, hd_shape, order=1, mode="reflect")
+    second = resize(second, hd_shape, order=1, mode="reflect")
     if supersampling > 1:
         ssh = supersampling // 2
         first = first[ssh:-ssh, ssh:-ssh]
@@ -409,8 +419,8 @@ def correlate(first, second, first_y=0, second_y=0, overlap_height=None, supersa
     else:
         second_y = second.shape[0] - overlap_height
 
-    first_sobel = sobel(first)[first_y:first_y + overlap_height]
-    second_sobel = sobel(second)[second_y:second_y + overlap_height]
+    first_sobel = sobel(first)[first_y : first_y + overlap_height]
+    second_sobel = sobel(second)[second_y : second_y + overlap_height]
     c = fftshift(ifft2(fft2(first_sobel) * np.conjugate(fft2(second_sobel))).real)
     dy, dx = np.unravel_index(c.argmax(), c.shape) - np.array(c.shape) / 2
     dy += second_y - first_y
@@ -464,22 +474,22 @@ def compute_rotation_axis(first_projection, last_projection):
     # to do cross-correlation by convolution we must also flip it
     # vertically, so the image is transposed and we can apply convolution
     # which will act as cross-correlation
-    convolved = fftconvolve(first_projection, last_projection[::-1, :], mode='same')
+    convolved = fftconvolve(first_projection, last_projection[::-1, :], mode="same")
     center = np.unravel_index(convolved.argmax(), convolved.shape)[1]
 
     return (width / 2 + center) / 2 * q.px
 
 
-def filter_low_frequencies(data, fwhm=32.):
+def filter_low_frequencies(data, fwhm=32.0):
     """Filter low frequencies in 1D *data*. *fwhm* is the FWHM of the gaussian used to filter out
     low frequencies in real space. The window is then computed as fft(1 - gauss).
     """
     mean = np.mean(data)
     sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
     # We compute the gaussian in Fourier space, so convert sigma first
-    f_sigma = 1. / (2 * np.pi * sigma)
+    f_sigma = 1.0 / (2 * np.pi * sigma)
     x = np.fft.fftfreq(len(data))
-    fltr = 1 - np.exp(- x ** 2 / (2 * f_sigma ** 2))
+    fltr = 1 - np.exp(-(x**2) / (2 * f_sigma**2))
 
     return np.fft.ifft(np.fft.fft(data) * fltr).real + mean
 

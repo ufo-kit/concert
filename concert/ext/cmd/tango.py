@@ -64,6 +64,9 @@ class TangoCommand(SubCommand):
         if server == "sampledetect":
             from concert.ext.tangoservers import sampledetect
             server_class = {'class': sampledetect.SampleDetect}
+        if server == "frc":
+            from concert.ext.tangoservers import frc
+            server_class = {'class': frc.TangoFourierRingCorrelation}
 
         setup_logging(server, to_stream=True, filename=logfile, loglevel=loglevel)
 
