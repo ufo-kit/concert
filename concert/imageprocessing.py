@@ -8,18 +8,20 @@ import numpy as np
 import logging
 from typing import Dict, Optional, Tuple, Union
 
+import numpy as np
+
+# Try PyTorch first (GPU acceleration)
 try:
-    import cupy as xp
-    import cupy.fft as xft
-    import cupyx.scipy.ndimage as xndimage
+    import torch
+    import torch.nn.functional as F
 
-    _has_cupy = True
-except ModuleNotFoundError:
-    print("cupy not available, defaulting to numpy")
-    import numpy as xp
-    import numpy.fft as xft
+    _has_torch = True
+    _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+except ImportError:
+    _has_torch = False
+    _device = torch.device("cpu")
 
-    _has_cupy = False
+from scipy.ndimage import uniform_filter
 from scipy.signal import fftconvolve
 from scipy.signal.windows import tukey
 from concert.coroutines.base import background, run_in_executor
@@ -543,8 +545,8 @@ def select_frc_region(
     # Ensure variance_window is at least 1
     variance_window = max(1, variance_window)
 
-    # Convert to array type (NumPy or CuPy)
-    proj = xp.asarray(projection, dtype=xp.float64)
+    # Convert to torch tensor on appropriate device
+    proj = torch.as_tensor(projection, dtype=torch.float64, device=_device)
     height, width = proj.shape
 
     # Validate padding parameters
@@ -587,23 +589,22 @@ def select_frc_region(
     # Extract inner region for variance analysis
     proj_inner = proj[y_inner_start:y_inner_end, x_inner_start:x_inner_end]
 
-    # GPU-accelerated uniform_filter on padded region
-    if _has_cupy:
-        mean = xndimage.uniform_filter(proj_inner, size=variance_window)
-        mean_sq = xndimage.uniform_filter(proj_inner**2, size=variance_window)
-    else:
-        # Lazy import for CPU fallback
-        from scipy.ndimage import uniform_filter
+    # Use scipy.ndimage.uniform_filter (NumPy arrays) - lightweight operation
+    # Transfer to CPU for this operation
+    proj_inner_cpu = proj_inner.cpu().numpy()
+    mean = uniform_filter(proj_inner_cpu, size=variance_window)
+    mean_sq = uniform_filter(proj_inner_cpu**2, size=variance_window)
 
-        mean = uniform_filter(proj_inner, size=variance_window)
-        mean_sq = uniform_filter(proj_inner**2, size=variance_window)
+    # Convert back to torch tensor
+    mean = torch.as_tensor(mean, dtype=torch.float64, device=_device)
+    mean_sq = torch.as_tensor(mean_sq, dtype=torch.float64, device=_device)
 
     # Variance = E[X²] - E[X]²
     variance_2d = mean_sq - mean**2
 
     # Collapse variance map horizontally (sum across all columns)
     # This gives us a 1D profile showing information content vs. y-position
-    variance_1d = variance_2d.sum(axis=1)
+    variance_1d = variance_2d.sum(dim=1)
 
     # Check for uniform variance (all values nearly equal)
     # If variance range is very small, default to center crop
@@ -611,7 +612,7 @@ def select_frc_region(
     if variance_range < 1e-6:
         # Uniform variance - default to center
         center_y = height // 2
-        max_variance = float(variance_1d[center_y])
+        max_variance = float(variance_1d[center_y].item())
         LOG.debug(
             "Uniform variance detected (range=%.2e), using center crop at y=%d",
             variance_range,
@@ -620,14 +621,9 @@ def select_frc_region(
     else:
         # Find y-position with maximum total variance
         # This is the "center of mass" of information in the vertical direction
-        max_y_flat = xp.argmax(variance_1d)
-        center_y = int(max_y_flat)
-        max_variance = float(variance_1d[max_y_flat])
-
-    # Free GPU memory if applicable
-    if _has_cupy:
-        mempool = xp.get_default_memory_pool()
-        mempool.free_all_blocks()
+        max_y_flat = torch.argmax(variance_1d)
+        center_y = int(max_y_flat.item())
+        max_variance = float(variance_1d[max_y_flat].item())
 
     # Compute crop boundaries centered at max variance position
     y_start = center_y - crop_height // 2
@@ -738,15 +734,17 @@ def compute_frc(
             f"incompatible image shapes, image1 shape: {img1.shape}, image2 shape: {img2.shape}"
         )
 
-    # Convert to array type (NumPy or CuPy depending on availability)
-    img1 = xp.asarray(img1, dtype=xp.float64)
-    img2 = xp.asarray(img2, dtype=xp.float64)
+    # Convert to torch tensors on appropriate device
+    img1 = torch.as_tensor(img1, dtype=torch.float64, device=_device)
+    img2 = torch.as_tensor(img2, dtype=torch.float64, device=_device)
     height, width = img1.shape
 
     # Apply Tukey window to suppress FFT edge artifacts
     if apply_window:
         try:
-            tukey_1d = tukey(max(height, width), alpha=window_alpha)
+            tukey_1d = torch.as_tensor(
+                tukey(max(height, width), alpha=window_alpha), dtype=torch.float64, device=_device
+            )
             window_2d = tukey_1d[:height, None] * tukey_1d[None, :width]
             img1 = img1 * window_2d
             img2 = img2 * window_2d
@@ -758,77 +756,79 @@ def compute_frc(
     img2 = img2 - img2.mean()
 
     # Compute 2D FFT for both images
-    freq1: ArrayLike = xft.fft2(img1)
-    freq2: ArrayLike = xft.fft2(img2)
+    freq1 = torch.fft.fft2(img1)
+    freq2 = torch.fft.fft2(img2)
 
     # Cross-correlation spectrum: measures agreement in amplitude and phase
-    corr: ArrayLike = (freq1 * xp.conj(freq2)).real
+    corr = (freq1 * torch.conj(freq2)).real
 
     # Power spectra: normalize for differences in signal strength
-    pow_spc1: ArrayLike = xp.abs(freq1) ** 2
-    pow_spc2: ArrayLike = xp.abs(freq2) ** 2
+    pow_spc1 = torch.abs(freq1) ** 2
+    pow_spc2 = torch.abs(freq2) ** 2
 
     # Create frequency coordinate grid (units: cycles/pixel)
     # fftfreq returns frequencies from -Nyquist to +Nyquist
-    freq_y, freq_x = xp.meshgrid(xft.fftfreq(height), xft.fftfreq(width), indexing="ij")
+    freq_y_vals = torch.fft.fftfreq(height, device=_device)
+    freq_x_vals = torch.fft.fftfreq(width, device=_device)
+    freq_y, freq_x = torch.meshgrid(freq_y_vals, freq_x_vals, indexing="ij")
 
     # Compute radial distance from origin for each frequency pixel using Pythagorean formula.
     # This converts 2D frequency coordinates to scalar spatial frequency magnitudes
-    radial_distances: ArrayLike = xp.sqrt(freq_x**2 + freq_y**2)
+    radial_distances = torch.sqrt(freq_x**2 + freq_y**2)
 
     # Number of frequency bins determined by Nyquist limit
     # We can only resolve up to min(height, width) // 2 independent frequency rings
     num_freq_bins: int = min(height, width) // 2
 
     # Define bin edges as equally-spaced radii from 0 to maximum frequency
-    ring_radii = xp.linspace(0, radial_distances.max(), num_freq_bins + 1)
+    ring_radii = torch.linspace(0, radial_distances.max(), num_freq_bins + 1, device=_device)
 
     # Assign each frequency pixel to a frequency ring (bin) based on its radial distance
-    # digitize() finds which interval [ring_radii[i], ring_radii[i+1]) each distance falls into
+    # bucketize() finds which interval [ring_radii[i], ring_radii[i+1]) each distance falls into
     # Returns integer array where value k means "this pixel belongs to ring k"
-    # Subtract 1 because digitize uses 1-based indexing but we need 0-based for bincount
-    bin_idx = xp.digitize(radial_distances.ravel(), bins=ring_radii) - 1
+    # Subtract 1 because bucketize uses 1-based indexing but we need 0-based for bincount
+    bin_idx = torch.bucketize(radial_distances.ravel(), ring_radii, right=True) - 1
 
     # Clip to valid range handles floating-point precision edge cases
-    bin_idx = xp.clip(bin_idx, 0, num_freq_bins - 1)
+    bin_idx = torch.clamp(bin_idx, 0, num_freq_bins - 1)
 
     # At this point, bin_idx is a flattened array (same length as total pixels)
     # where each element indicates which frequency ring that pixel contributes to
 
     # Accumulate cross-correlations per frequency ring
     # bincount(indices, weights) sums all weights that share the same index value
-    frc_num: ArrayLike = xp.bincount(bin_idx, weights=corr.ravel(), minlength=num_freq_bins)
+    frc_num = torch.bincount(bin_idx, weights=corr.ravel(), minlength=num_freq_bins)
 
     # Similarly accumulate power spectra for normalization
     # These represent total signal strength per frequency ring for each image
-    frc_denom1: ArrayLike = xp.bincount(bin_idx, weights=pow_spc1.ravel(), minlength=num_freq_bins)
-    frc_denom2: ArrayLike = xp.bincount(bin_idx, weights=pow_spc2.ravel(), minlength=num_freq_bins)
+    frc_denom1 = torch.bincount(bin_idx, weights=pow_spc1.ravel(), minlength=num_freq_bins)
+    frc_denom2 = torch.bincount(bin_idx, weights=pow_spc2.ravel(), minlength=num_freq_bins)
 
     # Count pixels per ring (no weights) - used for reliability masking and thresholds
-    counts: ArrayLike = xp.bincount(bin_idx, minlength=num_freq_bins)
+    counts = torch.bincount(bin_idx, minlength=num_freq_bins)
 
     # Compute FRC: normalized correlation per frequency ring
     # Formula: FRC(k) = Σ(corr_k) / √(Σ(pow1_k)  Σ(pow2_k))
     # Add eps to denominator to prevent division by zero for empty/high-frequency rings
-    frc: ArrayLike = frc_num / (xp.sqrt(frc_denom1 * frc_denom2) + eps)
+    frc = frc_num / (torch.sqrt(frc_denom1 * frc_denom2) + eps)
 
     # Mask unreliable bins - rings with <10 pixels have poor statistical significance
-    frc = xp.where(counts > 10, frc, xp.nan)
+    frc = torch.where(counts > 10, frc, torch.tensor(float("nan"), device=_device))
 
     # Compute representative frequency for each bin (bin center, not edge)
-    frequencies: ArrayLike = 0.5 * (ring_radii[:-1] + ring_radii[1:])
+    frequencies = 0.5 * (ring_radii[:-1] + ring_radii[1:])
 
     # Generate classical threshold curve based on selected method
     if threshold_method == "1/7":
         # Classic fixed threshold at 1/7 ≈ 0.143
-        threshold_curve = xp.ones_like(frequencies) * (1.0 / 7.0)
+        threshold_curve = torch.ones_like(frequencies) * (1.0 / 7.0)
     elif threshold_method == "half_bit":
         # Information-theoretic threshold based on pixel counts per ring
         # Formula: (snr√n + (factor+1)) / ((snr+1)√n + factor)
         # where snr = 0.5√2 - 0.5 ≈ 0.2071, factor = √snr  2 ≈ 0.9102
-        nr_rt = xp.sqrt(counts)
-        snr_half_set = 0.5 * xp.sqrt(2) - 0.5
-        factor = xp.sqrt(snr_half_set) * 2
+        nr_rt = torch.sqrt(counts)
+        snr_half_set = 0.5 * torch.sqrt(torch.tensor(2.0, device=_device)) - 0.5
+        factor = torch.sqrt(snr_half_set) * 2
         threshold_curve = (snr_half_set * nr_rt + (factor + 1)) / (
             (snr_half_set + 1) * nr_rt + factor
         )
@@ -839,18 +839,20 @@ def compute_frc(
 
     # Compute geometric threshold.
     # This is the lower bound from Miqueles et al. (2025) based on reverse Cauchy-Schwarz
-    fft1_shifted = xft.fftshift(freq1)
-    fft2_shifted = xft.fftshift(freq2)
-    mag1 = xp.abs(fft1_shifted)
-    mag2 = xp.abs(fft2_shifted)
-    M_per_ring = xp.bincount(
+    fft1_shifted = torch.fft.fftshift(freq1)
+    fft2_shifted = torch.fft.fftshift(freq2)
+    mag1 = torch.abs(fft1_shifted)
+    mag2 = torch.abs(fft2_shifted)
+    M_per_ring = torch.bincount(
         bin_idx,
-        weights=xp.maximum(mag1.ravel(), mag2.ravel()),
+        weights=torch.maximum(mag1.ravel(), mag2.ravel()),
         minlength=num_freq_bins,
     )
-    M_per_ring = M_per_ring / xp.maximum(counts, 1)  # Average, not sum
-    geometric_threshold = 2.0 * xp.sqrt(M_per_ring) / (1.0 + M_per_ring)
-    geometric_threshold = xp.where(counts > 10, geometric_threshold, xp.nan)
+    M_per_ring = M_per_ring / torch.maximum(counts, torch.ones_like(counts))  # Average, not sum
+    geometric_threshold = 2.0 * torch.sqrt(M_per_ring) / (1.0 + M_per_ring)
+    geometric_threshold = torch.where(
+        counts > 10, geometric_threshold, torch.tensor(float("nan"), device=_device)
+    )
 
     # Extract spatial resolution from classical threshold crossing point
     classical_crossing, classical_resolution = _extract_resolution(
@@ -862,22 +864,23 @@ def compute_frc(
         frequencies, frc, geometric_threshold, "geometric"
     )
 
+    # Convert all torch tensors back to numpy for API compatibility
     return {
-        "frequencies": frequencies,
-        "frc": frc,
-        "classical_threshold": threshold_curve,
-        "classical_crossing": classical_crossing,
-        "classical_resolution": classical_resolution,
-        "geometric_threshold": geometric_threshold,
-        "geometric_crossing": geometric_crossing,
-        "geometric_resolution": geometric_resolution,
+        "frequencies": frequencies.cpu().numpy(),
+        "frc": frc.cpu().numpy(),
+        "classical_threshold": threshold_curve.cpu().numpy(),
+        "classical_crossing": float(classical_crossing),
+        "classical_resolution": float(classical_resolution),
+        "geometric_threshold": geometric_threshold.cpu().numpy(),
+        "geometric_crossing": float(geometric_crossing),
+        "geometric_resolution": float(geometric_resolution),
     }
 
 
 def _extract_resolution(
-    frequencies: ArrayLike,
-    frc_curve: ArrayLike,
-    threshold_curve: ArrayLike,
+    frequencies,
+    frc_curve,
+    threshold_curve,
     crossing_type: str = "classical",
 ) -> Tuple[float, float]:
     """
@@ -889,8 +892,21 @@ def _extract_resolution(
     :param crossing_type: 'classical' or 'geometric' (for logging purposes)
     :return: (crossing_frequency, resolution) tuple, both NaN if no valid crossing
     """
+
+    def _to_float(value):
+        """Convert torch tensor or numpy scalar to Python float."""
+        if isinstance(value, torch.Tensor):
+            return float(value.item())
+        return float(value)
+
+    def _isnan(value):
+        """Check if value is NaN for torch or numpy."""
+        if isinstance(value, torch.Tensor):
+            return torch.isnan(value)
+        return np.isnan(value)
+
     # Find all frequency bins where FRC drops below threshold
-    crossing_mask: ArrayLike = frc_curve < threshold_curve
+    crossing_mask = frc_curve < threshold_curve
 
     # Search for first valid crossing where both bins have valid FRC values
     crossing_frequency = float("nan")
@@ -899,18 +915,18 @@ def _extract_resolution(
     for first_idx in range(1, len(frequencies)):
         if (
             crossing_mask[first_idx]
-            and not xp.isnan(frc_curve[first_idx])
-            and not xp.isnan(frc_curve[first_idx - 1])
+            and not _isnan(frc_curve[first_idx])
+            and not _isnan(frc_curve[first_idx - 1])
         ):
             # Valid crossing found - use linear interpolation for sub-bin precision
 
             # Extract values from adjacent bins for interpolation
-            f1 = float(frequencies[first_idx - 1])
-            f2 = float(frequencies[first_idx])
-            c1 = float(frc_curve[first_idx - 1])
-            c2 = float(frc_curve[first_idx])
-            t1 = float(threshold_curve[first_idx - 1])
-            t2 = float(threshold_curve[first_idx])
+            f1 = _to_float(frequencies[first_idx - 1])
+            f2 = _to_float(frequencies[first_idx])
+            c1 = _to_float(frc_curve[first_idx - 1])
+            c2 = _to_float(frc_curve[first_idx])
+            t1 = _to_float(threshold_curve[first_idx - 1])
+            t2 = _to_float(threshold_curve[first_idx])
 
             # Linear interpolation: solve for frequency where FRC = threshold
             # Formula: f_cross = f1 + (t - c1) * (f2 - f1) / ((c2 - c1) - (t2 - t1))
@@ -926,7 +942,7 @@ def _extract_resolution(
                 crossing_frequency = f1 - (c1 - t1) * (f2 - f1) / denom
 
             # Convert crossing frequency to spatial resolution
-            if xp.isnan(crossing_frequency) or crossing_frequency <= 0:
+            if _isnan(torch.tensor(crossing_frequency)) or crossing_frequency <= 0:
                 LOG.debug(
                     "Invalid %s crossing frequency %.4f - setting resolution to NaN",
                     crossing_type,
@@ -943,7 +959,7 @@ def _extract_resolution(
                 )
             break
 
-    if xp.isnan(crossing_frequency):
+    if _isnan(torch.tensor(crossing_frequency)):
         LOG.debug("No valid %s threshold crossing found", crossing_type)
 
     return crossing_frequency, resolution
