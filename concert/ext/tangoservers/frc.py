@@ -16,7 +16,7 @@ from tango.server import attribute, command, AttrWriteType
 from concert.ext.tangoservers.base import TangoRemoteProcessing, RemoteWalkerMixin
 from concert.ext.ufo import FlatCorrect
 from concert.typing import ArrayLike
-from concert.imageprocessing import compute_frc
+from concert.imageprocessing import compute_frc, select_frc_region
 from concert.storage import RemoteDirectoryWalker
 
 
@@ -62,13 +62,45 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
         doc="Percentage deviation from baseline to flag as fluctuation (default: 15.0, valid range: 5.0-100.0)",
     )
 
+    frc_crop_height = attribute(
+        label="FRC crop height",
+        dtype=int,
+        access=AttrWriteType.READ_WRITE,
+        fget="get_frc_crop_height",
+        fset="set_frc_crop_height",
+        doc="Target crop height in pixels for FRC region selection (default: 512)",
+    )
+
+    frc_padding_y = attribute(
+        label="FRC vertical padding",
+        dtype=int,
+        access=AttrWriteType.READ_WRITE,
+        fget="get_frc_padding_y",
+        fset="set_frc_padding_y",
+        doc="Vertical padding in pixels to exclude from variance computation (default: 400)",
+    )
+
+    frc_padding_x = attribute(
+        label="FRC horizontal padding",
+        dtype=int,
+        access=AttrWriteType.READ_WRITE,
+        fget="get_frc_padding_x",
+        fset="set_frc_padding_x",
+        doc="Horizontal padding in pixels to exclude from variance computation (default: 400)",
+    )
+
     _walker: Optional[RemoteDirectoryWalker]
 
     async def init_device(self) -> None:
         await super().init_device()
-        self._resolution_threshold = "1/7"
-        self._proj_offset = 5
+        self._resolution_threshold = "half_bit"
+        self._proj_offset = 1
         self._fluctuation_threshold = 15.0
+        self._frc_crop_height = 512
+        self._frc_padding_y = 400
+        self._frc_padding_x = 400
+        self._crop_y_start = 0
+        self._crop_y_end = None
         self._walker = None
         self.info_stream(
             "%s initialized device with state: %s",
@@ -124,6 +156,45 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
             self._fluctuation_threshold,
         )
 
+    def get_frc_crop_height(self) -> int:
+        return self._frc_crop_height
+
+    def set_frc_crop_height(self, height: int) -> None:
+        if height < 64 or height > 2048:
+            raise ValueError(f"Crop height must be between 64 and 2048 pixels, got {height}")
+        self._frc_crop_height = height
+        self.info_stream(
+            "%s: FRC crop height set to: %d px",
+            self.__class__.__name__,
+            self._frc_crop_height,
+        )
+
+    def get_frc_padding_y(self) -> int:
+        return self._frc_padding_y
+
+    def set_frc_padding_y(self, padding: int) -> None:
+        if padding < 0:
+            raise ValueError(f"Padding Y must be non-negative, got {padding}")
+        self._frc_padding_y = padding
+        self.info_stream(
+            "%s: FRC padding Y set to: %d px",
+            self.__class__.__name__,
+            self._frc_padding_y,
+        )
+
+    def get_frc_padding_x(self) -> int:
+        return self._frc_padding_x
+
+    def set_frc_padding_x(self, padding: int) -> None:
+        if padding < 0:
+            raise ValueError(f"Padding X must be non-negative, got {padding}")
+        self._frc_padding_x = padding
+        self.info_stream(
+            "%s: FRC padding X set to: %d px",
+            self.__class__.__name__,
+            self._frc_padding_x,
+        )
+
     @staticmethod
     def _result_to_json_dict(
         result: Dict[str, Union[ArrayLike, float]],
@@ -145,8 +216,6 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
                 return None
             return value
 
-        # TODO: Compute statistics here.
-
         return {
             "projection_i": proj_i,
             "projection_j": proj_j,
@@ -158,7 +227,6 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
     def _compute_outlier_aware_statistics(
         values: List[Optional[float]],
         projection_indices: List[int],
-        metric_name: str,
         threshold_percent: float = 15.0,
     ) -> Dict[str, Any]:
         """
@@ -170,7 +238,6 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
 
         :param values: list of resolution values (may contain None for NaN/invalid)
         :param projection_indices: corresponding projection_i indices for each value
-        :param metric_name: name of the metric (for logging)
         :param threshold_percent: percentage deviation from baseline to flag as fluctuation
         :return: dictionary with baseline, counts, and fluctuation details
         """
@@ -285,15 +352,47 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
         geometric_resolutions: List[Optional[float]] = []
         projection_indices: List[int] = []
         proj_index: int = 0
+        crop_applied = False
+        crop_failed = False
 
         try:
             async for proj in ffc(producer):
                 proj = np.asarray(proj, dtype=np.float64)
+
+                # Determine crop region from first projection
+                if not crop_applied and not crop_failed:
+                    try:
+                        y_start, y_end = select_frc_region(
+                            proj,
+                            crop_height=self._frc_crop_height,
+                            padding_y=self._frc_padding_y,
+                            padding_x=self._frc_padding_x,
+                        )
+                        self._crop_y_start = y_start
+                        self._crop_y_end = y_end
+                        crop_applied = True
+                        self.info_stream(
+                            "FRC crop region selected: y=[%d:%d] (height=%d)",
+                            y_start,
+                            y_end,
+                            y_end - y_start,
+                        )
+                    except Exception as e:
+                        self.error_stream(
+                            "FRC crop region selection failed: %s. Using full images.", str(e)
+                        )
+                        crop_failed = True
+
                 buffer.append(proj)
 
                 if len(buffer) == self._proj_offset + 1:
                     img1 = buffer[0]
                     img2 = buffer[-1]
+
+                    # Apply previously determined crop region
+                    if crop_applied:
+                        img1 = img1[self._crop_y_start : self._crop_y_end, :]
+                        img2 = img2[self._crop_y_start : self._crop_y_end, :]
 
                     result = compute_frc(
                         img1,
@@ -319,14 +418,12 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
             classical_stats = self._compute_outlier_aware_statistics(
                 classical_resolutions,
                 projection_indices,
-                "classical_resolution",
                 threshold_percent=self._fluctuation_threshold,
             )
 
             geometric_stats = self._compute_outlier_aware_statistics(
                 geometric_resolutions,
                 projection_indices,
-                "geometric_resolution",
                 threshold_percent=self._fluctuation_threshold,
             )
 
@@ -370,6 +467,15 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
                 )
             except Exception as e:
                 self.error_stream("Failed to write FRC JSON: %s. Continuing anyway.", str(e))
+
+            if crop_applied:
+                self.info_stream(
+                    "FRC completed with crop: y=[%d:%d]", self._crop_y_start, self._crop_y_end
+                )
+            elif crop_failed:
+                self.info_stream("FRC completed with full images (crop selection failed)")
+            else:
+                self.info_stream("FRC completed with full images")
 
         except Exception as e:
             self.error_stream("FRC computation failed: %s", str(e))

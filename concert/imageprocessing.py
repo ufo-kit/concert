@@ -6,22 +6,22 @@ backprojection, flat field correction and other operations on images.
 import asyncio
 import numpy as np
 import logging
-from typing import Dict, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 
 try:
     import cupy as xp
     import cupy.fft as xft
-    import cupyx.scipy.signal.windows as xp_windows
+    import cupyx.scipy.ndimage as xndimage
 
     _has_cupy = True
 except ModuleNotFoundError:
     print("cupy not available, defaulting to numpy")
     import numpy as xp
     import numpy.fft as xft
-    from scipy.signal.windows import tukey as xp_windows
 
     _has_cupy = False
 from scipy.signal import fftconvolve
+from scipy.signal.windows import tukey
 from concert.coroutines.base import background, run_in_executor
 from concert.quantities import q
 from concert.typing import ArrayLike
@@ -500,6 +500,160 @@ def filter_low_frequencies(data, fwhm=32.0):
     return np.fft.ifft(np.fft.fft(data) * fltr).real + mean
 
 
+def select_frc_region(
+    projection: ArrayLike,
+    crop_height: int = 512,
+    variance_window: Optional[int] = None,
+    padding_y: int = 400,
+    padding_x: int = 400,
+) -> Tuple[int, int]:
+    """
+    Select informative vertical region from projection for FRC computation.
+
+    Identifies the y-position with maximum information content (variance) and returns
+    crop boundaries. The full width is retained to ensure the sample remains in the
+    field of view during tomographic rotation.
+
+    :param projection: input projection image
+    :type projection: `concert.typing.ArrayLike`
+    :param crop_height: height of cropped region in pixels (default: 512)
+    :type crop_height: int
+    :param variance_window: window size for local variance estimation; if None,
+                            uses crop_height // 4 (default: None)
+    :type variance_window: Optional[int]
+    :param padding_y: vertical padding in pixels to exclude from top/bottom edges
+                      (default: 200). Variance computation ignores these regions.
+    :type padding_y: int
+    :param padding_x: horizontal padding in pixels to exclude from left/right edges
+                      (default: 200). Variance computation ignores these regions.
+    :type padding_x: int
+    :return: (y_start, y_end) crop boundaries along vertical axis
+    :rtype: Tuple[int, int]
+
+    Notes:
+        - Uses local variance to identify information-rich regions (edges, structures)
+        - Variance computed efficiently via: Var(X) = E[X²] - E[X]²
+        - If variance map is uniform (no clear maximum), defaults to center crop
+        - Crop boundaries are clamped to image dimensions
+        - Full width is always retained to accommodate sample rotation
+    """
+    if variance_window is None:
+        variance_window = crop_height // 4
+
+    # Ensure variance_window is at least 1
+    variance_window = max(1, variance_window)
+
+    # Convert to array type (NumPy or CuPy)
+    proj = xp.asarray(projection, dtype=xp.float64)
+    height, width = proj.shape
+
+    # Validate padding parameters
+    if padding_y < 0 or padding_x < 0:
+        raise ValueError("Padding values must be non-negative")
+
+    if padding_y * 2 >= height:
+        raise ValueError(
+            f"Vertical padding ({padding_y}px from each edge) exceeds image height ({height}px). "
+            f"Maximum allowed: {height // 2 - 1}px"
+        )
+
+    if padding_x * 2 >= width:
+        raise ValueError(
+            f"Horizontal padding ({padding_x}px from each edge) exceeds image width ({width}px). "
+            f"Maximum allowed: {width // 2 - 1}px"
+        )
+
+    # Validate crop_height fits in padded region
+    inner_height = height - (padding_y * 2)
+    if crop_height > inner_height:
+        raise ValueError(
+            f"Crop height ({crop_height}px) exceeds available region after padding ({inner_height}px). "
+            f"Reduce crop_height or padding_y."
+        )
+
+    # Validate crop_height
+    if crop_height >= height:
+        # No cropping needed
+        LOG.debug("Crop height %d >= image height %d, skipping crop", crop_height, height)
+        return 0, height
+
+    # Apply padding: exclude edge regions from variance computation
+    # This prevents empty air/artifacts from overwhelming the detection
+    y_inner_start = padding_y
+    y_inner_end = height - padding_y
+    x_inner_start = padding_x
+    x_inner_end = width - padding_x
+
+    # Extract inner region for variance analysis
+    proj_inner = proj[y_inner_start:y_inner_end, x_inner_start:x_inner_end]
+
+    # GPU-accelerated uniform_filter on padded region
+    if _has_cupy:
+        mean = xndimage.uniform_filter(proj_inner, size=variance_window)
+        mean_sq = xndimage.uniform_filter(proj_inner**2, size=variance_window)
+    else:
+        # Lazy import for CPU fallback
+        from scipy.ndimage import uniform_filter
+
+        mean = uniform_filter(proj_inner, size=variance_window)
+        mean_sq = uniform_filter(proj_inner**2, size=variance_window)
+
+    # Variance = E[X²] - E[X]²
+    variance_2d = mean_sq - mean**2
+
+    # Collapse variance map horizontally (sum across all columns)
+    # This gives us a 1D profile showing information content vs. y-position
+    variance_1d = variance_2d.sum(axis=1)
+
+    # Check for uniform variance (all values nearly equal)
+    # If variance range is very small, default to center crop
+    variance_range = float(variance_1d.max() - variance_1d.min())
+    if variance_range < 1e-6:
+        # Uniform variance - default to center
+        center_y = height // 2
+        max_variance = float(variance_1d[center_y])
+        LOG.debug(
+            "Uniform variance detected (range=%.2e), using center crop at y=%d",
+            variance_range,
+            center_y,
+        )
+    else:
+        # Find y-position with maximum total variance
+        # This is the "center of mass" of information in the vertical direction
+        max_y_flat = xp.argmax(variance_1d)
+        center_y = int(max_y_flat)
+        max_variance = float(variance_1d[max_y_flat])
+
+    # Free GPU memory if applicable
+    if _has_cupy:
+        mempool = xp.get_default_memory_pool()
+        mempool.free_all_blocks()
+
+    # Compute crop boundaries centered at max variance position
+    y_start = center_y - crop_height // 2
+    y_end = y_start + crop_height
+
+    # Clamp to image boundaries
+    if y_start < 0:
+        y_start = 0
+        y_end = min(crop_height, height)
+
+    if y_end > height:
+        y_end = height
+        y_start = max(0, height - crop_height)
+
+    LOG.debug(
+        "Selected FRC region: y=[%d:%d] (height=%d, center_y=%d, max_variance=%.2f)",
+        y_start,
+        y_end,
+        y_end - y_start,
+        center_y,
+        max_variance,
+    )
+
+    return y_start, y_end
+
+
 def compute_frc(
     img1: ArrayLike,
     img2: ArrayLike,
@@ -592,7 +746,7 @@ def compute_frc(
     # Apply Tukey window to suppress FFT edge artifacts
     if apply_window:
         try:
-            tukey_1d = xp_windows.tukey(max(height, width), alpha=window_alpha)
+            tukey_1d = tukey(max(height, width), alpha=window_alpha)
             window_2d = tukey_1d[:height, None] * tukey_1d[None, :width]
             img1 = img1 * window_2d
             img2 = img2 * window_2d
