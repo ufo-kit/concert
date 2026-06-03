@@ -17,7 +17,7 @@ import torch
 from concert.ext.tangoservers.base import TangoRemoteProcessing, RemoteWalkerMixin
 from concert.ext.ufo import FlatCorrect
 from concert.typing import ArrayLike
-from concert.imageprocessing import compute_frc, select_frc_region
+from concert.imageprocessing import compute_frc, select_frc_region, prepare_frc_state
 from concert.storage import RemoteDirectoryWalker
 
 
@@ -92,6 +92,7 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
     )
 
     _walker: Optional[RemoteDirectoryWalker]
+    _frc_state: Optional[Dict[str, Union[int, torch.Tensor]]]
 
     async def init_device(self) -> None:
         await super().init_device()
@@ -103,6 +104,7 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
         self._padding_x = 400
         self._crop_y_start = 0
         self._crop_y_end = 0
+        self._frc_state = None
         self._walker = None
         self.info_stream(
             "%s initialized device with %s, state: %s",
@@ -356,11 +358,8 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
         projection_indices: List[int] = []
         proj_index: int = 0
         crop_determined = False
-
         try:
             async for proj in ffc(producer):
-                proj = np.asarray(proj, dtype=np.float64)
-
                 # Determine crop region from first projection
                 if not crop_determined:
                     y_start, y_end, crop_method = select_frc_region(
@@ -379,6 +378,15 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
                         y_end,
                         crop_method,
                     )
+                
+                # Create FRC frequency bins once for this image size and initialize as state
+                if not self._frc_state:
+                    self._frc_state = prepare_frc_state(self._crop_height, proj.shape[1])
+                    self.info_stream(
+                        "FRC frequency bins prepared and state initialized for dim: [%d x %d]",
+                        self._crop_height,
+                        proj.shape[1],
+                    )
 
                 buffer.append(proj)
 
@@ -394,6 +402,7 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
                     result = compute_frc(
                         img1,
                         img2,
+                        frc_state=self._frc_state,
                         threshold_method=self._resolution_threshold,
                     )
 
