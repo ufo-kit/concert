@@ -508,7 +508,7 @@ def select_frc_region(
     variance_window: Optional[int] = None,
     padding_y: int = 400,
     padding_x: int = 400,
-) -> Tuple[int, int]:
+) -> Tuple[int, int, str]:
     """
     Select informative vertical region from projection for FRC computation.
 
@@ -529,8 +529,9 @@ def select_frc_region(
     :param padding_x: horizontal padding in pixels to exclude from left/right edges
                       (default: 200). Variance computation ignores these regions.
     :type padding_x: int
-    :return: (y_start, y_end) crop boundaries along vertical axis
-    :rtype: Tuple[int, int]
+    :return: (y_start, y_end, crop_method) crop boundaries and method used
+             crop_method is "variance" (peak detected) or "center" (uniform variance)
+    :rtype: Tuple[int, int, str]
 
     Notes:
         - Uses local variance to identify information-rich regions (edges, structures)
@@ -575,9 +576,9 @@ def select_frc_region(
 
     # Validate crop_height
     if crop_height >= height:
-        # No cropping needed
-        LOG.debug("Crop height %d >= image height %d, skipping crop", crop_height, height)
-        return 0, height
+        raise ValueError(
+            f"Crop height ({crop_height}px) must be less than image height ({height}px)"
+        )
 
     # Apply padding: exclude edge regions from variance computation
     # This prevents empty air/artifacts from overwhelming the detection
@@ -618,12 +619,14 @@ def select_frc_region(
             variance_range,
             center_y,
         )
+        crop_method = "center"
     else:
         # Find y-position with maximum total variance
         # This is the "center of mass" of information in the vertical direction
         max_y_flat = torch.argmax(variance_1d)
         center_y = int(max_y_flat.item())
         max_variance = float(variance_1d[max_y_flat].item())
+        crop_method = "variance"
 
     # Compute crop boundaries centered at max variance position
     y_start = center_y - crop_height // 2
@@ -639,15 +642,16 @@ def select_frc_region(
         y_start = max(0, height - crop_height)
 
     LOG.debug(
-        "Selected FRC region: y=[%d:%d] (height=%d, center_y=%d, max_variance=%.2f)",
+        "Selected FRC region: y=[%d:%d] (height=%d, center_y=%d, max_variance=%.2f, method=%s)",
         y_start,
         y_end,
         y_end - y_start,
         center_y,
         max_variance,
+        crop_method,
     )
 
-    return y_start, y_end
+    return y_start, y_end, crop_method
 
 
 def compute_frc(
@@ -656,7 +660,7 @@ def compute_frc(
     eps: float = 1e-12,
     apply_window: bool = True,
     window_alpha: float = 0.125,
-    threshold_method: str = "1/7",
+    threshold_method: str = "half_bit",
 ) -> Dict[str, Union[ArrayLike, float]]:
     """
     Compute Fourier Ring Correlation (FRC) between two images and estimate spatial resolution.
