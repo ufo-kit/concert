@@ -19,7 +19,6 @@ LOG = logging.getLogger(__name__)
 
 
 class TangoMixin:
-
     """TangoMixin does not need a producer becuase the backend processes image streams which do not
     come via concert.
     """
@@ -38,7 +37,7 @@ class TangoMixin:
                     "`%s' occured in %s, remote cancelled with result: %s",
                     e.__class__.__name__,
                     func.__qualname__,
-                    await asyncio.gather(self.cancel(), return_exceptions=True)
+                    await asyncio.gather(self.cancel(), return_exceptions=True),
                 )
                 raise
 
@@ -48,7 +47,7 @@ class TangoMixin:
         self._device = device
         self._device.set_timeout_millis(DISTRIBUTED_TANGO_TIMEOUT)
         self.endpoint = endpoint
-        await self._device.write_attribute('endpoint', self.endpoint.client_endpoint)
+        await self._device.write_attribute("endpoint", self.endpoint.client_endpoint)
 
     async def connect_endpoint(self):
         await self._device.connect_endpoint()
@@ -121,10 +120,9 @@ class LiveView(base.LiveView):
 
     async def __ainit__(self, viewer, endpoint, experiment, acquisitions=None):
         self.endpoint = endpoint
-        await base.LiveView.__ainit__(self,
-                                      viewer,
-                                      experiment=experiment,
-                                      acquisitions=acquisitions)
+        await base.LiveView.__ainit__(
+            self, viewer, experiment=experiment, acquisitions=acquisitions
+        )
         self._orig_limits = await viewer.get_limits()
 
     async def connect_endpoint(self):
@@ -177,8 +175,8 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
         acquisitions=None,
         do_normalization=True,
         average_normalization=True,
-        slice_directory='online-slices',
-        viewer=None
+        slice_directory="online-slices",
+        viewer=None,
     ):
         await TangoMixin.__ainit__(self, device, endpoint)
 
@@ -190,7 +188,7 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
             do_normalization=do_normalization,
             average_normalization=average_normalization,
             slice_directory=slice_directory,
-            viewer=viewer
+            viewer=viewer,
         )
 
     @TangoMixin.cancel_remote
@@ -217,14 +215,19 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
         path = ""
         if self.walker and not await self.get_slice_metric():
             if (
-                cached is False and await self.get_slice_directory()
-                or cached is True and slice_directory
+                cached is False
+                and await self.get_slice_directory()
+                or cached is True
+                and slice_directory
             ):
                 async with self.walker:
                     path = os.path.join(
                         await self.walker.get_current(),
-                        await self.get_slice_directory() if slice_directory is None
-                        else slice_directory
+                        (
+                            await self.get_slice_directory()
+                            if slice_directory is None
+                            else slice_directory
+                        ),
                     )
         if cached:
             await self._device.rereconstruct(path)
@@ -239,8 +242,8 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
         await self._reconstruct(cached=True, slice_directory=slice_directory)
 
     @background
-    async def find_parameter(self, parameter, region, metric='sag', z=None, store=False):
-        region = region.to(self.UNITS[parameter.replace('-', '_')]).magnitude.tolist()
+    async def find_parameter(self, parameter, region, metric="sag", z=None, store=False):
+        region = region.to(self.UNITS[parameter.replace("-", "_")]).magnitude.tolist()
         blob = (
             "find_parameter_args",
             {
@@ -249,7 +252,7 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
                 "z": 0 if z is None else z.magnitude,
                 "store": store,
                 "metric": metric,
-            }
+            },
         )
         await self._device.write_pipe("find_parameter_args", blob)
         return await self._device.find_parameter()
