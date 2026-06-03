@@ -286,10 +286,10 @@ class FourierRingCorrelation(TangoMixin, base.Addon):
                        - 'proj_offset': offset in projections (default: 1)
                        - 'resolution_threshold': '1/7' or 'half_bit' (default: 'half_bit')
                        - 'fluctuation_threshold': percentage deviation (default: 15.0, range: 5-100)
-                       - 'frc_crop_height': crop height in pixels (default: 512, range: 64-2048)
-                       - 'frc_padding_y': vertical padding in pixels (default: 400)
-                       - 'frc_padding_x': horizontal padding in pixels (default: 400)
-        :type kwargs: dict[str, Any]
+                       - 'crop_height': crop height in pixels (default: 512, range: 64-2048)
+                       - 'padding_y': vertical padding in pixels (default: 400)
+                       - 'padding_x': horizontal padding in pixels (default: 400)
+        :type kwargs: Dict[str, Any]
         """
         await TangoMixin.__ainit__(self, device, endpoint)
 
@@ -302,16 +302,16 @@ class FourierRingCorrelation(TangoMixin, base.Addon):
         proj_offset: int = kwargs.get("proj_offset", 1)
         resolution_threshold: str = kwargs.get("resolution_threshold", "half_bit")
         fluctuation_threshold: float = kwargs.get("fluctuation_threshold", 15.0)
-        frc_crop_height: int = kwargs.get("frc_crop_height", 512)
-        frc_padding_y: int = kwargs.get("frc_padding_y", 400)
-        frc_padding_x: int = kwargs.get("frc_padding_x", 400)
+        crop_height: int = kwargs.get("crop_height", 512)
+        padding_y: int = kwargs.get("padding_y", 400)
+        padding_x: int = kwargs.get("padding_x", 400)
 
         await self._device.write_attribute("proj_offset", proj_offset)
         await self._device.write_attribute("resolution_threshold", resolution_threshold)
         await self._device.write_attribute("fluctuation_threshold", fluctuation_threshold)
-        await self._device.write_attribute("frc_crop_height", frc_crop_height)
-        await self._device.write_attribute("frc_padding_y", frc_padding_y)
-        await self._device.write_attribute("frc_padding_x", frc_padding_x)
+        await self._device.write_attribute("crop_height", crop_height)
+        await self._device.write_attribute("padding_y", padding_y)
+        await self._device.write_attribute("padding_x", padding_x)
 
         await base.Addon.__ainit__(self, experiment, None)
 

@@ -64,31 +64,31 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
         "(default: 15.0, valid range: 5.0-100.0)",
     )
 
-    frc_crop_height = attribute(
-        label="FRC crop height",
+    crop_height = attribute(
+        label="Crop height",
         dtype=int,
         access=AttrWriteType.READ_WRITE,
-        fget="get_frc_crop_height",
-        fset="set_frc_crop_height",
+        fget="get_crop_height",
+        fset="set_crop_height",
         doc="Target crop height in pixels for FRC region selection (default: 512)",
     )
 
-    frc_padding_y = attribute(
-        label="FRC vertical padding",
+    padding_y = attribute(
+        label="Vertical padding",
         dtype=int,
         access=AttrWriteType.READ_WRITE,
-        fget="get_frc_padding_y",
-        fset="set_frc_padding_y",
-        doc="Vertical padding in pixels to exclude from variance computation (default: 400)",
+        fget="get_padding_y",
+        fset="set_padding_y",
+        doc="Vertical padding in pixels to exclude from top/bottom edges (default: 400)",
     )
 
-    frc_padding_x = attribute(
-        label="FRC horizontal padding",
+    padding_x = attribute(
+        label="Horizontal padding",
         dtype=int,
         access=AttrWriteType.READ_WRITE,
-        fget="get_frc_padding_x",
-        fset="set_frc_padding_x",
-        doc="Horizontal padding in pixels to exclude from variance computation (default: 400)",
+        fget="get_padding_x",
+        fset="set_padding_x",
+        doc="Horizontal padding in pixels to exclude from left/right edges (default: 400)",
     )
 
     _walker: Optional[RemoteDirectoryWalker]
@@ -98,9 +98,9 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
         self._resolution_threshold = "half_bit"
         self._proj_offset = 1
         self._fluctuation_threshold = 15.0
-        self._frc_crop_height = 512
-        self._frc_padding_y = 400
-        self._frc_padding_x = 400
+        self._crop_height = 512
+        self._padding_y = 400
+        self._padding_x = 400
         self._crop_y_start = 0
         self._crop_y_end = 0
         self._walker = None
@@ -159,43 +159,43 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
             self._fluctuation_threshold,
         )
 
-    def get_frc_crop_height(self) -> int:
-        return self._frc_crop_height
+    def get_crop_height(self) -> int:
+        return self._crop_height
 
-    def set_frc_crop_height(self, height: int) -> None:
+    def set_crop_height(self, height: int) -> None:
         if height < 64 or height > 2048:
             raise ValueError(f"Crop height must be between 64 and 2048 pixels, got {height}")
-        self._frc_crop_height = height
+        self._crop_height = height
         self.info_stream(
-            "%s: FRC crop height set to: %d px",
+            "%s: Crop height set to: %d px",
             self.__class__.__name__,
-            self._frc_crop_height,
+            self._crop_height,
         )
 
-    def get_frc_padding_y(self) -> int:
-        return self._frc_padding_y
+    def get_padding_y(self) -> int:
+        return self._padding_y
 
-    def set_frc_padding_y(self, padding: int) -> None:
+    def set_padding_y(self, padding: int) -> None:
         if padding < 0:
             raise ValueError(f"Padding Y must be non-negative, got {padding}")
-        self._frc_padding_y = padding
+        self._padding_y = padding
         self.info_stream(
-            "%s: FRC padding Y set to: %d px",
+            "%s: Padding Y set to: %d px",
             self.__class__.__name__,
-            self._frc_padding_y,
+            self._padding_y,
         )
 
-    def get_frc_padding_x(self) -> int:
-        return self._frc_padding_x
+    def get_padding_x(self) -> int:
+        return self._padding_x
 
-    def set_frc_padding_x(self, padding: int) -> None:
+    def set_padding_x(self, padding: int) -> None:
         if padding < 0:
             raise ValueError(f"Padding X must be non-negative, got {padding}")
-        self._frc_padding_x = padding
+        self._padding_x = padding
         self.info_stream(
-            "%s: FRC padding X set to: %d px",
+            "%s: Padding X set to: %d px",
             self.__class__.__name__,
-            self._frc_padding_x,
+            self._padding_x,
         )
 
     @staticmethod
@@ -365,12 +365,13 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
                 if not crop_determined:
                     y_start, y_end, crop_method = select_frc_region(
                         proj,
-                        crop_height=self._frc_crop_height,
-                        padding_y=self._frc_padding_y,
-                        padding_x=self._frc_padding_x,
+                        crop_height=self._crop_height,
+                        padding_y=self._padding_y,
+                        padding_x=self._padding_x,
                     )
                     self._crop_y_start = y_start
                     self._crop_y_end = y_end
+                    
                     crop_determined = True
                     self.info_stream(
                         "FRC crop region selected: y=[%d:%d] (method=%s)",
