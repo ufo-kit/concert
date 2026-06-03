@@ -6,19 +6,13 @@ backprojection, flat field correction and other operations on images.
 import asyncio
 import numpy as np
 import logging
-from typing import Dict, Optional, Tuple, Union
-
+from typing import Dict, Tuple, Union
 import numpy as np
-
-# Try PyTorch first (GPU acceleration)
 try:
     import torch
     import torch.nn.functional as F
-
-    _has_torch = True
     _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 except ImportError:
-    _has_torch = False
     _device = torch.device("cpu")
 
 from scipy.ndimage import uniform_filter
@@ -504,10 +498,9 @@ def filter_low_frequencies(data, fwhm=32.0):
 
 def select_frc_region(
     projection: ArrayLike,
-    crop_height: int = 512,
-    variance_window: Optional[int] = None,
-    padding_y: int = 400,
-    padding_x: int = 400,
+    crop_height: int,
+    padding_y: int,
+    padding_x: int,
 ) -> Tuple[int, int, str]:
     """
     Select informative vertical region from projection for FRC computation.
@@ -520,9 +513,6 @@ def select_frc_region(
     :type projection: `concert.typing.ArrayLike`
     :param crop_height: height of cropped region in pixels (default: 512)
     :type crop_height: int
-    :param variance_window: window size for local variance estimation; if None,
-                            uses crop_height // 4 (default: None)
-    :type variance_window: Optional[int]
     :param padding_y: vertical padding in pixels to exclude from top/bottom edges
                       (default: 200). Variance computation ignores these regions.
     :type padding_y: int
@@ -540,45 +530,17 @@ def select_frc_region(
         - Crop boundaries are clamped to image dimensions
         - Full width is always retained to accommodate sample rotation
     """
-    if variance_window is None:
-        variance_window = crop_height // 4
-
-    # Ensure variance_window is at least 1
-    variance_window = max(1, variance_window)
-
-    # Convert to torch tensor on appropriate device
     proj = torch.as_tensor(projection, dtype=torch.float64, device=_device)
     height, width = proj.shape
-
-    # Validate padding parameters
-    if padding_y < 0 or padding_x < 0:
-        raise ValueError("Padding values must be non-negative")
-
-    if padding_y * 2 >= height:
-        raise ValueError(
-            f"Vertical padding ({padding_y}px from each edge) exceeds image height ({height}px). "
-            f"Maximum allowed: {height // 2 - 1}px"
-        )
-
-    if padding_x * 2 >= width:
-        raise ValueError(
-            f"Horizontal padding ({padding_x}px from each edge) exceeds image width ({width}px). "
-            f"Maximum allowed: {width // 2 - 1}px"
-        )
+    assert padding_y > 0 and padding_y * 2 < height
+    assert padding_x > 0 and padding_x * 2 < width
+    variance_window = max(1, crop_height // 4)
 
     # Validate crop_height fits in padded region
     inner_height = height - (padding_y * 2)
     if crop_height > inner_height:
         raise ValueError(
-            f"Crop height ({crop_height}px) exceeds available region after padding ({inner_height}px). "
-            f"Reduce crop_height or padding_y."
-        )
-
-    # Validate crop_height
-    if crop_height >= height:
-        raise ValueError(
-            f"Crop height ({crop_height}px) must be less than image height ({height}px)"
-        )
+            f"crop height ({crop_height}px) exceeds available region ({inner_height}px)")
 
     # Apply padding: exclude edge regions from variance computation
     # This prevents empty air/artifacts from overwhelming the detection
@@ -590,8 +552,7 @@ def select_frc_region(
     # Extract inner region for variance analysis
     proj_inner = proj[y_inner_start:y_inner_end, x_inner_start:x_inner_end]
 
-    # Use scipy.ndimage.uniform_filter (NumPy arrays) - lightweight operation
-    # Transfer to CPU for this operation
+    # Use scipy.ndimage.uniform_filter (NumPy arrays)
     proj_inner_cpu = proj_inner.cpu().numpy()
     mean = uniform_filter(proj_inner_cpu, size=variance_window)
     mean_sq = uniform_filter(proj_inner_cpu**2, size=variance_window)
@@ -654,9 +615,67 @@ def select_frc_region(
     return y_start, y_end, crop_method
 
 
+def prepare_frc_state(height: int, width: int) -> Dict[str, Union[int, torch.Tensor]]:
+    """
+    Precompute frequency bins and bin assignments for FRC computation.
+
+    This function computes shape-dependent data structures that can be reused
+    across multiple FRC computations for images of the same dimensions.
+
+    :param height: image height in pixels
+    :type height: int
+    :param width: image width in pixels
+    :type width: int
+    :return: dictionary containing:
+             - 'height': image height
+             - 'width': image width
+             - 'num_freq_bins': number of frequency rings
+             - 'bin_idx': flattened bin assignments for each pixel
+             - 'counts': number of pixels per frequency ring
+             - 'frequencies': representative frequency for each ring
+    :rtype: Dict[str, Union[int, torch.Tensor]]
+    :raises ValueError: if height or width < 2
+    """
+    # Validate dimensions
+    assert height > 2 and width > 2
+    # Create frequency coordinate grid
+    freq_y_vals = torch.fft.fftfreq(height, device=_device)
+    freq_x_vals = torch.fft.fftfreq(width, device=_device)
+    freq_y, freq_x = torch.meshgrid(freq_y_vals, freq_x_vals, indexing="ij")
+
+    # Compute radial distances
+    radial_distances = torch.sqrt(freq_x**2 + freq_y**2)
+
+    # Number of frequency bins determined by Nyquist limit
+    num_freq_bins: int = min(height, width) // 2
+
+    # Define ring radii (bin edges)
+    ring_radii = torch.linspace(0, radial_distances.max(), num_freq_bins + 1, device=_device)
+
+    # Assign each frequency pixel to a bin
+    bin_idx = torch.bucketize(radial_distances.ravel(), ring_radii, right=True) - 1
+    bin_idx = torch.clamp(bin_idx, 0, num_freq_bins - 1)
+
+    # Count pixels per ring
+    counts = torch.bincount(bin_idx, minlength=num_freq_bins)
+
+    # Compute representative frequencies (bin centers)
+    frequencies = 0.5 * (ring_radii[:-1] + ring_radii[1:])
+
+    return {
+        "height": height,
+        "width": width,
+        "num_freq_bins": num_freq_bins,
+        "bin_idx": bin_idx,
+        "counts": counts,
+        "frequencies": frequencies,
+    }
+
+
 def compute_frc(
     img1: ArrayLike,
     img2: ArrayLike,
+    frc_state: Dict[str, Union[int, torch.Tensor]],
     eps: float = 1e-12,
     apply_window: bool = True,
     window_alpha: float = 0.125,
@@ -682,6 +701,8 @@ def compute_frc(
     :type img1: `concert.typing.ArrayLike`
     :param img2: second input image (must have same shape as img1)
     :type img2: `concert.typing.ArrayLike`
+    :param frc_state: precomputed frequency bins from prepare_frequency_bins()
+    :type frc_state: Dict[str, Union[int, torch.Tensor]]
     :param eps: numerical stability constant to avoid division by zero (default: 1e-12)
     :type eps: float
     :param apply_window: apply Tukey window to reduce FFT artifacts (default: True)
@@ -733,15 +754,11 @@ def compute_frc(
           Imaging, 11, 1047-1058. https://doi.org/10.1109/TCI.2025.3593881
     """
     # Validate input shapes - FRC requires comparable Fourier spaces
-    if img1.shape != img2.shape:
-        raise ValueError(
-            f"incompatible image shapes, image1 shape: {img1.shape}, image2 shape: {img2.shape}"
-        )
-
+    assert img1.shape == img2.shape
     # Convert to torch tensors on appropriate device
     img1 = torch.as_tensor(img1, dtype=torch.float64, device=_device)
     img2 = torch.as_tensor(img2, dtype=torch.float64, device=_device)
-    height, width = img1.shape
+    height, width = frc_state["height"], frc_state["width"]
 
     # Apply Tukey window to suppress FFT edge artifacts
     if apply_window:
@@ -755,13 +772,9 @@ def compute_frc(
         except Exception:
             LOG.warning("Tukey window not available, proceeding without windowing")
 
-    # Remove DC component - prevents low-frequency dominance in FRC
-    img1 = img1 - img1.mean()
-    img2 = img2 - img2.mean()
-
     # Compute 2D FFT for both images
-    freq1 = torch.fft.fft2(img1)
-    freq2 = torch.fft.fft2(img2)
+    freq1 = torch.fft.fft2(img1 - img1.mean())
+    freq2 = torch.fft.fft2(img2 - img2.mean())
 
     # Cross-correlation spectrum: measures agreement in amplitude and phase
     corr = (freq1 * torch.conj(freq2)).real
@@ -770,57 +783,24 @@ def compute_frc(
     pow_spc1 = torch.abs(freq1) ** 2
     pow_spc2 = torch.abs(freq2) ** 2
 
-    # Create frequency coordinate grid (units: cycles/pixel)
-    # fftfreq returns frequencies from -Nyquist to +Nyquist
-    freq_y_vals = torch.fft.fftfreq(height, device=_device)
-    freq_x_vals = torch.fft.fftfreq(width, device=_device)
-    freq_y, freq_x = torch.meshgrid(freq_y_vals, freq_x_vals, indexing="ij")
+    # Use precomputed frequency bins
+    bin_idx = frc_state["bin_idx"]
+    counts = frc_state["counts"]
+    frequencies = frc_state["frequencies"]
+    num_freq_bins = frc_state["num_freq_bins"]
 
-    # Compute radial distance from origin for each frequency pixel using Pythagorean formula.
-    # This converts 2D frequency coordinates to scalar spatial frequency magnitudes
-    radial_distances = torch.sqrt(freq_x**2 + freq_y**2)
-
-    # Number of frequency bins determined by Nyquist limit
-    # We can only resolve up to min(height, width) // 2 independent frequency rings
-    num_freq_bins: int = min(height, width) // 2
-
-    # Define bin edges as equally-spaced radii from 0 to maximum frequency
-    ring_radii = torch.linspace(0, radial_distances.max(), num_freq_bins + 1, device=_device)
-
-    # Assign each frequency pixel to a frequency ring (bin) based on its radial distance
-    # bucketize() finds which interval [ring_radii[i], ring_radii[i+1]) each distance falls into
-    # Returns integer array where value k means "this pixel belongs to ring k"
-    # Subtract 1 because bucketize uses 1-based indexing but we need 0-based for bincount
-    bin_idx = torch.bucketize(radial_distances.ravel(), ring_radii, right=True) - 1
-
-    # Clip to valid range handles floating-point precision edge cases
-    bin_idx = torch.clamp(bin_idx, 0, num_freq_bins - 1)
-
-    # At this point, bin_idx is a flattened array (same length as total pixels)
-    # where each element indicates which frequency ring that pixel contributes to
-
-    # Accumulate cross-correlations per frequency ring
-    # bincount(indices, weights) sums all weights that share the same index value
+    # Accumulate cross-correlations per frequency ring using precomputed bin assignments
     frc_num = torch.bincount(bin_idx, weights=corr.ravel(), minlength=num_freq_bins)
 
     # Similarly accumulate power spectra for normalization
-    # These represent total signal strength per frequency ring for each image
     frc_denom1 = torch.bincount(bin_idx, weights=pow_spc1.ravel(), minlength=num_freq_bins)
     frc_denom2 = torch.bincount(bin_idx, weights=pow_spc2.ravel(), minlength=num_freq_bins)
 
-    # Count pixels per ring (no weights) - used for reliability masking and thresholds
-    counts = torch.bincount(bin_idx, minlength=num_freq_bins)
-
     # Compute FRC: normalized correlation per frequency ring
-    # Formula: FRC(k) = Σ(corr_k) / √(Σ(pow1_k)  Σ(pow2_k))
-    # Add eps to denominator to prevent division by zero for empty/high-frequency rings
     frc = frc_num / (torch.sqrt(frc_denom1 * frc_denom2) + eps)
 
     # Mask unreliable bins - rings with <10 pixels have poor statistical significance
     frc = torch.where(counts > 10, frc, torch.tensor(float("nan"), device=_device))
-
-    # Compute representative frequency for each bin (bin center, not edge)
-    frequencies = 0.5 * (ring_radii[:-1] + ring_radii[1:])
 
     # Generate classical threshold curve based on selected method
     if threshold_method == "1/7":
@@ -852,7 +832,7 @@ def compute_frc(
         weights=torch.maximum(mag1.ravel(), mag2.ravel()),
         minlength=num_freq_bins,
     )
-    M_per_ring = M_per_ring / torch.maximum(counts, torch.ones_like(counts))  # Average, not sum
+    M_per_ring = M_per_ring / torch.maximum(counts, torch.ones_like(counts))
     geometric_threshold = 2.0 * torch.sqrt(M_per_ring) / (1.0 + M_per_ring)
     geometric_threshold = torch.where(
         counts > 10, geometric_threshold, torch.tensor(float("nan"), device=_device)
