@@ -882,88 +882,80 @@ def compute_frc(
 
 
 def _extract_resolution(
-    frequencies,
-    frc_curve,
-    threshold_curve,
+    frequencies: torch.Tensor,
+    frc_curve: torch.Tensor,
+    threshold_curve: torch.Tensor,
     crossing_type: str = "classical",
 ) -> Tuple[float, float]:
     """
-    Extract resolution from FRC curve threshold crossing using linear interpolation.
+    Extract resolution from FRC curve threshold crossing using vectorized operations.
+
+    Fully vectorized implementation replaces Python loop with tensor operations.
+    Finds first frequency where FRC drops below threshold, using linear interpolation.
 
     :param frequencies: spatial frequency array (cycles/pixel)
+    :type frequencies: torch.Tensor
     :param frc_curve: FRC correlation values
+    :type frc_curve: torch.Tensor
     :param threshold_curve: threshold values to compare against
+    :type threshold_curve: torch.Tensor
     :param crossing_type: 'classical' or 'geometric' (for logging purposes)
+    :type crossing_type: str
     :return: (crossing_frequency, resolution) tuple, both NaN if no valid crossing
+    :rtype: Tuple[float, float]
     """
-
-    def _to_float(value):
-        """Convert torch tensor or numpy scalar to Python float."""
-        if isinstance(value, torch.Tensor):
-            return float(value.item())
-        return float(value)
-
-    def _isnan(value):
-        """Check if value is NaN for torch or numpy."""
-        if isinstance(value, torch.Tensor):
-            return torch.isnan(value)
-        return np.isnan(value)
-
     # Find all frequency bins where FRC drops below threshold
     crossing_mask = frc_curve < threshold_curve
+    valid_mask = ~torch.isnan(frc_curve)
 
-    # Search for first valid crossing where both bins have valid FRC values
-    crossing_frequency = float("nan")
-    resolution = float("nan")
+    # Find all indices where crossing_mask[i] is True and both i and i-1 are valid
+    valid_crossings = crossing_mask[1:] & valid_mask[1:] & valid_mask[:-1]
 
-    for first_idx in range(1, len(frequencies)):
-        if (
-            crossing_mask[first_idx]
-            and not _isnan(frc_curve[first_idx])
-            and not _isnan(frc_curve[first_idx - 1])
-        ):
-            # Valid crossing found - use linear interpolation for sub-bin precision
+    crossings = torch.where(valid_crossings)[0]
 
-            # Extract values from adjacent bins for interpolation
-            f1 = _to_float(frequencies[first_idx - 1])
-            f2 = _to_float(frequencies[first_idx])
-            c1 = _to_float(frc_curve[first_idx - 1])
-            c2 = _to_float(frc_curve[first_idx])
-            t1 = _to_float(threshold_curve[first_idx - 1])
-            t2 = _to_float(threshold_curve[first_idx])
-
-            # Linear interpolation: solve for frequency where FRC = threshold
-            # Formula: f_cross = f1 + (t - c1) * (f2 - f1) / ((c2 - c1) - (t2 - t1))
-            denom = (c2 - c1) - (t2 - t1)
-            if abs(denom) < 1e-10:
-                # Near-parallel curves - fall back to midpoint
-                LOG.debug(
-                    "Near-parallel FRC and %s threshold curves - using midpoint interpolation",
-                    crossing_type,
-                )
-                crossing_frequency = (f1 + f2) / 2
-            else:
-                crossing_frequency = f1 - (c1 - t1) * (f2 - f1) / denom
-
-            # Convert crossing frequency to spatial resolution
-            if _isnan(torch.tensor(crossing_frequency)) or crossing_frequency <= 0:
-                LOG.debug(
-                    "Invalid %s crossing frequency %.4f - setting resolution to NaN",
-                    crossing_type,
-                    crossing_frequency,
-                )
-                resolution = float("nan")
-            else:
-                resolution = 1.0 / crossing_frequency
-                LOG.debug(
-                    "%s resolution extracted: %.4f cycles/pixel → %.2f pixels",
-                    crossing_type.capitalize(),
-                    crossing_frequency,
-                    resolution,
-                )
-            break
-
-    if _isnan(torch.tensor(crossing_frequency)):
+    if len(crossings) == 0:
         LOG.debug("No valid %s threshold crossing found", crossing_type)
+        return float("nan"), float("nan")
 
-    return crossing_frequency, resolution
+    # Get first crossing index (add 1 because valid_crossings starts from index 1)
+    first_idx = int(crossings[0]) + 1
+
+    # Extract values from adjacent bins for interpolation
+    f1 = frequencies[first_idx - 1]
+    f2 = frequencies[first_idx]
+    c1 = frc_curve[first_idx - 1]
+    c2 = frc_curve[first_idx]
+    t1 = threshold_curve[first_idx - 1]
+    t2 = threshold_curve[first_idx]
+
+    # Linear interpolation: solve for frequency where FRC = threshold
+    # Formula: f_cross = f1 + (t - c1) * (f2 - f1) / ((c2 - c1) - (t2 - t1))
+    denom = (c2 - c1) - (t2 - t1)
+    if abs(denom) < 1e-10:
+        # Near-parallel curves - fall back to midpoint
+        LOG.debug(
+            "Near-parallel FRC and %s threshold curves - using midpoint interpolation",
+            crossing_type,
+        )
+        crossing_frequency = (f1 + f2) / 2
+    else:
+        crossing_frequency = f1 - (c1 - t1) * (f2 - f1) / denom
+
+    # Convert crossing frequency to spatial resolution
+    if torch.isnan(crossing_frequency) or crossing_frequency <= 0:
+        LOG.debug(
+            "Invalid %s crossing frequency %.4f - setting resolution to NaN",
+            crossing_type,
+            float(crossing_frequency),
+        )
+        return float("nan"), float("nan")
+
+    resolution = 1.0 / crossing_frequency
+    LOG.debug(
+        "%s resolution extracted: %.4f cycles/pixel → %.2f pixels",
+        crossing_type.capitalize(),
+        float(crossing_frequency),
+        float(resolution),
+    )
+
+    return float(crossing_frequency), float(resolution)
