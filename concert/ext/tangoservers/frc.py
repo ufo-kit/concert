@@ -13,6 +13,7 @@ import datetime
 import numpy as np
 from tango import DebugIt
 from tango.server import attribute, command, AttrWriteType
+import torch
 from concert.ext.tangoservers.base import TangoRemoteProcessing, RemoteWalkerMixin
 from concert.ext.ufo import FlatCorrect
 from concert.typing import ArrayLike
@@ -59,7 +60,8 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
         access=AttrWriteType.READ_WRITE,
         fget="get_fluctuation_threshold",
         fset="set_fluctuation_threshold",
-        doc="Percentage deviation from baseline to flag as fluctuation (default: 15.0, valid range: 5.0-100.0)",
+        doc="Percentage deviation from baseline to flag as fluctuation"
+        "(default: 15.0, valid range: 5.0-100.0)",
     )
 
     frc_crop_height = attribute(
@@ -100,11 +102,12 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
         self._frc_padding_y = 400
         self._frc_padding_x = 400
         self._crop_y_start = 0
-        self._crop_y_end = None
+        self._crop_y_end = 0
         self._walker = None
         self.info_stream(
-            "%s initialized device with state: %s",
+            "%s initialized device with %s, state: %s",
             self.__class__.__name__,
+            "CUDA" if torch.cuda.is_available() else "CPU",
             self.get_state(),
         )
 
@@ -352,36 +355,29 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
         geometric_resolutions: List[Optional[float]] = []
         projection_indices: List[int] = []
         proj_index: int = 0
-        crop_applied = False
-        crop_failed = False
+        crop_determined = False
 
         try:
             async for proj in ffc(producer):
                 proj = np.asarray(proj, dtype=np.float64)
 
                 # Determine crop region from first projection
-                if not crop_applied and not crop_failed:
-                    try:
-                        y_start, y_end = select_frc_region(
-                            proj,
-                            crop_height=self._frc_crop_height,
-                            padding_y=self._frc_padding_y,
-                            padding_x=self._frc_padding_x,
-                        )
-                        self._crop_y_start = y_start
-                        self._crop_y_end = y_end
-                        crop_applied = True
-                        self.info_stream(
-                            "FRC crop region selected: y=[%d:%d] (height=%d)",
-                            y_start,
-                            y_end,
-                            y_end - y_start,
-                        )
-                    except Exception as e:
-                        self.error_stream(
-                            "FRC crop region selection failed: %s. Using full images.", str(e)
-                        )
-                        crop_failed = True
+                if not crop_determined:
+                    y_start, y_end, crop_method = select_frc_region(
+                        proj,
+                        crop_height=self._frc_crop_height,
+                        padding_y=self._frc_padding_y,
+                        padding_x=self._frc_padding_x,
+                    )
+                    self._crop_y_start = y_start
+                    self._crop_y_end = y_end
+                    crop_determined = True
+                    self.info_stream(
+                        "FRC crop region selected: y=[%d:%d] (method=%s)",
+                        y_start,
+                        y_end,
+                        crop_method,
+                    )
 
                 buffer.append(proj)
 
@@ -390,7 +386,7 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
                     img2 = buffer[-1]
 
                     # Apply previously determined crop region
-                    if crop_applied:
+                    if crop_determined:
                         img1 = img1[self._crop_y_start : self._crop_y_end, :]
                         img2 = img2[self._crop_y_start : self._crop_y_end, :]
 
@@ -446,6 +442,8 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
                     "threshold_method": self._resolution_threshold,
                     "num_projections_received": proj_index,
                     "num_frc_computations": len(correlation_results),
+                    "crop_y_start": self._crop_y_start,
+                    "crop_y_end": self._crop_y_end,
                 },
                 "summary_statistics": summary_statistics,
                 "correlation_results": correlation_results,
@@ -468,14 +466,15 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
             except Exception as e:
                 self.error_stream("Failed to write FRC JSON: %s. Continuing anyway.", str(e))
 
-            if crop_applied:
+            if crop_determined:
                 self.info_stream(
-                    "FRC completed with crop: y=[%d:%d]", self._crop_y_start, self._crop_y_end
+                    "FRC completed with crop: y=[%d:%d] (method=%s)",
+                    self._crop_y_start,
+                    self._crop_y_end,
+                    "variance" if self._crop_y_start != 0 else "center",
                 )
-            elif crop_failed:
-                self.info_stream("FRC completed with full images (crop selection failed)")
             else:
-                self.info_stream("FRC completed with full images")
+                self.info_stream("FRC completed without cropping (no projections)")
 
         except Exception as e:
             self.error_stream("FRC computation failed: %s", str(e))

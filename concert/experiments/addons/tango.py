@@ -3,6 +3,7 @@ import functools
 import inspect
 import logging
 import os
+from typing import Awaitable, Dict, Set
 import numpy as np
 
 from concert.config import DISTRIBUTED_TANGO_TIMEOUT
@@ -13,15 +14,11 @@ from concert.experiments.base import remote, Acquisition, Experiment
 from concert.helpers import CommData
 from concert.quantities import q
 from concert.typing import AbstractFRCDevice
-from typing import Awaitable, Dict, Set
-import numpy as np
-
 
 LOG = logging.getLogger(__name__)
 
 
 class TangoMixin:
-
     """TangoMixin does not need a producer becuase the backend processes image streams which do not
     come via concert.
     """
@@ -40,7 +37,7 @@ class TangoMixin:
                     "`%s' occured in %s, remote cancelled with result: %s",
                     e.__class__.__name__,
                     func.__qualname__,
-                    await asyncio.gather(self.cancel(), return_exceptions=True)
+                    await asyncio.gather(self.cancel(), return_exceptions=True),
                 )
                 raise
 
@@ -50,7 +47,7 @@ class TangoMixin:
         self._device = device
         self._device.set_timeout_millis(DISTRIBUTED_TANGO_TIMEOUT)
         self.endpoint = endpoint
-        await self._device.write_attribute('endpoint', self.endpoint.client_endpoint)
+        await self._device.write_attribute("endpoint", self.endpoint.client_endpoint)
 
     async def connect_endpoint(self):
         await self._device.connect_endpoint()
@@ -100,10 +97,9 @@ class LiveView(base.LiveView):
 
     async def __ainit__(self, viewer, endpoint, experiment, acquisitions=None):
         self.endpoint = endpoint
-        await base.LiveView.__ainit__(self,
-                                      viewer,
-                                      experiment=experiment,
-                                      acquisitions=acquisitions)
+        await base.LiveView.__ainit__(
+            self, viewer, experiment=experiment, acquisitions=acquisitions
+        )
         self._orig_limits = await viewer.get_limits()
 
     async def connect_endpoint(self):
@@ -115,11 +111,11 @@ class LiveView(base.LiveView):
     @remote
     async def consume(self):
         try:
-            if await self._viewer.get_limits() == 'stream':
+            if await self._viewer.get_limits() == "stream":
                 self._viewer.unsubscribe()
                 # Force viewer to update the limits by unsubscribing and re-subscribing after
                 # setting limits to stream
-                await self._viewer.set_limits('stream')
+                await self._viewer.set_limits("stream")
                 self._viewer.subscribe(self.endpoint.client_endpoint)
         finally:
             self._orig_limits = await self._viewer.get_limits()
@@ -156,8 +152,8 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
         acquisitions=None,
         do_normalization=True,
         average_normalization=True,
-        slice_directory='online-slices',
-        viewer=None
+        slice_directory="online-slices",
+        viewer=None,
     ):
         await TangoMixin.__ainit__(self, device, endpoint)
 
@@ -169,7 +165,7 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
             do_normalization=do_normalization,
             average_normalization=average_normalization,
             slice_directory=slice_directory,
-            viewer=viewer
+            viewer=viewer,
         )
 
     @TangoMixin.cancel_remote
@@ -190,14 +186,19 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
         path = ""
         if self.walker and not await self.get_slice_metric():
             if (
-                cached is False and await self.get_slice_directory()
-                or cached is True and slice_directory
+                cached is False
+                and await self.get_slice_directory()
+                or cached is True
+                and slice_directory
             ):
                 async with self.walker:
                     path = os.path.join(
                         await self.walker.get_current(),
-                        await self.get_slice_directory() if slice_directory is None
-                        else slice_directory
+                        (
+                            await self.get_slice_directory()
+                            if slice_directory is None
+                            else slice_directory
+                        ),
                     )
         if cached:
             await self._device.rereconstruct(path)
@@ -212,8 +213,8 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
         await self._reconstruct(cached=True, slice_directory=slice_directory)
 
     @background
-    async def find_parameter(self, parameter, region, metric='sag', z=None, store=False):
-        region = region.to(self.UNITS[parameter.replace('-', '_')]).magnitude.tolist()
+    async def find_parameter(self, parameter, region, metric="sag", z=None, store=False):
+        region = region.to(self.UNITS[parameter.replace("-", "_")]).magnitude.tolist()
         blob = (
             "find_parameter_args",
             {
@@ -222,7 +223,7 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
                 "z": 0 if z is None else z.magnitude,
                 "store": store,
                 "metric": metric,
-            }
+            },
         )
         await self._device.write_pipe("find_parameter_args", blob)
         return await self._device.find_parameter()
@@ -257,13 +258,15 @@ class FourierRingCorrelation(TangoMixin, base.Addon):
     """
 
     async def __ainit__(
-            self,
-            device: AbstractFRCDevice,
-            endpoint: CommData,
-            experiment: Experiment,
-            num_darks: int,
-            num_flats: int,
-            num_radios: int) -> None:
+        self,
+        device: AbstractFRCDevice,
+        endpoint: CommData,
+        experiment: Experiment,
+        num_darks: int,
+        num_flats: int,
+        num_radios: int,
+        **kwargs,
+    ) -> None:
         """
         :param device: tango device server proxy for FRC computation.
         :type device: `concert.typing.AbstractFRCDevice`
@@ -279,25 +282,53 @@ class FourierRingCorrelation(TangoMixin, base.Addon):
         :type num_flats: int
         :param num_radios: number of radiogram projections.
         :type num_radios: int
+        :param kwargs: optional FRC configuration parameters:
+                       - 'proj_offset': offset in projections (default: 1)
+                       - 'resolution_threshold': '1/7' or 'half_bit' (default: 'half_bit')
+                       - 'fluctuation_threshold': percentage deviation (default: 15.0, range: 5-100)
+                       - 'frc_crop_height': crop height in pixels (default: 512, range: 64-2048)
+                       - 'frc_padding_y': vertical padding in pixels (default: 400)
+                       - 'frc_padding_x': horizontal padding in pixels (default: 400)
+        :type kwargs: dict[str, Any]
         """
         await TangoMixin.__ainit__(self, device, endpoint)
-        
+
         # Meta attributes for acquisition
-        await self._device.write_attribute("attr_acq", np.array([num_darks, num_flats, num_radios],
-                                                                dtype=np.int_))
-        # TODO: Write other attributes
+        await self._device.write_attribute(
+            "attr_acq", np.array([num_darks, num_flats, num_radios], dtype=np.int_)
+        )
+
+        # Configure FRC computation parameters from kwargs
+        proj_offset: int = kwargs.get("proj_offset", 1)
+        resolution_threshold: str = kwargs.get("resolution_threshold", "half_bit")
+        fluctuation_threshold: float = kwargs.get("fluctuation_threshold", 15.0)
+        frc_crop_height: int = kwargs.get("frc_crop_height", 512)
+        frc_padding_y: int = kwargs.get("frc_padding_y", 400)
+        frc_padding_x: int = kwargs.get("frc_padding_x", 400)
+
+        await self._device.write_attribute("proj_offset", proj_offset)
+        await self._device.write_attribute("resolution_threshold", resolution_threshold)
+        await self._device.write_attribute("fluctuation_threshold", fluctuation_threshold)
+        await self._device.write_attribute("frc_crop_height", frc_crop_height)
+        await self._device.write_attribute("frc_padding_y", frc_padding_y)
+        await self._device.write_attribute("frc_padding_x", frc_padding_x)
+
         await base.Addon.__ainit__(self, experiment, None)
 
-    def _make_consumers(self, acquisitions: Set[Acquisition]) -> Dict[Acquisition,
-                                                                      base.AcquisitionConsumer]:
+    def _make_consumers(
+        self, acquisitions: Set[Acquisition]
+    ) -> Dict[Acquisition, base.AcquisitionConsumer]:
         """Accumulates consumers for expected acquisitions"""
         consumers: Dict[Acquisition, base.AcquisitionConsumer] = {}
         consumers[base.get_acq_by_name(acquisitions, "darks")] = base.AcquisitionConsumer(
-                self.update_darks, addon=self)
+            self.update_darks, addon=self
+        )
         consumers[base.get_acq_by_name(acquisitions, "flats")] = base.AcquisitionConsumer(
-                self.update_flats, addon=self)
+            self.update_flats, addon=self
+        )
         consumers[base.get_acq_by_name(acquisitions, "radios")] = base.AcquisitionConsumer(
-                self.estimate_spatial_resolution, addon=self)
+            self.estimate_spatial_resolution, addon=self
+        )
         return consumers
 
     @TangoMixin.cancel_remote
