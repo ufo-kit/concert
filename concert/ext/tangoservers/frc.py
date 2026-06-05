@@ -5,7 +5,6 @@ Implements a device server to execute Fourier Ring Correlation during acquisitio
 """
 
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
-from collections import deque
 import json
 import math
 import os
@@ -350,37 +349,31 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
         :param path: directory where results will be saved
         :type path: str
         """
-        buffer: deque = deque(maxlen=self._proj_offset + 1)
         correlation_results: List[Dict[str, Any]] = []
         classical_resolutions: List[Optional[float]] = []
         geometric_resolutions: List[Optional[float]] = []
-        projection_indices: List[int] = []
-        proj_index: int = 0
+        proj_indices: List[int] = []
+        proj_idx: int = 0
+        previous_proj: Optional[ArrayLike] = None
         crop_determined = False
         with PerformanceTracker():
             try:
                 async for proj in producer:
-                    # Determine crop region from first projection
+                    # Determine crop region from first projection.
                     if not crop_determined:
                         fc_proj = flat_correct(proj, self._flat, self._dark)
                         y_start, y_end, crop_method = select_frc_region(
-                            fc_proj,
-                            crop_height=self._crop_height,
-                            padding_y=self._padding_y,
-                            padding_x=self._padding_x,
+                            fc_proj, crop_height=self._crop_height,
+                            padding_y=self._padding_y, padding_x=self._padding_x,
                         )
                         self._crop_y_start = y_start
                         self._crop_y_end = y_end
-                        
                         crop_determined = True
                         self.info_stream(
                             "FRC crop region selected: y=[%d:%d] (method=%s)",
-                            y_start,
-                            y_end,
-                            crop_method,
+                            y_start, y_end, crop_method,
                         )
-                    
-                    # Create FRC frequency bins once for this image size and initialize as state
+                    # Initialize state for FRC by computing the frequency beans.
                     if not self._frc_state:
                         self._frc_state = prepare_frc_state(self._crop_height, proj.shape[1])
                         self.info_stream(
@@ -388,56 +381,45 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
                             self._crop_height,
                             proj.shape[1],
                         )
-
-                    buffer.append(proj)
-
-                    if len(buffer) == self._proj_offset + 1:
-                        img1 = buffer[0]
-                        img2 = buffer[-1]
-
-                        # Apply previously determined crop region
-                        if crop_determined:
-                            img1 = img1[self._crop_y_start : self._crop_y_end, :]
-                            img2 = img2[self._crop_y_start : self._crop_y_end, :]
-                        
-                        dark = self._dark[self._crop_y_start : self._crop_y_end, :] \
-                            if crop_determined else self._dark
-                        flat = self._flat[self._crop_y_start : self._crop_y_end, :] \
-                            if crop_determined else self._flat
-
-                        result = compute_frc(
-                            img1,
-                            img2,
-                            dark,
-                            flat,
-                            frc_state=self._frc_state,
-                            threshold_method=self._resolution_threshold,
-                        )
-
-                        json_result = self._result_to_json_dict(
-                            result, proj_index - self._proj_offset, proj_index
-                        )
-                        correlation_results.append(json_result)
-
-                        # Collect for statistics
-                        classical_resolutions.append(json_result["classical_resolution"])
-                        geometric_resolutions.append(json_result["geometric_resolution"])
-                        projection_indices.append(proj_index - self._proj_offset)
-
-                        buffer.popleft()
-
-                    proj_index += 1
+                    # When proj_idx = 0 i.e. we are processing the very first projection, previous
+                    # projection is also None. In that case we will only store current projection
+                    # for correlating later on.
+                    if previous_proj is not None:
+                        proj_pair_start_idx = proj_idx - 1
+                        # Start correlating if offset is satisfied
+                        if proj_pair_start_idx % self._proj_offset == 0:
+                            self.info_stream("%s: correlating: proj: %d to proj: %d",
+                                             self.__class__.__name__,
+                                             proj_pair_start_idx, proj_pair_start_idx + 1)
+                            result = compute_frc(
+                                previous_proj[self._crop_y_start : self._crop_y_end, :],
+                                proj[self._crop_y_start : self._crop_y_end, :],
+                                self._dark[self._crop_y_start : self._crop_y_end, :],
+                                self._flat[self._crop_y_start : self._crop_y_end, :],
+                                frc_state=self._frc_state,
+                                threshold_method=self._resolution_threshold,
+                            )
+                            json_result = self._result_to_json_dict(
+                                result, proj_idx - self._proj_offset, proj_idx
+                            )
+                            correlation_results.append(json_result)
+                            # Collect for statistics
+                            classical_resolutions.append(json_result["classical_resolution"])
+                            geometric_resolutions.append(json_result["geometric_resolution"])
+                            proj_indices.append(proj_idx - self._proj_offset)
+                    previous_proj = proj
+                    proj_idx += 1
 
                 # Compute outlier-aware statistics
                 classical_stats = self._compute_outlier_aware_statistics(
                     classical_resolutions,
-                    projection_indices,
+                    proj_indices,
                     threshold_percent=self._fluctuation_threshold,
                 )
 
                 geometric_stats = self._compute_outlier_aware_statistics(
                     geometric_resolutions,
-                    projection_indices,
+                    proj_indices,
                     threshold_percent=self._fluctuation_threshold,
                 )
 
@@ -458,7 +440,7 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
                     "configuration": {
                         "offset": self._proj_offset,
                         "threshold_method": self._resolution_threshold,
-                        "num_projections_received": proj_index,
+                        "num_projections_received": proj_idx,
                         "num_frc_computations": len(correlation_results),
                         "crop_y_start": self._crop_y_start,
                         "crop_y_end": self._crop_y_end,
