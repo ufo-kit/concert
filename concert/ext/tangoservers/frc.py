@@ -15,10 +15,10 @@ from tango import DebugIt
 from tango.server import attribute, command, AttrWriteType
 import torch
 from concert.ext.tangoservers.base import TangoRemoteProcessing, RemoteWalkerMixin
-from concert.ext.ufo import FlatCorrect
 from concert.typing import ArrayLike
-from concert.imageprocessing import compute_frc, select_frc_region, prepare_frc_state
+from concert.imageprocessing import compute_frc, select_frc_region, prepare_frc_state, flat_correct
 from concert.storage import RemoteDirectoryWalker
+from concert.helpers import PerformanceTracker
 
 
 class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
@@ -350,7 +350,6 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
         :param path: directory where results will be saved
         :type path: str
         """
-        ffc = FlatCorrect(dark=self._dark, flat=self._flat, absorptivity=True)
         buffer: deque = deque(maxlen=self._proj_offset + 1)
         correlation_results: List[Dict[str, Any]] = []
         classical_resolutions: List[Optional[float]] = []
@@ -358,134 +357,143 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
         projection_indices: List[int] = []
         proj_index: int = 0
         crop_determined = False
-        try:
-            async for proj in ffc(producer):
-                # Determine crop region from first projection
-                if not crop_determined:
-                    y_start, y_end, crop_method = select_frc_region(
-                        proj,
-                        crop_height=self._crop_height,
-                        padding_y=self._padding_y,
-                        padding_x=self._padding_x,
-                    )
-                    self._crop_y_start = y_start
-                    self._crop_y_end = y_end
-                    
-                    crop_determined = True
-                    self.info_stream(
-                        "FRC crop region selected: y=[%d:%d] (method=%s)",
-                        y_start,
-                        y_end,
-                        crop_method,
-                    )
-                
-                # Create FRC frequency bins once for this image size and initialize as state
-                if not self._frc_state:
-                    self._frc_state = prepare_frc_state(self._crop_height, proj.shape[1])
-                    self.info_stream(
-                        "FRC frequency bins prepared and state initialized for dim: [%d x %d]",
-                        self._crop_height,
-                        proj.shape[1],
-                    )
-
-                buffer.append(proj)
-
-                if len(buffer) == self._proj_offset + 1:
-                    img1 = buffer[0]
-                    img2 = buffer[-1]
-
-                    # Apply previously determined crop region
-                    if crop_determined:
-                        img1 = img1[self._crop_y_start : self._crop_y_end, :]
-                        img2 = img2[self._crop_y_start : self._crop_y_end, :]
-
-                    result = compute_frc(
-                        img1,
-                        img2,
-                        frc_state=self._frc_state,
-                        threshold_method=self._resolution_threshold,
-                    )
-
-                    json_result = self._result_to_json_dict(
-                        result, proj_index - self._proj_offset, proj_index
-                    )
-                    correlation_results.append(json_result)
-
-                    # Collect for statistics
-                    classical_resolutions.append(json_result["classical_resolution"])
-                    geometric_resolutions.append(json_result["geometric_resolution"])
-                    projection_indices.append(proj_index - self._proj_offset)
-
-                    buffer.popleft()
-
-                proj_index += 1
-
-            # Compute outlier-aware statistics
-            classical_stats = self._compute_outlier_aware_statistics(
-                classical_resolutions,
-                projection_indices,
-                threshold_percent=self._fluctuation_threshold,
-            )
-
-            geometric_stats = self._compute_outlier_aware_statistics(
-                geometric_resolutions,
-                projection_indices,
-                threshold_percent=self._fluctuation_threshold,
-            )
-
-            summary_statistics = {
-                "classical_resolution": classical_stats,
-                "geometric_resolution": geometric_stats,
-            }
-
-            # Build final JSON structure.
-            # At this point the absolute path looks like ../acq_id/radios because we passed in the
-            # current directory, which walker points to. Hence after splitting we need to grab the
-            # second last component.
-            acquisition_id = os.path.normpath(path).split("/")[-2]
-            acquisition_path = "/".join(os.path.normpath(path).split("/")[:-1])
-            payload = {
-                "acquisition_id": acquisition_id,
-                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z",
-                "configuration": {
-                    "offset": self._proj_offset,
-                    "threshold_method": self._resolution_threshold,
-                    "num_projections_received": proj_index,
-                    "num_frc_computations": len(correlation_results),
-                    "crop_y_start": self._crop_y_start,
-                    "crop_y_end": self._crop_y_end,
-                },
-                "summary_statistics": summary_statistics,
-                "correlation_results": correlation_results,
-            }
-
-            # Construct full file path
-            json_filepath = os.path.join(acquisition_path, f"{acquisition_id}_frc.json")
-
-            # Write JSON file
+        with PerformanceTracker():
             try:
-                assert self._walker
-                await self._walker.log_to_json(
-                    payload=json.dumps(payload, indent=4), filename=json_filepath
+                async for proj in producer:
+                    # Determine crop region from first projection
+                    if not crop_determined:
+                        fc_proj = flat_correct(proj, self._flat, self._dark)
+                        y_start, y_end, crop_method = select_frc_region(
+                            fc_proj,
+                            crop_height=self._crop_height,
+                            padding_y=self._padding_y,
+                            padding_x=self._padding_x,
+                        )
+                        self._crop_y_start = y_start
+                        self._crop_y_end = y_end
+                        
+                        crop_determined = True
+                        self.info_stream(
+                            "FRC crop region selected: y=[%d:%d] (method=%s)",
+                            y_start,
+                            y_end,
+                            crop_method,
+                        )
+                    
+                    # Create FRC frequency bins once for this image size and initialize as state
+                    if not self._frc_state:
+                        self._frc_state = prepare_frc_state(self._crop_height, proj.shape[1])
+                        self.info_stream(
+                            "FRC frequency bins prepared and state initialized for dim: [%d x %d]",
+                            self._crop_height,
+                            proj.shape[1],
+                        )
+
+                    buffer.append(proj)
+
+                    if len(buffer) == self._proj_offset + 1:
+                        img1 = buffer[0]
+                        img2 = buffer[-1]
+
+                        # Apply previously determined crop region
+                        if crop_determined:
+                            img1 = img1[self._crop_y_start : self._crop_y_end, :]
+                            img2 = img2[self._crop_y_start : self._crop_y_end, :]
+                        
+                        dark = self._dark[self._crop_y_start : self._crop_y_end, :] \
+                            if crop_determined else self._dark
+                        flat = self._flat[self._crop_y_start : self._crop_y_end, :] \
+                            if crop_determined else self._flat
+
+                        result = compute_frc(
+                            img1,
+                            img2,
+                            dark,
+                            flat,
+                            frc_state=self._frc_state,
+                            threshold_method=self._resolution_threshold,
+                        )
+
+                        json_result = self._result_to_json_dict(
+                            result, proj_index - self._proj_offset, proj_index
+                        )
+                        correlation_results.append(json_result)
+
+                        # Collect for statistics
+                        classical_resolutions.append(json_result["classical_resolution"])
+                        geometric_resolutions.append(json_result["geometric_resolution"])
+                        projection_indices.append(proj_index - self._proj_offset)
+
+                        buffer.popleft()
+
+                    proj_index += 1
+
+                # Compute outlier-aware statistics
+                classical_stats = self._compute_outlier_aware_statistics(
+                    classical_resolutions,
+                    projection_indices,
+                    threshold_percent=self._fluctuation_threshold,
                 )
-                self.info_stream(
-                    "Saved FRC results to %s (%d measurements)",
-                    json_filepath,
-                    len(correlation_results),
+
+                geometric_stats = self._compute_outlier_aware_statistics(
+                    geometric_resolutions,
+                    projection_indices,
+                    threshold_percent=self._fluctuation_threshold,
                 )
+
+                summary_statistics = {
+                    "classical_resolution": classical_stats,
+                    "geometric_resolution": geometric_stats,
+                }
+
+                # Build final JSON structure.
+                # At this point the absolute path looks like ../acq_id/radios because we passed in the
+                # current directory, which walker points to. Hence after splitting we need to grab the
+                # second last component.
+                acquisition_id = os.path.normpath(path).split("/")[-2]
+                acquisition_path = "/".join(os.path.normpath(path).split("/")[:-1])
+                payload = {
+                    "acquisition_id": acquisition_id,
+                    "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z",
+                    "configuration": {
+                        "offset": self._proj_offset,
+                        "threshold_method": self._resolution_threshold,
+                        "num_projections_received": proj_index,
+                        "num_frc_computations": len(correlation_results),
+                        "crop_y_start": self._crop_y_start,
+                        "crop_y_end": self._crop_y_end,
+                    },
+                    "summary_statistics": summary_statistics,
+                    "correlation_results": correlation_results,
+                }
+
+                # Construct full file path
+                json_filepath = os.path.join(acquisition_path, f"{acquisition_id}_frc.json")
+
+                # Write JSON file
+                try:
+                    assert self._walker
+                    await self._walker.log_to_json(
+                        payload=json.dumps(payload, indent=4), filename=json_filepath
+                    )
+                    self.info_stream(
+                        "Saved FRC results to %s (%d measurements)",
+                        json_filepath,
+                        len(correlation_results),
+                    )
+                except Exception as e:
+                    self.error_stream("Failed to write FRC JSON: %s. Continuing anyway.", str(e))
+
+                if crop_determined:
+                    self.info_stream(
+                        "FRC completed with crop: y=[%d:%d] (method=%s)",
+                        self._crop_y_start,
+                        self._crop_y_end,
+                        "variance" if self._crop_y_start != 0 else "center",
+                    )
+                else:
+                    self.info_stream("FRC completed without cropping (no projections)")
+
             except Exception as e:
-                self.error_stream("Failed to write FRC JSON: %s. Continuing anyway.", str(e))
-
-            if crop_determined:
-                self.info_stream(
-                    "FRC completed with crop: y=[%d:%d] (method=%s)",
-                    self._crop_y_start,
-                    self._crop_y_end,
-                    "variance" if self._crop_y_start != 0 else "center",
-                )
-            else:
-                self.info_stream("FRC completed without cropping (no projections)")
-
-        except Exception as e:
-            self.error_stream("FRC computation failed: %s", str(e))
-            raise
+                self.error_stream("FRC computation failed: %s", str(e))
+                raise

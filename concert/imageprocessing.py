@@ -672,134 +672,53 @@ def prepare_frc_state(height: int, width: int) -> Dict[str, Union[int, torch.Ten
     }
 
 
-def compute_frc(
-    img1: ArrayLike,
-    img2: ArrayLike,
-    frc_state: Dict[str, Union[int, torch.Tensor]],
+@torch.compile
+def _compiled_frc_core(
+    img1: torch.Tensor,
+    img2: torch.Tensor,
+    dark: torch.Tensor,
+    flat: torch.Tensor,
+    window_2d: torch.Tensor,
+    bin_idx: torch.Tensor,
+    counts: torch.Tensor,
+    frequencies: torch.Tensor,
+    num_freq_bins: int,
     eps: float = 1e-12,
-    apply_window: bool = True,
-    window_alpha: float = 0.125,
-    threshold_method: str = "half_bit",
-) -> Dict[str, Union[ArrayLike, float]]:
-    """
-    Compute Fourier Ring Correlation (FRC) between two images and estimate spatial resolution.
+    threshold_method: str = "half_bit") -> Tuple[torch.Tensor, torch.Tensor, float]:
 
-    FRC measures correlation between two images in Fourier space as a function of spatial
-    frequency, providing a resolution estimate based on threshold crossing points.
+    # Flat-field Correct
+    flat -= dark
+    img1 -= dark
+    img1 = torch.where(
+        flat != 0, img1 / flat, torch.tensor(0.0, dtype=torch.float64, device=_device)
+    )
+    # Image 2 correction
+    img2 -= dark
+    img2 = torch.where(
+        flat != 0, img2 / flat, torch.tensor(0.0, dtype=torch.float64, device=_device)
+    )
 
-    Algorithm:
-        1. Apply Tukey window (reduces FFT edge artifacts), subtract DC component
-        2. Compute 2D FFT of both images
-        3. Calculate cross-correlation and power spectra
-        4. Bin frequencies into concentric rings using radial distances
-        5. Accumulate correlations per ring via bincount
-        6. Compute FRC curve: normalized correlation per frequency ring
-        7. Generate classical threshold curve (1/7 or half-bit method)
-        8. Compute geometric bound (Miqueles et al., 2025) - ALWAYS computed
-
-    :param img1: first input image (must have same shape as img2)
-    :type img1: `concert.typing.ArrayLike`
-    :param img2: second input image (must have same shape as img1)
-    :type img2: `concert.typing.ArrayLike`
-    :param frc_state: precomputed frequency bins from prepare_frequency_bins()
-    :type frc_state: Dict[str, Union[int, torch.Tensor]]
-    :param eps: numerical stability constant to avoid division by zero (default: 1e-12)
-    :type eps: float
-    :param apply_window: apply Tukey window to reduce FFT artifacts (default: True)
-    :type apply_window: bool
-    :param window_alpha: Tukey window alpha (0=rectangular, 1=Hann; default: 0.125)
-    :type window_alpha: float
-    :param threshold_method: classical threshold method:
-                             '1/7' - constant threshold at 1/7 ≈ 0.143
-                             'half_bit' - information-theoretic threshold:
-                                         (0.2071√n + 1.9102) / (1.2071√n + 0.9102)
-    :type threshold_method: str
-    :return: dictionary with keys:
-             - 'frequencies': spatial frequency array (cycles/pixel)
-             - 'frc': FRC curve (correlation per frequency bin)
-             - 'classical_threshold': selected threshold curve
-             - 'classical_crossing': frequency at classical threshold crossing (NaN if none)
-             - 'classical_resolution': resolution = 1/classical_crossing (pixels, NaN if no crossing)
-             - 'geometric_threshold': geometric lower bound (ALWAYS computed)
-             - 'geometric_crossing': frequency at geometric bound crossing (NaN if none)
-             - 'geometric_resolution': resolution = 1/geometric_crossing (pixels, NaN if no crossing)
-    :rtype: Dict[str, Union[ArrayLike, float]]
-
-    Notes:
-        Resolution extraction uses linear interpolation between adjacent frequency bins for
-        sub-bin precision. If no crossing found (FRC always above threshold), crossing
-        frequencies and resolutions are NaN.
-
-        Classical vs Geometric thresholds have DIFFERENT interpretations:
-
-        **Classical** (1/7, half_bit): UPPER BOUND on resolution
-            - Crossing indicates frequency where noise dominates signal
-            - Use for resolution claims: "features ≥ X pixels are reliably resolved"
-
-        **Geometric** (Miqueles et al., 2025): LOWER BOUND on expected correlation
-            - Based on reverse Cauchy-Schwarz inequality
-            - Quality assurance metric, NOT for resolution estimation
-            - Crossing suggests data quality issues - investigate systematic errors
-
-        Best practice: Report classical resolution with geometric_threshold as QA validation.
-
-    References:
-        - Van Heel, M. (1987). Similarity measures between images. Ultramicroscopy, 21(1), 95-100.
-        - Nieuwenhuizen et al. (2013). Measuring image resolution in optical nanoscopy.
-          Nature Methods, 10(6), 557-562. https://doi.org/10.1038/nmeth.2448
-        - Van Heel, M., & Schatz, M. (2005). Fourier shell correlation threshold criteria.
-          Journal of Structural Biology, 151(3), 250-262.
-        - Miqueles, E. X., Tonin, Y. R., & Luke, R. D. (2025). A Novel Bound for Fourier
-          Ring Correlation in Resolution Analysis. IEEE Transactions on Computational
-          Imaging, 11, 1047-1058. https://doi.org/10.1109/TCI.2025.3593881
-    """
-    # Validate input shapes - FRC requires comparable Fourier spaces
-    assert img1.shape == img2.shape
-    # Convert to torch tensors on appropriate device
-    img1 = torch.as_tensor(img1, dtype=torch.float64, device=_device)
-    img2 = torch.as_tensor(img2, dtype=torch.float64, device=_device)
-    height, width = frc_state["height"], frc_state["width"]
-
-    # Apply Tukey window to suppress FFT edge artifacts
-    if apply_window:
-        try:
-            tukey_1d = torch.as_tensor(
-                tukey(max(height, width), alpha=window_alpha), dtype=torch.float64, device=_device
-            )
-            window_2d = tukey_1d[:height, None] * tukey_1d[None, :width]
-            img1 = img1 * window_2d
-            img2 = img2 * window_2d
-        except Exception:
-            LOG.warning("Tukey window not available, proceeding without windowing")
-
-    # Compute 2D FFT for both images
+    # Apply Tukey window
+    img1 *= window_2d
+    img2 *= window_2d
+    
+    # Compute cross correlation spectrum and power spectra
     freq1 = torch.fft.fft2(img1 - img1.mean())
     freq2 = torch.fft.fft2(img2 - img2.mean())
-
-    # Cross-correlation spectrum: measures agreement in amplitude and phase
     corr = (freq1 * torch.conj(freq2)).real
-
-    # Power spectra: normalize for differences in signal strength
     pow_spc1 = torch.abs(freq1) ** 2
     pow_spc2 = torch.abs(freq2) ** 2
-
-    # Use precomputed frequency bins
-    bin_idx = frc_state["bin_idx"]
-    counts = frc_state["counts"]
-    frequencies = frc_state["frequencies"]
-    num_freq_bins = frc_state["num_freq_bins"]
 
     # Accumulate cross-correlations per frequency ring using precomputed bin assignments
     frc_num = torch.bincount(bin_idx, weights=corr.ravel(), minlength=num_freq_bins)
 
-    # Similarly accumulate power spectra for normalization
+    # Accumulate power spectra for normalization
     frc_denom1 = torch.bincount(bin_idx, weights=pow_spc1.ravel(), minlength=num_freq_bins)
     frc_denom2 = torch.bincount(bin_idx, weights=pow_spc2.ravel(), minlength=num_freq_bins)
 
-    # Compute FRC: normalized correlation per frequency ring
+    # Compute FRC: normalized correlation per frequency ring and mask unreliable bins - rings with
+    # <10 pixels have poor statistical significance.
     frc = frc_num / (torch.sqrt(frc_denom1 * frc_denom2) + eps)
-
-    # Mask unreliable bins - rings with <10 pixels have poor statistical significance
     frc = torch.where(counts > 10, frc, torch.tensor(float("nan"), device=_device))
 
     # Generate classical threshold curve based on selected method
@@ -822,7 +741,6 @@ def compute_frc(
         )
 
     # Compute geometric threshold.
-    # This is the lower bound from Miqueles et al. (2025) based on reverse Cauchy-Schwarz
     fft1_shifted = torch.fft.fftshift(freq1)
     fft2_shifted = torch.fft.fftshift(freq2)
     mag1 = torch.abs(fft1_shifted)
@@ -837,28 +755,7 @@ def compute_frc(
     geometric_threshold = torch.where(
         counts > 10, geometric_threshold, torch.tensor(float("nan"), device=_device)
     )
-
-    # Extract spatial resolution from classical threshold crossing point
-    classical_crossing, classical_resolution = _extract_resolution(
-        frequencies, frc, threshold_curve, "classical"
-    )
-
-    # Extract spatial resolution from geometric threshold crossing point
-    geometric_crossing, geometric_resolution = _extract_resolution(
-        frequencies, frc, geometric_threshold, "geometric"
-    )
-
-    # Convert all torch tensors back to numpy for API compatibility
-    return {
-        "frequencies": frequencies.cpu().numpy(),
-        "frc": frc.cpu().numpy(),
-        "classical_threshold": threshold_curve.cpu().numpy(),
-        "classical_crossing": float(classical_crossing),
-        "classical_resolution": float(classical_resolution),
-        "geometric_threshold": geometric_threshold.cpu().numpy(),
-        "geometric_crossing": float(geometric_crossing),
-        "geometric_resolution": float(geometric_resolution),
-    }
+    return frc, threshold_curve, geometric_threshold
 
 
 def _extract_resolution(
@@ -925,17 +822,144 @@ def _extract_resolution(
     if torch.isnan(crossing_frequency) or crossing_frequency <= 0:
         LOG.debug(
             "Invalid %s crossing frequency %.4f - setting resolution to NaN",
-            crossing_type,
-            float(crossing_frequency),
+            crossing_type, float(crossing_frequency)
         )
         return float("nan"), float("nan")
-
     resolution = 1.0 / crossing_frequency
     LOG.debug(
-        "%s resolution extracted: %.4f cycles/pixel → %.2f pixels",
-        crossing_type.capitalize(),
-        float(crossing_frequency),
-        float(resolution),
+        "%s resolution: %.4f cycles/px → %.4f px",
+        crossing_type.capitalize(), float(crossing_frequency), float(resolution)
+    )
+    return float(crossing_frequency), float(resolution)
+
+def compute_frc(
+    img1: ArrayLike,
+    img2: ArrayLike,
+    dark: ArrayLike,
+    flat: ArrayLike,
+    frc_state: Dict[str, Union[int, torch.Tensor]],
+    eps: float = 1e-12,
+    window_alpha: float = 0.125,
+    threshold_method: str = "half_bit",
+) -> Dict[str, Union[ArrayLike, float]]:
+    """
+    Compute Fourier Ring Correlation (FRC) between two images and estimate spatial resolution.
+
+    FRC measures correlation between two images in Fourier space as a function of spatial
+    frequency, providing a resolution estimate based on threshold crossing points.
+
+    Algorithm:
+        1. Apply Tukey window (reduces FFT edge artifacts), subtract DC component
+        2. Compute 2D FFT of both images
+        3. Calculate cross-correlation and power spectra
+        4. Bin frequencies into concentric rings using radial distances
+        5. Accumulate correlations per ring via bincount
+        6. Compute FRC curve: normalized correlation per frequency ring
+        7. Generate classical threshold curve (1/7 or half-bit method)
+        8. Compute geometric bound (Miqueles et al., 2025) - ALWAYS computed
+
+    :param img1: first input image
+    :type img1: `concert.typing.ArrayLike`
+    :param img2: second input image
+    :type img2: `concert.typing.ArrayLike`
+    :param dark: dark field
+    :type dark: `concert.typing.ArrayLike`
+    :param flat: flat field
+    :type flat: `concert.typing.ArrayLike`
+    :param frc_state: precomputed frequency bins from prepare_frequency_bins()
+    :type frc_state: Dict[str, Union[int, torch.Tensor]]
+    :param eps: numerical stability constant to avoid division by zero (default: 1e-12)
+    :type eps: float
+    :param window_alpha: Tukey window alpha (0=rectangular, 1=Hann; default: 0.125)
+    :type window_alpha: float
+    :param threshold_method: classical threshold method:
+                             '1/7' - constant threshold at 1/7 ≈ 0.143
+                             'half_bit' - information-theoretic threshold:
+                                         (0.2071√n + 1.9102) / (1.2071√n + 0.9102)
+    :type threshold_method: str
+    :return: dictionary with keys:
+             - 'frequencies': spatial frequency array (cycles/pixel)
+             - 'frc': FRC curve (correlation per frequency bin)
+             - 'classical_threshold': selected threshold curve
+             - 'classical_crossing': frequency at classical threshold crossing (NaN if none)
+             - 'classical_resolution': resolution = 1/classical_crossing (pixels, NaN if no crossing)
+             - 'geometric_threshold': geometric lower bound (ALWAYS computed)
+             - 'geometric_crossing': frequency at geometric bound crossing (NaN if none)
+             - 'geometric_resolution': resolution = 1/geometric_crossing (pixels, NaN if no crossing)
+    :rtype: Dict[str, Union[ArrayLike, float]]
+
+    Notes:
+        Resolution extraction uses linear interpolation between adjacent frequency bins for
+        sub-bin precision. If no crossing found (FRC always above threshold), crossing
+        frequencies and resolutions are NaN.
+
+        Classical vs Geometric thresholds have DIFFERENT interpretations:
+
+        **Classical** (1/7, half_bit): UPPER BOUND on resolution
+            - Crossing indicates frequency where noise dominates signal
+            - Use for resolution claims: "features ≥ X pixels are reliably resolved"
+
+        **Geometric** (Miqueles et al., 2025): LOWER BOUND on expected correlation
+            - Based on reverse Cauchy-Schwarz inequality
+            - Quality assurance metric, NOT for resolution estimation
+            - Crossing suggests data quality issues - investigate systematic errors
+
+        Best practice: Report classical resolution with geometric_threshold as QA validation.
+
+    References:
+        - Van Heel, M. (1987). Similarity measures between images. Ultramicroscopy, 21(1), 95-100.
+        - Nieuwenhuizen et al. (2013). Measuring image resolution in optical nanoscopy.
+          Nature Methods, 10(6), 557-562. https://doi.org/10.1038/nmeth.2448
+        - Van Heel, M., & Schatz, M. (2005). Fourier shell correlation threshold criteria.
+          Journal of Structural Biology, 151(3), 250-262.
+        - Miqueles, E. X., Tonin, Y. R., & Luke, R. D. (2025). A Novel Bound for Fourier
+          Ring Correlation in Resolution Analysis. IEEE Transactions on Computational
+          Imaging, 11, 1047-1058. https://doi.org/10.1109/TCI.2025.3593881
+    """
+    # Validate input shapes - FRC requires comparable Fourier spaces
+    assert img1.shape == img2.shape
+    # Convert to torch tensors on appropriate device
+    img1 = torch.as_tensor(img1, dtype=torch.float64, device=_device)
+    img2 = torch.as_tensor(img2, dtype=torch.float64, device=_device)
+    dark = torch.as_tensor(dark, dtype=torch.float64, device=_device)
+    flat = torch.as_tensor(flat, dtype=torch.float64, device=_device)
+    height, width = frc_state["height"], frc_state["width"]
+    
+    # Apply Tukey window to suppress FFT edge artifacts
+    tukey_1d = torch.as_tensor(
+        tukey(max(height, width), alpha=window_alpha), dtype=torch.float64, device=_device)
+    window_2d = tukey_1d[:height, None] * tukey_1d[None, :width]
+
+    # Use precomputed frequency bins
+    bin_idx = frc_state["bin_idx"]
+    counts = frc_state["counts"]
+    frequencies = frc_state["frequencies"]
+    num_freq_bins = frc_state["num_freq_bins"]
+
+    frc, threshold_curve, geometric_threshold = _compiled_frc_core(
+        img1, img2, dark, flat, window_2d,
+        frc_state["bin_idx"], frc_state["counts"], frc_state["frequencies"],
+        frc_state["num_freq_bins"], eps, threshold_method
     )
 
-    return float(crossing_frequency), float(resolution)
+    # Extract spatial resolution from classical threshold crossing point
+    classical_crossing, classical_resolution = _extract_resolution(
+        frequencies, frc, threshold_curve, "classical"
+    )
+
+    # Extract spatial resolution from geometric threshold crossing point
+    geometric_crossing, geometric_resolution = _extract_resolution(
+        frequencies, frc, geometric_threshold, "geometric"
+    )
+
+    # Convert all torch tensors back to numpy for API compatibility
+    return {
+        "frequencies": frequencies.cpu().numpy(),
+        "frc": frc.cpu().numpy(),
+        "classical_threshold": threshold_curve.cpu().numpy(),
+        "classical_crossing": float(classical_crossing),
+        "classical_resolution": float(classical_resolution),
+        "geometric_threshold": geometric_threshold.cpu().numpy(),
+        "geometric_crossing": float(geometric_crossing),
+        "geometric_resolution": float(geometric_resolution),
+    }
