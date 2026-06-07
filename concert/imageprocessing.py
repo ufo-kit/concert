@@ -891,6 +891,7 @@ def _extract_resolution(
     )
     return float(crossing_frequency), float(resolution)
 
+
 def compute_frc(
     img1: ArrayLike,
     img2: ArrayLike,

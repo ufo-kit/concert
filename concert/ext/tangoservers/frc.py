@@ -365,15 +365,19 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
                     if not crop_determined:
                         fc_proj = flat_correct(proj, self._flat, self._dark)
                         y_start, y_end, crop_method = select_frc_region(
-                            fc_proj, crop_height=self._crop_height,
-                            padding_y=self._padding_y, padding_x=self._padding_x,
+                            fc_proj,
+                            crop_height=self._crop_height,
+                            padding_y=self._padding_y,
+                            padding_x=self._padding_x,
                         )
                         self._crop_y_start = y_start
                         self._crop_y_end = y_end
                         crop_determined = True
                         self.info_stream(
                             "FRC crop region selected: y=[%d:%d] (method=%s)",
-                            y_start, y_end, crop_method,
+                            y_start,
+                            y_end,
+                            crop_method,
                         )
                     # Initialize state for FRC by computing the frequency beans.
                     if not self._frc_state:
