@@ -4,7 +4,6 @@ backprojection, flat field correction and other operations on images.
 """
 
 import asyncio
-import numpy as np
 import logging
 from typing import Dict, Tuple, Union
 import numpy as np
@@ -14,7 +13,6 @@ try:
     _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 except ImportError:
     _device = torch.device("cpu")
-
 from scipy.ndimage import uniform_filter
 from scipy.signal import fftconvolve
 from scipy.signal.windows import tukey
@@ -672,8 +670,7 @@ def prepare_frc_state(height: int, width: int) -> Dict[str, Union[int, torch.Ten
     }
 
 
-@torch.compile
-def _compiled_frc_core(
+def _frc_core(
     img1: torch.Tensor,
     img2: torch.Tensor,
     dark: torch.Tensor,
@@ -685,17 +682,37 @@ def _compiled_frc_core(
     num_freq_bins: int,
     eps: float = 1e-12,
     threshold_method: str = "half_bit") -> Tuple[torch.Tensor, torch.Tensor, float]:
+    """
+    Core FRC computation with flat-field correction and windowing.
 
+    Performs flat-field correction on input images, applies apodization window,
+    computes FFT-based cross-correlation and power spectra, accumulates correlations
+    per frequency ring using precomputed bin assignments, and generates threshold curves.
+
+    :param img1: first image tensor
+    :param img2: second image tensor
+    :param dark: dark field reference
+    :param flat: flat field reference
+    :param window_2d: 2D edge smoothing Tukey window
+    :param bin_idx: frequency bin assignments for each pixel
+    :param counts: number of pixels per frequency ring
+    :param frequencies: representative frequencies for each ring
+    :param num_freq_bins: total number of frequency bins
+    :param eps: small constant for numerical stability
+    :param threshold_method: threshold method ('1/7' or 'half_bit')
+    :return: tuple of (frc_curve, threshold_curve, geometric_threshold)
+    """
     # Flat-field Correct
     flat -= dark
-    img1 -= dark
     img1 = torch.where(
-        flat != 0, img1 / flat, torch.tensor(0.0, dtype=torch.float64, device=_device)
+        flat != 0,
+        torch.log((img1 - dark) / flat),
+        torch.tensor(0.0, dtype=torch.float64, device=_device),
     )
-    # Image 2 correction
-    img2 -= dark
     img2 = torch.where(
-        flat != 0, img2 / flat, torch.tensor(0.0, dtype=torch.float64, device=_device)
+        flat != 0,
+        torch.log((img2 - dark) / flat),
+        torch.tensor(0.0, dtype=torch.float64, device=_device),
     )
 
     # Apply Tukey window
@@ -716,10 +733,12 @@ def _compiled_frc_core(
     frc_denom1 = torch.bincount(bin_idx, weights=pow_spc1.ravel(), minlength=num_freq_bins)
     frc_denom2 = torch.bincount(bin_idx, weights=pow_spc2.ravel(), minlength=num_freq_bins)
 
-    # Compute FRC: normalized correlation per frequency ring and mask unreliable bins - rings with
-    # <10 pixels have poor statistical significance.
+    # Compute FRC: normalized correlation per frequency ring and mask unreliable bins
+    # Rings with <10 pixels have poor statistical significance.
     frc = frc_num / (torch.sqrt(frc_denom1 * frc_denom2) + eps)
-    frc = torch.where(counts > 10, frc, torch.tensor(float("nan"), device=_device))
+    frc = torch.where(
+        counts > 10, frc, torch.tensor(float("nan"), device=_device)
+    )
 
     # Generate classical threshold curve based on selected method
     if threshold_method == "1/7":
@@ -737,7 +756,8 @@ def _compiled_frc_core(
         )
     else:
         raise ValueError(
-            f"Unknown threshold_method '{threshold_method}'. " f"Valid options: '1/7', 'half_bit'"
+            f"Unknown threshold_method '{threshold_method}'. "
+            f"Valid options: '1/7', 'half_bit'"
         )
 
     # Compute geometric threshold.
@@ -832,6 +852,7 @@ def _extract_resolution(
     )
     return float(crossing_frequency), float(resolution)
 
+
 def compute_frc(
     img1: ArrayLike,
     img2: ArrayLike,
@@ -856,7 +877,7 @@ def compute_frc(
         5. Accumulate correlations per ring via bincount
         6. Compute FRC curve: normalized correlation per frequency ring
         7. Generate classical threshold curve (1/7 or half-bit method)
-        8. Compute geometric bound (Miqueles et al., 2025) - ALWAYS computed
+        8. Compute geometric bound (Miqueles et al., 2025)
 
     :param img1: first input image
     :type img1: `concert.typing.ArrayLike`
@@ -936,7 +957,7 @@ def compute_frc(
     frequencies = frc_state["frequencies"]
     num_freq_bins = frc_state["num_freq_bins"]
 
-    frc, threshold_curve, geometric_threshold = _compiled_frc_core(
+    frc, threshold_curve, geometric_threshold = _frc_core(
         img1, img2, dark, flat, window_2d,
         frc_state["bin_idx"], frc_state["counts"], frc_state["frequencies"],
         frc_state["num_freq_bins"], eps, threshold_method

@@ -283,36 +283,32 @@ class FourierRingCorrelation(TangoMixin, base.Addon):
         :param num_radios: number of radiogram projections.
         :type num_radios: int
         :param kwargs: optional FRC configuration parameters:
-                       - 'proj_offset': offset in projections (default: 1)
-                       - 'resolution_threshold': '1/7' or 'half_bit' (default: 'half_bit')
-                       - 'fluctuation_threshold': percentage deviation (default: 15.0, range: 5-100)
-                       - 'crop_height': crop height in pixels (default: 512, range: 64-2048)
-                       - 'padding_y': vertical padding in pixels (default: 400)
-                       - 'padding_x': horizontal padding in pixels (default: 400)
+            - 'proj_offset': offset in projections (default: 1)
+            - 'resolution_threshold': '1/7' or 'half_bit' (default: 'half_bit')
+            - 'fluctuation_threshold': percentage deviation
+              (default: 15.0, range: 5-100)
+            - 'crop_height': crop height in pixels (default: 512, range: 64-2048)
+            - 'padding_y': vertical padding in pixels (default: 400)
+            - 'padding_x': horizontal padding in pixels (default: 400)
         :type kwargs: Dict[str, Any]
         """
         await TangoMixin.__ainit__(self, device, endpoint)
-
-        # Meta attributes for acquisition
-        await self._device.write_attribute(
-            "attr_acq", np.array([num_darks, num_flats, num_radios], dtype=np.int_)
-        )
-
-        # Configure FRC computation parameters from kwargs
         proj_offset: int = kwargs.get("proj_offset", 1)
         resolution_threshold: str = kwargs.get("resolution_threshold", "half_bit")
         fluctuation_threshold: float = kwargs.get("fluctuation_threshold", 15.0)
         crop_height: int = kwargs.get("crop_height", 512)
         padding_y: int = kwargs.get("padding_y", 400)
         padding_x: int = kwargs.get("padding_x", 400)
-
+        # Set device attributes
+        await self._device.write_attribute(
+            "attr_acq", np.array([num_darks, num_flats, num_radios], dtype=np.int_)
+        )
         await self._device.write_attribute("proj_offset", proj_offset)
         await self._device.write_attribute("resolution_threshold", resolution_threshold)
         await self._device.write_attribute("fluctuation_threshold", fluctuation_threshold)
         await self._device.write_attribute("crop_height", crop_height)
         await self._device.write_attribute("padding_y", padding_y)
         await self._device.write_attribute("padding_x", padding_x)
-
         await base.Addon.__ainit__(self, experiment, None)
 
     def _make_consumers(
