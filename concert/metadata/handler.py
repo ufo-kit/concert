@@ -9,10 +9,9 @@ from typing import Any, Dict, Optional, Tuple
 import requests
 from requests import Response
 import urllib3
-from urllib3.exceptions import SubjectAltNameWarning, InsecureRequestWarning
+from urllib3.exceptions import InsecureRequestWarning
 from concert.metadata.utils import ProposalDTO, DatasetDTO
 
-urllib3.disable_warnings(SubjectAltNameWarning)
 urllib3.disable_warnings(InsecureRequestWarning)
 
 class MetadataHandlingError(RuntimeError):
@@ -133,7 +132,7 @@ class MetadataHandler:
             principalInvestigator="Tomas Farago", owner="Tomas Farago",
             contactEmail="tomas.farago@kit.edu", sourceFolder=src_dir,
             creationLocation="DESY - PETRA III - P23", creationTime=datetime.now().isoformat(),
-            proposalId=self._proposal_id, description=f"Serial-MicroCT Dataset - {ds_name}",
+            proposalId=self._proposal_id, description=ds_name,
             datasetName=ds_name, scientificMetadata=metadata
         )
         return self._create_dataset(dataset=dataset)
