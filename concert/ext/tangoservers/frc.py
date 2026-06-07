@@ -15,7 +15,7 @@ from tango.server import attribute, command, AttrWriteType
 import torch
 from concert.ext.tangoservers.base import TangoRemoteProcessing, RemoteWalkerMixin
 from concert.typing import ArrayLike
-from concert.imageprocessing import compute_frc, select_frc_region, prepare_frc_state, flat_correct
+from concert.imageprocessing import compute_frc, flat_correct, prepare_frc_state, select_frc_region
 from concert.storage import RemoteDirectoryWalker
 from concert.helpers import PerformanceTracker
 
@@ -92,6 +92,8 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
 
     _walker: Optional[RemoteDirectoryWalker]
     _frc_state: Optional[Dict[str, Union[int, torch.Tensor]]]
+    _crop_y_start: int
+    _crop_y_end: int
 
     async def init_device(self) -> None:
         await super().init_device()
@@ -129,7 +131,7 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
     def set_proj_offset(self, offset: int) -> None:
         self._proj_offset = offset
         self.info_stream(
-            "%s: projection offset set to: %s",
+            "%s: proj_offset set to: %s",
             self.__class__.__name__,
             str(self._proj_offset),
         )
@@ -140,7 +142,7 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
     def set_resolution_threshold(self, threshold: str) -> None:
         self._resolution_threshold = threshold
         self.info_stream(
-            "%s: resolution threshold set to: %s",
+            "%s: resolution_threshold set to: %s",
             self.__class__.__name__,
             str(self._resolution_threshold),
         )
@@ -155,9 +157,9 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
             )
         self._fluctuation_threshold = threshold
         self.info_stream(
-            "%s: fluctuation threshold set to: %.1f%%",
+            "%s: fluctuation_threshold set to: %s",
             self.__class__.__name__,
-            self._fluctuation_threshold,
+            f"{self._fluctuation_threshold}%",
         )
 
     def get_crop_height(self) -> int:
@@ -168,9 +170,9 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
             raise ValueError(f"Crop height must be between 64 and 2048 pixels, got {height}")
         self._crop_height = height
         self.info_stream(
-            "%s: Crop height set to: %d px",
+            "%s: crop_height set to: %s",
             self.__class__.__name__,
-            self._crop_height,
+            str(self._crop_height),
         )
 
     def get_padding_y(self) -> int:
@@ -181,9 +183,9 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
             raise ValueError(f"Padding Y must be non-negative, got {padding}")
         self._padding_y = padding
         self.info_stream(
-            "%s: Padding Y set to: %d px",
+            "%s: padding_y set to: %s",
             self.__class__.__name__,
-            self._padding_y,
+            str(self._padding_y),
         )
 
     def get_padding_x(self) -> int:
@@ -194,9 +196,9 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
             raise ValueError(f"Padding X must be non-negative, got {padding}")
         self._padding_x = padding
         self.info_stream(
-            "%s: Padding X set to: %d px",
+            "%s: padding_x set to: %s",
             self.__class__.__name__,
-            self._padding_x,
+            str(self._padding_x),
         )
 
     @staticmethod
@@ -363,15 +365,19 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
                     if not crop_determined:
                         fc_proj = flat_correct(proj, self._flat, self._dark)
                         y_start, y_end, crop_method = select_frc_region(
-                            fc_proj, crop_height=self._crop_height,
-                            padding_y=self._padding_y, padding_x=self._padding_x,
+                            fc_proj,
+                            crop_height=self._crop_height,
+                            padding_y=self._padding_y,
+                            padding_x=self._padding_x,
                         )
                         self._crop_y_start = y_start
                         self._crop_y_end = y_end
                         crop_determined = True
                         self.info_stream(
                             "FRC crop region selected: y=[%d:%d] (method=%s)",
-                            y_start, y_end, crop_method,
+                            y_start,
+                            y_end,
+                            crop_method,
                         )
                     # Initialize state for FRC by computing the frequency beans.
                     if not self._frc_state:
@@ -388,9 +394,12 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
                         proj_pair_start_idx = proj_idx - 1
                         # Start correlating if offset is satisfied
                         if proj_pair_start_idx % self._proj_offset == 0:
-                            self.info_stream("%s: correlating: proj: %d to proj: %d",
-                                             self.__class__.__name__,
-                                             proj_pair_start_idx, proj_pair_start_idx + 1)
+                            self.info_stream(
+                                "%s: correlating: proj: %d to proj: %d",
+                                self.__class__.__name__,
+                                proj_pair_start_idx,
+                                proj_pair_start_idx + 1,
+                            )
                             result = compute_frc(
                                 previous_proj[self._crop_y_start : self._crop_y_end, :],
                                 proj[self._crop_y_start : self._crop_y_end, :],
