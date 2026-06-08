@@ -96,7 +96,7 @@ class ImageWriter(TangoMixin, base.ImageWriter):
 
 class LiveView(base.LiveView):
 
-    async def __ainit__(self,viewer, endpoint, experiment, acquisitions=None):
+    async def __ainit__(self, viewer, endpoint, experiment, acquisitions=None):
         self.endpoint = endpoint
         await base.LiveView.__ainit__(self,
                                       viewer,
