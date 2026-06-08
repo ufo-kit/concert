@@ -4,6 +4,7 @@ walker.py
 Implements a device server for file system traversal at remote host.
 """
 import logging
+import numpy as np
 import os
 from typing import Type, Dict, Tuple
 from tango import DebugIt, DevState, CmdArgType
@@ -14,6 +15,7 @@ from concert import writers
 from concert.storage import StorageError
 from concert.storage import DirectoryWalker
 from concert.ext.tangoservers.base import TangoRemoteProcessing
+from concert.writers import TiffWriter
 
 
 class TangoRemoteWalker(TangoRemoteProcessing):
@@ -165,6 +167,22 @@ class TangoRemoteWalker(TangoRemoteProcessing):
     )
     def exists(self, paths: str) -> bool:
         return os.path.exists(os.path.join(self._current, *paths))
+
+    @DebugIt(show_args=True)
+    @command(dtype_in=CmdArgType.DevEncoded)
+    async def write_image(self, data):
+        encoding, image = data
+        name, width, height, num_channels, dtype = encoding.split(":")
+        num_channels = int(num_channels)
+        shape = (int(height), int(width))
+        if num_channels > 1:
+            shape += (num_channels,)
+        image = np.frombuffer(image, dtype=dtype).reshape(shape)
+        writer = TiffWriter(os.path.join(self._current, name), 0)
+        try:
+            writer.write(image)
+        finally:
+            writer.close()
 
     @DebugIt(show_args=True)
     @command(dtype_in=str)

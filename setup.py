@@ -24,6 +24,7 @@ setup(
              'bin/concert-connect',
              'concert/ext/tangoservers/bin/TangoOnlineReconstruction',
              'concert/ext/tangoservers/bin/TangoRemoteWalker',
+             'concert/ext/tangoservers/bin/TangoSampleDetect',
              'concert/ext/tangoservers/bin/TangoBenchmarker',
              'concert/ext/tangoservers/bin/run_server_detached'],
     data_files=data_files,

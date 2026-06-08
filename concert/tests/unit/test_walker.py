@@ -2,10 +2,12 @@ import tempfile
 import shutil
 import numpy as np
 import os.path as op
+import tifffile
 from concert.coroutines.base import async_generate
-from concert.storage import DummyWalker, DirectoryWalker
+from concert.storage import DummyWalker, DirectoryWalker, RemoteDirectoryWalker
 from concert.storage import StorageError
 from concert.tests import TestCase
+from concert.tests.util.mocks import MockWalkerDevice
 
 
 class TestWalker(TestCase):
@@ -74,6 +76,21 @@ class TestDirectoryWalker(TestCase):
         await self.walker.write(async_generate([self.data]), dsetname='foo-{}.tif')
         self.assertTrue(op.exists(op.join(self.path, 'foo-0.tif')))
 
+    async def test_write_image(self):
+        image = np.arange(12, dtype=np.uint16).reshape(3, 4)
+        await self.walker.write_image(image, 'single.tif')
+
+        path = op.join(self.path, 'single.tif')
+        self.assertTrue(op.exists(path))
+        np.testing.assert_array_equal(tifffile.imread(path), image)
+
+        await self.walker.descend('inside')
+        await self.walker.write_image(image, 'nested.tif')
+        np.testing.assert_array_equal(
+            tifffile.imread(op.join(self.path, 'inside', 'nested.tif')),
+            image
+        )
+
     async def test_invalid_ascend(self):
         with self.assertRaises(StorageError):
             await self.walker.ascend()
@@ -104,3 +121,23 @@ class TestDirectoryWalker(TestCase):
         await test_raises('bar-}')
         await test_raises('bar-}{')
         await test_raises('bar-}{{}')
+
+
+class TestRemoteDirectoryWalker(TestCase):
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.device = MockWalkerDevice()
+        self.walker = await RemoteDirectoryWalker(device=self.device)
+
+    async def test_write_image(self):
+        image = np.arange(24, dtype=np.uint16).reshape(3, 4, 2)
+
+        await self.walker.write_image(image, "remote.tif")
+
+        encoding, blob = self.device.mock_device.write_image.await_args.args[0]
+        self.assertEqual(encoding, "remote.tif:4:3:2:uint16")
+        np.testing.assert_array_equal(
+            np.frombuffer(blob, dtype=np.uint16).reshape(3, 4, 2),
+            image
+        )
