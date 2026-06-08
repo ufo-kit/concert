@@ -34,7 +34,7 @@ class TangoCommand(SubCommand):
         Run a Tango server
 
         :param server: String defining the server type. Can be one of 'benchmarker', 'reco',
-        'walker'.
+        'sampledetect', 'walker'.
         :type server: str
         :param port: Port to run the server on. If *database* is True, this will be ignored.
         :type port: int

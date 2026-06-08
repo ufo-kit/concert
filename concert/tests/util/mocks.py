@@ -42,6 +42,7 @@ class MockWalkerDevice:
         self._registered_log_paths = []
         self.mock_device.descend = mock.AsyncMock(side_effect=self._side_effect_descend)
         self.mock_device.ascend = mock.AsyncMock(side_effect=self._side_effect_ascend)
+        self.mock_device.write_image = mock.AsyncMock()
         self.mock_device.register_logger = mock.AsyncMock(
                 side_effect=self._side_effect_register_logger)  # noqa E126
         self.mock_device.deregister_logger = mock.AsyncMock(
@@ -88,6 +89,9 @@ class MockWalkerDevice:
 
     async def write_sequence(self, name: str) -> None:
         await self.mock_device.write_sequence(name=name)
+
+    async def write_image(self, data) -> None:
+        await self.mock_device.write_image(data)
 
     async def register_logger(self, args: Tuple[str, str, str]) -> str:
         return await self.mock_device.register_logger(args)
