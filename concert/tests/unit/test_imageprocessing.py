@@ -2,7 +2,12 @@ import numpy as np
 from concert.coroutines.base import async_generate
 from concert.devices.motors.dummy import ContinuousRotationMotor
 from concert.quantities import q
-from concert.imageprocessing import (compute_rotation_axis, normalize, find_sphere_centers)
+from concert.imageprocessing import (
+    compute_rotation_axis,
+    convert_image_to_nbit,
+    find_sphere_centers,
+    normalize,
+)
 from concert.measures import rotation_axis
 from concert.tests import suppressed_logging, slow, assert_almost_equal, TestCase
 from concert.tests.util.rotationaxis import SimulationCamera
@@ -62,6 +67,51 @@ def test_rescale():
 
     run_test(0, 1)
     run_test(-10, 47.5)
+
+
+def test_convert_image_to_nbit():
+    image = np.arange(100, dtype=np.float32).reshape(10, 10)
+
+    for num_bits, dtype in (
+        (1, np.uint8),
+        (8, np.uint8),
+        (9, np.uint16),
+        (16, np.uint16),
+        (17, np.uint32),
+        (32, np.uint32),
+        (33, np.uint64),
+        (64, np.uint64),
+    ):
+        converted = convert_image_to_nbit(image, num_bits=num_bits, percentile=0)
+        assert converted.dtype == dtype
+        assert converted.shape == image.shape
+        assert converted.min() == 0
+        assert converted.max() == 2 ** num_bits - 1
+
+
+def test_convert_image_to_nbit_percentile_and_channels():
+    image = np.array([[0, 1], [2, 100]], dtype=np.float32)
+    converted = convert_image_to_nbit(image, num_bits=8, percentile=25, num_channels=3)
+
+    assert converted.shape == (2, 2, 3)
+    assert converted.dtype == np.uint8
+    np.testing.assert_array_equal(converted[..., 0], converted[..., 1])
+    np.testing.assert_array_equal(converted[..., 1], converted[..., 2])
+    assert converted[0, 0, 0] == 0
+    assert converted[-1, -1, 0] == 255
+
+
+def test_convert_image_to_nbit_constant_and_invalid_arguments():
+    converted = convert_image_to_nbit(np.ones((2, 3)), num_bits=12, num_channels=2)
+    assert converted.shape == (2, 3, 2)
+    assert converted.dtype == np.uint16
+    assert not converted.any()
+
+    for num_bits in (0, 65):
+        with np.testing.assert_raises(ValueError):
+            convert_image_to_nbit(np.ones((2, 2)), num_bits=num_bits)
+    with np.testing.assert_raises(ValueError):
+        convert_image_to_nbit(np.ones((2, 2)), num_channels=0)
 
 
 @slow

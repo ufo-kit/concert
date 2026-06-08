@@ -134,3 +134,35 @@ does not change walker's path. The writing itself can then happen after the
     # create_writer ascends back so the writing itself can happen outside of the
     # with statement
     await writer
+
+To write one image with an explicit file name in the walker's current
+directory, use :meth:`~concert.storage.Walker.write_image`::
+
+    await walker.write_image(image, "preview.tif")
+
+This works for both :class:`~concert.storage.DirectoryWalker` and
+:class:`~concert.storage.RemoteDirectoryWalker`. The remote walker serializes
+the image shape and data type together with the pixel data and delegates the
+write to its Tango walker server.
+
+
+Converting images for display or inference
+==========================================
+
+:func:`~concert.imageprocessing.convert_image_to_nbit` maps an image to an
+unsigned integer representation with a selectable bit depth. Percentile
+clipping makes the conversion robust against outliers, and ``num_channels`` can
+be used to repeat a grayscale image into an RGB-like array::
+
+    from concert.imageprocessing import convert_image_to_nbit
+
+    preview = convert_image_to_nbit(
+        image,
+        num_bits=8,
+        percentile=0.1,
+        num_channels=3,
+    )
+
+The result above has shape ``(height, width, 3)`` and data type
+``numpy.uint8``. This is also the conversion used before passing detector
+images to the sample-detection model.

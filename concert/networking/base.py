@@ -220,7 +220,9 @@ class ZmqBase(AsyncObject, abc.ABC):
     is approximate.
     """
 
-    async def __ainit__(self, endpoint=None, reliable=True, polling_timeout=100 * q.ms, timeout=None):
+    async def __ainit__(
+        self, endpoint=None, reliable=True, polling_timeout=100 * q.ms, timeout=None
+    ):
         self._endpoint = endpoint
         self._poller = zmq.asyncio.Poller()
         self._polling_timeout = polling_timeout
@@ -474,6 +476,7 @@ class ZmqReceiver(ZmqBase):
             self._stopped.clear()
         else:
             self._stopped = asyncio.Event()
+        self._request_stop = False
 
         i = 0
         try:

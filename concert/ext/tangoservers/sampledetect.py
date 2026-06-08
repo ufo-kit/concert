@@ -1,6 +1,4 @@
-"""
-Tango server for benchmarking zmq transfers.
-"""
+"""Tango server for sample detection."""
 import numpy as np
 import torch
 import sys
@@ -16,9 +14,7 @@ except ImportError:
 
 
 class SampleDetect(TangoRemoteProcessing):
-    """
-    Device server for elmo_main.py-controller based
-    """
+    """Device server for detecting samples in projection images."""
 
     model_path = attribute(
         label="AI model path for sample detection",

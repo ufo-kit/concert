@@ -277,6 +277,47 @@ started, which can be done by::
     concert tango walker --port 2238
 
 
+Remote sample detection
+-----------------------
+
+:class:`~concert.experiments.addons.tango.SampleDetector` connects experiment
+acquisitions to a Tango sample-detection server. The server uses an Ultralytics
+YOLO model, so ``torch`` and ``ultralytics`` must be installed on the server
+machine. Configure the model before attaching the addon::
+
+    sample_endpoint = CommData(
+        "localhost",
+        port=8997,
+        socket_type=zmq.PUB,
+        sndhwm=1,
+    )
+    sample_device = get_tango_device(
+        f"{os.uname()[1]}:1239/concert/tango/sampledetect#dbase=no"
+    )
+    await sample_device.write_attribute("model_path", "/path/to/model.pt")
+    await sample_device.write_attribute("min_confidence", 0.25)
+
+    sample_detector = await tango_addons.SampleDetector(
+        ex,
+        sample_device,
+        sample_endpoint,
+        acquisitions=[ex.get_acquisition("radios")],
+    )
+
+The addon can also process an individual NumPy image directly::
+
+    bbox, confidence = await sample_detector.detect(image)
+
+``bbox`` is ``[x0, y0, x1, y1]`` in pixels. During streamed detection the
+server stores successful bounding boxes. After the acquisition, a robust
+rectangle can be obtained from their lower and upper percentiles::
+
+    bbox = await sample_detector.get_maximum_rectangle(percentile=10)
+
+Increasing ``percentile`` rejects more extreme detections. If no sample was
+detected, the returned rectangle is ``[0, 0, 0, 0]``.
+
+
 Addons
 ------
 

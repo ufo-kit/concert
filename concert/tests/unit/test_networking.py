@@ -91,6 +91,11 @@ class TestZmq(TestCase):
         meta, image = await start(self.receiver.receive_image())
         np.testing.assert_equal(self.image, image)
 
+    async def test_send_receive_json(self):
+        payload = {"sample-bbox": [1, 2, 3, 4]}
+        await start(self.sender.send_json(payload))
+        self.assertEqual(await start(self.receiver.receive_json()), payload)
+
     async def test_publish_subscribe(self):
         # Make new ones
         await self.sender.close()
@@ -124,6 +129,38 @@ class TestZmq(TestCase):
 
         await f
         self.assertLessEqual(1, i)
+
+    async def test_receiver_stop_without_subscription(self):
+        await asyncio.wait_for(self.receiver.stop(), 1)
+        self.assertIsNone(self.receiver._stopped)
+
+    async def test_receiver_stop_requests_blocked_subscription(self):
+        async def consume():
+            async for _ in self.receiver.subscribe():
+                pass
+
+        subscription = start(consume())
+        await asyncio.sleep(0)
+        await asyncio.wait_for(self.receiver.stop(), 1)
+        await asyncio.wait_for(subscription, 1)
+
+        self.assertTrue(self.receiver._stopped.is_set())
+        self.assertFalse(self.receiver._request_stop)
+
+    async def test_receiver_can_subscribe_after_stop(self):
+        async def consume():
+            async for image in self.receiver.subscribe():
+                return image
+
+        first = start(consume())
+        await asyncio.sleep(0)
+        await asyncio.wait_for(self.receiver.stop(), 1)
+        await asyncio.wait_for(first, 1)
+
+        second = start(consume())
+        await self.sender.send_image(self.image)
+        image = await asyncio.wait_for(second, 1)
+        np.testing.assert_equal(image, self.image)
 
     async def test_broadcast_immediate_shutdown(self):
         sender, broadcast, receiver_1, receiver_2 = await setup_broadcaster()
