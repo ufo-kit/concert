@@ -5,13 +5,11 @@ backprojection, flat field correction and other operations on images.
 
 import asyncio
 import logging
-from typing import Dict, Tuple, Union
 import numpy as np
 from scipy.signal import fftconvolve
-from scipy.signal.windows import tukey
 from concert.coroutines.base import background, run_in_executor
 from concert.quantities import q
-from concert.typing import ArrayLike
+
 
 LOG = logging.getLogger(__name__)
 

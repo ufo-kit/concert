@@ -10,6 +10,7 @@ import math
 import os
 import datetime
 import numpy as np
+from scipy.signal.windows import tukey
 from tango import DebugIt
 from tango.server import attribute, command, AttrWriteType
 try:
