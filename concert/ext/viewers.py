@@ -492,9 +492,14 @@ class _PyQtGraphUpdater(_ImageUpdaterBase):
             pos = self.view.imageItem.mapFromScene(ev)
             x = int(pos.x() + 0.5)
             y = int(pos.y() + 0.5)
-            if y < image.shape[0] and x < image.shape[1]:
+            if 0 <= y < image.shape[0] and 0 <= x < image.shape[1]:
+                value = np.asarray(image[y, x])
+                if value.ndim:
+                    value_text = ', '.join(f'{channel:g}' for channel in value.flat)
+                else:
+                    value_text = f'{value.item():g}'
                 self.view.view.setTitle(
-                    f'{self.title} x={x} y={y} [{self.view.imageItem.image[y, x]:g}]',
+                    f'{self.title} x={x} y={y} [{value_text}]',
                     bold=True
                 )
         else:
