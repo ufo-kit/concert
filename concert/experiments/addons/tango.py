@@ -314,8 +314,10 @@ class FourierRingCorrelation(TangoMixin, base.Addon):
             - 'fluctuation_threshold': percentage deviation
               (default: 15.0, range: 5-100)
             - 'crop_height': crop height in pixels (default: 512, range: 64-2048)
-            - 'padding_y': vertical padding in pixels (default: 400)
-            - 'padding_x': horizontal padding in pixels (default: 400)
+            - 'padding_y': vertical padding in pixels (default: 200)
+            - 'padding_x': horizontal padding in pixels (default: 200)
+            - 'y_start': starting pixel index for cropping (default: 0)
+            - 'y_end': ending pixel index for cropping (default: 0)
         :type kwargs: Dict[str, Any]
         """
         await TangoMixin.__ainit__(self, device, endpoint)
@@ -323,8 +325,10 @@ class FourierRingCorrelation(TangoMixin, base.Addon):
         resolution_threshold: str = kwargs.get("resolution_threshold", "half_bit")
         fluctuation_threshold: float = kwargs.get("fluctuation_threshold", 15.0)
         crop_height: int = kwargs.get("crop_height", 512)
-        padding_y: int = kwargs.get("padding_y", 400)
-        padding_x: int = kwargs.get("padding_x", 400)
+        padding_y: int = kwargs.get("padding_y", 200)
+        padding_x: int = kwargs.get("padding_x", 200)
+        y_start: int = kwargs.get("y_start", 0)
+        y_end: int = kwargs.get("y_end", 0)
         # Set device attributes
         await self._device.write_attribute(
             "attr_acq", np.array([num_darks, num_flats, num_radios], dtype=np.int_)
@@ -335,6 +339,8 @@ class FourierRingCorrelation(TangoMixin, base.Addon):
         await self._device.write_attribute("crop_height", crop_height)
         await self._device.write_attribute("padding_y", padding_y)
         await self._device.write_attribute("padding_x", padding_x)
+        await self._device.write_attribute("y_start", y_start)
+        await self._device.write_attribute("y_end", y_end)
         await base.Addon.__ainit__(self, experiment, None)
 
     def _make_consumers(
@@ -367,3 +373,15 @@ class FourierRingCorrelation(TangoMixin, base.Addon):
     @remote
     async def estimate_spatial_resolution(self) -> None:
         await self._device.estimate_spatial_resolution(await self.experiment.walker.get_current())
+
+    async def set_crop_y(self, y_start: int, y_end: int) -> None:
+        """
+        Set the vertical crop region for FRC analysis
+
+        :param y_start: starting pixel index for cropping (inclusive)
+        :type y_start: int
+        :param y_end: ending pixel index for cropping (exclusive)
+        :type y_end: int
+        """
+        await self._device.write_attribute("y_start", y_start)
+        await self._device.write_attribute("y_end", y_end)
