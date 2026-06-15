@@ -318,6 +318,10 @@ class FourierRingCorrelation(TangoMixin, base.Addon):
             - 'padding_x': horizontal padding in pixels (default: 200)
             - 'y_start': starting pixel index for cropping (default: 0)
             - 'y_end': ending pixel index for cropping (default: 0)
+            - 'variance_weighting': enable variance-weighted FRC (default: True)
+            - 'variance_window_size': window size for variance computation
+              (default: 3)
+            - 'absorptivity': apply dark/flat correction (default: True)
         :type kwargs: Dict[str, Any]
         """
         await TangoMixin.__ainit__(self, device, endpoint)
@@ -329,6 +333,9 @@ class FourierRingCorrelation(TangoMixin, base.Addon):
         padding_x: int = kwargs.get("padding_x", 200)
         y_start: int = kwargs.get("y_start", 0)
         y_end: int = kwargs.get("y_end", 0)
+        variance_weighting: bool = kwargs.get("variance_weighting", True)
+        variance_window_size: int = kwargs.get("variance_window_size", 3)
+        absorptivity: bool = kwargs.get("absorptivity", True)
         # Set device attributes
         await self._device.write_attribute(
             "attr_acq", np.array([num_darks, num_flats, num_radios], dtype=np.int_)
@@ -341,6 +348,9 @@ class FourierRingCorrelation(TangoMixin, base.Addon):
         await self._device.write_attribute("padding_x", padding_x)
         await self._device.write_attribute("y_start", y_start)
         await self._device.write_attribute("y_end", y_end)
+        await self._device.write_attribute("variance_weighting", variance_weighting)
+        await self._device.write_attribute("variance_window_size", variance_window_size)
+        await self._device.write_attribute("absorptivity", absorptivity)
         await base.Addon.__ainit__(self, experiment, None)
 
     def _make_consumers(

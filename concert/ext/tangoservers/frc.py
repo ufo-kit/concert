@@ -12,12 +12,8 @@ import datetime
 import numpy as np
 from tango import DebugIt
 from tango.server import attribute, command, AttrWriteType
-try:
-    import torch
-    import torch.nn.functional as F
-    _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-except ImportError:
-    _device = torch.device("cpu")
+import torch
+import torch.nn.functional as F
 from scipy.ndimage import uniform_filter
 from scipy.signal.windows import tukey
 from concert.ext.tangoservers.base import TangoRemoteProcessing, RemoteWalkerMixin
@@ -26,6 +22,9 @@ from concert.imageprocessing import flat_correct
 from concert.storage import RemoteDirectoryWalker
 from concert.helpers import PerformanceTracker
 from concert.typing import ArrayLike
+
+# Device initialization for PyTorch - uses GPU if available, otherwise falls back to CPU
+_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 LOG = logging.getLogger(__name__)
@@ -146,7 +145,6 @@ def select_frc_region(
         max_variance,
         crop_method,
     )
-
     return y_start, y_end, crop_method
 
 
@@ -207,18 +205,37 @@ def prepare_frc_state(height: int, width: int) -> Dict[str, Union[int, torch.Ten
     }
 
 
+def _compute_local_variance(img: torch.Tensor, window_size: int) -> torch.Tensor:
+    """
+    Compute local variance map using sliding window.
+    
+    Uses the formula: Var(X) = E[X²] - E[X]² computed efficiently via uniform filtering.
+    
+    :param img: input image tensor
+    :type img: torch.Tensor
+    :param window_size: size of square window for variance computation
+    :type window_size: int
+    :return: variance map of same shape as input
+    :rtype: torch.Tensor
+    """
+    img_np = img.cpu().numpy()
+    mean = uniform_filter(img_np, size=window_size)
+    mean_sq = uniform_filter(img_np**2, size=window_size)
+    variance = mean_sq - mean**2
+    return torch.as_tensor(variance, dtype=torch.float64, device=_device)
+
+
 def _frc_core(
     img1: torch.Tensor,
     img2: torch.Tensor,
     dark: Optional[torch.Tensor],
     flat: Optional[torch.Tensor],
     window_2d: torch.Tensor,
-    bin_idx: torch.Tensor,
-    counts: torch.Tensor,
-    frequencies: torch.Tensor,
-    num_freq_bins: int,
-    eps: float = 1e-12,
-    threshold_method: str = "half_bit") -> Tuple[torch.Tensor, torch.Tensor, float]:
+    state: Dict[str, Union[int, torch.Tensor]],
+    variance_weight: bool,
+    variance_window_size: int,
+    eps: float,
+    threshold_method: str) -> Tuple[torch.Tensor, torch.Tensor, float]:
     """
     Core FRC computation with flat-field correction and windowing.
 
@@ -227,16 +244,21 @@ def _frc_core(
     per frequency ring using precomputed bin assignments, and generates threshold curves.
 
     :param img1: first image tensor
+    :type img1: torch.Tensor
     :param img2: second image tensor
+    :type img2: torch.Tensor
     :param dark: dark field reference
+    :type dark: Optional[torch.Tensor]
     :param flat: flat field reference
+    :type flat: Optional[torch.Tensor]
     :param window_2d: 2D edge smoothing Tukey window
-    :param bin_idx: frequency bin assignments for each pixel
-    :param counts: number of pixels per frequency ring
-    :param frequencies: representative frequencies for each ring
-    :param num_freq_bins: total number of frequency bins
+    :type window_2d: torch.Tensor
+    :param state: dictionary containing precomputed FRC state
+    :type state: Dict[str, Union[int, torch.Tensor]]
     :param eps: small constant for numerical stability
+    :type eps: float
     :param threshold_method: threshold method ('1/7' or 'half_bit')
+    :type threshold_method: str
     :return: tuple of (frc_curve, threshold_curve, geometric_threshold)
     """
     # Flat-field Correct
@@ -255,6 +277,17 @@ def _frc_core(
             torch.tensor(0.0, dtype=torch.float64, device=_device),
         )
 
+    # Compute variance weights if enabled
+    if variance_weight:
+        var1 = _compute_local_variance(img1, window_size=variance_window_size)
+        var2 = _compute_local_variance(img2, window_size=variance_window_size)
+        # Use minimum variance (conservative - both images must have structure)
+        variance_weights = torch.minimum(var1, var2)
+        # Normalize to [0, 1] for numerical stability
+        variance_weights = variance_weights / (variance_weights.max() + eps)
+    else:
+        variance_weights = None
+
     # Apply Tukey window
     img1 *= window_2d
     img2 *= window_2d
@@ -266,29 +299,39 @@ def _frc_core(
     pow_spc1 = torch.abs(freq1) ** 2
     pow_spc2 = torch.abs(freq2) ** 2
 
-    # Accumulate cross-correlations per frequency ring using precomputed bin assignments
-    frc_num = torch.bincount(bin_idx, weights=corr.ravel(), minlength=num_freq_bins)
-
-    # Accumulate power spectra for normalization
-    frc_denom1 = torch.bincount(bin_idx, weights=pow_spc1.ravel(), minlength=num_freq_bins)
-    frc_denom2 = torch.bincount(bin_idx, weights=pow_spc2.ravel(), minlength=num_freq_bins)
-
+    # Accumulate cross-correlations per frequency ring weighted by local variance if enabled.
+    frc_num = torch.bincount(
+        state["bin_idx"],
+        weights=(corr * variance_weights).ravel() if variance_weights is not None else corr.ravel(),
+        minlength=state["num_freq_bins"]
+    )
+    frc_denom1 = torch.bincount(
+        state["bin_idx"],
+        weights=(pow_spc1 * variance_weights).ravel() if variance_weights is not None else pow_spc1.ravel(),
+        minlength=state["num_freq_bins"]
+    )
+    frc_denom2 = torch.bincount(
+        state["bin_idx"],
+        weights=(pow_spc2 * variance_weights).ravel() if variance_weights is not None else pow_spc2.ravel(),
+        minlength=state["num_freq_bins"]
+    )
+    
     # Compute FRC: normalized correlation per frequency ring and mask unreliable bins
     # Rings with <10 pixels have poor statistical significance.
     frc = frc_num / (torch.sqrt(frc_denom1 * frc_denom2) + eps)
     frc = torch.where(
-        counts > 10, frc, torch.tensor(float("nan"), device=_device)
+        state["counts"] > 10, frc, torch.tensor(float("nan"), device=_device)
     )
 
     # Generate classical threshold curve based on selected method
     if threshold_method == "1/7":
         # Classic fixed threshold at 1/7 ≈ 0.143
-        threshold_curve = torch.ones_like(frequencies) * (1.0 / 7.0)
+        threshold_curve = torch.ones_like(state["frequencies"]) * (1.0 / 7.0)
     elif threshold_method == "half_bit":
         # Information-theoretic threshold based on pixel counts per ring
         # Formula: (snr√n + (factor+1)) / ((snr+1)√n + factor)
         # where snr = 0.5√2 - 0.5 ≈ 0.2071, factor = √snr  2 ≈ 0.9102
-        nr_rt = torch.sqrt(counts)
+        nr_rt = torch.sqrt(state["counts"])
         snr_half_set = 0.5 * torch.sqrt(torch.tensor(2.0, device=_device)) - 0.5
         factor = torch.sqrt(snr_half_set) * 2
         threshold_curve = (snr_half_set * nr_rt + (factor + 1)) / (
@@ -306,14 +349,14 @@ def _frc_core(
     mag1 = torch.abs(fft1_shifted)
     mag2 = torch.abs(fft2_shifted)
     M_per_ring = torch.bincount(
-        bin_idx,
+        state["bin_idx"],
         weights=torch.maximum(mag1.ravel(), mag2.ravel()),
-        minlength=num_freq_bins,
+        minlength=state["num_freq_bins"],
     )
-    M_per_ring = M_per_ring / torch.maximum(counts, torch.ones_like(counts))
+    M_per_ring = M_per_ring / torch.maximum(state["counts"], torch.ones_like(state["counts"]))
     geometric_threshold = 2.0 * torch.sqrt(M_per_ring) / (1.0 + M_per_ring)
     geometric_threshold = torch.where(
-        counts > 10, geometric_threshold, torch.tensor(float("nan"), device=_device)
+        state["counts"] > 10, geometric_threshold, torch.tensor(float("nan"), device=_device)
     )
     return frc, threshold_curve, geometric_threshold
 
@@ -398,10 +441,12 @@ def compute_frc(
     img2: ArrayLike,
     dark: Optional[ArrayLike],
     flat: Optional[ArrayLike],
-    frc_state: Dict[str, Union[int, torch.Tensor]],
+    state: Dict[str, Union[int, torch.Tensor]],
     eps: float = 1e-12,
     window_alpha: float = 0.125,
     threshold_method: str = "half_bit",
+    variance_weight: bool = True,
+    variance_window_size: int = 3,
 ) -> Dict[str, Union[ArrayLike, float]]:
     """
     Compute Fourier Ring Correlation (FRC) between two images and estimate spatial resolution.
@@ -427,8 +472,8 @@ def compute_frc(
     :type dark: `concert.typing.ArrayLike`
     :param flat: flat field
     :type flat: `concert.typing.ArrayLike`
-    :param frc_state: precomputed frequency bins from prepare_frequency_bins()
-    :type frc_state: Dict[str, Union[int, torch.Tensor]]
+    :param state: precomputed frequency bins from prepare_frequency_bins()
+    :type state: Dict[str, Union[int, torch.Tensor]]
     :param eps: numerical stability constant to avoid division by zero (default: 1e-12)
     :type eps: float
     :param window_alpha: Tukey window alpha (0=rectangular, 1=Hann; default: 0.125)
@@ -438,6 +483,12 @@ def compute_frc(
                              'half_bit' - information-theoretic threshold:
                                          (0.2071√n + 1.9102) / (1.2071√n + 0.9102)
     :type threshold_method: str
+    :param variance_weight: if True, weight FRC contributions by local variance
+                            (sample regions weighted higher than background)
+    :type variance_weight: bool
+    :param variance_window_size: window size for local variance computation
+                                 (default: 5 pixels)
+    :type variance_window_size: int
     :return: dictionary with keys:
              - 'frequencies': spatial frequency array (cycles/pixel)
              - 'frc': FRC curve (correlation per frequency bin)
@@ -482,38 +533,31 @@ def compute_frc(
     # Convert to torch tensors on appropriate device
     img1 = torch.as_tensor(img1.copy(), dtype=torch.float64, device=_device)
     img2 = torch.as_tensor(img2.copy(), dtype=torch.float64, device=_device)
-    height, width = frc_state["height"], frc_state["width"]
+    height, width = state["height"], state["width"]
     
     # Apply Tukey window to suppress FFT edge artifacts
     tukey_1d = torch.as_tensor(
         tukey(max(height, width), alpha=window_alpha), dtype=torch.float64, device=_device)
     window_2d = tukey_1d[:height, None] * tukey_1d[None, :width]
 
-    # Use precomputed frequency bins
-    bin_idx = frc_state["bin_idx"]
-    counts = frc_state["counts"]
-    frequencies = frc_state["frequencies"]
-    num_freq_bins = frc_state["num_freq_bins"]
-
     frc, threshold_curve, geometric_threshold = _frc_core(
-        img1, img2, dark, flat, window_2d,
-        frc_state["bin_idx"], frc_state["counts"], frc_state["frequencies"],
-        frc_state["num_freq_bins"], eps, threshold_method
+        img1, img2, dark, flat, window_2d, state,
+        variance_weight, variance_window_size, eps, threshold_method,
     )
 
     # Extract spatial resolution from classical threshold crossing point
     classical_crossing, classical_resolution = _extract_resolution(
-        frequencies, frc, threshold_curve, "classical"
+        state["frequencies"], frc, threshold_curve, "classical"
     )
 
     # Extract spatial resolution from geometric threshold crossing point
     geometric_crossing, geometric_resolution = _extract_resolution(
-        frequencies, frc, geometric_threshold, "geometric"
+        state["frequencies"], frc, geometric_threshold, "geometric"
     )
 
     # Convert all torch tensors back to numpy for API compatibility
     return {
-        "frequencies": frequencies.cpu().numpy(),
+        "frequencies": state["frequencies"].cpu().numpy(),
         "frc": frc.cpu().numpy(),
         "classical_threshold": threshold_curve.cpu().numpy(),
         "classical_crossing": float(classical_crossing),
@@ -612,10 +656,38 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
         doc="Ending Y coordinate for FRC region selection (default: 0, determined from data)",
     )
 
+    variance_weighting = attribute(
+        label="Enable variance weighting",
+        dtype=bool,
+        access=AttrWriteType.READ_WRITE,
+        fget="get_variance_weighting",
+        fset="set_variance_weighting",
+        doc="Enable variance-weighted FRC to suppress background contribution "
+            "(default: True, recommended for samples occupying limited detector area)",
+    )
+
+    variance_window_size = attribute(
+        label="Variance window size",
+        dtype=int,
+        access=AttrWriteType.READ_WRITE,
+        fget="get_variance_window_size",
+        fset="set_variance_window_size",
+        doc="Window size in pixels for local variance computation "
+            "(default: 3, valid range: 3-21)",
+    )
+
+    absorptivity = attribute(
+        label="Absorptivity mode",
+        dtype=bool,
+        access=AttrWriteType.READ_WRITE,
+        fget="get_absorptivity",
+        fset="set_absorptivity",
+        doc="When True, apply dark/flat field correction before FRC (absorption imaging). "
+            "When False, skip correction and use raw projections (default: True)",
+    )
+
     _walker: Optional[RemoteDirectoryWalker]
     _frc_state: Optional[Dict[str, Union[int, torch.Tensor]]]
-    _y_start: int
-    _y_end: int
 
     async def init_device(self) -> None:
         await super().init_device()
@@ -627,6 +699,9 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
         self._padding_x = 200
         self._y_start = 0
         self._y_end = 0
+        self._variance_weighting = True
+        self._variance_window_size = 3
+        self._absorptivity = True
         self._frc_state = None
         self._walker = None
         self.info_stream(
@@ -745,6 +820,43 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
             "%s: y_end set to: %s",
             self.__class__.__name__,
             str(self._y_end),
+        )
+
+    def get_variance_weighting(self) -> bool:
+        return self._variance_weighting
+
+    def set_variance_weighting(self, enable: bool) -> None:
+        self._variance_weighting = enable
+        self.info_stream(
+            "%s: variance_weighting set to: %s",
+            self.__class__.__name__,
+            str(self._variance_weighting),
+        )
+
+    def get_variance_window_size(self) -> int:
+        return self._variance_window_size
+
+    def set_variance_window_size(self, size: int) -> None:
+        if size < 3 or size > 21:
+            raise ValueError(
+                f"Variance window size must be between 3 and 21 pixels, got {size}"
+            )
+        self._variance_window_size = size
+        self.info_stream(
+            "%s: variance_window_size set to: %s",
+            self.__class__.__name__,
+            str(self._variance_window_size),
+        )
+
+    def get_absorptivity(self) -> bool:
+        return self._absorptivity
+
+    def set_absorptivity(self, enable: bool) -> None:
+        self._absorptivity = enable
+        self.info_stream(
+            "%s: absorptivity set to: %s",
+            self.__class__.__name__,
+            str(self._absorptivity),
         )
 
     def _compute_centered_crop(self, y_start: int, y_end: int) -> Tuple[int, int]:
@@ -992,10 +1104,12 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
                             result = compute_frc(
                                 previous_proj[self._y_start : self._y_end, :],
                                 proj[self._y_start : self._y_end, :],
-                                self._dark[self._y_start : self._y_end, :],
-                                self._flat[self._y_start : self._y_end, :],
-                                frc_state=self._frc_state,
+                                dark=self._dark[self._y_start : self._y_end, :] if self._absorptivity else None,
+                                flat=self._flat[self._y_start : self._y_end, :] if self._absorptivity else None,
+                                state=self._frc_state,
                                 threshold_method=self._resolution_threshold,
+                                variance_weight=self._variance_weighting,
+                                variance_window_size=self._variance_window_size,
                             )
                             json_result = self._result_to_json_dict(
                                 result, proj_idx - self._proj_offset, proj_idx
@@ -1038,6 +1152,9 @@ class TangoFourierRingCorrelation(TangoRemoteProcessing, RemoteWalkerMixin):
                     "configuration": {
                         "offset": self._proj_offset,
                         "threshold_method": self._resolution_threshold,
+                        "variance_weighting": self._variance_weighting,
+                        "variance_window_size": self._variance_window_size,
+                        "absorptivity": self._absorptivity,
                         "num_projections_received": proj_idx,
                         "num_frc_computations": len(correlation_results),
                         "crop_y_start": self._y_start,
