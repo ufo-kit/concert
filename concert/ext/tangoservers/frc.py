@@ -3,7 +3,7 @@ frc.py
 -----
 Implements a device server to execute Fourier Ring Correlation during acquisition.
 """
-
+import logging
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, Union
 import json
 import math
@@ -26,6 +26,9 @@ from concert.imageprocessing import flat_correct
 from concert.storage import RemoteDirectoryWalker
 from concert.helpers import PerformanceTracker
 from concert.typing import ArrayLike
+
+
+LOG = logging.getLogger(__name__)
 
 
 def select_frc_region(
@@ -207,8 +210,8 @@ def prepare_frc_state(height: int, width: int) -> Dict[str, Union[int, torch.Ten
 def _frc_core(
     img1: torch.Tensor,
     img2: torch.Tensor,
-    dark: torch.Tensor,
-    flat: torch.Tensor,
+    dark: Optional[torch.Tensor],
+    flat: Optional[torch.Tensor],
     window_2d: torch.Tensor,
     bin_idx: torch.Tensor,
     counts: torch.Tensor,
@@ -237,17 +240,20 @@ def _frc_core(
     :return: tuple of (frc_curve, threshold_curve, geometric_threshold)
     """
     # Flat-field Correct
-    flat -= dark
-    img1 = torch.where(
-        flat != 0,
-        torch.log((img1 - dark) / flat),
-        torch.tensor(0.0, dtype=torch.float64, device=_device),
-    )
-    img2 = torch.where(
-        flat != 0,
-        torch.log((img2 - dark) / flat),
-        torch.tensor(0.0, dtype=torch.float64, device=_device),
-    )
+    if dark is not None and flat is not None:
+        dark = torch.as_tensor(dark.copy(), dtype=torch.float64, device=_device)
+        flat = torch.as_tensor(flat.copy(), dtype=torch.float64, device=_device)
+        flat -= dark
+        img1 = torch.where(
+            flat != 0,
+            torch.log((img1 - dark) / flat),
+            torch.tensor(0.0, dtype=torch.float64, device=_device),
+        )
+        img2 = torch.where(
+            flat != 0,
+            torch.log((img2 - dark) / flat),
+            torch.tensor(0.0, dtype=torch.float64, device=_device),
+        )
 
     # Apply Tukey window
     img1 *= window_2d
@@ -390,8 +396,8 @@ def _extract_resolution(
 def compute_frc(
     img1: ArrayLike,
     img2: ArrayLike,
-    dark: ArrayLike,
-    flat: ArrayLike,
+    dark: Optional[ArrayLike],
+    flat: Optional[ArrayLike],
     frc_state: Dict[str, Union[int, torch.Tensor]],
     eps: float = 1e-12,
     window_alpha: float = 0.125,
@@ -474,10 +480,8 @@ def compute_frc(
     # Validate input shapes - FRC requires comparable Fourier spaces
     assert img1.shape == img2.shape
     # Convert to torch tensors on appropriate device
-    img1 = torch.as_tensor(img1, dtype=torch.float64, device=_device)
-    img2 = torch.as_tensor(img2, dtype=torch.float64, device=_device)
-    dark = torch.as_tensor(dark, dtype=torch.float64, device=_device)
-    flat = torch.as_tensor(flat, dtype=torch.float64, device=_device)
+    img1 = torch.as_tensor(img1.copy(), dtype=torch.float64, device=_device)
+    img2 = torch.as_tensor(img2.copy(), dtype=torch.float64, device=_device)
     height, width = frc_state["height"], frc_state["width"]
     
     # Apply Tukey window to suppress FFT edge artifacts
