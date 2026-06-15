@@ -205,24 +205,46 @@ def prepare_frc_state(height: int, width: int) -> Dict[str, Union[int, torch.Ten
     }
 
 
-def _compute_local_variance(img: torch.Tensor, window_size: int) -> torch.Tensor:
+def _compute_variance_map(
+        img1: ArrayLike,
+        img2: ArrayLike,
+        window_size: int,
+        eps: float) -> ArrayLike:
     """
-    Compute local variance map using sliding window.
+    Compute normalized variance weight map from two images.
     
-    Uses the formula: Var(X) = E[X²] - E[X]² computed efficiently via uniform filtering.
+    Computes local variance for both images using the formula Var(X) = E[X²] - E[X]²,
+    takes minimum (conservative approach), and normalizes to [0, 1] range.
+    All computation done in numpy on CPU to avoid GPU↔CPU transfers.
     
-    :param img: input image tensor
-    :type img: torch.Tensor
+    :param img1: first input image (H, W)
+    :type img1: `concert.typing.ArrayLike`
+    :param img2: second input image (H, W)
+    :type img2: `concert.typing.ArrayLike`
     :param window_size: size of square window for variance computation
     :type window_size: int
-    :return: variance map of same shape as input
-    :rtype: torch.Tensor
+    :param eps: small constant for numerical stability
+    :type eps: float
+    :return: normalized variance weights (H, W), dtype=float64
+    :rtype: `concert.typing.ArrayLike`
     """
-    img_np = img.cpu().numpy()
-    mean = uniform_filter(img_np, size=window_size)
-    mean_sq = uniform_filter(img_np**2, size=window_size)
-    variance = mean_sq - mean**2
-    return torch.as_tensor(variance, dtype=torch.float64, device=_device)
+    # Compute variance for img1: Var(X) = E[X²] - E[X]²
+    mean1 = uniform_filter(img1, size=window_size)
+    mean_sq1 = uniform_filter(img1**2, size=window_size)
+    var1 = mean_sq1 - mean1**2
+    
+    # Compute variance for img2
+    mean2 = uniform_filter(img2, size=window_size)
+    mean_sq2 = uniform_filter(img2**2, size=window_size)
+    var2 = mean_sq2 - mean2**2
+    
+    # Use minimum variance (conservative - both images must have structure)
+    variance = np.minimum(var1, var2)
+    
+    # Normalize to [0, 1] for numerical stability
+    variance_weights = variance / (variance.max() + eps)
+    
+    return variance_weights.astype(np.float64)
 
 
 def _frc_core(
@@ -232,8 +254,7 @@ def _frc_core(
     flat: Optional[torch.Tensor],
     window_2d: torch.Tensor,
     state: Dict[str, Union[int, torch.Tensor]],
-    variance_weight: bool,
-    variance_window_size: int,
+    variance_weights: Optional[torch.Tensor],
     eps: float,
     threshold_method: str) -> Tuple[torch.Tensor, torch.Tensor, float]:
     """
@@ -255,6 +276,8 @@ def _frc_core(
     :type window_2d: torch.Tensor
     :param state: dictionary containing precomputed FRC state
     :type state: Dict[str, Union[int, torch.Tensor]]
+    :param variance_weights: precomputed variance weight map (H, W), or None
+    :type variance_weights: Optional[torch.Tensor]
     :param eps: small constant for numerical stability
     :type eps: float
     :param threshold_method: threshold method ('1/7' or 'half_bit')
@@ -276,17 +299,6 @@ def _frc_core(
             torch.log((img2 - dark) / flat),
             torch.tensor(0.0, dtype=torch.float64, device=_device),
         )
-
-    # Compute variance weights if enabled
-    if variance_weight:
-        var1 = _compute_local_variance(img1, window_size=variance_window_size)
-        var2 = _compute_local_variance(img2, window_size=variance_window_size)
-        # Use minimum variance (conservative - both images must have structure)
-        variance_weights = torch.minimum(var1, var2)
-        # Normalize to [0, 1] for numerical stability
-        variance_weights = variance_weights / (variance_weights.max() + eps)
-    else:
-        variance_weights = None
 
     # Apply Tukey window
     img1 *= window_2d
@@ -455,14 +467,16 @@ def compute_frc(
     frequency, providing a resolution estimate based on threshold crossing points.
 
     Algorithm:
-        1. Apply Tukey window (reduces FFT edge artifacts), subtract DC component
-        2. Compute 2D FFT of both images
-        3. Calculate cross-correlation and power spectra
-        4. Bin frequencies into concentric rings using radial distances
-        5. Accumulate correlations per ring via bincount
-        6. Compute FRC curve: normalized correlation per frequency ring
-        7. Generate classical threshold curve (1/7 or half-bit method)
-        8. Compute geometric bound (Miqueles et al., 2025)
+        1. Compute variance weights on CPU (if enabled) to avoid GPU↔CPU transfers
+        2. Convert images to GPU tensors
+        3. Apply Tukey window (reduces FFT edge artifacts), subtract DC component
+        4. Compute 2D FFT of both images
+        5. Calculate cross-correlation and power spectra
+        6. Bin frequencies into concentric rings using radial distances
+        7. Accumulate correlations per ring via bincount (weighted if enabled)
+        8. Compute FRC curve: normalized correlation per frequency ring
+        9. Generate classical threshold curve (1/7 or half-bit method)
+        10. Compute geometric bound (Miqueles et al., 2025)
 
     :param img1: first input image
     :type img1: `concert.typing.ArrayLike`
@@ -487,7 +501,7 @@ def compute_frc(
                             (sample regions weighted higher than background)
     :type variance_weight: bool
     :param variance_window_size: window size for local variance computation
-                                 (default: 5 pixels)
+                                 (default: 3 pixels)
     :type variance_window_size: int
     :return: dictionary with keys:
              - 'frequencies': spatial frequency array (cycles/pixel)
@@ -530,6 +544,16 @@ def compute_frc(
     """
     # Validate input shapes - FRC requires comparable Fourier spaces
     assert img1.shape == img2.shape
+    
+    # Compute variance weights
+    if variance_weight:
+        variance_weights_np = _compute_variance_map(
+            img1, img2, window_size=variance_window_size, eps=eps
+        )
+        variance_weights = torch.as_tensor(variance_weights_np, dtype=torch.float64, device=_device)
+    else:
+        variance_weights = None
+    
     # Convert to torch tensors on appropriate device
     img1 = torch.as_tensor(img1.copy(), dtype=torch.float64, device=_device)
     img2 = torch.as_tensor(img2.copy(), dtype=torch.float64, device=_device)
@@ -542,7 +566,7 @@ def compute_frc(
 
     frc, threshold_curve, geometric_threshold = _frc_core(
         img1, img2, dark, flat, window_2d, state,
-        variance_weight, variance_window_size, eps, threshold_method,
+        variance_weights, eps, threshold_method,
     )
 
     # Extract spatial resolution from classical threshold crossing point
