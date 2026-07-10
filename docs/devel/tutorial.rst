@@ -95,6 +95,14 @@ class inherits from another :class:`.AsyncObject` (the base of Parameterizable)
 Classes subclassing :class:`.AsyncObject` cannot define ``__init__``
 constructors, which would lead to ambiguities.
 
+As with normal Python constructors, ``__ainit__`` implementations must be
+cooperative in multiple-inheritance hierarchies. Every class that implements
+``__ainit__`` must call ``await super().__ainit__()`` exactly once. A mixin
+which has initialization work must do the same; otherwise it terminates the
+chain and classes later in the MRO are never initialized. Constructor arguments
+should normally be consumed by the concrete class before it continues the
+parameterless base and mixin initialization chain.
+
 
 Adding a new device
 ===================
@@ -223,6 +231,56 @@ explicit setters and getters in order to hook into the get and set process::
 
 Be aware, that in this case you have to list the parameter *after* the functions
 that you want to refer to.
+
+Overriding parameter accessors
+------------------------------
+
+For every parameter, Concert generates public accessor methods named
+``get_<parameter>`` and ``set_<parameter>``. These methods perform parameter
+handling such as unit conversion, limit checking and locking, and then look up
+the corresponding private ``_get_<parameter>`` or ``_set_<parameter>`` method
+on the instance.
+
+This lookup remains polymorphic even if a generated accessor is called through
+a base class. Consequently, do not use a public accessor to call a parent
+implementation from an overriding private accessor. For example, the following
+recurses indefinitely because ``BaseDevice.get_position(self)`` looks up
+``self._get_position``, which is still the method on ``DerivedDevice``::
+
+    class BaseDevice(Device):
+        position = Quantity(q.mm)
+
+        async def _get_position(self):
+            return 5 * q.mm
+
+
+    class DerivedDevice(BaseDevice):
+        async def _get_position(self):
+            # Wrong: dispatches back to DerivedDevice._get_position.
+            position = await BaseDevice.get_position(self)
+            return position + 1 * q.mm
+
+Extend the next private implementation in the MRO with ``super()`` instead::
+
+    class DerivedDevice(BaseDevice):
+        async def _get_position(self):
+            position = await super()._get_position()
+            return position + 1 * q.mm
+
+The same rule applies to private setters and target getters: overrides should
+delegate to ``super()._set_<parameter>(...)`` and
+``super()._get_target_<parameter>()``. This supports cooperative mixins and
+diamond-shaped device hierarchies because each implementation is visited in
+MRO order.
+
+Remember that ``super()`` means "continue with the next implementation in the
+MRO", not "call a particular named parent". This is the desired behavior for a
+cooperative override. If an implementation intentionally needs to bypass part
+of that chain, it can call a particular private implementation explicitly, for
+example ``BaseDevice._get_position(self)``, but such calls make the class more
+tightly coupled to that hierarchy. The generated public accessors are the
+user-facing interface; the private accessors form the cooperative device
+implementation interface.
 
 In case you want to specify the name of the accessor function yourself and rely
 on implementation by subclasses, you have to raise an

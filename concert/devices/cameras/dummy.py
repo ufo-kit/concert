@@ -202,7 +202,7 @@ class FileCamera(Base):
 class BufferedCamera(Camera, base.BufferedMixin):
 
     async def __ainit__(self, background=None, simulate=True):
-        await Camera.__ainit__(self, background=background, simulate=simulate)
+        await super().__ainit__(background=background, simulate=simulate)
 
     @transition(target='readout')
     async def _start_readout_real(self):
