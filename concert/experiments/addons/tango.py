@@ -43,11 +43,12 @@ class TangoMixin:
 
         return wrapper
 
-    async def __ainit__(self, device, endpoint: CommData) -> Awaitable:
+    async def __ainit__(self, *args, device, endpoint: CommData, **kwargs) -> Awaitable:
         self._device = device
         self._device.set_timeout_millis(DISTRIBUTED_TANGO_TIMEOUT)
         self.endpoint = endpoint
         await self._device.write_attribute('endpoint', self.endpoint.client_endpoint)
+        await super().__ainit__(*args, **kwargs)
 
     async def connect_endpoint(self):
         await self._device.connect_endpoint()
@@ -65,8 +66,12 @@ class TangoMixin:
 class Benchmarker(TangoMixin, base.Benchmarker):
 
     async def __ainit__(self, experiment, device, endpoint, acquisitions=None):
-        await TangoMixin.__ainit__(self, device, endpoint)
-        await base.Benchmarker.__ainit__(self, experiment=experiment, acquisitions=acquisitions)
+        await super().__ainit__(
+            device=device,
+            endpoint=endpoint,
+            experiment=experiment,
+            acquisitions=acquisitions
+        )
 
     @TangoMixin.cancel_remote
     @remote
@@ -84,8 +89,12 @@ class Benchmarker(TangoMixin, base.Benchmarker):
 class ImageWriter(TangoMixin, base.ImageWriter):
 
     async def __ainit__(self, experiment, endpoint, acquisitions=None):
-        await TangoMixin.__ainit__(self, experiment.walker.device, endpoint)
-        await base.ImageWriter.__ainit__(self, experiment=experiment, acquisitions=acquisitions)
+        await super().__ainit__(
+            device=experiment.walker.device,
+            endpoint=endpoint,
+            experiment=experiment,
+            acquisitions=acquisitions
+        )
 
     @TangoMixin.cancel_remote
     @remote
@@ -97,10 +106,11 @@ class LiveView(base.LiveView):
 
     async def __ainit__(self, viewer, endpoint, experiment, acquisitions=None):
         self.endpoint = endpoint
-        await base.LiveView.__ainit__(self,
-                                      viewer,
-                                      experiment=experiment,
-                                      acquisitions=acquisitions)
+        await super().__ainit__(
+            viewer,
+            experiment=experiment,
+            acquisitions=acquisitions
+        )
         self._orig_limits = await viewer.get_limits()
 
     async def connect_endpoint(self):
@@ -156,11 +166,10 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
         slice_directory='online-slices',
         viewer=None
     ):
-        await TangoMixin.__ainit__(self, device, endpoint)
-
-        await base.OnlineReconstruction.__ainit__(
-            self,
-            _TangoProxyArgs(self._device),
+        await super().__ainit__(
+            _TangoProxyArgs(device),
+            device=device,
+            endpoint=endpoint,
             experiment=experiment,
             acquisitions=acquisitions,
             do_normalization=do_normalization,

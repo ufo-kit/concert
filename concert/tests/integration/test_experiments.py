@@ -8,8 +8,13 @@ import os.path as op
 import tempfile
 import shutil
 import unittest
+from collections import Counter
+from contextlib import ExitStack
+from unittest.mock import patch
+
 import numpy as np
 import concert.config as cfg
+from concert.base import Parameterizable
 from concert.quantities import q
 from typing import Tuple
 from concert.coroutines.base import start
@@ -18,6 +23,9 @@ from concert.experiments.base import (Acquisition, Consumer as AcquisitionConsum
                                       ExperimentError, local)
 from concert.experiments.imaging import (tomo_angular_step, tomo_max_speed,
                                          tomo_projections_number, frames)
+from concert.experiments.addons import base as addon_base
+from concert.experiments.addons import local as local_addon
+from concert.experiments.addons import tango as tango_addon
 from concert.experiments.addons.base import Addon
 from concert.experiments.addons.local import (Accumulator as LocalAccumulator,
                                               Consumer as LocalConsumer,
@@ -25,6 +33,7 @@ from concert.experiments.addons.local import (Accumulator as LocalAccumulator,
 from concert.devices.cameras.dummy import Camera
 from concert.devices.shutters.dummy import Shutter
 from concert.devices.motors.dummy import LinearMotor
+from concert.helpers import CommData
 from concert.tests import TestCase, suppressed_logging, assert_almost_equal
 from concert.storage import DirectoryWalker, DummyWalker, RemoteDirectoryWalker
 from concert.tests.util.mocks import MockWalkerDevice
@@ -239,6 +248,72 @@ class TestExperiment(TestExperimentBase):
                                        acquisitions=[self.acquisitions[0]])
         await self.experiment.run()
         self.assertEqual(accumulate.items, list(range(self.num_produce)))
+
+    async def test_addon_initializers_run_once(self):
+        initializers = (
+            ("local consumer", local_addon.Consumer),
+            ("consumer", addon_base.Consumer),
+            ("addon", addon_base.Addon),
+            ("parameterizable", Parameterizable),
+        )
+        calls = Counter()
+
+        with ExitStack() as stack:
+            for name, cls in initializers:
+                original = cls.__ainit__
+
+                async def count_call(self, *args, _name=name, _original=original, **kwargs):
+                    calls[_name] += 1
+                    await _original(self, *args, **kwargs)
+
+                stack.enter_context(patch.object(cls, "__ainit__", count_call))
+
+            await LocalConsumer(
+                Accumulate(),
+                experiment=self.experiment,
+                acquisitions=[self.acquisitions[0]]
+            )
+
+        self.assertEqual(calls, Counter(name for name, _ in initializers))
+
+    async def test_tango_addon_initializers_run_once(self):
+        class TangoDevice:
+            def set_timeout_millis(self, value):
+                self.timeout = value
+
+            async def write_attribute(self, name, value):
+                self.attribute = (name, value)
+
+        initializers = (
+            ("tango benchmarker", tango_addon.Benchmarker),
+            ("tango mixin", tango_addon.TangoMixin),
+            ("benchmarker", addon_base.Benchmarker),
+            ("addon", addon_base.Addon),
+            ("parameterizable", Parameterizable),
+        )
+        calls = Counter()
+        device = TangoDevice()
+        endpoint = CommData("localhost", 1234, "tcp", 0, 0)
+
+        with ExitStack() as stack:
+            for name, cls in initializers:
+                original = cls.__ainit__
+
+                async def count_call(self, *args, _name=name, _original=original, **kwargs):
+                    calls[_name] += 1
+                    await _original(self, *args, **kwargs)
+
+                stack.enter_context(patch.object(cls, "__ainit__", count_call))
+
+            await tango_addon.Benchmarker(
+                self.experiment,
+                device,
+                endpoint,
+                acquisitions=[]
+            )
+
+        self.assertEqual(calls, Counter(name for name, _ in initializers))
+        self.assertEqual(device.attribute, ("endpoint", endpoint.client_endpoint))
 
     async def test_image_writing(self):
         data_dir = tempfile.mkdtemp()

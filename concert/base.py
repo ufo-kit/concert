@@ -19,6 +19,7 @@ _RUN_IN_LOOP_ERR_TMPL = "Someone is trying to use `{}' " \
 
 
 def identity(x):
+    """Return *x* unchanged."""
     return x
 
 
@@ -131,7 +132,7 @@ class FSMError(Exception):
 
 
 class TransitionNotAllowed(FSMError):
-    pass
+    """Raised when a device state does not permit a requested transition."""
 
 
 class StateError(Exception):
@@ -869,6 +870,7 @@ class StateValue(ParameterValue):
 
 
 class QuantityValue(ParameterValue):
+    """Value object providing unit conversion and limits for a :class:`Quantity`."""
 
     def __init__(self, instance, quantity):
         super(QuantityValue, self).__init__(instance, quantity)
@@ -918,6 +920,7 @@ class QuantityValue(ParameterValue):
 
     @background
     async def get_lower(self):
+        """Return the effective user and external lower limit."""
         lower_external = await self.get_lower_external()
         lower_user = await self.get_lower_user()
         if lower_user is None and lower_external is None:
@@ -933,6 +936,7 @@ class QuantityValue(ParameterValue):
 
     @background
     async def set_lower(self, value):
+        """Set the user-defined lower limit to *value*."""
         self._check_limit(value)
         upper = await self.get_upper()
         if value is not None and upper is not None and value >= upper:
@@ -969,6 +973,7 @@ class QuantityValue(ParameterValue):
 
     @background
     async def get_upper(self):
+        """Return the effective user and external upper limit."""
         upper_external = await self.get_upper_external()
         upper_user = await self.get_upper_user()
         if upper_user is None and upper_external is None:
@@ -984,6 +989,7 @@ class QuantityValue(ParameterValue):
 
     @background
     async def set_upper(self, value):
+        """Set the user-defined upper limit to *value*."""
         self._check_limit(value)
         lower = await self.get_lower()
         if value is not None and lower is not None and value <= lower:
@@ -1010,6 +1016,7 @@ class QuantityValue(ParameterValue):
 
     @background
     async def get_upper_user(self):
+        """Return the user-defined upper limit."""
         if self._user_upper_getter:
             return await self._user_upper_getter(*self._parameter.data_args)
 
@@ -1031,6 +1038,7 @@ class QuantityValue(ParameterValue):
 
     @background
     async def get_lower_user(self):
+        """Return the user-defined lower limit."""
         if self._user_lower_getter:
             return await self._user_lower_getter(*self._parameter.data_args)
 
@@ -1051,6 +1059,7 @@ class QuantityValue(ParameterValue):
         )
 
     async def get_lower_external(self):
+        """Return the lower limit supplied by the device, if any."""
         try:
             getter = self._parameter.get_lower_external_getter(self._instance)
             return await getter(*self._parameter.data_args)
@@ -1068,6 +1077,7 @@ class QuantityValue(ParameterValue):
         )
 
     async def get_upper_external(self):
+        """Return the upper limit supplied by the device, if any."""
         try:
             getter = self._parameter.get_upper_external_getter(self._instance)
             return await getter(*self._parameter.data_args)
@@ -1090,6 +1100,7 @@ class QuantityValue(ParameterValue):
 
     @property
     def unit(self):
+        """Unit in which parameter values and limits are exposed."""
         return self._parameter.unit
 
     @background
@@ -1598,6 +1609,8 @@ class Parameterizable(AsyncObject, abc.ABC):
 
 
 class RunnableParameterizable(Parameterizable):
+    """A parameter collection whose asynchronous operation can be run and monitored."""
+
     state = State()
 
     async def __ainit__(self):
@@ -1610,6 +1623,7 @@ class RunnableParameterizable(Parameterizable):
     @background
     @check(source=['standby', 'error', 'cancelled'], target=['standby', 'cancelled'])
     async def run(self):
+        """Run :meth:`_run` while exposing its progress through ``state``."""
         self._run_awaitable = self._run()
         await self._run_awaitable
 

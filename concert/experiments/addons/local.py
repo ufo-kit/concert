@@ -11,7 +11,7 @@ from concert.quantities import q
 
 class Benchmarker(base.Benchmarker):
     async def __ainit__(self, experiment, acquisitions=None):
-        await base.Benchmarker.__ainit__(self, experiment=experiment, acquisitions=acquisitions)
+        await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
         self._durations = {}
 
     @local
@@ -32,7 +32,7 @@ class Benchmarker(base.Benchmarker):
 
 class ImageWriter(base.ImageWriter):
     async def __ainit__(self, experiment, acquisitions=None):
-        await base.ImageWriter.__ainit__(self, experiment=experiment, acquisitions=acquisitions)
+        await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
 
     @local
     async def write_sequence(self, name, producer=None):
@@ -42,10 +42,11 @@ class ImageWriter(base.ImageWriter):
 
 class Consumer(base.Consumer):
     async def __ainit__(self, consumer, experiment, acquisitions=None):
-        await base.Consumer.__ainit__(self,
-                                      consumer=consumer,
-                                      experiment=experiment,
-                                      acquisitions=acquisitions)
+        await super().__ainit__(
+            consumer=consumer,
+            experiment=experiment,
+            acquisitions=acquisitions
+        )
 
     @local
     async def consume(self, producer):
@@ -54,10 +55,11 @@ class Consumer(base.Consumer):
 
 class LiveView(base.LiveView):
     async def __ainit__(self, viewer, experiment, acquisitions=None):
-        await base.LiveView.__ainit__(self,
-                                      viewer,
-                                      experiment=experiment,
-                                      acquisitions=acquisitions)
+        await super().__ainit__(
+            viewer,
+            experiment=experiment,
+            acquisitions=acquisitions
+        )
 
     @local
     async def consume(self, producer):
@@ -66,8 +68,7 @@ class LiveView(base.LiveView):
 
 class Accumulator(base.Accumulator):
     async def __ainit__(self, experiment, acquisitions=None, shapes=None, dtype=None):
-        await base.Accumulator.__ainit__(
-            self,
+        await super().__ainit__(
             experiment=experiment,
             acquisitions=acquisitions,
             shapes=shapes,
@@ -97,8 +98,7 @@ class OnlineReconstruction(base.OnlineReconstruction):
                         viewer=None):
         from concert.ext.ufo import LocalGeneralBackprojectArgs
 
-        await base.OnlineReconstruction.__ainit__(
-            self,
+        await super().__ainit__(
             LocalGeneralBackprojectArgs(),
             experiment=experiment,
             acquisitions=acquisitions,
@@ -203,8 +203,7 @@ class PhaseGratingSteppingFourierProcessing(base.PhaseGratingSteppingFourierProc
         self.diff_phase = None
         self.visibility_contrast = None
         self.diff_phase_in_rad = None
-        await base.PhaseGratingSteppingFourierProcessing.__ainit__(
-            self,
+        await super().__ainit__(
             experiment,
             output_directory=output_directory
         )

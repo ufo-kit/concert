@@ -257,7 +257,7 @@ class RemoteNetCamera(Camera):
     """
 
     async def __ainit__(self, params=None):
-        await Camera.__ainit__(self, 'net', params=params)
+        await super().__ainit__('net', params=params)
         self._ucad_host = self.uca.props.host
         self._ucad_port = self.uca.props.port
         weakref.finalize(self, _ucad_unregister_all, self._ucad_host, self._ucad_port)

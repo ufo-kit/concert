@@ -1,6 +1,14 @@
+from collections import Counter
+from contextlib import ExitStack
 from datetime import datetime
+from unittest.mock import patch
+
 import numpy as np
 import zmq
+from concert.base import Parameterizable
+from concert.devices.base import Device
+from concert.devices.cameras import base as camera_base
+from concert.devices.cameras import dummy as dummy_camera
 from concert.tests import TestCase
 from concert.quantities import q
 from concert.devices.cameras.dummy import Camera, BufferedCamera
@@ -49,6 +57,30 @@ class TestDummyCamera(TestCase):
             await camera.stop_readout()
 
         self.assertEqual(i, 3)
+
+    async def test_buffered_camera_initializers_run_once(self):
+        initializers = (
+            ("dummy camera", dummy_camera.Camera),
+            ("dummy camera base", dummy_camera.Base),
+            ("camera", camera_base.Camera),
+            ("device", Device),
+            ("parameterizable", Parameterizable),
+        )
+        calls = Counter()
+
+        with ExitStack() as stack:
+            for name, cls in initializers:
+                original = cls.__ainit__
+
+                async def count_call(self, *args, _name=name, _original=original, **kwargs):
+                    calls[_name] += 1
+                    await _original(self, *args, **kwargs)
+
+                stack.enter_context(patch.object(cls, "__ainit__", count_call))
+
+            await BufferedCamera()
+
+        self.assertEqual(calls, Counter(name for name, _ in initializers))
 
     async def test_context_manager(self):
         camera = await Camera()
@@ -101,7 +133,7 @@ class TestDummyCamera(TestCase):
                 await self.camera.register_endpoint(
                     CommData("localhost", 8991 + i, "tcp", zmq.PUSH, 0)
                 )
-                receiver = ZmqReceiver(endpoint=f"tcp://localhost:{8991+i}")
+                receiver = ZmqReceiver(endpoint=f"tcp://localhost:{8991 + i}")
 
                 self.camera.set_mirror(mirrored)
                 self.camera.set_rotate(rotated)
