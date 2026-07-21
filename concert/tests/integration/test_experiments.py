@@ -63,8 +63,8 @@ class DummyAddon(Addon):
 
     remote = False
 
-    async def __ainit__(self):
-        await super(DummyAddon, self).__ainit__(experiment=None, acquisitions=[])
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(experiment=None, acquisitions=[], **kwargs)
 
     def _make_consumers(self, acquisitions):
         return dict((acq, AcquisitionConsumer(local(null))) for acq in acquisitions)
@@ -79,9 +79,9 @@ class DummyAddon(Addon):
 
 
 class ExperimentSimple(Experiment):
-    async def __ainit__(self, walker):
+    async def __ainit__(self, walker, **kwargs):
         acq = await Acquisition("test", self._run_test_acq)
-        await super(ExperimentSimple, self).__ainit__([acq], walker)
+        await super().__ainit__(acquisitions=[acq], walker=walker, **kwargs)
 
     @local
     async def _run_test_acq(self):
@@ -91,9 +91,9 @@ class ExperimentSimple(Experiment):
 
 
 class ExperimentException(Experiment):
-    async def __ainit__(self, walker):
+    async def __ainit__(self, walker, **kwargs):
         acq = await Acquisition("test", self._run_test_acq)
-        await super(ExperimentException, self).__ainit__([acq], walker)
+        await super().__ainit__(acquisitions=[acq], walker=walker, **kwargs)
 
     @local
     async def _run_test_acq(self):
@@ -306,9 +306,9 @@ class TestExperiment(TestExperimentBase):
                 stack.enter_context(patch.object(cls, "__ainit__", count_call))
 
             await tango_addon.Benchmarker(
-                self.experiment,
-                device,
-                endpoint,
+                experiment=self.experiment,
+                device=device,
+                endpoint=endpoint,
                 acquisitions=[]
             )
 

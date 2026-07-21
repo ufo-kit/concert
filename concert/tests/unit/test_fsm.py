@@ -15,8 +15,8 @@ class SomeDevice(Device):
 
     state = State(default='standby')
 
-    async def __ainit__(self):
-        await super(SomeDevice, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
         self.velocity = STOP_VELOCITY
         self.faulty = False
         self._error = False
@@ -78,8 +78,8 @@ class BaseDevice(Device):
 
     state = State(default='standby')
 
-    async def __ainit__(self):
-        await super(BaseDevice, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
 
     @check(source='standby', target='in-base')
     @transition(target='in-base')
@@ -95,8 +95,8 @@ class BaseDevice(Device):
 class DerivedDevice(BaseDevice):
     state = State(default='standby')
 
-    async def __ainit__(self):
-        await super(DerivedDevice, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
 
     @check(source='standby', target='in-derived')
     @transition(target='in-derived')
@@ -119,9 +119,9 @@ class MultipleStateDevice(Device):
 
     parameter = Parameter(check=check(source='standby', state_name='foo_state'))
 
-    async def __ainit__(self):
+    async def __ainit__(self, **kwargs):
         self._bar_state = "standby"
-        await super().__ainit__()
+        await super().__ainit__(**kwargs)
 
     @check(source='standby', target='moving')
     @transition(target='moving')

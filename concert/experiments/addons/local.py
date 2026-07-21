@@ -10,8 +10,8 @@ from concert.quantities import q
 
 
 class Benchmarker(base.Benchmarker):
-    async def __ainit__(self, experiment, acquisitions=None):
-        await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
+    async def __ainit__(self, experiment, acquisitions=None, **kwargs):
+        await super().__ainit__(experiment=experiment, acquisitions=acquisitions, **kwargs)
         self._durations = {}
 
     @local
@@ -31,8 +31,8 @@ class Benchmarker(base.Benchmarker):
 
 
 class ImageWriter(base.ImageWriter):
-    async def __ainit__(self, experiment, acquisitions=None):
-        await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
+    async def __ainit__(self, experiment, acquisitions=None, **kwargs):
+        await super().__ainit__(experiment=experiment, acquisitions=acquisitions, **kwargs)
 
     @local
     async def write_sequence(self, name, producer=None):
@@ -41,12 +41,8 @@ class ImageWriter(base.ImageWriter):
 
 
 class Consumer(base.Consumer):
-    async def __ainit__(self, consumer, experiment, acquisitions=None):
-        await super().__ainit__(
-            consumer=consumer,
-            experiment=experiment,
-            acquisitions=acquisitions
-        )
+    async def __ainit__(self, consumer, experiment, acquisitions=None, **kwargs):
+        await super().__ainit__(consumer=consumer, experiment=experiment, acquisitions=acquisitions, **kwargs)
 
     @local
     async def consume(self, producer):
@@ -54,12 +50,8 @@ class Consumer(base.Consumer):
 
 
 class LiveView(base.LiveView):
-    async def __ainit__(self, viewer, experiment, acquisitions=None):
-        await super().__ainit__(
-            viewer,
-            experiment=experiment,
-            acquisitions=acquisitions
-        )
+    async def __ainit__(self, viewer, experiment, acquisitions=None, **kwargs):
+        await super().__ainit__(viewer=viewer, experiment=experiment, acquisitions=acquisitions, **kwargs)
 
     @local
     async def consume(self, producer):
@@ -67,13 +59,9 @@ class LiveView(base.LiveView):
 
 
 class Accumulator(base.Accumulator):
-    async def __ainit__(self, experiment, acquisitions=None, shapes=None, dtype=None):
-        await super().__ainit__(
-            experiment=experiment,
-            acquisitions=acquisitions,
-            shapes=shapes,
-            dtype=dtype
-        )
+    async def __ainit__(self, experiment, acquisitions=None, shapes=None, dtype=None, **kwargs):
+        await super().__ainit__(experiment=experiment, acquisitions=acquisitions, shapes=shapes, dtype=dtype,
+                                **kwargs)
         self._accumulators = {}
 
     @local
@@ -93,19 +81,18 @@ class Accumulator(base.Accumulator):
 
 
 class OnlineReconstruction(base.OnlineReconstruction):
-    async def __ainit__(self, experiment, acquisitions=None, do_normalization=True,
-                        average_normalization=True, slice_directory='online-slices',
-                        viewer=None):
+    async def __ainit__(self, experiment, acquisitions=None, do_normalization=True, average_normalization=True,
+                        slice_directory='online-slices', viewer=None, **kwargs):
         from concert.ext.ufo import LocalGeneralBackprojectArgs
 
         await super().__ainit__(
-            LocalGeneralBackprojectArgs(),
+            proxy=LocalGeneralBackprojectArgs(),
             experiment=experiment,
             acquisitions=acquisitions,
             do_normalization=do_normalization,
             average_normalization=average_normalization,
             slice_directory=slice_directory,
-            viewer=viewer
+            viewer=viewer, **kwargs
         )
         from concert.ext.ufo import GeneralBackprojectManager
 
@@ -135,8 +122,8 @@ class OnlineReconstruction(base.OnlineReconstruction):
 
         if self.walker and not await self.get_slice_metric():
             if (
-                producer is not None and await self.get_slice_directory()
-                or producer is None and slice_directory
+                    producer is not None and await self.get_slice_directory()
+                    or producer is None and slice_directory
             ):
                 async with self.walker:
                     producer = async_generate(self._manager.volume)
@@ -184,7 +171,7 @@ class OnlineReconstruction(base.OnlineReconstruction):
 
 
 class PhaseGratingSteppingFourierProcessing(base.PhaseGratingSteppingFourierProcessing):
-    async def __ainit__(self, experiment, output_directory="contrasts"):
+    async def __ainit__(self, experiment, output_directory="contrasts", **kwargs):
         if not isinstance(experiment, LocalGratingInterferometryStepping):
             raise Exception("This addon can only be used with "
                             "concert.experiments.imaging.GratingInterferometryStepping.")
@@ -204,9 +191,8 @@ class PhaseGratingSteppingFourierProcessing(base.PhaseGratingSteppingFourierProc
         self.visibility_contrast = None
         self.diff_phase_in_rad = None
         await super().__ainit__(
-            experiment,
-            output_directory=output_directory
-        )
+            experiment=experiment,
+            output_directory=output_directory, **kwargs)
 
     @local
     async def process_darks(self, producer):
@@ -307,8 +293,8 @@ class PhaseGratingSteppingFourierProcessing(base.PhaseGratingSteppingFourierProc
         fft_object = np.fft.fft(stepping_curve)
         with np.errstate(divide='ignore', invalid='ignore'):
             fft_object = fft_object[:, :, (0, await self._experiment.get_num_periods())] / (
-                await self._experiment.get_num_periods()
-                * await self._experiment.get_num_steps_per_period())
+                    await self._experiment.get_num_periods()
+                    * await self._experiment.get_num_steps_per_period())
             phase = np.angle(fft_object[:, :, 1])
             visibility = (2. * np.absolute(fft_object[:, :, 1])) / np.real(fft_object[:, :, 0])
             intensity = np.abs(np.real(fft_object[:, :, 0]))
@@ -354,7 +340,7 @@ class PhaseGratingSteppingFourierProcessing(base.PhaseGratingSteppingFourierProc
 
 class PCOTimestampCheck(base.Addon):
 
-    async def __ainit__(self, experiment, acquisitions=None):
+    async def __ainit__(self, experiment, acquisitions=None, **kwargs):
         self._timestamp_checks = {}
         self._experiment = experiment
         self.timestamp_incorrect = False

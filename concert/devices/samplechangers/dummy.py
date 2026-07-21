@@ -8,8 +8,8 @@ class SampleChanger(base.SampleChanger):
 
     sample = Selection([None, 1, 2])
 
-    async def __ainit__(self):
-        await super(SampleChanger, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
         self._sample = None
 
     async def _set_sample(self, sample):

@@ -5,8 +5,8 @@ from concert.devices.motors.dummy import RotationMotor
 
 
 class ImproperlyImplemented(BaseRotationMotor):
-    async def __ainit__(self):
-        await super(ImproperlyImplemented, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
         self._value = 0
 
     async def _get_position(self):
@@ -17,8 +17,8 @@ class ImproperlyImplemented(BaseRotationMotor):
 
 
 class BreakingMotor(ImproperlyImplemented):
-    async def __ainit__(self):
-        await super(BreakingMotor, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
 
     async def _get_state(self):
         return 'standby'

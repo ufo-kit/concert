@@ -13,8 +13,8 @@ class AttenuatorBox(Device):
     '''Attenuator box base class'''
     state = State(default='standby')
 
-    async def __ainit__(self):
-        await super(AttenuatorBox, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
 
     @abstractmethod
     async def _set_attenuator(self, att):

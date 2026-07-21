@@ -42,26 +42,27 @@ class SyncClassC(SyncClassA, SyncClassB):
 
 
 class AsyncRoot(AsyncObject):
-    async def __ainit__(self, arg, kwarg=None):
+    async def __ainit__(self, arg, kwarg=None, **kwargs):
         self.async_arg = arg
         self.async_kwarg = kwarg
         self.async_root_called = True
+        await super().__ainit__(**kwargs)
 
 
 class AsyncClassA(AsyncRoot):
-    async def __ainit__(self, arg, kwarg=None):
+    async def __ainit__(self, arg, kwarg=None, **kwargs):
         self.arg = arg
         self.kwarg = kwarg
         self.async_class_a_called = True
-        await super().__ainit__(arg, kwarg=kwarg)
+        await super().__ainit__(arg=arg, kwarg=kwarg)
 
 
 class AsyncClassB(AsyncRoot):
-    async def __ainit__(self, arg, kwarg=None):
+    async def __ainit__(self, arg, kwarg=None, **kwargs):
         self.arg = arg
         self.kwarg = kwarg
         self.async_class_b_called = True
-        await super().__ainit__(arg, kwarg=kwarg)
+        await super().__ainit__(arg=arg, kwarg=kwarg)
 
 
 class AsyncClassC(AsyncClassA, AsyncClassB):
@@ -87,24 +88,24 @@ class AsyncClassC(AsyncClassA, AsyncClassB):
              AsyncClassC
     """
 
-    async def __ainit__(self, arg, kwarg=None):
+    async def __ainit__(self, arg, kwarg=None, **kwargs):
         self.arg = arg
         self.kwarg = kwarg
         self.async_class_c_called = True
-        await super().__ainit__(arg, kwarg=kwarg)
+        await super().__ainit__(arg=arg, kwarg=kwarg, **kwargs)
 
 
 class AsyncMixed(AsyncClassC, SyncClassC):
-    async def __ainit__(self):
+    async def __ainit__(self, **kwargs):
         super().__init__('sync', kwarg='skw')
-        await super().__ainit__('async', kwarg='akw')
+        await super().__ainit__(arg='async', kwarg='akw', **kwargs)
 
 
 class AsyncMixedInverted(SyncClassC, AsyncClassC):
     """Force mro to start with the sync classes, still everything must be initialized."""
-    async def __ainit__(self):
+    async def __ainit__(self, **kwargs):
         super().__init__('sync', kwarg='skw')
-        await super().__ainit__('async', kwarg='akw')
+        await super().__ainit__(arg='async', kwarg='akw', **kwargs)
 
 
 # Tests
@@ -155,12 +156,8 @@ class TestAsyncObject(TestCase):
 
     async def test_new_undefined_ainit_defined(self):
         class AinitRedefined(AsyncObject):
-            async def __ainit__(self, *args, **kwargs):
-                return await super().__ainit__(*args, **kwargs)
-
-        with self.assertRaises(TypeError):
-            # __ainit__ call in AsyncType must complain about the excessive argument
-            await AinitRedefined(1)
+            async def __ainit__(self, **kwargs):
+                await super().__ainit__(**kwargs)
 
         # Trivial construction must pass
         obj = await AinitRedefined()
@@ -171,18 +168,18 @@ class TestAsyncObject(TestCase):
             def __new__(cls, *args, **kwargs):
                 return super().__new__(cls, *args, **kwargs)
 
-            async def __ainit__(self, arg):
+            async def __ainit__(self, arg, **kwargs):
                 pass
 
         class BadAinit(AsyncObject):
             def __new__(cls, arg, *args, **kwargs):
                 return super().__new__(cls, *args, **kwargs)
 
-            async def __ainit__(self):
+            async def __ainit__(self, **kwargs):
                 pass
 
         class Correct(AsyncObject):
-            async def __ainit__(self, arg):
+            async def __ainit__(self, arg, **kwargs):
                 self.ainit_arg = arg
 
             def __new__(cls, arg, *args, **kwargs):
@@ -192,20 +189,12 @@ class TestAsyncObject(TestCase):
                 return obj
 
         with self.assertRaises(TypeError):
-            # __new__ of AsyncObject must complain about not taking arguments
-            await BadNew(1)
-
-        with self.assertRaises(TypeError):
             # __ainit__ must complain about the missing arg
             await BadNew()
 
         with self.assertRaises(TypeError):
             # __new__ must complain about the missing arg
             await BadAinit()
-
-        with self.assertRaises(TypeError):
-            # __ainit__ must complain about the excessive arg
-            await BadAinit(1)
 
         with self.assertRaises(TypeError):
             # __new__ must complain about the missing arg
@@ -231,7 +220,7 @@ class TestAsyncObject(TestCase):
 
     async def test_ainit_not_coroutinefunction(self):
         class AsyncNotCoroutineFunction(AsyncObject):
-            def __ainit__(self):
+            def __ainit__(self, **kwargs):
                 async def foo():
                     self.called = True
 
@@ -242,7 +231,7 @@ class TestAsyncObject(TestCase):
 
     async def test_ainit_not_awaitable(self):
         class AsyncNotAwaitable(AsyncObject):
-            def __ainit__(self):
+            def __ainit__(self, **kwargs):
                 pass
 
         with self.assertRaises(TypeError):
@@ -250,7 +239,8 @@ class TestAsyncObject(TestCase):
 
     async def test_ainit_returns(self):
         class AsyncReturning(AsyncObject):
-            async def __ainit__(self):
+            async def __ainit__(self, **kwargs):
+                await super().__ainit__(**kwargs)
                 return 0
 
         with self.assertRaises(TypeError):
@@ -287,3 +277,34 @@ class TestAsyncObject(TestCase):
 
         await _test_class(AsyncMixed)
         await _test_class(AsyncMixedInverted)
+
+    async def test_diamond_varied_ainit(self):
+        # Define a diamond hierarchy with differing __ainit__ signatures
+        class RootA(AsyncObject):
+            async def __ainit__(self, a, **kwargs):
+                self.a = a
+                await super().__ainit__(**kwargs)
+
+        class RootB(AsyncObject):
+            async def __ainit__(self, b, extra=None, **kwargs):
+                self.b = b
+                self.extra = extra
+                await super().__ainit__(**kwargs)
+
+        class Mid(RootA, RootB):
+            async def __ainit__(self, a, b, extra='default', **kwargs):
+                self.mid = True
+                await super().__ainit__(a=a, b=b, extra=extra, **kwargs)
+
+        class Leaf(Mid):
+            async def __ainit__(self, **kwargs):
+                self.leaf = True
+                await super().__ainit__(**kwargs)
+
+        # Instantiate leaf with appropriate arguments
+        obj = await Leaf(a='val_a', b='val_b', extra='val_extra')
+        self.assertTrue(obj.leaf)
+        self.assertTrue(obj.mid)
+        self.assertEqual(obj.a, 'val_a')
+        self.assertEqual(obj.b, 'val_b')
+        self.assertEqual(obj.extra, 'val_extra')

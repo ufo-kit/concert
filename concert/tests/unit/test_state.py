@@ -25,8 +25,8 @@ class RealDevice(Device):
 
     state = State()
 
-    async def __ainit__(self):
-        await super().__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
         self._state = 'standby'
 
     def change_state(self):

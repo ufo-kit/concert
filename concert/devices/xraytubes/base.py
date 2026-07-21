@@ -21,8 +21,8 @@ class XRayTube(Device):
 
     state = State(default='off')
 
-    async def __ainit__(self):
-        await super(XRayTube, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
 
     @abstractmethod
     async def _get_voltage(self):

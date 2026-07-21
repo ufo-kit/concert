@@ -7,8 +7,8 @@ class LensChanger(BaseLensChanger):
     objective = Selection(['objective_10x', 'objective_5x'], help='objective',
                           check=check(source='standby', target='standby'))
 
-    async def __ainit__(self):
-        await super(LensChanger, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
         self._objective = 'objective_10x'
 
     async def _set_objective(self, objective):

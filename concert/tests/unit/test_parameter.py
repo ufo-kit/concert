@@ -11,9 +11,7 @@ from concert.devices.dummy import SelectionDevice
 
 
 class BaseDevice(Parameterizable):
-
-    async def __ainit__(self):
-        await super().__ainit__()
+    pass
 
 
 async def _test_setter(device, value):
@@ -37,8 +35,8 @@ class FooDevice(BaseDevice):
     bar = Quantity(q.m)
     test = Quantity(q.m, fset=_test_setter, fget=_test_getter)
 
-    async def __ainit__(self, default):
-        await super().__ainit__()
+    async def __ainit__(self, default, **kwargs):
+        await super().__ainit__(**kwargs)
         self._value = default
         self._param_value = 0 * q.mm
         self._test_value = 0 * q.mm
@@ -67,8 +65,8 @@ class FooDevice(BaseDevice):
 class FooDeviceTargetValue(BaseDevice):
     foo = Quantity(q.mm)
 
-    async def __ainit__(self, value):
-        await super().__ainit__()
+    async def __ainit__(self, value, **kwargs):
+        await super().__ainit__(**kwargs)
         self._value = value
         self._test_value = value
 
@@ -98,8 +96,8 @@ class FooDeviceTagetValue(BaseDevice):
     foo = Quantity(q.mm)
     test = Quantity(q.mm, fset=_test_setter, fget=_test_getter, fget_target=_test_target)
 
-    async def __ainit__(self, value):
-        await super().__ainit__()
+    async def __ainit__(self, value, **kwargs):
+        await super().__ainit__(**kwargs)
         self._value = value
 
     def _get_foo(self):
@@ -114,8 +112,8 @@ class FooDeviceTagetValue(BaseDevice):
 
 
 class RestrictedFooDevice(FooDevice):
-    async def __ainit__(self, lower, upper):
-        await super().__ainit__(0 * q.mm)
+    async def __ainit__(self, lower, upper, **kwargs):
+        await super().__ainit__(default=0 * q.mm, **kwargs)
         await self['foo'].set_lower(lower)
         await self['foo'].set_upper(upper)
 
@@ -130,8 +128,8 @@ async def get_external_upper():
 
 class ExternalLimitDevice(BaseDevice):
 
-    async def __ainit__(self, value):
-        await super().__ainit__()
+    async def __ainit__(self, value, **kwargs):
+        await super().__ainit__(**kwargs)
         self._value = value
 
     foo = Quantity(q.mm,
@@ -145,8 +143,8 @@ class UserLimitDevice(BaseDevice):
 
     foo = Quantity(q.mm)
 
-    async def __ainit__(self):
-        await super().__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
         self['foo']._user_lower_getter = self.get_user_lower
         self['foo']._user_lower_setter = self.set_user_lower
         self['foo']._user_upper_getter = self.get_user_upper
@@ -170,13 +168,13 @@ class UserLimitDevice(BaseDevice):
 class ParameterizableWithClassLimit(Parameterizable):
     foo = Quantity(q.mm)
 
-    async def __ainit__(self):
+    async def __ainit__(self, **kwargs):
         self._foo = None
         self._foo_lower_user = None
         self._foo_upper_user = None
         self._foo_upper_external = None
         self._foo_lower_external = None
-        await super().__ainit__()
+        await super().__ainit__(**kwargs)
 
     async def _get_foo(self):
         return self._foo
@@ -206,8 +204,8 @@ class AccessorCheckDevice(Parameterizable):
 
     foo = Quantity(q.m)
 
-    async def __ainit__(self, future, check):
-        await super().__ainit__()
+    async def __ainit__(self, future, check, **kwargs):
+        await super().__ainit__(**kwargs)
         self.check = check
         self.future = future
         self._value = 0 * q.mm

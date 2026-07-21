@@ -18,7 +18,7 @@ class Director(RunnableParameterizable):
     current_iteration_name = Parameter()
     log_level = Selection(['critical', 'error', 'warning', 'info', 'debug'])
 
-    async def __ainit__(self, experiment):
+    async def __ainit__(self, experiment, **kwargs):
         """
         :param experiment: Experiment that is run. If the experiment features a
             'ready_to_prepare_next_sample' event (asyncio.Event) this will be waited within the
@@ -36,7 +36,7 @@ class Director(RunnableParameterizable):
         self._iteration = 0
         self.log = LOG
         self.log.setLevel("INFO")
-        await super().__ainit__()
+        await super().__ainit__(**kwargs)
 
     async def _get_state(self):
         state = await get_state_from_awaitable(self._run_awaitable)

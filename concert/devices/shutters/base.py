@@ -12,8 +12,8 @@ class Shutter(Device):
 
     state = State(default="open")
 
-    async def __ainit__(self):
-        await super(Shutter, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
 
     @background
     @check(source='closed', target='open')

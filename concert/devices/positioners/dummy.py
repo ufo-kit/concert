@@ -28,17 +28,15 @@ class Positioner(base.Positioner):
 
     """A dummy positioner."""
 
-    async def __ainit__(self, position=None):
-        await super(Positioner, self).__ainit__(await get_axes(), position=position)
+    async def __ainit__(self, position=None, **kwargs):
+        await super().__ainit__(axes=await get_axes(), position=position, **kwargs)
 
 
 class ImagingPositioner(ImagingBasePositioner):
 
     """A dummy imaging positioner."""
 
-    async def __ainit__(self, detector=None, position=None):
+    async def __ainit__(self, detector=None, position=None, **kwargs):
         if detector is None:
             detector = await Detector()
-        await super(ImagingPositioner, self).__ainit__(
-            await get_axes(), detector, position=position
-        )
+        await super().__ainit__(axes=await get_axes(), detector=detector, position=position, **kwargs)

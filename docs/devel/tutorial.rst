@@ -77,7 +77,7 @@ Asynchronous constructors
 Devices and many other classes in concert subclass
 :class:`concert.base.AsyncObject` which does not use the classical ``def
 __init__(...)`` constructor but an ``async def __ainit__(...)``. That is because
-parameter getters and setters are coroutine funcions (``async def``) and when a
+parameter getters and setters are coroutine functions (``async def``) and when a
 Parameterizable instance is created, there is a good chance that some parameters
 should be read or written and that must be done with the ``await param.get()``
 syntax and that is only possible in coroutine functions, which a normal
@@ -88,8 +88,8 @@ class inherits from another :class:`.AsyncObject` (the base of Parameterizable)
 *both* in your constructor, like this::
 
     class Foo(Parameterizable, StandardClass):
-        async def __ainit__(self, async_param, sync_param):
-            await super().__ainit__(async_param)
+        async def __ainit__(self, async_param, sync_param, *args, **kwargs):
+            await super().__ainit__(async_param, *args, **kwargs)
             super().__init__(sync_param)
 
 Classes subclassing :class:`.AsyncObject` cannot define ``__init__``
@@ -98,7 +98,8 @@ constructors, which would lead to ambiguities.
 As with normal Python constructors, ``__ainit__`` implementations must be
 cooperative in multiple-inheritance hierarchies. Every class that implements
 ``__ainit__`` must call ``await super().__ainit__()`` exactly once. A mixin
-which has initialization work must do the same; otherwise it terminates the
+which has initialization work must do the same and should inherit from :class:`.AsyncObject` or
+:class:`.Parameterizable`; otherwise it terminates the
 chain and classes later in the MRO are never initialized. Constructor arguments
 should normally be consumed by the concrete class before it continues the
 parameterless base and mixin initialization chain.
@@ -207,8 +208,8 @@ values for the parameters (by tying them to getter and setter callables)::
                              lower=0 * q.m**3 / q.s, upper=1 * q.m**3 / q.s,
                              help="Flow rate of the pump")
 
-        async def __ainit__(self):
-            await super(Pump, self).__ainit__()
+        async def __ainit__(self, *args, **kwargs):
+            await super(Pump, self).__ainit__(*args, **kwargs)
 
 The `flow_rate` parameter can only receive values from zero to one cubic meter
 per second.
@@ -220,8 +221,8 @@ explicit setters and getters in order to hook into the get and set process::
 
     class Pump(Device):
 
-        async def __ainit__(self):
-            await super(Pump, self).__ainit__()
+        async def __ainit__(self, *args, **kwargs):
+            await super(Pump, self).__ainit__(*args, **kwargs)
 
         async def _intercept_get_flow_rate(self):
             return await self._get_flow_rate() * 10
@@ -498,11 +499,11 @@ An example experiment with one :class:`.LocalAcquisition` can look like this::
     class MyExperiment(Experiment):
         num_images = Parameter(help="number of images to acquire")
 
-        async def __ainit__(self, camera, walker):
+        async def __ainit__(self, camera, walker, *args, **kwargs):
             self._num_images = 5
             self._camera = camera
             image_acquisition = await Acquisition("images", self._acquire_images)
-            await super().__ainit__([image_acquisition], walker=walker)
+            await super().__ainit__([image_acquisition], walker=walker, *args, **kwargs)
 
         async def _get_num_images(self):
             return self._num_images

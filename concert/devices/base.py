@@ -22,13 +22,13 @@ class Device(Parameterizable):
         # device is unlocked again
     """
 
-    async def __ainit__(self):
+    async def __ainit__(self, **kwargs):
         """Initialize parameter handling and the device lock."""
         # We have to create the lock early on because it will be accessed in
         # any add_parameter calls, especially those in the Parameterizable base
         # class
         self._lock = asyncio.Lock()
-        await super(Device, self).__ainit__()
+        await super().__ainit__(**kwargs)
 
     async def __aenter__(self):
         """Acquire the device lock and return the device."""

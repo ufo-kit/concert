@@ -12,8 +12,8 @@ class LightSource(Device):
 
     intensity = Quantity(q.V)
 
-    async def __ainit__(self):
-        await super(LightSource, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
 
     @abstractmethod
     async def _set_intensity(self, value):

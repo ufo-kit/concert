@@ -31,8 +31,8 @@ class _PositionMixin(Device):
 
     """Provide positional, discrete behaviour interface."""
 
-    async def __ainit__(self):
-        await super(_PositionMixin, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
 
     @background
     async def move(self, delta):
@@ -103,8 +103,8 @@ class LinearMotor(_PositionMixin):
         Position of the motor in length units.
     """
 
-    async def __ainit__(self):
-        await super(LinearMotor, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
 
     @abstractmethod
     async def _get_state(self):
@@ -145,8 +145,8 @@ class ContinuousLinearMotor(LinearMotor, _VelocityMixin):
         Current velocity in length per time unit.
     """
 
-    async def __ainit__(self):
-        await super(ContinuousLinearMotor, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
 
     @abstractmethod
     async def _get_state(self):
@@ -179,8 +179,8 @@ class RotationMotor(_PositionMixin):
                         check=check(source=['hard-limit', 'standby'],
                                     target=['hard-limit', 'standby']))
 
-    async def __ainit__(self):
-        await super(RotationMotor, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
 
 
 class ContinuousRotationMotor(RotationMotor, _VelocityMixin):
@@ -193,8 +193,8 @@ class ContinuousRotationMotor(RotationMotor, _VelocityMixin):
         Current velocity in angle per time unit.
     """
 
-    async def __ainit__(self):
-        await super(ContinuousRotationMotor, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
 
     @abstractmethod
     async def _get_state(self):

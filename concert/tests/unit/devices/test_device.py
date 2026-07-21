@@ -16,8 +16,8 @@ class MockDevice(Device):
     readonly = Parameter()
     writeonly = Parameter()
 
-    async def __ainit__(self):
-        await super(MockDevice, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
         self.aborted = False
 
     async def _get_readonly(self):
