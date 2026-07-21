@@ -212,7 +212,9 @@ def rotation_axis(tips):
         # Determine rotation direction needed for the pitch angle
         v_0 = np.array(tips[0]) - center
         v_1 = np.array(tips[1]) - center
-        pitch_d_angle = np.arctan2(np.cross(v_0, v_1), np.dot(v_0, v_1))
+        # Compute 2D cross product (scalar) for compatibility with newer NumPy versions
+        cross_z = v_0[0] * v_1[1] - v_0[1] * v_1[0]
+        pitch_d_angle = np.arctan2(cross_z, np.dot(v_0, v_1))
         sgn = int(np.sign(pitch_d_angle))
         phi, psi = (np.arctan(v_mat[1][1] / v_mat[1][0]) * q.rad,
                     sgn * np.arcsin(np.sqrt(s_vec[1]) / np.sqrt(s_vec[0])) * q.rad)
