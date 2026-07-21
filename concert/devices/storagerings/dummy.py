@@ -11,8 +11,8 @@ class StorageRing(base.StorageRing):
 
     """A storage ring dummy."""
 
-    async def __ainit__(self):
-        await super(StorageRing, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
         self._lifetime = 10 * q.hour
         self._current = 100 * q.mA
         self._energy = 5 * q.MeV

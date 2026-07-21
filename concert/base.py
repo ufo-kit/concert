@@ -1259,7 +1259,7 @@ class AsyncType(abc.ABCMeta):
 
 
 class AsyncObject(metaclass=AsyncType):
-    """Root of all classes with async def __ainit__()."""
+    """Root of all classes with async def __ainit__(self, **kwargs)."""
 
     def __new__(cls, *args, **kwargs):
         # Create an instance of class *cls* by calling object.__new__(*cls*) but do the argument
@@ -1280,7 +1280,7 @@ class AsyncObject(metaclass=AsyncType):
 
         return object.__new__(cls)
 
-    async def __ainit__(self):
+    async def __ainit__(self, **kwargs):
         pass
 
 
@@ -1363,8 +1363,8 @@ class Parameterizable(AsyncObject, abc.ABC):
         class DeviceWithClassGetter(Parameterizable):
             foo = Quantity(q.mm)
 
-            async def __ainit__(self):
-                await super().__ainit__()
+            async def __ainit__(self, **kwargs):
+                await super().__ainit__(**kwargs)
 
             async def _get_foo(self):
                 return get_foo_from_hardware()
@@ -1435,12 +1435,12 @@ class Parameterizable(AsyncObject, abc.ABC):
                         user_lower_setter=set_lower_bar_softlimit,
                         user_upper_setter=set_upper_bar_softlimit)
 
-            async def __ainit__(self):
-                await super().__ainit__()
+            async def __ainit__(self, **kwargs):
+                await super().__ainit__(**kwargs)
 
     """
 
-    async def __ainit__(self):
+    async def __ainit__(self, **kwargs):
         if not hasattr(self, '_params'):
             self._params = {}
 
@@ -1449,6 +1449,7 @@ class Parameterizable(AsyncObject, abc.ABC):
                 if isinstance(attr_type, Parameter):
                     attr_type.name = attr_name
                     self._install_parameter(attr_type)
+        await super().__ainit__(**kwargs)
 
     def __str__(self):
         if get_event_loop().is_running():
@@ -1613,8 +1614,8 @@ class RunnableParameterizable(Parameterizable):
 
     state = State()
 
-    async def __ainit__(self):
-        await super().__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
         self._run_awaitable = None
 
     async def _get_state(self):

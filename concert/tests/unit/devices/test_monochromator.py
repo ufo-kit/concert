@@ -13,10 +13,10 @@ class PhotoDiode(DummyPhotoDiode):
     Photo diode that returns an intensity distribution depending on the bragg_motor2 position.
 
     """
-    async def __ainit__(self, bragg_motor2):
+    async def __ainit__(self, bragg_motor2, **kwargs):
         self.bragg_motor = bragg_motor2
         self.function = None
-        await super().__ainit__()
+        await super().__ainit__(**kwargs)
 
     async def _get_intensity(self):
         x = (await self.bragg_motor.get_position()).to(q.deg).magnitude

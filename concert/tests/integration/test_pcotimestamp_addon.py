@@ -46,12 +46,13 @@ def add_binary_timestamp(img, time: datetime, number):
 class Camera(DummyCamera):
     random_timestamp_numbers = Parameter()
 
-    async def __ainit__(self, background=None, simulate=True):
+    async def __ainit__(self, background=None, simulate=True, **kwargs):
         self.number = 1
         self._random_numbers = None
         self._timestamp_enabled = True
-        await DummyCamera.__ainit__(self, background, simulate)
+        await super().__ainit__(background=background, simulate=simulate, **kwargs)
         await self.set_random_timestamp_numbers(False)
+
 
     async def _get_random_timestamp_numbers(self):
         return self._random_numbers

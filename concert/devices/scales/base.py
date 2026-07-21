@@ -19,8 +19,8 @@ class Scales(Device):
     """Base scales class."""
     weight = Quantity(q.g, help="Weighted mass")
 
-    async def __ainit__(self):
-        await super(Scales, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
 
     @abstractmethod
     async def _get_weight(self):
@@ -31,8 +31,8 @@ class TarableScales(Scales):
 
     """Scales which can be tared."""
 
-    async def __ainit__(self):
-        await super(TarableScales, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
 
     @background
     async def tare(self):

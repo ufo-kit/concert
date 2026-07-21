@@ -108,9 +108,7 @@ class SimulationCamera(DummyBaseCamera):
     """
     ITER = "iteration"
 
-    async def __ainit__(self, im_width, x_param, y_param, z_param,
-                        needle_radius=None, rotation_radius=None,
-                        y_position=None, scales=None):
+    async def __ainit__(self, im_width, x_param, y_param, z_param, needle_radius=None, rotation_radius=None, y_position=None, scales=None, **kwargs):
         self.x_axis_param = x_param
         self.y_axis_param = y_param
         self.z_axis_param = z_param
@@ -130,7 +128,7 @@ class SimulationCamera(DummyBaseCamera):
         # How many times was the image source asked for images.
         self.iteration = 0
 
-        await super().__ainit__()
+        await super().__ainit__(**kwargs)
 
     @property
     def ellipse_center(self):

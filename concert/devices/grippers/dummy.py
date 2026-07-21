@@ -7,8 +7,8 @@ class Gripper(base.Gripper):
 
     """A dummy gripper."""
 
-    async def __ainit__(self):
-        await super(Gripper, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
         self._state = 'released'
 
     async def _release(self):

@@ -13,9 +13,9 @@ LOG = logging.getLogger(__name__)
 
 
 class Camera(UcaCamera):
-    async def __ainit__(self, name="pco", params=None):
+    async def __ainit__(self, name="pco", params=None, **kwargs):
         self._timestamp_enabled = False
-        await super().__ainit__(name=name, params=params)
+        await super().__ainit__(name=name, params=params, **kwargs)
 
     async def _record_real(self):
         self._timestamp_enabled = await self.get_timestamp() in ['both', 'binary']

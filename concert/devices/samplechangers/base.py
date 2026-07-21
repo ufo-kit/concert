@@ -9,8 +9,8 @@ class SampleChanger(Device):
 
     """ A device that moves samples in and out from the sample holder."""
 
-    async def __ainit__(self):
-        await super(SampleChanger, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
 
     @abstractmethod
     async def _set_sample(self):
