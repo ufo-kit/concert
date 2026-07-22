@@ -12,7 +12,7 @@ if hasattr(os, 'geteuid') and os.geteuid() == 0:
 
 setup(
     name='concert',
-    python_requires='>=3.8',
+    python_requires='>=3.10',
     version=__version__,
     author='Matthias Vogelgesang',
     author_email='matthias.vogelgesang@kit.edu',
