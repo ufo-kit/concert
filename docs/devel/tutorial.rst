@@ -88,8 +88,8 @@ class inherits from another :class:`.AsyncObject` (the base of Parameterizable)
 *both* in your constructor, like this::
 
     class Foo(Parameterizable, StandardClass):
-        async def __ainit__(self, async_param, sync_param, *args, **kwargs):
-            await super().__ainit__(async_param, *args, **kwargs)
+        async def __ainit__(self, *, async_param, sync_param, **kwargs):
+            await super().__ainit__(async_param=async_param, **kwargs)
             super().__init__(sync_param)
 
 Classes subclassing :class:`.AsyncObject` cannot define ``__init__``
@@ -103,6 +103,7 @@ which has initialization work must do the same and should inherit from :class:`.
 chain and classes later in the MRO are never initialized. Constructor arguments
 should normally be consumed by the concrete class before it continues the
 parameterless base and mixin initialization chain.
+All ``__ainit__`` accept only keyword arguments and new implementations should not add new positional arguments.
 
 
 Adding a new device
@@ -208,8 +209,6 @@ values for the parameters (by tying them to getter and setter callables)::
                              lower=0 * q.m**3 / q.s, upper=1 * q.m**3 / q.s,
                              help="Flow rate of the pump")
 
-        async def __ainit__(self, *args, **kwargs):
-            await super(Pump, self).__ainit__(*args, **kwargs)
 
 The `flow_rate` parameter can only receive values from zero to one cubic meter
 per second.
@@ -220,9 +219,6 @@ The real devices then need to implement these. You can however, also specify
 explicit setters and getters in order to hook into the get and set process::
 
     class Pump(Device):
-
-        async def __ainit__(self, *args, **kwargs):
-            await super(Pump, self).__ainit__(*args, **kwargs)
 
         async def _intercept_get_flow_rate(self):
             return await self._get_flow_rate() * 10
@@ -469,7 +465,7 @@ An example of an acquisition could look like this::
             # Clean up here
             pass
 
-    acquisition = await Acquisition('foo', produce)
+    acquisition = await Acquisition(name='foo', producer_corofunc=produce)
     # Now we make it aware of a consumer, which will print "0 foo", "1 foo" and so on 
     # *producer* is not specified, *Consumer* class handles this
     acquisition.add_consumer(Consumer(consume, corofunc_args=("foo",)))
@@ -499,11 +495,11 @@ An example experiment with one :class:`.LocalAcquisition` can look like this::
     class MyExperiment(Experiment):
         num_images = Parameter(help="number of images to acquire")
 
-        async def __ainit__(self, camera, walker, *args, **kwargs):
+        async def __ainit__(self, *, camera, walker, **kwargs):
             self._num_images = 5
             self._camera = camera
-            image_acquisition = await Acquisition("images", self._acquire_images)
-            await super().__ainit__([image_acquisition], walker=walker, *args, **kwargs)
+            image_acquisition = await Acquisition(name="images", producer_corofunc=self._acquire_images)
+            await super().__ainit__(acquisitions=[image_acquisition], walker=walker, **kwargs)
 
         async def _get_num_images(self):
             return self._num_images

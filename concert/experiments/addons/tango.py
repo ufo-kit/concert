@@ -11,7 +11,6 @@ from concert.experiments.addons import base
 from concert.experiments.base import remote
 from concert.helpers import CommData
 from concert.quantities import q
-from typing import Awaitable
 
 LOG = logging.getLogger(__name__)
 
@@ -41,7 +40,7 @@ class TangoMixin:
 
         return wrapper
 
-    async def __ainit__(self, device, endpoint: CommData, **kwargs):
+    async def __ainit__(self, *, device, endpoint: CommData, **kwargs):
         self._device = device
         self._device.set_timeout_millis(DISTRIBUTED_TANGO_TIMEOUT)
         self.endpoint = endpoint
@@ -63,7 +62,7 @@ class TangoMixin:
 
 class Benchmarker(TangoMixin, base.Benchmarker):
 
-    async def __ainit__(self, experiment, device, endpoint, acquisitions=None, **kwargs):
+    async def __ainit__(self, *, experiment, device, endpoint, acquisitions=None, **kwargs):
         await super().__ainit__(device=device, endpoint=endpoint, experiment=experiment, acquisitions=acquisitions, **kwargs)
 
     @TangoMixin.cancel_remote
@@ -81,7 +80,7 @@ class Benchmarker(TangoMixin, base.Benchmarker):
 
 class ImageWriter(TangoMixin, base.ImageWriter):
 
-    async def __ainit__(self, experiment, endpoint, acquisitions=None, **kwargs):
+    async def __ainit__(self, *, experiment, endpoint, acquisitions=None, **kwargs):
         await super().__ainit__(device=experiment.walker.device, endpoint=endpoint, experiment=experiment,
                                 acquisitions=acquisitions, **kwargs)
 
@@ -93,7 +92,7 @@ class ImageWriter(TangoMixin, base.ImageWriter):
 
 class LiveView(base.LiveView):
 
-    async def __ainit__(self, viewer, endpoint, experiment, acquisitions=None, **kwargs):
+    async def __ainit__(self, *, viewer, endpoint, experiment, acquisitions=None, **kwargs):
         self.endpoint = endpoint
         await super().__ainit__(viewer=viewer,
                                 experiment=experiment,
@@ -142,12 +141,12 @@ class _TangoProxyArgs:
 
 
 class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
-    async def __ainit__(self, device, experiment, endpoint, acquisitions=None, do_normalization=True,
+    async def __ainit__(self, *, device, experiment, endpoint, acquisitions=None, do_normalization=True,
                         average_normalization=True, slice_directory='online-slices', viewer=None, **kwargs):
         await super().__ainit__(
             device=device,
             endpoint=endpoint,
-            proxy=_TangoProxyArgs(self._device),
+            proxy=_TangoProxyArgs(device),
             experiment=experiment,
             acquisitions=acquisitions,
             do_normalization=do_normalization,

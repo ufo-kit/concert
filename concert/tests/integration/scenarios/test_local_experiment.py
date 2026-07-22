@@ -38,7 +38,7 @@ class TestLocalExperiment(TestExperimentBase):
             num_darks=self._num_darks,
             num_projections=self._num_radios
         )
-        _ = await local_addons.ImageWriter(self._exp)
+        _ = await local_addons.ImageWriter(experiment=self._exp)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ Test experiments. Logging is disabled, so just check the directory and log
 files creation.
 """
 import asyncio
+import inspect
 import logging
 import os.path as op
 import tempfile
@@ -79,8 +80,8 @@ class DummyAddon(Addon):
 
 
 class ExperimentSimple(Experiment):
-    async def __ainit__(self, walker, **kwargs):
-        acq = await Acquisition("test", self._run_test_acq)
+    async def __ainit__(self, *, walker, **kwargs):
+        acq = await Acquisition(name="test", producer_corofunc=self._run_test_acq)
         await super().__ainit__(acquisitions=[acq], walker=walker, **kwargs)
 
     @local
@@ -91,8 +92,8 @@ class ExperimentSimple(Experiment):
 
 
 class ExperimentException(Experiment):
-    async def __ainit__(self, walker, **kwargs):
-        acq = await Acquisition("test", self._run_test_acq)
+    async def __ainit__(self, *, walker, **kwargs):
+        acq = await Acquisition(name="test", producer_corofunc=self._run_test_acq)
         await super().__ainit__(acquisitions=[acq], walker=walker, **kwargs)
 
     @local
@@ -137,7 +138,7 @@ class TestAcquisition(TestCase):
         await super().asyncSetUp()
         self.acquired = False
         self.item = None
-        self.acquisition = await Acquisition('foo', self.produce, acquire=self.acquire)
+        self.acquisition = await Acquisition(name='foo', producer_corofunc=self.produce, acquire=self.acquire)
         self.acquisition.add_consumer(AcquisitionConsumer(self.consume))
 
     async def test_run(self):
@@ -167,9 +168,9 @@ class TestExperimentBase(TestCase):
         self.walker = await DummyWalker(root=self.root)
         self.name_fmt = 'scan_{:>04}'
         self.visited = 0
-        self.foo = await Acquisition("foo", self.produce, acquire=self.acquire)
+        self.foo = await Acquisition(name="foo", producer_corofunc=self.produce, acquire=self.acquire)
         self.foo.add_consumer(AcquisitionConsumer(self.consume))
-        self.bar = await Acquisition("bar", self.produce, acquire=self.acquire)
+        self.bar = await Acquisition(name="bar", producer_corofunc=self.produce, acquire=self.acquire)
         self.acquisitions = [self.foo, self.bar]
         self.num_produce = 2
         self.item = None
@@ -193,7 +194,7 @@ class TestExperiment(TestExperimentBase):
 
     async def asyncSetUp(self):
         await super(TestExperiment, self).asyncSetUp()
-        self.experiment = await Experiment(self.acquisitions, self.walker, name_fmt=self.name_fmt)
+        self.experiment = await Experiment(acquisitions=self.acquisitions, walker=self.walker, name_fmt=self.name_fmt)
         self.visit_checker = VisitChecker()
 
     async def test_run(self):
@@ -244,7 +245,7 @@ class TestExperiment(TestExperimentBase):
 
     async def test_consumer_addon(self):
         accumulate = Accumulate()
-        consumer = await LocalConsumer(accumulate, experiment=self.experiment,
+        consumer = await LocalConsumer(consumer=accumulate, experiment=self.experiment,
                                        acquisitions=[self.acquisitions[0]])
         await self.experiment.run()
         self.assertEqual(accumulate.items, list(range(self.num_produce)))
@@ -262,14 +263,23 @@ class TestExperiment(TestExperimentBase):
             for name, cls in initializers:
                 original = cls.__ainit__
 
-                async def count_call(self, *args, _name=name, _original=original, **kwargs):
-                    calls[_name] += 1
-                    await _original(self, *args, **kwargs)
+                def make_count_call(name, original):
+                    sig = inspect.signature(original)
 
-                stack.enter_context(patch.object(cls, "__ainit__", count_call))
+                    # Create a wrapper with the same signature as the original
+                    async def count_call(*args, **kwargs):
+                        calls[name] += 1
+                        await original(*args, **kwargs)
+
+                    # Set the wrapper's signature to match the original
+                    count_call.__signature__ = sig
+
+                    return count_call
+
+                stack.enter_context(patch.object(cls, "__ainit__", make_count_call(name, original)))
 
             await LocalConsumer(
-                Accumulate(),
+                consumer=Accumulate(),
                 experiment=self.experiment,
                 acquisitions=[self.acquisitions[0]]
             )
@@ -299,11 +309,20 @@ class TestExperiment(TestExperimentBase):
             for name, cls in initializers:
                 original = cls.__ainit__
 
-                async def count_call(self, *args, _name=name, _original=original, **kwargs):
-                    calls[_name] += 1
-                    await _original(self, *args, **kwargs)
+                def make_count_call(name, original):
+                    sig = inspect.signature(original)
 
-                stack.enter_context(patch.object(cls, "__ainit__", count_call))
+                    # Create a wrapper with the same signature as the original
+                    async def count_call(*args, **kwargs):
+                        calls[name] += 1
+                        await original(*args, **kwargs)
+
+                    # Set the wrapper's signature to match the original
+                    count_call.__signature__ = sig
+
+                    return count_call
+
+                stack.enter_context(patch.object(cls, "__ainit__", make_count_call(name, original)))
 
             await tango_addon.Benchmarker(
                 experiment=self.experiment,
@@ -320,7 +339,7 @@ class TestExperiment(TestExperimentBase):
         try:
             walker = await DirectoryWalker(root=data_dir, bytes_per_file=0)
             self.experiment.walker = walker
-            writer = await LocalImageWriter(self.experiment)
+            writer = await LocalImageWriter(experiment=self.experiment)
             await self.experiment.set_separate_scans(False)
             await self.experiment.run()
 
@@ -335,14 +354,14 @@ class TestExperiment(TestExperimentBase):
             shutil.rmtree(data_dir)
 
     async def test_accumulation(self):
-        acc = await LocalAccumulator(self.experiment)
+        acc = await LocalAccumulator(experiment=self.experiment)
         await self.experiment.run()
 
         for acq in self.acquisitions:
             self.assertEqual(await acc.get_items(acq), list(range(self.num_produce)))
 
         # Test detach
-        acc = await LocalAccumulator(self.experiment)
+        acc = await LocalAccumulator(experiment=self.experiment)
         await acc.detach(self.acquisitions)
         await self.experiment.run()
         for acq in self.acquisitions:
@@ -374,7 +393,7 @@ class TestExperimentStates(TestCase):
         self.walker = await DirectoryWalker(root=self.data_dir)
 
     async def test_experiment_state_normal(self):
-        exp = await ExperimentSimple(self.walker)
+        exp = await ExperimentSimple(walker=self.walker)
         self.assertEqual(await exp.get_state(), "standby")
         exp_handle = start(exp.run())
         await asyncio.sleep(0.2)
@@ -391,7 +410,7 @@ class TestExperimentStates(TestCase):
             self.assertEqual(await exp.get_state(), "cancelled")
 
     async def test_experiment_exception(self):
-        exp = await ExperimentException(self.walker)
+        exp = await ExperimentException(walker=self.walker)
         self.assertEqual(await exp.get_state(), "standby")
         with self.assertRaises(Exception):
             await exp.run()
@@ -407,9 +426,9 @@ class TestExperimentLogging(unittest.IsolatedAsyncioTestCase):
         self._acquired = 0
         self._device = MockWalkerDevice()
         self._walker = await RemoteDirectoryWalker(device=self._device)
-        foo = await Acquisition("foo", self.produce, acquire=self.acquire)
+        foo = await Acquisition(name="foo", producer_corofunc=self.produce, acquire=self.acquire)
         foo.add_consumer(AcquisitionConsumer(self.consume)), Tuple
-        bar = await Acquisition("bar", self.produce, acquire=self.acquire)
+        bar = await Acquisition(name="bar", producer_corofunc=self.produce, acquire=self.acquire)
         self._acquisitions = [foo, bar]
         self.num_produce = 2
         self._item = None

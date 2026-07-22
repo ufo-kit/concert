@@ -69,8 +69,7 @@ class TestRemoteExperiment(TestExperimentBase):
             num_darks=self._num_darks,
             num_projections=self._num_radios
         )
-        _ = await tango_addons.ImageWriter(self._exp, self._servers["walker"],
-                                           self._exp.acquisitions)
+        _ = await tango_addons.ImageWriter(experiment=self._exp, endpoint=self._servers["walker"])
 
 
 if __name__ == "__main__":

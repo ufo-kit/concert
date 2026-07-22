@@ -97,7 +97,7 @@ class Camera(Base):
 
     simulate = Parameter(help='Simulate noise')
 
-    async def __ainit__(self, background=None, simulate=True, **kwargs):
+    async def __ainit__(self, *, background=None, simulate=True, **kwargs):
         """
         *background* can be an array-like that will be used to generate the frame when calling grab.
         If *simulate* is True the final image intensity will be scaled based on exposure time and
@@ -155,7 +155,7 @@ class FileCamera(Base):
 
     pattern = Parameter(help='Image file pattern to read')
 
-    async def __ainit__(self, pattern, reset_on_start=True, start_index=0, **kwargs):
+    async def __ainit__(self, *, pattern, reset_on_start=True, start_index=0, **kwargs):
         # Let users change the directory
         await super().__ainit__(**kwargs)
         self._pattern = pattern
@@ -202,7 +202,7 @@ class FileCamera(Base):
 
 class BufferedCamera(Camera, base.BufferedMixin):
 
-    async def __ainit__(self, background=None, simulate=True, **kwargs):
+    async def __ainit__(self, *, background=None, simulate=True, **kwargs):
         await super().__ainit__(background=background, simulate=simulate, **kwargs)
 
     @transition(target='readout')

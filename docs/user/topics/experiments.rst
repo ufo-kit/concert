@@ -60,10 +60,10 @@ experiment can be run in an empty session with dummy devices::
     )
 
     # Attach live_view to the experiment
-    live = await local_addons.LiveView(viewer, exp)
+    live = await local_addons.LiveView(viewer=viewer, experiment=exp)
 
     # Attach image writer to experiment
-    writer = await local_addons.ImageWriter(exp)
+    writer = await local_addons.ImageWriter(experiment=exp)
 
     # Run the experiment
     f = exp.run()
@@ -123,15 +123,15 @@ The following session illustrates how to use an
     shutter = await Shutter()
     vert_motor = await ContinuousLinearMotor()
 
-    camera = await FileCamera("/mnt/fast/CT42/radios/*.tif")
+    camera = await FileCamera(pattern="/mnt/fast/CT42/radios/*.tif")
     await camera.set_roi_y0(800 * q.px)
     await camera.set_roi_height(200 * q.px)
     # Imaging file dummy experiment
     ex = await ImagingFileExperiment(
-        camera,
-        100,
-        100,
-        num_radios,
+        camera=camera,
+        num_darks=100,
+        num_flats=100,
+        num_radios=num_radios,
         darks_pattern='/mnt/fast/CT42/darks',
         flats_pattern='/mnt/fast/CT42/flats',
         radios_pattern='/mnt/fast/CT42/radios',
@@ -139,14 +139,14 @@ The following session illustrates how to use an
     )
 
     # Live view
-    live = await local_addons.LiveView(viewer, ex)
+    live = await local_addons.LiveView(viewer=viewer, experiment=ex)
 
     # Writer
-    writer = await local_addons.ImageWriter(ex)
+    writer = await local_addons.ImageWriter(experiment=ex)
 
     # Online Reco
     reco = await local_addons.OnlineReconstruction(
-        ex,
+        experiment=ex,
         do_normalization=True,
         average_normalization=True,
         slice_directory="online-slices",
@@ -218,14 +218,14 @@ camera here as well. The following session uses a
         bytes_per_file=2 ** 40,
     )
 
-    camera = await FileCamera("/mnt/fast/CT42/radios/*.tif")
+    camera = await FileCamera(pattern="/mnt/fast/CT42/radios/*.tif")
     await camera.set_roi_y0(800 * q.px)
     await camera.set_roi_height(200 * q.px)
     ex = await RemoteFileImagingExperiment(
-        camera,
-        100,
-        100,
-        num_radios,
+        camera=camera,
+        num_darks=100,
+        num_flats=100,
+        num_radios=num_radios,
         darks_pattern='/mnt/fast/CT42/darks',
         flats_pattern='/mnt/fast/CT42/flats',
         radios_pattern='/mnt/fast/CT42/radios',
@@ -234,19 +234,19 @@ camera here as well. The following session uses a
 
     # Live View
     if "live" in SERVERS:
-        live = await TangoLiveView(viewer, SERVERS["live"], ex)
+        live = await TangoLiveView(viewer=viewer, endpoint=SERVERS["live"], experiment=ex)
 
     # Writer
-    writer = await tango_addons.ImageWriter(ex, SERVERS["writer"])
+    writer = await tango_addons.ImageWriter(experiment=ex, endpoint=SERVERS["writer"])
 
     # Online Reco
     if "reco" in SERVERS:
         reco_device = get_tango_device(f'{os.uname()[1]}:1237/concert/tango/reco#dbase=no', timeout=1000 * q.s)
         # await reco_device.write_attribute('endpoint', SERVERS["reco"].client_endpoint)
         reco = await tango_addons.OnlineReconstruction(
-            reco_device,
-            ex,
-            SERVERS["reco"],
+            device=reco_device,
+            experiment=ex,
+            endpoint=SERVERS["reco"],
             do_normalization=True,
             average_normalization=True,
             slice_directory="online-slices",
@@ -290,7 +290,7 @@ the data comes from. For example, to save images on disk locally::
     from concert.experiments.addons.local import ImageWriter
 
     # Let's assume an experiment is already defined
-    writer = ImageWriter(experiment)
+    writer = ImageWriter(experiment=experiment)
     # Now images are written on disk
     await experiment.run()
     # Do not write images anymore
@@ -344,10 +344,10 @@ implementation making use of this::
 
 	from concert.experiments.base import Experiment, Acquisition
 	class MyExperiment(Experiment):
-		async def __ainit__(self, walker, camera):
-			acq = Acquisition("acquisition", self._produce_frames)
+		async def __ainit__(self, *, walker, camera, **kwargs):
+			acq = Acquisition(name="acquisition", producer_corofunc=self._produce_frames)
 			self._camera = camera
-			await super().__ainit__([acq], walker)
+			await super().__ainit__(acquisitions=[acq], walker=walker, **kwargs)
 
 		async def _produce_frame(self):
 			num_frames = 100

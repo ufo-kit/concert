@@ -29,8 +29,8 @@ class Experiment(BaseExperiment):
     Simple Experiment for tests, that produces one random image (100 x 100) within a acquisition
     *test*.
     """
-    async def __ainit__(self, walker, separate_scans, **kwargs):
-        acquisition = await Acquisition("test", self._frame_producer)
+    async def __ainit__(self, *, walker, separate_scans, **kwargs):
+        acquisition = await Acquisition(name="test", producer_corofunc=self._frame_producer)
         await super().__ainit__(acquisitions=[acquisition], walker=walker,
                                 separate_scans=separate_scans)
 
@@ -54,7 +54,7 @@ class EarlyReadyExperiment(Experiment):
     An experiment, that sets the ready_to_prepare_next_sample and then waits for two seconds within
     the acquisition.
     """
-    async def __ainit__(self, walker, separate_scans, set_ready, **kwargs):
+    async def __ainit__(self, *, walker, separate_scans, set_ready, **kwargs):
         await super().__ainit__(walker=walker, separate_scans=separate_scans, **kwargs)
         self._set_ready = set_ready
         self.ready_time = {}
@@ -75,7 +75,7 @@ class TimeLoggingDirector(BaseDirector):
     Director with two (identical) iterations.
     The _prepare_run() stores the time when it is called.
     """
-    async def __ainit__(self, experiment, **kwargs):
+    async def __ainit__(self, *, experiment, **kwargs):
         await super().__ainit__(experiment=experiment)
         self.preparation_time = {}
 
@@ -198,7 +198,7 @@ class TestableLoggingDirector(BaseDirector):
     _num_iter: int
     _iter_name: str
 
-    async def __ainit__(self, experiment: Experiment, num_iter: int, iter_name: str, **kwargs) -> None:
+    async def __ainit__(self, *, experiment: Experiment, num_iter: int, iter_name: str, **kwargs) -> None:
         self._num_iter = num_iter
         self._iter_name = iter_name
         await super().__ainit__(experiment=experiment)
@@ -229,9 +229,9 @@ class TestDirectorLogging(unittest.IsolatedAsyncioTestCase):
         self._director_iter = 3
         self._device = MockWalkerDevice()
         self._walker = await RemoteDirectoryWalker(device=self._device, root=self._root)
-        foo = await Acquisition("foo", self.produce, acquire=self.acquire)
+        foo = await Acquisition(name="foo", producer_corofunc=self.produce)
         foo.add_consumer(AcquisitionConsumer(self.consume)), Tuple
-        bar = await Acquisition("bar", self.produce, acquire=self.acquire)
+        bar = await Acquisition(name="bar", producer_corofunc=self.produce)
         self._acquisitions = [foo, bar]
         self.num_produce = 2
         self._item = None

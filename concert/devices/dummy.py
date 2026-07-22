@@ -32,7 +32,7 @@ class DummyDevice(Device):
     slow = Parameter()
     state = State(default='standby')
 
-    async def __ainit__(self, slow=None, **kwargs):
+    async def __ainit__(self, *, slow=None, **kwargs):
         await super().__ainit__(**kwargs)
         self._position = 1 * q.mm
         self._value = 0

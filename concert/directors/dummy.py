@@ -8,7 +8,7 @@ class Director(BaseDirector):
     """
     Dummy director, that runs an Experiment *num_iteration* times.
     """
-    async def __ainit__(self, experiment, num_iterations: int, **kwargs):
+    async def __ainit__(self, *, experiment, num_iterations: int, **kwargs):
         """
         :param experiment: Experiment instance
         :param num_iterations: Number of experiment runs.

@@ -19,9 +19,9 @@ class TestRotationAxisMeasure(TestCase):
 
         # The bigger the image size, the more images we need to determine
         # the center correctly.
-        self.image_source = await SimulationCamera(128, self.x_motor["position"],
-                                                   self.y_motor["position"],
-                                                   self.z_motor["position"])
+        self.image_source = await SimulationCamera(im_width=128, x_param=self.x_motor["position"],
+                                                   y_param=self.y_motor["position"],
+                                                   z_param=self.z_motor["position"])
 
         # Allow 1 px misalignment in y-direction.
         self.eps = np.arctan(2 / self.image_source.rotation_radius) * q.rad
