@@ -18,7 +18,7 @@ class XYScan(Director):
     x_num = Parameter()
     y_num = Parameter()
 
-    async def __ainit__(self, experiment, x_motor, y_motor, x_min, x_max, x_step, y_min, y_max, y_step,
+    async def __ainit__(self, *, experiment, x_motor, y_motor, x_min, x_max, x_step, y_min, y_max, y_step,
                         **kwargs):
         """
         :param experiment: Experiment that is run. If the experiment features a

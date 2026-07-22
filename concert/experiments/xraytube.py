@@ -45,7 +45,7 @@ class RadiographyLogic(XrayTubeMixin, imaging.RadiographyLogic):
     mixins for DAQ.
     """
 
-    async def __ainit__(self, walker, flat_motor, radio_position, flat_position, camera, xray_tube, num_flats=200,
+    async def __ainit__(self, *, walker, flat_motor, radio_position, flat_position, camera, xray_tube, num_flats=200,
                         num_darks=200, num_projections=3000, separate_scans=True, **kwargs):
         """
         :param walker: Walker for storing experiment data.
@@ -88,7 +88,7 @@ class ContinuousTomographyLogic(XrayTubeMixin, imaging.ContinuousTomographyLogic
     mixins for DAQ.
     """
 
-    async def __ainit__(self, walker, flat_motor, tomography_motor, radio_position, flat_position, camera, xray_tube,
+    async def __ainit__(self, *, walker, flat_motor, tomography_motor, radio_position, flat_position, camera, xray_tube,
                         num_flats=200, num_darks=200, num_projections=3000, angular_range=180 * q.deg,
                         start_angle=0 * q.deg, separate_scans=True, **kwargs):
         """
@@ -141,7 +141,7 @@ class SteppedTomographyLogic(XrayTubeMixin, imaging.SteppedTomographyLogic):
     mixins for DAQ.
     """
 
-    async def __ainit__(self, walker, flat_motor, tomography_motor, radio_position, flat_position, camera, xray_tube,
+    async def __ainit__(self, *, walker, flat_motor, tomography_motor, radio_position, flat_position, camera, xray_tube,
                         num_flats=200, num_darks=200, num_projections=3000, angular_range=360 * q.deg,
                         start_angle=0 * q.deg, separate_scans=True, **kwargs):
         """
@@ -193,7 +193,7 @@ class ContinuousSpiralTomographyLogic(XrayTubeMixin, imaging.ContinuousSpiralTom
     remote mixins for DAQ.
     """
 
-    async def __ainit__(self, walker, flat_motor, tomography_motor, vertical_motor, radio_position, flat_position,
+    async def __ainit__(self, *, walker, flat_motor, tomography_motor, vertical_motor, radio_position, flat_position,
                         camera, xray_tube, start_position_vertical, sample_height, vertical_shift_per_tomogram,
                         num_flats=200, num_darks=200, num_projections=3000, angular_range=180 * q.deg,
                         start_angle=0 * q.deg, separate_scans=True, **kwargs):
@@ -260,7 +260,7 @@ class SteppedSpiralTomographyLogic(XrayTubeMixin, imaging.SteppedSpiralTomograph
     remote mixins for DAQ.
     """
 
-    async def __ainit__(self, walker, flat_motor, tomography_motor, vertical_motor, radio_position, flat_position,
+    async def __ainit__(self, *, walker, flat_motor, tomography_motor, vertical_motor, radio_position, flat_position,
                         camera, xray_tube, start_position_vertical, sample_height, vertical_shift_per_tomogram,
                         num_flats=200, num_darks=200, num_projections=3000, angular_range=180 * q.deg,
                         start_angle=0 * q.deg, separate_scans=True, **kwargs):
@@ -405,7 +405,7 @@ class LocalGratingInterferometryStepping(
     (concert.experiments.addons.local.PhaseGratingSteppingFourierProcessing).
     """
 
-    async def __ainit__(self, walker, camera, xray_tube, flat_motor, stepping_motor, flat_position, radio_position,
+    async def __ainit__(self, *, walker, camera, xray_tube, flat_motor, stepping_motor, flat_position, radio_position,
                         grating_period, num_darks, stepping_start_position, num_periods, num_steps_per_period,
                         propagation_distance, separate_scans, **kwargs):
         """

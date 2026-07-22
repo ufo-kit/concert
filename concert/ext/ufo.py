@@ -510,7 +510,7 @@ class GeneralBackprojectManager(Parameterizable):
 
     state = State(default='standby')
 
-    async def __ainit__(self, average_normalization=True, regions=None, copy_inputs=False, **kwargs):
+    async def __ainit__(self, *,args, average_normalization=True, regions=None, copy_inputs=False, **kwargs):
         await super().__ainit__(**kwargs)
         self.args = args
         self.regions = regions

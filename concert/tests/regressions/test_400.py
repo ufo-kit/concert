@@ -7,9 +7,9 @@ class TestIssue400(TestCase):
         try:
             from concert.devices.cameras.uca import Camera
 
-            cam_a = await Camera('mock')
-            cam_b = await Camera('file')
-            cam_c = await Camera('mock')
+            cam_a = await Camera(name='mock')
+            cam_b = await Camera(name='file')
+            cam_c = await Camera(name='mock')
         except Exception as err:
             self.skipTest(str(err))
 

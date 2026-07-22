@@ -1,10 +1,18 @@
 import asyncio
 import os
-import tango
+try:
+    import tango
+except ImportError:
+    tango = None
 import signal
 import subprocess
 import time
 import socket
+
+import pytest
+
+if tango is None:
+    pytest.skip("tango package not installed", allow_module_level=True)
 
 from random import randint
 from concert.quantities import q

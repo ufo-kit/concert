@@ -65,7 +65,7 @@ class Camera(base.Camera):
         help="If True, concert caches `recording' state to speed up grab()"
     )
 
-    async def __ainit__(self, name: str, params: dict | None=None, **kwargs):
+    async def __ainit__(self, *, name: str, params: dict | None=None, **kwargs):
         """
         Create a new libuca camera.
 
@@ -256,7 +256,7 @@ class RemoteNetCamera(Camera):
     The "net" plugin implementation which forwards images over zmq streams.
     """
 
-    async def __ainit__(self, params=None, **kwargs):
+    async def __ainit__(self, *, params=None, **kwargs):
         await super().__ainit__(name='net', params=params, **kwargs)
         self._ucad_host = self.uca.props.host
         self._ucad_port = self.uca.props.port

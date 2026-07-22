@@ -84,7 +84,7 @@ class Acquisition(RunnableParameterizable):
 
     """
 
-    async def __ainit__(self, name, producer_corofunc, producer=None, acquire=None, **kwargs):
+    async def __ainit__(self, *, name, producer_corofunc, producer=None, acquire=None, **kwargs):
         self.name = name
         self.producer = producer
         if producer_corofunc.remote:
@@ -272,7 +272,7 @@ class Experiment(RunnableParameterizable):
     log_devices_at_start = Parameter()
     log_devices_at_finish = Parameter()
 
-    async def __ainit__(self, acquisitions, walker=None, separate_scans=True, name_fmt='scan_{:>04}', **kwargs):
+    async def __ainit__(self, *, acquisitions, walker=None, separate_scans=True, name_fmt='scan_{:>04}', **kwargs):
         self._acquisitions = []
         for acquisition in acquisitions:
             self.add(acquisition)

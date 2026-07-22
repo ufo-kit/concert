@@ -28,7 +28,7 @@ class DoubleMonochromator(doublemonochromator.Monochromator):
     async def __ainit__(self, **kwargs):
         dummy_motor = await RotationMotor()
         await dummy_motor.set_position(0 * q.deg)
-        await super().__ainit__(motor_2=dummy_motor)
+        await super().__ainit__(motor_2=dummy_motor, **kwargs)
         self._energy = 100 * q.keV
 
     async def _get_energy(self):

@@ -80,7 +80,7 @@ class LinearMotor(_PositionMixin, base.LinearMotor):
 
     motion_velocity = Quantity(q.mm / q.s)
 
-    async def __ainit__(self, position=None, upper_hard_limit=None, lower_hard_limit=None, **kwargs):
+    async def __ainit__(self, *, position=None, upper_hard_limit=None, lower_hard_limit=None, **kwargs):
         await super().__ainit__(**kwargs)
         self._motion_velocity = 200000 * q.mm / q.s
 
@@ -96,7 +96,7 @@ class ContinuousLinearMotor(LinearMotor, base.ContinuousLinearMotor):
 
     """A continuous linear motor dummy."""
 
-    async def __ainit__(self, position=None, upper_hard_limit=None, lower_hard_limit=None, **kwargs):
+    async def __ainit__(self, *, position=None, upper_hard_limit=None, lower_hard_limit=None, **kwargs):
         await super().__ainit__(**kwargs)
         if position:
             self._position = position
@@ -128,7 +128,7 @@ class RotationMotor(_PositionMixin, base.RotationMotor):
 
     motion_velocity = Quantity(q.deg / q.s)
 
-    async def __ainit__(self, position=None, upper_hard_limit=None, lower_hard_limit=None, **kwargs):
+    async def __ainit__(self, *, position=None, upper_hard_limit=None, lower_hard_limit=None, **kwargs):
         await super().__ainit__(**kwargs)
         self._position = 0 * q.deg
         self._lower_hard_limit = -np.inf * q.deg
@@ -147,7 +147,7 @@ class ContinuousRotationMotor(RotationMotor,
 
     """A continuous rotational step motor dummy."""
 
-    async def __ainit__(self, position=None, upper_hard_limit=None, lower_hard_limit=None, **kwargs):
+    async def __ainit__(self, *, position=None, upper_hard_limit=None, lower_hard_limit=None, **kwargs):
         await super().__ainit__(**kwargs)
         if position:
             self._position = position

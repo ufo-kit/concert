@@ -418,7 +418,7 @@ class RadiographyLogic(Experiment):
     """Total number of projections. For most of the experiments this is the same as the number of
     projections."""
 
-    async def __ainit__(self, walker, flat_motor, radio_position, flat_position, camera, num_flats, num_darks,
+    async def __ainit__(self, *, walker, flat_motor, radio_position, flat_position, camera, num_flats, num_darks,
                         num_projections, separate_scans=True, **kwargs):
         """
         :param walker: Walker for storing experiment data.
@@ -449,10 +449,9 @@ class RadiographyLogic(Experiment):
         self._flat_motor = flat_motor
         self._camera = camera
         flat_motor_unit = self._flat_motor['position'].unit
-
-        darks_acq = await Acquisition("darks", self._take_darks, producer=camera)
-        flats_acq = await Acquisition("flats", self._take_flats, producer=camera)
-        radios_acq = await Acquisition("radios", self._take_radios, producer=camera)
+        darks_acq = await Acquisition(name="darks", producer_corofunc=self._take_darks, producer=camera)
+        flats_acq = await Acquisition(name="flats", producer_corofunc=self._take_flats, producer=camera)
+        radios_acq = await Acquisition(name="radios", producer_corofunc=self._take_radios, producer=camera)
         await super().__ainit__(acquisitions=[darks_acq, flats_acq, radios_acq], walker=walker,
                                 separate_scans=separate_scans, **kwargs)
         self.install_parameters(
@@ -617,7 +616,7 @@ class TomographyLogic(RadiographyLogic):
     start_angle = Quantity(q.deg, check=check(source=_runnable_state))
     """Initial position of the *tomography_motor*."""
 
-    async def __ainit__(self, walker, flat_motor, tomography_motor, radio_position, flat_position, camera,
+    async def __ainit__(self, *, walker, flat_motor, tomography_motor, radio_position, flat_position, camera,
                         num_flats=200, num_darks=200, num_projections=3000, angular_range=180 * q.deg,
                         start_angle=0 * q.deg, separate_scans=True, **kwargs):
         """
@@ -769,7 +768,7 @@ class SteppedSpiralTomographyLogic(SpiralMixin, SteppedTomographyLogic):
     Stepped spiral tomography.
     """
 
-    async def __ainit__(self, walker, flat_motor, tomography_motor, vertical_motor, radio_position, flat_position,
+    async def __ainit__(self, *, walker, flat_motor, tomography_motor, vertical_motor, radio_position, flat_position,
                         camera, start_position_vertical, sample_height, vertical_shift_per_tomogram, num_flats=200,
                         num_darks=200, num_projections=3000, angular_range=180 * q.deg, start_angle=0 * q.deg,
                         separate_scans=True, **kwargs):
@@ -863,7 +862,7 @@ class ContinuousSpiralTomographyLogic(SpiralMixin, ContinuousTomographyLogic):
     """
     vertical_velocity = Quantity(q.mm / q.s)
 
-    async def __ainit__(self, walker, flat_motor, tomography_motor, vertical_motor, radio_position, flat_position,
+    async def __ainit__(self, *, walker, flat_motor, tomography_motor, vertical_motor, radio_position, flat_position,
                         camera, start_position_vertical, sample_height, vertical_shift_per_tomogram, num_flats=200,
                         num_darks=200, num_projections=3000, angular_range=180 * q.deg, start_angle=0 * q.deg,
                         separate_scans=True, **kwargs):
@@ -1063,7 +1062,7 @@ class LocalGratingInterferometryStepping(
     (concert.experiments.addons.local.PhaseGratingSteppingFourierProcessing).
     """
 
-    async def __ainit__(self, walker, camera, flat_motor, stepping_motor, flat_position, radio_position, grating_period,
+    async def __ainit__(self, *, walker, camera, flat_motor, stepping_motor, flat_position, radio_position, grating_period,
                         num_darks, stepping_start_position, num_periods=1, num_steps_per_period=16,
                         propagation_distance=None, separate_scans=False, **kwargs):
         """
@@ -1105,16 +1104,16 @@ class LocalGratingInterferometryStepping(
         await self.set_propagation_distance(propagation_distance)
 
         reference_stepping = await Acquisition(
-            "reference_stepping",
-            self._take_reference_scan,
+            name="reference_stepping",
+            producer_corofunc=self._take_reference_scan,
             producer=camera
         )
         self.remove(self.get_acquisition("flats"))  # No flats required due to ref. stepping
         self.add(reference_stepping)
 
         object_stepping = await Acquisition(
-            "object_stepping",
-            self._take_object_scan,
+            name="object_stepping",
+            producer_corofunc=self._take_object_scan,
             producer=camera
         )
         self.remove(self.get_acquisition("radios"))  # No radios required due to obj. stepping

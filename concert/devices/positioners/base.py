@@ -66,7 +66,7 @@ class Axis(AsyncObject):
     position with respect to a :class:`concert.devices.positioners.base.Positioner`
     in which it is placed.
     """
-    async def __ainit__(self, coordinate, motor, direction=1, position=None, **kwargs):
+    async def __ainit__(self, *, coordinate, motor, direction=1, position=None, **kwargs):
         self.coordinate = coordinate
         self.motor = motor
         self.direction = direction
@@ -104,7 +104,7 @@ class Positioner(Device):
     orientation = Quantity(q.rad, help="Orientation of the coordinate system",
                            lower=-INF_VECTOR * q.rad, upper=INF_VECTOR * q.rad)
 
-    async def __ainit__(self, axes, position=None, **kwargs):
+    async def __ainit__(self, *, axes, position=None, **kwargs):
         await super().__ainit__(**kwargs)
         self.translators = {}
         self.rotators = {}

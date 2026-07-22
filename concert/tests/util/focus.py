@@ -9,7 +9,7 @@ FOCUS_POSITION = 35 * q.mm
 
 class BlurringCamera(DummyCameraBase):
 
-    async def __ainit__(self, motor, **kwargs):
+    async def __ainit__(self, *, motor, **kwargs):
         await super().__ainit__(**kwargs)
         try:
             self._original = scipy.datasets.ascent()

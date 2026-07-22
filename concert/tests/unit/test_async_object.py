@@ -42,7 +42,7 @@ class SyncClassC(SyncClassA, SyncClassB):
 
 
 class AsyncRoot(AsyncObject):
-    async def __ainit__(self, arg, kwarg=None, **kwargs):
+    async def __ainit__(self, *, arg, kwarg=None, **kwargs):
         self.async_arg = arg
         self.async_kwarg = kwarg
         self.async_root_called = True
@@ -50,7 +50,7 @@ class AsyncRoot(AsyncObject):
 
 
 class AsyncClassA(AsyncRoot):
-    async def __ainit__(self, arg, kwarg=None, **kwargs):
+    async def __ainit__(self, *, arg, kwarg=None, **kwargs):
         self.arg = arg
         self.kwarg = kwarg
         self.async_class_a_called = True
@@ -58,7 +58,7 @@ class AsyncClassA(AsyncRoot):
 
 
 class AsyncClassB(AsyncRoot):
-    async def __ainit__(self, arg, kwarg=None, **kwargs):
+    async def __ainit__(self, *, arg, kwarg=None, **kwargs):
         self.arg = arg
         self.kwarg = kwarg
         self.async_class_b_called = True
@@ -88,7 +88,7 @@ class AsyncClassC(AsyncClassA, AsyncClassB):
              AsyncClassC
     """
 
-    async def __ainit__(self, arg, kwarg=None, **kwargs):
+    async def __ainit__(self, *, arg, kwarg=None, **kwargs):
         self.arg = arg
         self.kwarg = kwarg
         self.async_class_c_called = True
@@ -168,7 +168,7 @@ class TestAsyncObject(TestCase):
             def __new__(cls, *args, **kwargs):
                 return super().__new__(cls, *args, **kwargs)
 
-            async def __ainit__(self, arg, **kwargs):
+            async def __ainit__(self, *, arg, **kwargs):
                 pass
 
         class BadAinit(AsyncObject):
@@ -179,7 +179,7 @@ class TestAsyncObject(TestCase):
                 pass
 
         class Correct(AsyncObject):
-            async def __ainit__(self, arg, **kwargs):
+            async def __ainit__(self, *, arg, **kwargs):
                 self.ainit_arg = arg
 
             def __new__(cls, arg, *args, **kwargs):
@@ -200,7 +200,7 @@ class TestAsyncObject(TestCase):
             # __new__ must complain about the missing arg
             await Correct()
 
-        obj = await Correct(0)
+        obj = await Correct(arg=0)
         self.assertTrue(isinstance(obj, Correct))
         self.assertEqual(obj.new_arg, 1)
         self.assertEqual(obj.ainit_arg, 0)
@@ -253,7 +253,7 @@ class TestAsyncObject(TestCase):
         self.assertTrue(isinstance(await coro, AsyncObject))
 
     async def test_normal_construction(self):
-        obj = await AsyncClassA(1, kwarg='kw')
+        obj = await AsyncClassA(arg=1, kwarg='kw')
         self.assertEqual(obj.arg, 1)
         self.assertEqual(obj.kwarg, 'kw')
 
@@ -281,25 +281,25 @@ class TestAsyncObject(TestCase):
     async def test_diamond_varied_ainit(self):
         # Define a diamond hierarchy with differing __ainit__ signatures
         class RootA(AsyncObject):
-            async def __ainit__(self, a, **kwargs):
+            async def __ainit__(self, *, a, **kwargs):
                 self.a = a
                 await super().__ainit__(**kwargs)
 
         class RootB(AsyncObject):
-            async def __ainit__(self, b, extra=None, **kwargs):
+            async def __ainit__(self, *, b, extra=None, **kwargs):
                 self.b = b
                 self.extra = extra
                 await super().__ainit__(**kwargs)
 
         class Mid(RootA, RootB):
-            async def __ainit__(self, a, b, extra='default', **kwargs):
+            async def __ainit__(self, *, a, b, extra='default', **kwargs):
                 self.mid = True
                 await super().__ainit__(a=a, b=b, extra=extra, **kwargs)
 
         class Leaf(Mid):
-            async def __ainit__(self, **kwargs):
+            async def __ainit__(self,*, a, b, extra,**kwargs):
                 self.leaf = True
-                await super().__ainit__(**kwargs)
+                await super().__ainit__(a=a, b=b, extra=extra, **kwargs)
 
         # Instantiate leaf with appropriate arguments
         obj = await Leaf(a='val_a', b='val_b', extra='val_extra')
@@ -308,3 +308,44 @@ class TestAsyncObject(TestCase):
         self.assertEqual(obj.a, 'val_a')
         self.assertEqual(obj.b, 'val_b')
         self.assertEqual(obj.extra, 'val_extra')
+
+    async def test_unused_keywords(self):
+        class TestClass(AsyncObject):
+            async def __ainit__(self, arg, **kwargs):
+                self.arg = arg
+                await super().__ainit__(**kwargs)
+
+        with self.assertRaises(TypeError):
+            obj = await TestClass(arg=1, unused_arg='kw')
+
+    async def test_positional_args_rejected_for_keyword_only(self):
+        """Ensure positional arguments are properly rejected for keyword-only __ainit__ signatures.
+
+        This tests that the first positional argument is not silently bound to 'self' and discarded,
+        which would mask the error and cause confusing "missing required keyword argument" messages.
+        """
+        class KeywordOnlyClass(AsyncObject):
+            async def __ainit__(self, *, name, value=None, **kwargs):
+                self.name = name
+                self.value = value
+                await super().__ainit__(**kwargs)
+
+        # Positional argument should be rejected with proper error message
+        with self.assertRaises(TypeError) as ctx:
+            await KeywordOnlyClass('positional_name')
+        self.assertIn('positional argument', str(ctx.exception).lower())
+
+        # Multiple positional arguments should also be rejected
+        with self.assertRaises(TypeError) as ctx:
+            await KeywordOnlyClass('pos1', 'pos2')
+        self.assertIn('positional argument', str(ctx.exception).lower())
+
+        # Keyword arguments should work correctly
+        obj = await KeywordOnlyClass(name='keyword_name', value=42)
+        self.assertEqual(obj.name, 'keyword_name')
+        self.assertEqual(obj.value, 42)
+
+        # Missing required keyword argument should fail with clear message
+        with self.assertRaises(TypeError) as ctx:
+            await KeywordOnlyClass()
+        self.assertIn('name', str(ctx.exception))

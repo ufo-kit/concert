@@ -1233,18 +1233,71 @@ class AsyncType(abc.ABCMeta):
         return cls
 
     async def __call__(cls, *args, **kwargs):
-        # Create an instance of class *cls*. Do almost the same as type.__call__
-        # (Objects/typeobject.c:type_call in CPython) but instead of calling the constructor
-        # __init__, call the async constructor __ainit__, i.e. __init__ is never called becuase
-        # calling both __init__ and __ainit__ with the same *args* and *kwargs* may be undesirable.
-        # Moreover, everything which can be constructed in __init__ can also be constructed in
-        # __ainit__.
+        # Create an instance of class *cls*. Map positional arguments to the __ainit__
+        # signature parameters (excluding 'self') to provide proper error messages for
+        # invalid positional arguments on keyword-only constructors.
+        # Obtain the async constructor signature.
+        sig = None
+        if hasattr(cls, '__ainit__'):
+            sig = inspect.signature(cls.__ainit__)
+        # Bind provided args/kwargs to the signature (allow missing arguments).
+        bound_args = None
+        if sig:
+            try:
+                # Create a signature without 'self' for binding user-provided arguments.
+                non_self_params = [
+                    param for name, param in sig.parameters.items() if name != 'self'
+                ]
+                non_self_sig = inspect.Signature(non_self_params)
+                bound = non_self_sig.bind_partial(*args, **kwargs)
+                # Unwrap VAR_KEYWORD arguments (extra kwargs are wrapped in a dict).
+                bound_args = {}
+                for name, value in bound.arguments.items():
+                    param = non_self_sig.parameters[name]
+                    if param.kind == inspect.Parameter.VAR_KEYWORD:
+                        bound_args.update(value)
+                    else:
+                        bound_args[name] = value
+            except TypeError:
+                # If binding fails, pass through original args/kwargs to let __ainit__
+                # produce its own error message.
+                bound_args = None
+                # Create a signature without 'self' for binding user-provided arguments.
+                non_self_params = [
+                    param for name, param in sig.parameters.items() if name != 'self'
+                ]
+                non_self_sig = inspect.Signature(non_self_params)
+                bound = non_self_sig.bind_partial(*args, **kwargs)
+                # Unwrap VAR_KEYWORD arguments (extra kwargs are wrapped in a dict).
+                # Reject VAR_POSITIONAL arguments to enforce keyword-only policy.
+                bound_args = {}
+                for name, value in bound.arguments.items():
+                    param = non_self_sig.parameters[name]
+                    if param.kind == inspect.Parameter.VAR_POSITIONAL:
+                        raise TypeError(
+                            f"{cls.__name__}.__ainit__() does not accept positional arguments, "
+                            f"only keyword arguments. Got {len(value)} positional argument(s)."
+                        )
+                    elif param.kind == inspect.Parameter.VAR_KEYWORD:
+                        bound_args.update(value)
+                    else:
+                        bound_args[name] = value
+            except TypeError as e:
+                # If binding fails or VAR_POSITIONAL is used, raise an error
+                if "does not accept positional arguments" in str(e):
+                    raise
+                # If binding fails, pass through original args/kwargs to let __ainit__
+                # produce its own error message.
+                bound_args = None
+        # Create the instance using __new__ (positional args may be needed for custom __new__).
         obj = cls.__new__(cls, *args, **kwargs)
 
         if isinstance(obj, cls) and hasattr(cls, '__ainit__'):
-            # If cls.__new__ returns and instance of cls and there is an __ainit__ method, call it
-            # and make sure it does not return anything
-            coro = obj.__ainit__(*args, **kwargs)
+            # Call __ainit__ with the mapped keyword arguments.
+            if bound_args is not None:
+                coro = obj.__ainit__(**bound_args)
+            else:
+                coro = obj.__ainit__(*args, **kwargs)
             if not inspect.isawaitable(coro):
                 raise TypeError(
                     f"__ainit__() must return an awaitable, not `{type(coro).__name__}'"
@@ -1281,7 +1334,8 @@ class AsyncObject(metaclass=AsyncType):
         return object.__new__(cls)
 
     async def __ainit__(self, **kwargs):
-        pass
+        if len(kwargs):
+            raise TypeError(f"Not all arguments were used. Check for correct spelling of keyword arguments. Remaining arguments are {kwargs.keys()}")
 
 
 class Parameterizable(AsyncObject, abc.ABC):
