@@ -308,7 +308,6 @@ class SteppedSpiralTomographyLogic(XrayTubeMixin, imaging.SteppedSpiralTomograph
             radio_position=radio_position,
             flat_position=flat_position,
             camera=camera,
-            xray_tube=xray_tube,
             start_position_vertical=start_position_vertical,
             sample_height=sample_height,
             vertical_shift_per_tomogram=vertical_shift_per_tomogram,
