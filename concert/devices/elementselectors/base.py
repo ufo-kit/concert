@@ -15,8 +15,8 @@ class ElementSelector(Device):
 
     state = State(default='standby')
 
-    async def __ainit__(self):
-        await super().__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
 
     @abstractmethod
     async def _set_element(self, element):

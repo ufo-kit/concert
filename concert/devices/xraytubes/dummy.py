@@ -9,8 +9,8 @@ class XRayTube(base.XRayTube):
 
     """A dummy X-ray tube implementation."""
 
-    async def __ainit__(self):
-        await super(XRayTube, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
         self._voltage = 0 * q.V
         self._current = 0 * q.A
 

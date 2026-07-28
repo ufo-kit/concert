@@ -77,7 +77,7 @@ Asynchronous constructors
 Devices and many other classes in concert subclass
 :class:`concert.base.AsyncObject` which does not use the classical ``def
 __init__(...)`` constructor but an ``async def __ainit__(...)``. That is because
-parameter getters and setters are coroutine funcions (``async def``) and when a
+parameter getters and setters are coroutine functions (``async def``) and when a
 Parameterizable instance is created, there is a good chance that some parameters
 should be read or written and that must be done with the ``await param.get()``
 syntax and that is only possible in coroutine functions, which a normal
@@ -88,12 +88,22 @@ class inherits from another :class:`.AsyncObject` (the base of Parameterizable)
 *both* in your constructor, like this::
 
     class Foo(Parameterizable, StandardClass):
-        async def __ainit__(self, async_param, sync_param):
-            await super().__ainit__(async_param)
+        async def __ainit__(self, *, async_param, sync_param, **kwargs):
+            await super().__ainit__(async_param=async_param, **kwargs)
             super().__init__(sync_param)
 
 Classes subclassing :class:`.AsyncObject` cannot define ``__init__``
 constructors, which would lead to ambiguities.
+
+As with normal Python constructors, ``__ainit__`` implementations must be
+cooperative in multiple-inheritance hierarchies. Every class that implements
+``__ainit__`` must call ``await super().__ainit__()`` exactly once. A mixin
+which has initialization work must do the same and should inherit from :class:`.AsyncObject` or
+:class:`.Parameterizable`; otherwise it terminates the
+chain and classes later in the MRO are never initialized. Constructor arguments
+should normally be consumed by the concrete class before it continues the
+parameterless base and mixin initialization chain.
+All ``__ainit__`` accept only keyword arguments and new implementations should not add new positional arguments.
 
 
 Adding a new device
@@ -199,8 +209,6 @@ values for the parameters (by tying them to getter and setter callables)::
                              lower=0 * q.m**3 / q.s, upper=1 * q.m**3 / q.s,
                              help="Flow rate of the pump")
 
-        async def __ainit__(self):
-            await super(Pump, self).__ainit__()
 
 The `flow_rate` parameter can only receive values from zero to one cubic meter
 per second.
@@ -212,9 +220,6 @@ explicit setters and getters in order to hook into the get and set process::
 
     class Pump(Device):
 
-        async def __ainit__(self):
-            await super(Pump, self).__ainit__()
-
         async def _intercept_get_flow_rate(self):
             return await self._get_flow_rate() * 10
 
@@ -223,6 +228,56 @@ explicit setters and getters in order to hook into the get and set process::
 
 Be aware, that in this case you have to list the parameter *after* the functions
 that you want to refer to.
+
+Overriding parameter accessors
+------------------------------
+
+For every parameter, Concert generates public accessor methods named
+``get_<parameter>`` and ``set_<parameter>``. These methods perform parameter
+handling such as unit conversion, limit checking and locking, and then look up
+the corresponding private ``_get_<parameter>`` or ``_set_<parameter>`` method
+on the instance.
+
+This lookup remains polymorphic even if a generated accessor is called through
+a base class. Consequently, do not use a public accessor to call a parent
+implementation from an overriding private accessor. For example, the following
+recurses indefinitely because ``BaseDevice.get_position(self)`` looks up
+``self._get_position``, which is still the method on ``DerivedDevice``::
+
+    class BaseDevice(Device):
+        position = Quantity(q.mm)
+
+        async def _get_position(self):
+            return 5 * q.mm
+
+
+    class DerivedDevice(BaseDevice):
+        async def _get_position(self):
+            # Wrong: dispatches back to DerivedDevice._get_position.
+            position = await BaseDevice.get_position(self)
+            return position + 1 * q.mm
+
+Extend the next private implementation in the MRO with ``super()`` instead::
+
+    class DerivedDevice(BaseDevice):
+        async def _get_position(self):
+            position = await super()._get_position()
+            return position + 1 * q.mm
+
+The same rule applies to private setters and target getters: overrides should
+delegate to ``super()._set_<parameter>(...)`` and
+``super()._get_target_<parameter>()``. This supports cooperative mixins and
+diamond-shaped device hierarchies because each implementation is visited in
+MRO order.
+
+Remember that ``super()`` means "continue with the next implementation in the
+MRO", not "call a particular named parent". This is the desired behavior for a
+cooperative override. If an implementation intentionally needs to bypass part
+of that chain, it can call a particular private implementation explicitly, for
+example ``BaseDevice._get_position(self)``, but such calls make the class more
+tightly coupled to that hierarchy. The generated public accessors are the
+user-facing interface; the private accessors form the cooperative device
+implementation interface.
 
 In case you want to specify the name of the accessor function yourself and rely
 on implementation by subclasses, you have to raise an
@@ -410,7 +465,7 @@ An example of an acquisition could look like this::
             # Clean up here
             pass
 
-    acquisition = await Acquisition('foo', produce)
+    acquisition = await Acquisition(name='foo', producer_corofunc=produce)
     # Now we make it aware of a consumer, which will print "0 foo", "1 foo" and so on 
     # *producer* is not specified, *Consumer* class handles this
     acquisition.add_consumer(Consumer(consume, corofunc_args=("foo",)))
@@ -440,11 +495,11 @@ An example experiment with one :class:`.LocalAcquisition` can look like this::
     class MyExperiment(Experiment):
         num_images = Parameter(help="number of images to acquire")
 
-        async def __ainit__(self, camera, walker):
+        async def __ainit__(self, *, camera, walker, **kwargs):
             self._num_images = 5
             self._camera = camera
-            image_acquisition = await Acquisition("images", self._acquire_images)
-            await super().__ainit__([image_acquisition], walker=walker)
+            image_acquisition = await Acquisition(name="images", producer_corofunc=self._acquire_images)
+            await super().__ainit__(acquisitions=[image_acquisition], walker=walker, **kwargs)
 
         async def _get_num_images(self):
             return self._num_images

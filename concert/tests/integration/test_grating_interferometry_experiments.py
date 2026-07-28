@@ -19,14 +19,14 @@ from concert.experiments import imaging
 
 
 class LoggingCamera(Camera):
-    async def __ainit__(self):
+    async def __ainit__(self, **kwargs):
         self.experiment = None
         self._last_flat_axis_position = None
         self._last_stepping_position = None
         self._last_tomo_position = None
         self._last_tomo_velocity = None
         self._last_source_state = None
-        await super().__ainit__()
+        await super().__ainit__(**kwargs)
         await self.set_exposure_time(0.001 * q.s)
 
     async def _trigger_real(self):

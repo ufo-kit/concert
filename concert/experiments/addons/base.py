@@ -15,7 +15,6 @@ LOG = logging.getLogger(__name__)
 
 
 class Addon(Parameterizable):
-
     """A base addon class. An addon can be attached, i.e. its functionality is applied to the
     specified *acquisitions* and detached.
 
@@ -26,14 +25,14 @@ class Addon(Parameterizable):
 
     """
 
-    async def __ainit__(self, experiment, acquisitions=None):
+    async def __ainit__(self, *, experiment, acquisitions=None, **kwargs):
         self.experiment = experiment
         self._consumers = set([])
         if acquisitions is not None:
             await self.attach(acquisitions)
         else:
             await self.attach(experiment.acquisitions)
-        await super().__ainit__()
+        await super().__ainit__(**kwargs)
 
     @background
     async def attach(self, acquisitions):
@@ -80,7 +79,6 @@ class Addon(Parameterizable):
 
 
 class Benchmarker(Addon):
-
     """An addon which counts the time of acquisition duration.
 
     .. py:attribute:: acquisitions
@@ -89,8 +87,8 @@ class Benchmarker(Addon):
 
     """
 
-    async def __ainit__(self, experiment, acquisitions=None):
-        await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
+    async def __ainit__(self, *, experiment, acquisitions=None, **kwargs):
+        await super().__ainit__(experiment=experiment, acquisitions=acquisitions, **kwargs)
 
     def _make_consumers(self, acquisitions):
         consumers = {}
@@ -115,7 +113,6 @@ class Benchmarker(Addon):
 
 
 class ImageWriter(Addon):
-
     """An addon which writes images to disk.
 
     .. py:attribute:: acquisitions
@@ -127,9 +124,9 @@ class ImageWriter(Addon):
     A :class:`~concert.storage.Walker` instance
     """
 
-    async def __ainit__(self, experiment, acquisitions=None):
+    async def __ainit__(self, *, experiment, acquisitions=None, **kwargs):
         self.walker = experiment.walker
-        await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
+        await super().__ainit__(experiment=experiment, acquisitions=acquisitions, **kwargs)
 
     def _make_consumers(self, acquisitions):
         """Attach all acquisitions."""
@@ -172,7 +169,6 @@ class ImageWriter(Addon):
 
 
 class Consumer(Addon):
-
     """An addon which applies a specific coroutine-based consumer to acquisitions.
 
     .. py:attribute:: acquisitions
@@ -181,8 +177,8 @@ class Consumer(Addon):
 
     """
 
-    async def __ainit__(self, consumer, experiment, acquisitions=None):
-        await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
+    async def __ainit__(self, *, consumer, experiment, acquisitions=None, **kwargs):
+        await super().__ainit__(experiment=experiment, acquisitions=acquisitions, **kwargs)
         self._consumer = consumer
 
     def _make_consumers(self, acquisitions):
@@ -199,7 +195,6 @@ class Consumer(Addon):
 
 
 class LiveView(Addon):
-
     """An addon which applies a specific coroutine-based consumer to acquisitions.
 
     .. py:attribute:: acquisitions
@@ -208,8 +203,8 @@ class LiveView(Addon):
 
     """
 
-    async def __ainit__(self, viewer, experiment, acquisitions=None):
-        await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
+    async def __ainit__(self, *, viewer, experiment, acquisitions=None, **kwargs):
+        await super().__ainit__(experiment=experiment, acquisitions=acquisitions, **kwargs)
         self._viewer = viewer
 
     def _make_consumers(self, acquisitions):
@@ -226,7 +221,6 @@ class LiveView(Addon):
 
 
 class Accumulator(Addon):
-
     """An addon which accumulates data.
 
     .. py:attribute:: acquisitions
@@ -242,10 +236,10 @@ class Accumulator(Addon):
     the numpy data type
     """
 
-    async def __ainit__(self, experiment, acquisitions=None, shapes=None, dtype=None):
+    async def __ainit__(self, *, experiment, acquisitions=None, shapes=None, dtype=None, **kwargs):
         self._shapes = shapes
         self._dtype = dtype
-        await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
+        await super().__ainit__(experiment=experiment, acquisitions=acquisitions, **kwargs)
 
     def _make_consumers(self, acquisitions):
         shapes = (None,) * len(acquisitions) if self._shapes is None else self._shapes
@@ -308,15 +302,14 @@ class OnlineReconstruction(Addon):
 
     slice_directory = Parameter()
 
-    async def __ainit__(self, proxy, experiment, acquisitions=None, do_normalization=True,
-                        average_normalization=True, slice_directory='online-slices',
-                        viewer=None):
+    async def __ainit__(self, *, proxy, experiment, acquisitions=None, do_normalization=True, average_normalization=True,
+                        slice_directory='online-slices', viewer=None, **kwargs):
         self._proxy = proxy
         self._do_normalization = do_normalization
         self.walker = experiment.walker
         self._slice_directory = None
         self.viewer = viewer
-        await super().__ainit__(experiment=experiment, acquisitions=acquisitions)
+        await super().__ainit__(experiment=experiment, acquisitions=acquisitions, **kwargs)
         await self.set_slice_directory(slice_directory)
         await self.register_args()
 
@@ -492,7 +485,7 @@ class PhaseGratingSteppingFourierProcessing(Addon):
     acquisitions can be changed.
     """
 
-    async def __ainit__(self, experiment, output_directory="contrasts"):
+    async def __ainit__(self, *, experiment, output_directory="contrasts", **kwargs):
         self._output_directory = output_directory
         self._dark_image = None
         self._reference_stepping = []
@@ -507,7 +500,7 @@ class PhaseGratingSteppingFourierProcessing(Addon):
         self.diff_phase = None
         self.visibility_contrast = None
         self.diff_phase_in_rad = None
-        await super().__ainit__(experiment=experiment)
+        await super().__ainit__(experiment=experiment, **kwargs)
 
     def _make_consumers(self, acquisitions):
         consumers = {}

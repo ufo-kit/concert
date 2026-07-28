@@ -105,10 +105,10 @@ class Camera(Device):
     mirror = Parameter(help="Mirror the image")
     rotate = Parameter(help="Rotate the image")
 
-    async def __ainit__(self):
+    async def __ainit__(self, **kwargs):
         self._rotate = 0
         self._mirror = False
-        await super(Camera, self).__ainit__()
+        await super().__ainit__(**kwargs)
         self._grab_lock = asyncio.Lock()
         self._senders = {}
 

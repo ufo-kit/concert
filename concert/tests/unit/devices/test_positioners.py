@@ -19,13 +19,13 @@ class TestAxis(TestCase):
 
     async def test_positive_direction(self):
         # Test positive direction
-        axis = await Axis('x', self.motor, direction=1)
+        axis = await Axis(coordinate='x', motor=self.motor, direction=1)
         await axis.set_position(1 * q.mm)
         assert_almost_equal(await self.motor.get_position(), await axis.get_position())
 
     async def test_negative_direction(self):
         # Test positive direction
-        axis = await Axis('x', self.motor, direction=-1)
+        axis = await Axis(coordinate='x', motor=self.motor, direction=-1)
         await axis.set_position(-1 * q.mm)
         assert_almost_equal(await self.motor.get_position(), - (await axis.get_position()))
 

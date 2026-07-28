@@ -19,9 +19,9 @@ class TestDummyAlignment(TestCase):
         await self.y_motor.set_position(0 * q.deg)
         await self.z_motor.set_position(0 * q.deg)
 
-        self.camera = await SimulationCamera(128, self.x_motor["position"],
-                                             self.y_motor["position"],
-                                             self.z_motor["position"])
+        self.camera = await SimulationCamera(im_width=128, x_param=self.x_motor["position"],
+                                             y_param=self.y_motor["position"],
+                                             z_param=self.z_motor["position"])
 
         # Allow 1 px misalignment in y-direction.
         self.eps = np.arctan(2 / self.camera.rotation_radius) * q.rad

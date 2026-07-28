@@ -7,7 +7,7 @@ from concert.coroutines.base import async_generate
 from concert.ext.ufo import GeneralBackprojectManager, LocalGeneralBackprojectArgs
 from concert.networking.base import get_tango_device, ZmqSender
 from concert.storage import RemoteDirectoryWalker
-from ...config import DISTRIBUTED_TANGO_TIMEOUT
+from concert.config import DISTRIBUTED_TANGO_TIMEOUT
 
 MAX_DIM = 100000
 
@@ -105,7 +105,7 @@ class TangoOnlineReconstruction(TangoRemoteProcessing):
         self._args.gpus = [i for i in range(len(res.get_gpu_nodes()))]
 
         self._manager = await GeneralBackprojectManager(
-            self._args,
+            args=self._args,
             average_normalization=True
         )
         self._walker = None

@@ -77,8 +77,8 @@ class ViewerBase(Parameterizable):
     force = Parameter(help='Make sure every item is displayed')
     title = Parameter(help='Title')
 
-    async def __ainit__(self, force: bool = False, title: str = ""):
-        await super().__ainit__()
+    async def __ainit__(self, *, force: bool = False, title: str = "", **kwargs):
+        await super().__ainit__(**kwargs)
         self._force = force
         self._title = title
         self._queue = _MP_CTX.Queue()
@@ -199,9 +199,9 @@ class PyplotViewer(ViewerBase):
     style = Parameter(help='Line style')
     autoscale = Parameter(help='Autoscale view')
 
-    async def __ainit__(self, style: str = "o", plot_kwargs: dict = None, autoscale: bool = True,
-                        title: str = "", force: bool = False):
-        await super().__ainit__(force=force, title=title)
+    async def __ainit__(self, *, style: str = "o", plot_kwargs: dict | None = None, autoscale: bool = True, title: str = "",
+                        force: bool = False, **kwargs):
+        await super().__ainit__(force=force, title=title, **kwargs)
         self._autoscale = autoscale
         self._style = style
         self._plot_kwargs = plot_kwargs
@@ -277,9 +277,9 @@ class ImageViewerBase(ViewerBase):
     limits = Parameter(help='Black and white point')
     downsampling = Parameter(help='Display only every n-th pixel')
 
-    async def __ainit__(self, limits: str = 'stream', downsampling: int = 1, title: str = "",
-                        show_refresh_rate: bool = False, force: bool = False):
-        await super().__ainit__(force=force, title=title)
+    async def __ainit__(self, *, limits: str = 'stream', downsampling: int = 1, title: str = "",
+                        show_refresh_rate: bool = False, force: bool = False, **kwargs):
+        await super().__ainit__(force=force, title=title, **kwargs)
         self._show_refresh_rate = show_refresh_rate
         self._downsampling = downsampling
         self._limits = limits
@@ -350,11 +350,10 @@ class PyplotImageViewer(ImageViewerBase):
 
     colormap = Parameter(help='Colormap')
 
-    async def __ainit__(self, imshow_kwargs: dict = None, fast: bool = True, limits: str = 'stream',
-                        downsampling: int = 1, title: str = "", show_refresh_rate: bool = False,
-                        force: bool = False):
+    async def __ainit__(self, *, imshow_kwargs: dict | None = None, fast: bool = True, limits: str = 'stream',
+                        downsampling: int = 1, title: str = "", show_refresh_rate: bool = False, force: bool = False, **kwargs):
         await super().__ainit__(limits=limits, downsampling=downsampling, title=title,
-                                show_refresh_rate=show_refresh_rate, force=force)
+                                show_refresh_rate=show_refresh_rate, force=force, **kwargs)
         self._has_colorbar = not fast
         self._imshow_kwargs = {} if imshow_kwargs is None else imshow_kwargs
         self._make_imshow_defaults()

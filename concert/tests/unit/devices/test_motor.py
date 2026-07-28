@@ -1,7 +1,27 @@
+from collections import Counter
+from contextlib import ExitStack
+from unittest.mock import patch
+
 from concert.quantities import q
+from concert.base import Parameterizable
+from concert.devices.base import Device
+from concert.devices.motors import base
+from concert.devices.motors import dummy
 from concert.devices.motors.dummy import LinearMotor, ContinuousLinearMotor
 from concert.devices.motors.dummy import RotationMotor, ContinuousRotationMotor
 from concert.tests import TestCase, assert_almost_equal
+
+
+class OffsetLinearMotor(LinearMotor):
+
+    async def _get_position(self):
+        return await super()._get_position() + 1 * q.mm
+
+
+class OffsetContinuousLinearMotor(ContinuousLinearMotor):
+
+    async def _get_position(self):
+        return await super()._get_position() + 1 * q.mm
 
 
 class TestMotor(TestCase):
@@ -22,6 +42,10 @@ class TestMotor(TestCase):
         await self.motor.move(delta)
         self.assertEqual(position + delta, await self.motor.get_position())
 
+    async def test_extend_accessor_with_super(self):
+        motor = await OffsetLinearMotor(position=2 * q.mm)
+        self.assertEqual(await motor.get_position(), 3 * q.mm)
+
 
 class TestContinuousLinearMotor(TestCase):
 
@@ -41,6 +65,46 @@ class TestContinuousLinearMotor(TestCase):
         assert_almost_equal(velocity, await self.motor.get_velocity(), 0.1)
         self.assertEqual(await self.motor.get_state(), 'moving')
         await self.motor.stop()
+
+    async def test_extend_accessor_with_super_through_diamond(self):
+        motor = await OffsetContinuousLinearMotor(position=2 * q.mm)
+        self.assertEqual(await motor.get_position(), 3 * q.mm)
+
+    async def test_constructor_arguments_survive_cooperative_initialization(self):
+        motor = await ContinuousLinearMotor(
+            position=2 * q.mm,
+            lower_hard_limit=-3 * q.mm,
+            upper_hard_limit=4 * q.mm,
+        )
+        self.assertEqual(await motor.get_position(), 2 * q.mm)
+        self.assertEqual(motor._lower_hard_limit, -3 * q.mm)
+        self.assertEqual(motor._upper_hard_limit, 4 * q.mm)
+
+    async def test_cooperative_initializers_run_once(self):
+        initializers = (
+            ("dummy linear", dummy.LinearMotor),
+            ("dummy position mixin", dummy._PositionMixin),
+            ("base continuous linear", base.ContinuousLinearMotor),
+            ("base linear", base.LinearMotor),
+            ("base position mixin", base._PositionMixin),
+            ("device", Device),
+            ("parameterizable", Parameterizable),
+        )
+        calls = Counter()
+
+        with ExitStack() as stack:
+            for name, cls in initializers:
+                original = cls.__ainit__
+
+                async def count_call(self, *args, _name=name, _original=original, **kwargs):
+                    calls[_name] += 1
+                    await _original(self, *args, **kwargs)
+
+                stack.enter_context(patch.object(cls, "__ainit__", count_call))
+
+            await ContinuousLinearMotor()
+
+        self.assertEqual(calls, Counter(name for name, _ in initializers))
 
 
 class TestRotationMotor(TestCase):
@@ -81,3 +145,13 @@ class TestContinuousRotationMotor(TestCase):
         assert_almost_equal(velocity, await self.motor.get_velocity(), 0.1)
         self.assertEqual(await self.motor.get_state(), 'moving')
         await self.motor.stop()
+
+    async def test_constructor_arguments_survive_cooperative_initialization(self):
+        motor = await ContinuousRotationMotor(
+            position=2 * q.deg,
+            lower_hard_limit=-3 * q.deg,
+            upper_hard_limit=4 * q.deg,
+        )
+        self.assertEqual(await motor.get_position(), 2 * q.deg)
+        self.assertEqual(motor._lower_hard_limit, -3 * q.deg)
+        self.assertEqual(motor._upper_hard_limit, 4 * q.deg)

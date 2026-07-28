@@ -47,9 +47,9 @@ class ImagingExperiment(Experiment):
         Data type of the generated images (default: unsigned short)
     """
 
-    async def __ainit__(self, num_darks, num_flats, num_radios, camera=None, shape=(1024, 1024),
+    async def __ainit__(self, *, num_darks, num_flats, num_radios, camera=None, shape=(1024, 1024),
                         walker=None, random=False, dtype=np.ushort, separate_scans=True,
-                        name_fmt='scan_{:>04}'):
+                        name_fmt='scan_{:>04}', **kwargs):
         self.num_darks = num_darks
         self.num_flats = num_flats
         self.num_radios = num_radios
@@ -59,14 +59,14 @@ class ImagingExperiment(Experiment):
             raise ValueError("random must be one of 'off', 'single', 'multi'")
         self.random = random
         self.dtype = dtype
-        darks = await Acquisition('darks', self.take_darks)
-        flats = await Acquisition('flats', self.take_flats)
-        radios = await Acquisition('radios', self.take_radios)
+        darks = await Acquisition(name='darks', producer_corofunc=self.take_darks)
+        flats = await Acquisition(name='flats', producer_corofunc=self.take_flats)
+        radios = await Acquisition(name='radios', producer_corofunc=self.take_radios)
         await super().__ainit__(
-            [darks, flats, radios],
+            acquisitions=[darks, flats, radios],
             walker=walker,
             separate_scans=separate_scans,
-            name_fmt=name_fmt
+            name_fmt=name_fmt, **kwargs
         )
 
     async def _produce_images(self, num, mean=128, std=10):
@@ -144,9 +144,9 @@ class ImagingFileExperiment(Experiment):
 
     """
 
-    async def __ainit__(self, camera, num_darks, num_flats, num_radios, darks_pattern='darks',
-                        flats_pattern='flats', radios_pattern='projections', walker=None,
-                        separate_scans=True, name_fmt='scan_{:>04}'):
+    async def __ainit__(self, *, camera, num_darks, num_flats, num_radios, darks_pattern='darks', flats_pattern='flats',
+                        radios_pattern='projections', walker=None, separate_scans=True, name_fmt='scan_{:>04}',
+                        **kwargs):
         self.darks_pattern = darks_pattern
         self.flats_pattern = flats_pattern
         self.radios_pattern = radios_pattern
@@ -154,14 +154,14 @@ class ImagingFileExperiment(Experiment):
         self.num_flats = num_flats
         self.num_radios = num_radios
         self.camera = camera
-        darks = await Acquisition('darks', self.take_darks)
-        flats = await Acquisition('flats', self.take_flats)
-        radios = await Acquisition('radios', self.take_radios)
+        darks = await Acquisition(name='darks', producer_corofunc=self.take_darks)
+        flats = await Acquisition(name='flats', producer_corofunc=self.take_flats)
+        radios = await Acquisition(name='radios', producer_corofunc=self.take_radios)
         await super().__ainit__(
-            [darks, flats, radios],
+            acquisitions=[darks, flats, radios],
             walker=walker,
             separate_scans=separate_scans,
-            name_fmt=name_fmt
+            name_fmt=name_fmt, **kwargs
         )
 
     async def _produce_images(self, pattern, num):
@@ -222,9 +222,9 @@ class RemoteFileImagingExperiment(Experiment):
 
     """
 
-    async def __ainit__(self, camera, num_darks, num_flats, num_radios, darks_pattern='darks',
-                        flats_pattern='flats', radios_pattern='projections', walker=None,
-                        separate_scans=True, name_fmt='scan_{:>04}'):
+    async def __ainit__(self, *, camera, num_darks, num_flats, num_radios, darks_pattern='darks', flats_pattern='flats',
+                        radios_pattern='projections', walker=None, separate_scans=True, name_fmt='scan_{:>04}',
+                        **kwargs):
         self.darks_pattern = darks_pattern
         self.flats_pattern = flats_pattern
         self.radios_pattern = radios_pattern
@@ -232,14 +232,15 @@ class RemoteFileImagingExperiment(Experiment):
         self.num_flats = num_flats
         self.num_radios = num_radios
         self.camera = camera
-        darks = await Acquisition('darks', self.take_darks, producer=camera)
-        flats = await Acquisition('flats', self.take_flats, producer=camera)
-        radios = await Acquisition('radios', self.take_radios, producer=camera)
+        darks = await Acquisition(name='darks', producer_corofunc=self.take_darks, producer=camera)
+        flats = await Acquisition(name='flats', producer_corofunc=self.take_flats, producer=camera)
+        radios = await Acquisition(name='radios', producer_corofunc=self.take_radios, producer=camera)
         await super().__ainit__(
-            [darks, flats, radios],
+            acquisitions=[darks, flats, radios],
             walker=walker,
             separate_scans=separate_scans,
-            name_fmt=name_fmt
+            name_fmt=name_fmt,
+            **kwargs
         )
 
     async def _produce_images(self, pattern, number):

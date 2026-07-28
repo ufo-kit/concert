@@ -16,8 +16,8 @@ class PhotoDiode(Device):
 
     intensity = Quantity(q.V)
 
-    async def __ainit__(self):
-        await super(PhotoDiode, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
 
     @abstractmethod
     async def _get_intensity(self):

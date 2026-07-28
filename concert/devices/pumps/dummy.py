@@ -9,8 +9,8 @@ class Pump(base.Pump):
 
     """A dummy pump."""
 
-    async def __ainit__(self):
-        await super(Pump, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
         self._flow_rate = 0 * q.l / q.s
 
     @transition(target='pumping')

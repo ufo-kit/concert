@@ -44,8 +44,9 @@ class RadiographyLogic(XrayTubeMixin, imaging.RadiographyLogic):
     Synchrotron radiography logic class which needs to be combined with one of the local or remote
     mixins for DAQ.
     """
-    async def __ainit__(self, walker, flat_motor, radio_position, flat_position, camera, xray_tube,
-                        num_flats=200, num_darks=200, num_projections=3000, separate_scans=True):
+
+    async def __ainit__(self, *, walker, flat_motor, radio_position, flat_position, camera, xray_tube, num_flats=200,
+                        num_darks=200, num_projections=3000, separate_scans=True, **kwargs):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -68,15 +69,16 @@ class RadiographyLogic(XrayTubeMixin, imaging.RadiographyLogic):
         """
         self._xray_tube = xray_tube
         await super().__ainit__(
-            walker,
-            flat_motor,
-            radio_position,
-            flat_position,
-            camera,
-            num_flats,
-            num_darks,
-            num_projections,
-            separate_scans=separate_scans
+            walker=walker,
+            flat_motor=flat_motor,
+            radio_position=radio_position,
+            flat_position=flat_position,
+            camera=camera,
+            num_flats=num_flats,
+            num_darks=num_darks,
+            num_projections=num_projections,
+            separate_scans=separate_scans,
+            **kwargs
         )
 
 
@@ -85,9 +87,10 @@ class ContinuousTomographyLogic(XrayTubeMixin, imaging.ContinuousTomographyLogic
     Continuous tomography logic class which needs to be combined with one of the local or remote
     mixins for DAQ.
     """
-    async def __ainit__(self, walker, flat_motor, tomography_motor, radio_position, flat_position,
-                        camera, xray_tube, num_flats=200, num_darks=200, num_projections=3000,
-                        angular_range=180 * q.deg, start_angle=0 * q.deg, separate_scans=True):
+
+    async def __ainit__(self, *, walker, flat_motor, tomography_motor, radio_position, flat_position, camera, xray_tube,
+                        num_flats=200, num_darks=200, num_projections=3000, angular_range=180 * q.deg,
+                        start_angle=0 * q.deg, separate_scans=True, **kwargs):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -116,18 +119,19 @@ class ContinuousTomographyLogic(XrayTubeMixin, imaging.ContinuousTomographyLogic
         """
         self._xray_tube = xray_tube
         await super().__ainit__(
-            walker,
-            flat_motor,
-            tomography_motor,
-            radio_position,
-            flat_position,
-            camera,
+            walker=walker,
+            flat_motor=flat_motor,
+            tomography_motor=tomography_motor,
+            radio_position=radio_position,
+            flat_position=flat_position,
+            camera=camera,
             num_flats=num_flats,
             num_darks=num_darks,
             num_projections=num_projections,
             angular_range=angular_range,
             start_angle=start_angle,
-            separate_scans=separate_scans
+            separate_scans=separate_scans,
+            **kwargs
         )
 
 
@@ -136,9 +140,10 @@ class SteppedTomographyLogic(XrayTubeMixin, imaging.SteppedTomographyLogic):
     Stepped tomography logic class which needs to be combined with one of the local or remote
     mixins for DAQ.
     """
-    async def __ainit__(self, walker, flat_motor, tomography_motor, radio_position, flat_position,
-                        camera, xray_tube, num_flats=200, num_darks=200, num_projections=3000,
-                        angular_range=360 * q.deg, start_angle=0 * q.deg, separate_scans=True):
+
+    async def __ainit__(self, *, walker, flat_motor, tomography_motor, radio_position, flat_position, camera, xray_tube,
+                        num_flats=200, num_darks=200, num_projections=3000, angular_range=360 * q.deg,
+                        start_angle=0 * q.deg, separate_scans=True, **kwargs):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -167,18 +172,18 @@ class SteppedTomographyLogic(XrayTubeMixin, imaging.SteppedTomographyLogic):
         """
         self._xray_tube = xray_tube
         await super().__ainit__(
-            walker,
-            flat_motor,
-            tomography_motor,
-            radio_position,
-            flat_position,
-            camera,
+            walker=walker,
+            flat_motor=flat_motor,
+            tomography_motor=tomography_motor,
+            radio_position=radio_position,
+            flat_position=flat_position,
+            camera=camera,
             num_flats=num_flats,
             num_darks=num_darks,
             num_projections=num_projections,
             angular_range=angular_range,
             start_angle=start_angle,
-            separate_scans=separate_scans
+            separate_scans=separate_scans, **kwargs
         )
 
 
@@ -187,11 +192,11 @@ class ContinuousSpiralTomographyLogic(XrayTubeMixin, imaging.ContinuousSpiralTom
     Continuous spiral tomography logic class which needs to be combined with one of the local or
     remote mixins for DAQ.
     """
-    async def __ainit__(self, walker, flat_motor, tomography_motor, vertical_motor, radio_position,
-                        flat_position, camera, xray_tube, start_position_vertical, sample_height,
-                        vertical_shift_per_tomogram, num_flats=200, num_darks=200,
-                        num_projections=3000, angular_range=180 * q.deg, start_angle=0 * q.deg,
-                        separate_scans=True):
+
+    async def __ainit__(self, *, walker, flat_motor, tomography_motor, vertical_motor, radio_position, flat_position,
+                        camera, xray_tube, start_position_vertical, sample_height, vertical_shift_per_tomogram,
+                        num_flats=200, num_darks=200, num_projections=3000, angular_range=180 * q.deg,
+                        start_angle=0 * q.deg, separate_scans=True, **kwargs):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -230,22 +235,22 @@ class ContinuousSpiralTomographyLogic(XrayTubeMixin, imaging.ContinuousSpiralTom
         """
         self._xray_tube = xray_tube
         await super().__ainit__(
-            walker,
-            flat_motor,
-            tomography_motor,
-            vertical_motor,
-            radio_position,
-            flat_position,
-            camera,
-            start_position_vertical,
-            sample_height,
-            vertical_shift_per_tomogram,
+            walker=walker,
+            flat_motor=flat_motor,
+            tomography_motor=tomography_motor,
+            vertical_motor=vertical_motor,
+            radio_position=radio_position,
+            flat_position=flat_position,
+            camera=camera,
+            start_position_vertical=start_position_vertical,
+            sample_height=sample_height,
+            vertical_shift_per_tomogram=vertical_shift_per_tomogram,
             num_flats=num_flats,
             num_darks=num_darks,
             num_projections=num_projections,
             angular_range=angular_range,
             start_angle=start_angle,
-            separate_scans=separate_scans
+            separate_scans=separate_scans, **kwargs
         )
 
 
@@ -254,11 +259,11 @@ class SteppedSpiralTomographyLogic(XrayTubeMixin, imaging.SteppedSpiralTomograph
     Stepped spiral tomography logic class which needs to be combined with one of the local or
     remote mixins for DAQ.
     """
-    async def __ainit__(self, walker, flat_motor, tomography_motor, vertical_motor,
-                        radio_position, flat_position, camera, xray_tube,
-                        start_position_vertical, sample_height, vertical_shift_per_tomogram,
-                        num_flats=200, num_darks=200, num_projections=3000,
-                        angular_range=180 * q.deg, start_angle=0 * q.deg, separate_scans=True):
+
+    async def __ainit__(self, *, walker, flat_motor, tomography_motor, vertical_motor, radio_position, flat_position,
+                        camera, xray_tube, start_position_vertical, sample_height, vertical_shift_per_tomogram,
+                        num_flats=200, num_darks=200, num_projections=3000, angular_range=180 * q.deg,
+                        start_angle=0 * q.deg, separate_scans=True, **kwargs):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -296,22 +301,22 @@ class SteppedSpiralTomographyLogic(XrayTubeMixin, imaging.SteppedSpiralTomograph
         """
         self._xray_tube = xray_tube
         await super().__ainit__(
-            walker,
-            flat_motor,
-            tomography_motor,
-            vertical_motor,
-            radio_position,
-            flat_position,
-            camera,
-            start_position_vertical,
-            sample_height,
-            vertical_shift_per_tomogram,
+            walker=walker,
+            flat_motor=flat_motor,
+            tomography_motor=tomography_motor,
+            vertical_motor=vertical_motor,
+            radio_position=radio_position,
+            flat_position=flat_position,
+            camera=camera,
+            start_position_vertical=start_position_vertical,
+            sample_height=sample_height,
+            vertical_shift_per_tomogram=vertical_shift_per_tomogram,
             num_flats=num_flats,
             num_darks=num_darks,
             num_projections=num_projections,
             angular_range=angular_range,
             start_angle=start_angle,
-            separate_scans=separate_scans
+            separate_scans=separate_scans, **kwargs
         )
 
 
@@ -398,10 +403,10 @@ class LocalGratingInterferometryStepping(
     Data can be automatically processed with the corresponding addon
     (concert.experiments.addons.local.PhaseGratingSteppingFourierProcessing).
     """
-    async def __ainit__(self, walker, camera, xray_tube, flat_motor, stepping_motor,
-                        flat_position, radio_position, grating_period, num_darks,
-                        stepping_start_position, num_periods, num_steps_per_period,
-                        propagation_distance, separate_scans):
+
+    async def __ainit__(self, *, walker, camera, xray_tube, flat_motor, stepping_motor, flat_position, radio_position,
+                        grating_period, num_darks, stepping_start_position, num_periods, num_steps_per_period,
+                        propagation_distance, separate_scans, **kwargs):
         """
         :param walker: Walker for the experiment
         :type walker: concert.storage.DirectoryWalker
@@ -433,17 +438,17 @@ class LocalGratingInterferometryStepping(
         """
         self._xray_tube = xray_tube
         await super().__ainit__(
-            walker,
-            camera,
-            flat_motor,
-            stepping_motor,
-            flat_position,
-            radio_position,
-            grating_period,
-            num_darks,
-            stepping_start_position,
+            walker=walker,
+            camera=camera,
+            flat_motor=flat_motor,
+            stepping_motor=stepping_motor,
+            flat_position=flat_position,
+            radio_position=radio_position,
+            grating_period=grating_period,
+            num_darks=num_darks,
+            stepping_start_position=stepping_start_position,
             num_periods=num_periods,
             num_steps_per_period=num_steps_per_period,
             propagation_distance=propagation_distance,
-            separate_scans=separate_scans
+            separate_scans=separate_scans, **kwargs
         )

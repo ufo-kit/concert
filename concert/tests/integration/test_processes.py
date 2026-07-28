@@ -19,7 +19,7 @@ class TestProcesses(TestCase):
 
     async def test_focusing(self):
         await self.motor.set_position(40. * q.mm)
-        camera = await BlurringCamera(self.motor)
+        camera = await BlurringCamera(motor=self.motor)
         await focus(camera, self.motor)
         assert_almost_equal(await self.motor.get_position(), FOCUS_POSITION, 1e-2)
 

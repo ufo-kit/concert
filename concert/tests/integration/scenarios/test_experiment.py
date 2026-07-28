@@ -16,6 +16,13 @@ from abc import ABC, abstractmethod
 
 
 class TestExperimentBase(TestCase, ABC):
+    async def _setup_experiment(self):
+        """Default no-op experiment setup for abstract test base."""
+        self._exp = None
+
+    async def _setup_walker(self):
+        """Default no-op walker setup for abstract test base."""
+        pass
     """Base class for experiment tests with common functionality."""
 
     @staticmethod

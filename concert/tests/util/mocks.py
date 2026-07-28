@@ -9,7 +9,14 @@ invocations, which we need for testing.
 import os
 import unittest.mock as mock
 from typing import Sequence, Any, Tuple, List
-import tango
+try:
+    import tango
+except ImportError:
+    class _DummyConstants:
+        DEFAULT_LOCK_VALIDITY = 0
+    class tango:
+        constants = _DummyConstants()
+
 
 
 class MockWalkerDevice:
@@ -32,8 +39,13 @@ class MockWalkerDevice:
         return os.path.join(self._current, args[2])
 
     def _side_effect_deregister_logger(self, log_path: str) -> str:
+        # Remove the scan directory only if it's empty and not the root.
         if os.path.dirname(log_path) != self._root:
-            os.rmdir(os.path.dirname(log_path))
+            try:
+                os.rmdir(os.path.dirname(log_path))
+            except OSError:
+                # Directory not empty – leave it.
+                pass
 
     def __init__(self) -> None:
         self.mock_device = mock.AsyncMock()

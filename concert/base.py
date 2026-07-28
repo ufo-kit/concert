@@ -19,6 +19,7 @@ _RUN_IN_LOOP_ERR_TMPL = "Someone is trying to use `{}' " \
 
 
 def identity(x):
+    """Return *x* unchanged."""
     return x
 
 
@@ -131,7 +132,7 @@ class FSMError(Exception):
 
 
 class TransitionNotAllowed(FSMError):
-    pass
+    """Raised when a device state does not permit a requested transition."""
 
 
 class StateError(Exception):
@@ -869,6 +870,7 @@ class StateValue(ParameterValue):
 
 
 class QuantityValue(ParameterValue):
+    """Value object providing unit conversion and limits for a :class:`Quantity`."""
 
     def __init__(self, instance, quantity):
         super(QuantityValue, self).__init__(instance, quantity)
@@ -918,6 +920,7 @@ class QuantityValue(ParameterValue):
 
     @background
     async def get_lower(self):
+        """Return the effective user and external lower limit."""
         lower_external = await self.get_lower_external()
         lower_user = await self.get_lower_user()
         if lower_user is None and lower_external is None:
@@ -933,6 +936,7 @@ class QuantityValue(ParameterValue):
 
     @background
     async def set_lower(self, value):
+        """Set the user-defined lower limit to *value*."""
         self._check_limit(value)
         upper = await self.get_upper()
         if value is not None and upper is not None and value >= upper:
@@ -969,6 +973,7 @@ class QuantityValue(ParameterValue):
 
     @background
     async def get_upper(self):
+        """Return the effective user and external upper limit."""
         upper_external = await self.get_upper_external()
         upper_user = await self.get_upper_user()
         if upper_user is None and upper_external is None:
@@ -984,6 +989,7 @@ class QuantityValue(ParameterValue):
 
     @background
     async def set_upper(self, value):
+        """Set the user-defined upper limit to *value*."""
         self._check_limit(value)
         lower = await self.get_lower()
         if value is not None and lower is not None and value <= lower:
@@ -1010,6 +1016,7 @@ class QuantityValue(ParameterValue):
 
     @background
     async def get_upper_user(self):
+        """Return the user-defined upper limit."""
         if self._user_upper_getter:
             return await self._user_upper_getter(*self._parameter.data_args)
 
@@ -1031,6 +1038,7 @@ class QuantityValue(ParameterValue):
 
     @background
     async def get_lower_user(self):
+        """Return the user-defined lower limit."""
         if self._user_lower_getter:
             return await self._user_lower_getter(*self._parameter.data_args)
 
@@ -1051,6 +1059,7 @@ class QuantityValue(ParameterValue):
         )
 
     async def get_lower_external(self):
+        """Return the lower limit supplied by the device, if any."""
         try:
             getter = self._parameter.get_lower_external_getter(self._instance)
             return await getter(*self._parameter.data_args)
@@ -1068,6 +1077,7 @@ class QuantityValue(ParameterValue):
         )
 
     async def get_upper_external(self):
+        """Return the upper limit supplied by the device, if any."""
         try:
             getter = self._parameter.get_upper_external_getter(self._instance)
             return await getter(*self._parameter.data_args)
@@ -1090,6 +1100,7 @@ class QuantityValue(ParameterValue):
 
     @property
     def unit(self):
+        """Unit in which parameter values and limits are exposed."""
         return self._parameter.unit
 
     @background
@@ -1222,18 +1233,71 @@ class AsyncType(abc.ABCMeta):
         return cls
 
     async def __call__(cls, *args, **kwargs):
-        # Create an instance of class *cls*. Do almost the same as type.__call__
-        # (Objects/typeobject.c:type_call in CPython) but instead of calling the constructor
-        # __init__, call the async constructor __ainit__, i.e. __init__ is never called becuase
-        # calling both __init__ and __ainit__ with the same *args* and *kwargs* may be undesirable.
-        # Moreover, everything which can be constructed in __init__ can also be constructed in
-        # __ainit__.
+        # Create an instance of class *cls*. Map positional arguments to the __ainit__
+        # signature parameters (excluding 'self') to provide proper error messages for
+        # invalid positional arguments on keyword-only constructors.
+        # Obtain the async constructor signature.
+        sig = None
+        if hasattr(cls, '__ainit__'):
+            sig = inspect.signature(cls.__ainit__)
+        # Bind provided args/kwargs to the signature (allow missing arguments).
+        bound_args = None
+        if sig:
+            try:
+                # Create a signature without 'self' for binding user-provided arguments.
+                non_self_params = [
+                    param for name, param in sig.parameters.items() if name != 'self'
+                ]
+                non_self_sig = inspect.Signature(non_self_params)
+                bound = non_self_sig.bind_partial(*args, **kwargs)
+                # Unwrap VAR_KEYWORD arguments (extra kwargs are wrapped in a dict).
+                bound_args = {}
+                for name, value in bound.arguments.items():
+                    param = non_self_sig.parameters[name]
+                    if param.kind == inspect.Parameter.VAR_KEYWORD:
+                        bound_args.update(value)
+                    else:
+                        bound_args[name] = value
+            except TypeError:
+                # If binding fails, pass through original args/kwargs to let __ainit__
+                # produce its own error message.
+                bound_args = None
+                # Create a signature without 'self' for binding user-provided arguments.
+                non_self_params = [
+                    param for name, param in sig.parameters.items() if name != 'self'
+                ]
+                non_self_sig = inspect.Signature(non_self_params)
+                bound = non_self_sig.bind_partial(*args, **kwargs)
+                # Unwrap VAR_KEYWORD arguments (extra kwargs are wrapped in a dict).
+                # Reject VAR_POSITIONAL arguments to enforce keyword-only policy.
+                bound_args = {}
+                for name, value in bound.arguments.items():
+                    param = non_self_sig.parameters[name]
+                    if param.kind == inspect.Parameter.VAR_POSITIONAL:
+                        raise TypeError(
+                            f"{cls.__name__}.__ainit__() does not accept positional arguments, "
+                            f"only keyword arguments. Got {len(value)} positional argument(s)."
+                        )
+                    elif param.kind == inspect.Parameter.VAR_KEYWORD:
+                        bound_args.update(value)
+                    else:
+                        bound_args[name] = value
+            except TypeError as e:
+                # If binding fails or VAR_POSITIONAL is used, raise an error
+                if "does not accept positional arguments" in str(e):
+                    raise
+                # If binding fails, pass through original args/kwargs to let __ainit__
+                # produce its own error message.
+                bound_args = None
+        # Create the instance using __new__ (positional args may be needed for custom __new__).
         obj = cls.__new__(cls, *args, **kwargs)
 
         if isinstance(obj, cls) and hasattr(cls, '__ainit__'):
-            # If cls.__new__ returns and instance of cls and there is an __ainit__ method, call it
-            # and make sure it does not return anything
-            coro = obj.__ainit__(*args, **kwargs)
+            # Call __ainit__ with the mapped keyword arguments.
+            if bound_args is not None:
+                coro = obj.__ainit__(**bound_args)
+            else:
+                coro = obj.__ainit__(*args, **kwargs)
             if not inspect.isawaitable(coro):
                 raise TypeError(
                     f"__ainit__() must return an awaitable, not `{type(coro).__name__}'"
@@ -1248,7 +1312,7 @@ class AsyncType(abc.ABCMeta):
 
 
 class AsyncObject(metaclass=AsyncType):
-    """Root of all classes with async def __ainit__()."""
+    """Root of all classes with async def __ainit__(self, **kwargs)."""
 
     def __new__(cls, *args, **kwargs):
         # Create an instance of class *cls* by calling object.__new__(*cls*) but do the argument
@@ -1269,8 +1333,9 @@ class AsyncObject(metaclass=AsyncType):
 
         return object.__new__(cls)
 
-    async def __ainit__(self):
-        pass
+    async def __ainit__(self, **kwargs):
+        if len(kwargs):
+            raise TypeError(f"Not all arguments were used. Check for correct spelling of keyword arguments. Remaining arguments are {kwargs.keys()}")
 
 
 class Parameterizable(AsyncObject, abc.ABC):
@@ -1352,8 +1417,8 @@ class Parameterizable(AsyncObject, abc.ABC):
         class DeviceWithClassGetter(Parameterizable):
             foo = Quantity(q.mm)
 
-            async def __ainit__(self):
-                await super().__ainit__()
+            async def __ainit__(self, **kwargs):
+                await super().__ainit__(**kwargs)
 
             async def _get_foo(self):
                 return get_foo_from_hardware()
@@ -1424,12 +1489,12 @@ class Parameterizable(AsyncObject, abc.ABC):
                         user_lower_setter=set_lower_bar_softlimit,
                         user_upper_setter=set_upper_bar_softlimit)
 
-            async def __ainit__(self):
-                await super().__ainit__()
+            async def __ainit__(self, **kwargs):
+                await super().__ainit__(**kwargs)
 
     """
 
-    async def __ainit__(self):
+    async def __ainit__(self, **kwargs):
         if not hasattr(self, '_params'):
             self._params = {}
 
@@ -1438,6 +1503,7 @@ class Parameterizable(AsyncObject, abc.ABC):
                 if isinstance(attr_type, Parameter):
                     attr_type.name = attr_name
                     self._install_parameter(attr_type)
+        await super().__ainit__(**kwargs)
 
     def __str__(self):
         if get_event_loop().is_running():
@@ -1598,10 +1664,12 @@ class Parameterizable(AsyncObject, abc.ABC):
 
 
 class RunnableParameterizable(Parameterizable):
+    """A parameter collection whose asynchronous operation can be run and monitored."""
+
     state = State()
 
-    async def __ainit__(self):
-        await super().__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
         self._run_awaitable = None
 
     async def _get_state(self):
@@ -1610,6 +1678,7 @@ class RunnableParameterizable(Parameterizable):
     @background
     @check(source=['standby', 'error', 'cancelled'], target=['standby', 'cancelled'])
     async def run(self):
+        """Run :meth:`_run` while exposing its progress through ``state``."""
         self._run_awaitable = self._run()
         await self._run_awaitable
 

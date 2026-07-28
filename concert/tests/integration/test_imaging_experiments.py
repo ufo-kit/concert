@@ -26,8 +26,7 @@ class LoggingCamera(Camera):
     Camera that stores information about the source and the relevant motors in its frames for
     testing.
     """
-    async def __ainit__(self, tomo_axis=None, flat_axis=None, vertical_axis=None, source=None,
-                        tomo=True):
+    async def __ainit__(self, *, tomo_axis=None, flat_axis=None, vertical_axis=None, source=None, tomo=True, **kwargs):
         self.tomo_axis = tomo_axis
         self.flat_axis = flat_axis
         self.vertical_axis = vertical_axis
@@ -45,7 +44,7 @@ class LoggingCamera(Camera):
         self._last_source_state = None
         self._tomo = tomo
 
-        await super().__ainit__()
+        await super().__ainit__(**kwargs)
         await self.set_exposure_time(0.001 * q.s)
 
     async def _trigger_real(self):

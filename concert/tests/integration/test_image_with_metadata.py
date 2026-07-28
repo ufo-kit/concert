@@ -21,7 +21,7 @@ class Camera(DummyCamera):
     Dummy camera, that adds the frame index as integer, float, double and string to the images'
     metadata.
     """
-    async def __ainit__(self, background=None, simulate=True):
+    async def __ainit__(self, *, background=None, simulate=True, **kwargs):
         await super().__ainit__(background=background, simulate=simulate)
         self._frame_iterator = None
 

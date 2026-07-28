@@ -20,8 +20,8 @@ class Base(base.Camera):
     roi_width = Quantity(q.pixel)
     roi_height = Quantity(q.pixel)
 
-    async def __ainit__(self):
-        await super(Base, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
         self._frame_rate = 1000 / q.s
         self._trigger_source = self.trigger_sources.AUTO
         self._exposure_time = 1 * q.ms
@@ -96,14 +96,14 @@ class Camera(Base):
 
     simulate = Parameter(help='Simulate noise')
 
-    async def __ainit__(self, background=None, simulate=True):
+    async def __ainit__(self, *, background=None, simulate=True, **kwargs):
         """
         *background* can be an array-like that will be used to generate the frame when calling grab.
         If *simulate* is True the final image intensity will be scaled based on exposure time and
         poisson noise will be added. If *simulate* is False, the background will be returned with no
         modifications to it.
         """
-        await super(Camera, self).__ainit__()
+        await super().__ainit__(**kwargs)
         self._simulate = simulate
         await self.set_background(background)
 
@@ -154,9 +154,9 @@ class FileCamera(Base):
 
     pattern = Parameter(help='Image file pattern to read')
 
-    async def __ainit__(self, pattern, reset_on_start=True, start_index=0):
+    async def __ainit__(self, *, pattern, reset_on_start=True, start_index=0, **kwargs):
         # Let users change the directory
-        await super(FileCamera, self).__ainit__()
+        await super().__ainit__(**kwargs)
         self._pattern = pattern
         self._reader = TiffSequenceReader(pattern)
         self._start_index = start_index
@@ -201,8 +201,8 @@ class FileCamera(Base):
 
 class BufferedCamera(Camera, base.BufferedMixin):
 
-    async def __ainit__(self, background=None, simulate=True):
-        await Camera.__ainit__(self, background=background, simulate=simulate)
+    async def __ainit__(self, *, background=None, simulate=True, **kwargs):
+        await super().__ainit__(background=background, simulate=simulate, **kwargs)
 
     @transition(target='readout')
     async def _start_readout_real(self):

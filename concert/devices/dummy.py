@@ -32,8 +32,8 @@ class DummyDevice(Device):
     slow = Parameter()
     state = State(default='standby')
 
-    async def __ainit__(self, slow=None):
-        await super(DummyDevice, self).__ainit__()
+    async def __ainit__(self, *, slow=None, **kwargs):
+        await super().__ainit__(**kwargs)
         self._position = 1 * q.mm
         self._value = 0
         self._slow = slow
@@ -122,8 +122,8 @@ class SelectionDevice(Device):
 
     selection = Selection(list(range(3)))
 
-    async def __ainit__(self):
-        await super(SelectionDevice, self).__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
         self._selection = 0
 
     async def _get_selection(self):
@@ -179,8 +179,8 @@ class DeviceWithClassGetter(Device):
     """
     foo = Quantity(q.mm)
 
-    async def __ainit__(self):
-        await super().__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
 
     async def _get_foo(self):
         return get_foo_from_hardware()
@@ -257,5 +257,5 @@ class DeviceWithSetterInConstructor(Device):
                    user_lower_setter=set_lower_bar_softlimit,
                    user_upper_setter=set_upper_bar_softlimit)
 
-    async def __ainit__(self):
-        await super().__ainit__()
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)

@@ -3,13 +3,19 @@ Test experiments. Logging is disabled, so just check the directory and log
 files creation.
 """
 import asyncio
+import inspect
 import logging
 import os.path as op
 import tempfile
 import shutil
 import unittest
+from collections import Counter
+from contextlib import ExitStack
+from unittest.mock import patch
+
 import numpy as np
 import concert.config as cfg
+from concert.base import Parameterizable
 from concert.quantities import q
 from typing import Tuple
 from concert.coroutines.base import start
@@ -18,6 +24,9 @@ from concert.experiments.base import (Acquisition, Consumer as AcquisitionConsum
                                       ExperimentError, local)
 from concert.experiments.imaging import (tomo_angular_step, tomo_max_speed,
                                          tomo_projections_number, frames)
+from concert.experiments.addons import base as addon_base
+from concert.experiments.addons import local as local_addon
+from concert.experiments.addons import tango as tango_addon
 from concert.experiments.addons.base import Addon
 from concert.experiments.addons.local import (Accumulator as LocalAccumulator,
                                               Consumer as LocalConsumer,
@@ -25,6 +34,7 @@ from concert.experiments.addons.local import (Accumulator as LocalAccumulator,
 from concert.devices.cameras.dummy import Camera
 from concert.devices.shutters.dummy import Shutter
 from concert.devices.motors.dummy import LinearMotor
+from concert.helpers import CommData
 from concert.tests import TestCase, suppressed_logging, assert_almost_equal
 from concert.storage import DirectoryWalker, DummyWalker, RemoteDirectoryWalker
 from concert.tests.util.mocks import MockWalkerDevice
@@ -54,8 +64,8 @@ class DummyAddon(Addon):
 
     remote = False
 
-    async def __ainit__(self):
-        await super(DummyAddon, self).__ainit__(experiment=None, acquisitions=[])
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(experiment=None, acquisitions=[], **kwargs)
 
     def _make_consumers(self, acquisitions):
         return dict((acq, AcquisitionConsumer(local(null))) for acq in acquisitions)
@@ -70,9 +80,9 @@ class DummyAddon(Addon):
 
 
 class ExperimentSimple(Experiment):
-    async def __ainit__(self, walker):
-        acq = await Acquisition("test", self._run_test_acq)
-        await super(ExperimentSimple, self).__ainit__([acq], walker)
+    async def __ainit__(self, *, walker, **kwargs):
+        acq = await Acquisition(name="test", producer_corofunc=self._run_test_acq)
+        await super().__ainit__(acquisitions=[acq], walker=walker, **kwargs)
 
     @local
     async def _run_test_acq(self):
@@ -82,9 +92,9 @@ class ExperimentSimple(Experiment):
 
 
 class ExperimentException(Experiment):
-    async def __ainit__(self, walker):
-        acq = await Acquisition("test", self._run_test_acq)
-        await super(ExperimentException, self).__ainit__([acq], walker)
+    async def __ainit__(self, *, walker, **kwargs):
+        acq = await Acquisition(name="test", producer_corofunc=self._run_test_acq)
+        await super().__ainit__(acquisitions=[acq], walker=walker, **kwargs)
 
     @local
     async def _run_test_acq(self):
@@ -128,7 +138,7 @@ class TestAcquisition(TestCase):
         await super().asyncSetUp()
         self.acquired = False
         self.item = None
-        self.acquisition = await Acquisition('foo', self.produce, acquire=self.acquire)
+        self.acquisition = await Acquisition(name='foo', producer_corofunc=self.produce, acquire=self.acquire)
         self.acquisition.add_consumer(AcquisitionConsumer(self.consume))
 
     async def test_run(self):
@@ -158,9 +168,9 @@ class TestExperimentBase(TestCase):
         self.walker = await DummyWalker(root=self.root)
         self.name_fmt = 'scan_{:>04}'
         self.visited = 0
-        self.foo = await Acquisition("foo", self.produce, acquire=self.acquire)
+        self.foo = await Acquisition(name="foo", producer_corofunc=self.produce, acquire=self.acquire)
         self.foo.add_consumer(AcquisitionConsumer(self.consume))
-        self.bar = await Acquisition("bar", self.produce, acquire=self.acquire)
+        self.bar = await Acquisition(name="bar", producer_corofunc=self.produce, acquire=self.acquire)
         self.acquisitions = [self.foo, self.bar]
         self.num_produce = 2
         self.item = None
@@ -184,7 +194,7 @@ class TestExperiment(TestExperimentBase):
 
     async def asyncSetUp(self):
         await super(TestExperiment, self).asyncSetUp()
-        self.experiment = await Experiment(self.acquisitions, self.walker, name_fmt=self.name_fmt)
+        self.experiment = await Experiment(acquisitions=self.acquisitions, walker=self.walker, name_fmt=self.name_fmt)
         self.visit_checker = VisitChecker()
 
     async def test_run(self):
@@ -235,17 +245,101 @@ class TestExperiment(TestExperimentBase):
 
     async def test_consumer_addon(self):
         accumulate = Accumulate()
-        consumer = await LocalConsumer(accumulate, experiment=self.experiment,
+        consumer = await LocalConsumer(consumer=accumulate, experiment=self.experiment,
                                        acquisitions=[self.acquisitions[0]])
         await self.experiment.run()
         self.assertEqual(accumulate.items, list(range(self.num_produce)))
+
+    async def test_addon_initializers_run_once(self):
+        initializers = (
+            ("local consumer", local_addon.Consumer),
+            ("consumer", addon_base.Consumer),
+            ("addon", addon_base.Addon),
+            ("parameterizable", Parameterizable),
+        )
+        calls = Counter()
+
+        with ExitStack() as stack:
+            for name, cls in initializers:
+                original = cls.__ainit__
+
+                def make_count_call(name, original):
+                    sig = inspect.signature(original)
+
+                    # Create a wrapper with the same signature as the original
+                    async def count_call(*args, **kwargs):
+                        calls[name] += 1
+                        await original(*args, **kwargs)
+
+                    # Set the wrapper's signature to match the original
+                    count_call.__signature__ = sig
+
+                    return count_call
+
+                stack.enter_context(patch.object(cls, "__ainit__", make_count_call(name, original)))
+
+            await LocalConsumer(
+                consumer=Accumulate(),
+                experiment=self.experiment,
+                acquisitions=[self.acquisitions[0]]
+            )
+
+        self.assertEqual(calls, Counter(name for name, _ in initializers))
+
+    async def test_tango_addon_initializers_run_once(self):
+        class TangoDevice:
+            def set_timeout_millis(self, value):
+                self.timeout = value
+
+            async def write_attribute(self, name, value):
+                self.attribute = (name, value)
+
+        initializers = (
+            ("tango benchmarker", tango_addon.Benchmarker),
+            ("tango mixin", tango_addon.TangoMixin),
+            ("benchmarker", addon_base.Benchmarker),
+            ("addon", addon_base.Addon),
+            ("parameterizable", Parameterizable),
+        )
+        calls = Counter()
+        device = TangoDevice()
+        endpoint = CommData("localhost", 1234, "tcp", 0, 0)
+
+        with ExitStack() as stack:
+            for name, cls in initializers:
+                original = cls.__ainit__
+
+                def make_count_call(name, original):
+                    sig = inspect.signature(original)
+
+                    # Create a wrapper with the same signature as the original
+                    async def count_call(*args, **kwargs):
+                        calls[name] += 1
+                        await original(*args, **kwargs)
+
+                    # Set the wrapper's signature to match the original
+                    count_call.__signature__ = sig
+
+                    return count_call
+
+                stack.enter_context(patch.object(cls, "__ainit__", make_count_call(name, original)))
+
+            await tango_addon.Benchmarker(
+                experiment=self.experiment,
+                device=device,
+                endpoint=endpoint,
+                acquisitions=[]
+            )
+
+        self.assertEqual(calls, Counter(name for name, _ in initializers))
+        self.assertEqual(device.attribute, ("endpoint", endpoint.client_endpoint))
 
     async def test_image_writing(self):
         data_dir = tempfile.mkdtemp()
         try:
             walker = await DirectoryWalker(root=data_dir, bytes_per_file=0)
             self.experiment.walker = walker
-            writer = await LocalImageWriter(self.experiment)
+            writer = await LocalImageWriter(experiment=self.experiment)
             await self.experiment.set_separate_scans(False)
             await self.experiment.run()
 
@@ -260,14 +354,14 @@ class TestExperiment(TestExperimentBase):
             shutil.rmtree(data_dir)
 
     async def test_accumulation(self):
-        acc = await LocalAccumulator(self.experiment)
+        acc = await LocalAccumulator(experiment=self.experiment)
         await self.experiment.run()
 
         for acq in self.acquisitions:
             self.assertEqual(await acc.get_items(acq), list(range(self.num_produce)))
 
         # Test detach
-        acc = await LocalAccumulator(self.experiment)
+        acc = await LocalAccumulator(experiment=self.experiment)
         await acc.detach(self.acquisitions)
         await self.experiment.run()
         for acq in self.acquisitions:
@@ -299,7 +393,7 @@ class TestExperimentStates(TestCase):
         self.walker = await DirectoryWalker(root=self.data_dir)
 
     async def test_experiment_state_normal(self):
-        exp = await ExperimentSimple(self.walker)
+        exp = await ExperimentSimple(walker=self.walker)
         self.assertEqual(await exp.get_state(), "standby")
         exp_handle = start(exp.run())
         await asyncio.sleep(0.2)
@@ -316,7 +410,7 @@ class TestExperimentStates(TestCase):
             self.assertEqual(await exp.get_state(), "cancelled")
 
     async def test_experiment_exception(self):
-        exp = await ExperimentException(self.walker)
+        exp = await ExperimentException(walker=self.walker)
         self.assertEqual(await exp.get_state(), "standby")
         with self.assertRaises(Exception):
             await exp.run()
@@ -332,9 +426,9 @@ class TestExperimentLogging(unittest.IsolatedAsyncioTestCase):
         self._acquired = 0
         self._device = MockWalkerDevice()
         self._walker = await RemoteDirectoryWalker(device=self._device)
-        foo = await Acquisition("foo", self.produce, acquire=self.acquire)
+        foo = await Acquisition(name="foo", producer_corofunc=self.produce, acquire=self.acquire)
         foo.add_consumer(AcquisitionConsumer(self.consume)), Tuple
-        bar = await Acquisition("bar", self.produce, acquire=self.acquire)
+        bar = await Acquisition(name="bar", producer_corofunc=self.produce, acquire=self.acquire)
         self._acquisitions = [foo, bar]
         self.num_produce = 2
         self._item = None

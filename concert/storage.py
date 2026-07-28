@@ -177,9 +177,7 @@ class Walker(Parameterizable):
     current = Parameter()
     dsetname = Parameter()
 
-    async def __ainit__(self,
-                        root: str,
-                        dsetname: str = "frames") -> None:
+    async def __ainit__(self, *, root: str, dsetname: str = "frames", **kwargs) -> None:
         """
         Constructor. *root* is the topmost level of the data structure
 
@@ -191,7 +189,7 @@ class Walker(Parameterizable):
         self._root = root
         self._lock = asyncio.Lock()
         self._dsetname = dsetname
-        await super().__ainit__()
+        await super().__ainit__(**kwargs)
         await self.home()
 
     async def __aenter__(self) -> Walker:
@@ -320,8 +318,8 @@ class DummyWalker(Walker):
 
     _paths: Set[str]
 
-    async def __ainit__(self, root: str = "") -> None:
-        await super().__ainit__(root)
+    async def __ainit__(self, *, root: str = "", **kwargs) -> None:
+        await super().__ainit__(root=root, **kwargs)
         self._paths = set([])
 
     async def log_to_json(self, payload: str, filename: str = "experiment.json") -> None:
@@ -375,13 +373,9 @@ class DirectoryWalker(Walker):
     bytes_per_file = Parameter()
     start_index = Parameter()
 
-    async def __ainit__(self,
-                        root: Optional[str] = None,
-                        dsetname: str = "frame_{:>06}.tif",
-                        writer: Type[TiffWriter] = TiffWriter,
-                        start_index: int = 0,
-                        bytes_per_file: int = 0,
-                        rights: str = "750") -> None:
+    async def __ainit__(self, *, root: Optional[str] = None, dsetname: str = "frame_{:>06}.tif",
+                        writer: Type[TiffWriter] = TiffWriter, start_index: int = 0, bytes_per_file: int = 0,
+                        rights: str = "750", **kwargs) -> None:
         """
         Use *writer* to write data to files with filenames with a template
         from *dsetname*. *start_index* specifies the number in the first file
@@ -397,7 +391,7 @@ class DirectoryWalker(Walker):
         self._bytes_per_file = bytes_per_file
         self._start_index = start_index
         self._rights = rights
-        await super().__ainit__(root, dsetname)
+        await super().__ainit__(root=root, dsetname=dsetname, **kwargs)
 
     async def _descend(self, name: str) -> None:
         new = os.path.join(self._current, name)
@@ -484,13 +478,9 @@ class RemoteDirectoryWalker(Walker):
     endpoint = Parameter()
     local_sender_zmq_options = Parameter(help="ZMQ streaming options")
 
-    async def __ainit__(self,
-                        device: RemoteDirectoryWalkerTangoDevice,
-                        root: Optional[str] = None,
-                        dsetname: str = "frame_{:>06}.tif",
-                        wrt_cls: str = "TiffWriter",
-                        start_index: int = 0,
-                        bytes_per_file: int = 0) -> None:
+    async def __ainit__(self, *, device: RemoteDirectoryWalkerTangoDevice, root: Optional[str] = None,
+                        dsetname: str = "frame_{:>06}.tif", wrt_cls: str = "TiffWriter", start_index: int = 0,
+                        bytes_per_file: int = 0, **kwargs) -> None:
         """
         Initializes a remote directory walker. This walker implementation
         encapsulates a Tango device server and delegates its core utilities
@@ -533,7 +523,7 @@ class RemoteDirectoryWalker(Walker):
         await self.device.write_attribute("start_index", start_index)
         await self.device.write_attribute("bytes_per_file", bytes_per_file)
         self._commdata = None
-        await super().__ainit__(root=self._root, dsetname=dsetname)
+        await super().__ainit__(root=self._root, dsetname=dsetname, **kwargs)
 
     async def _descend(self, name: str) -> None:
         await self.device.descend(name)

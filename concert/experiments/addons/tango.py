@@ -11,14 +11,11 @@ from concert.experiments.addons import base
 from concert.experiments.base import remote
 from concert.helpers import CommData
 from concert.quantities import q
-from typing import Awaitable
-
 
 LOG = logging.getLogger(__name__)
 
 
 class TangoMixin:
-
     """TangoMixin does not need a producer becuase the backend processes image streams which do not
     come via concert.
     """
@@ -43,11 +40,12 @@ class TangoMixin:
 
         return wrapper
 
-    async def __ainit__(self, device, endpoint: CommData) -> Awaitable:
+    async def __ainit__(self, *, device, endpoint: CommData, **kwargs):
         self._device = device
         self._device.set_timeout_millis(DISTRIBUTED_TANGO_TIMEOUT)
         self.endpoint = endpoint
         await self._device.write_attribute('endpoint', self.endpoint.client_endpoint)
+        await super().__ainit__(**kwargs)
 
     async def connect_endpoint(self):
         await self._device.connect_endpoint()
@@ -64,9 +62,8 @@ class TangoMixin:
 
 class Benchmarker(TangoMixin, base.Benchmarker):
 
-    async def __ainit__(self, experiment, device, endpoint, acquisitions=None):
-        await TangoMixin.__ainit__(self, device, endpoint)
-        await base.Benchmarker.__ainit__(self, experiment=experiment, acquisitions=acquisitions)
+    async def __ainit__(self, *, experiment, device, endpoint, acquisitions=None, **kwargs):
+        await super().__ainit__(device=device, endpoint=endpoint, experiment=experiment, acquisitions=acquisitions, **kwargs)
 
     @TangoMixin.cancel_remote
     @remote
@@ -83,9 +80,9 @@ class Benchmarker(TangoMixin, base.Benchmarker):
 
 class ImageWriter(TangoMixin, base.ImageWriter):
 
-    async def __ainit__(self, experiment, endpoint, acquisitions=None):
-        await TangoMixin.__ainit__(self, experiment.walker.device, endpoint)
-        await base.ImageWriter.__ainit__(self, experiment=experiment, acquisitions=acquisitions)
+    async def __ainit__(self, *, experiment, endpoint, acquisitions=None, **kwargs):
+        await super().__ainit__(device=experiment.walker.device, endpoint=endpoint, experiment=experiment,
+                                acquisitions=acquisitions, **kwargs)
 
     @TangoMixin.cancel_remote
     @remote
@@ -95,12 +92,11 @@ class ImageWriter(TangoMixin, base.ImageWriter):
 
 class LiveView(base.LiveView):
 
-    async def __ainit__(self, viewer, endpoint, experiment, acquisitions=None):
+    async def __ainit__(self, *, viewer, endpoint, experiment, acquisitions=None, **kwargs):
         self.endpoint = endpoint
-        await base.LiveView.__ainit__(self,
-                                      viewer,
-                                      experiment=experiment,
-                                      acquisitions=acquisitions)
+        await super().__ainit__(viewer=viewer,
+                                experiment=experiment,
+                                acquisitions=acquisitions, **kwargs)
         self._orig_limits = await viewer.get_limits()
 
     async def connect_endpoint(self):
@@ -145,28 +141,18 @@ class _TangoProxyArgs:
 
 
 class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
-    async def __ainit__(
-        self,
-        device,
-        experiment,
-        endpoint,
-        acquisitions=None,
-        do_normalization=True,
-        average_normalization=True,
-        slice_directory='online-slices',
-        viewer=None
-    ):
-        await TangoMixin.__ainit__(self, device, endpoint)
-
-        await base.OnlineReconstruction.__ainit__(
-            self,
-            _TangoProxyArgs(self._device),
+    async def __ainit__(self, *, device, experiment, endpoint, acquisitions=None, do_normalization=True,
+                        average_normalization=True, slice_directory='online-slices', viewer=None, **kwargs):
+        await super().__ainit__(
+            device=device,
+            endpoint=endpoint,
+            proxy=_TangoProxyArgs(device),
             experiment=experiment,
             acquisitions=acquisitions,
             do_normalization=do_normalization,
             average_normalization=average_normalization,
             slice_directory=slice_directory,
-            viewer=viewer
+            viewer=viewer, **kwargs
         )
 
     @TangoMixin.cancel_remote
@@ -187,8 +173,8 @@ class OnlineReconstruction(TangoMixin, base.OnlineReconstruction):
         path = ""
         if self.walker and not await self.get_slice_metric():
             if (
-                cached is False and await self.get_slice_directory()
-                or cached is True and slice_directory
+                    cached is False and await self.get_slice_directory()
+                    or cached is True and slice_directory
             ):
                 async with self.walker:
                     path = os.path.join(

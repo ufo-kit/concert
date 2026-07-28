@@ -84,7 +84,7 @@ class Acquisition(RunnableParameterizable):
 
     """
 
-    async def __ainit__(self, name, producer_corofunc, producer=None, acquire=None):
+    async def __ainit__(self, *, name, producer_corofunc, producer=None, acquire=None, **kwargs):
         self.name = name
         self.producer = producer
         if producer_corofunc.remote:
@@ -102,7 +102,7 @@ class Acquisition(RunnableParameterizable):
         if acquire and not asyncio.iscoroutinefunction(acquire):
             raise TypeError('acquire must be a coroutine function')
         self.acquire = acquire
-        await super().__ainit__()
+        await super().__ainit__(**kwargs)
 
     @background
     async def _run(self):
@@ -272,8 +272,7 @@ class Experiment(RunnableParameterizable):
     log_devices_at_start = Parameter()
     log_devices_at_finish = Parameter()
 
-    async def __ainit__(self, acquisitions, walker=None, separate_scans=True,
-                        name_fmt='scan_{:>04}'):
+    async def __ainit__(self, *, acquisitions, walker=None, separate_scans=True, name_fmt='scan_{:>04}', **kwargs):
         self._acquisitions = []
         for acquisition in acquisitions:
             self.add(acquisition)
@@ -288,7 +287,7 @@ class Experiment(RunnableParameterizable):
         self._log_devices_at_start = None
         self._log_devices_at_finish = None
         self.ready_to_prepare_next_sample = asyncio.Event()
-        await super().__ainit__()
+        await super().__ainit__(**kwargs)
         await self.set_log_devices_at_start(True)
         await self.set_log_devices_at_finish(True)
 
