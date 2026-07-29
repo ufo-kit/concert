@@ -8,6 +8,14 @@
 .. data:: PROGRESS_BAR
 
     Turn on progress bar by long-lasting operations if tqdm package is present
+
+.. data:: GUI_EVENT_REFRESH_PERIOD
+
+    After this time period some gui-events are processed.
+
+.. data:: GUI_MAX_PROCESSING_TIME_FRACTION
+
+    Maximum time fraction of GUI_EVENT_REFRESH_PERIOD that is used for the handling of the gui-events.
 """
 from concert.quantities import q
 
@@ -19,6 +27,10 @@ MOTOR_VELOCITY_SAMPLING_TIME = 0.1 * q.s
 # Logging
 AIODEBUG = 9
 PERFDEBUG = 8
+
+# GUI
+GUI_EVENT_REFRESH_PERIOD = 0.01 * q.s
+GUI_MAX_PROCESSING_TIME_FRACTION = 0.5
 
 # Metadata files
 ALWAYS_WRITE_JSON_METADATA_FILE = False

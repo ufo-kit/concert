@@ -85,5 +85,8 @@ try:
     # ctrl-k (abort everything, also background awaitables)
     ip.loop_runner = ConcertAsyncioRunner()
     ip.pt_app.key_bindings.add('c-k')(_abort_all_awaiting)
+    if with_gui:
+        from concert.gui import gui_event_loop
+        _gui_event_loop = gui_event_loop()
 except NameError as err:
     raise NameError("This module must be run after concert start") from err
