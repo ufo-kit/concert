@@ -54,7 +54,7 @@ def _translate_gerror(func):
     return _wrapper
 
 
-class Camera(base.Camera):
+class Camera(base.Camera, base.BufferedMixin):
 
     """libuca-based camera.
 
@@ -167,6 +167,9 @@ class Camera(base.Camera):
 
     async def _stop_readout_real(self):
         await run_in_executor(self.uca.stop_readout)
+
+    async def _readout_real(self, *args, **kwargs):
+        await self._grab_real(*args, **kwargs)
 
     async def write(self, name, data):
         """Write NumPy array *data* for *name*."""
