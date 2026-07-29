@@ -303,7 +303,23 @@ async def _ucad_communicate(request, host, port):
 
 
 def _ucad_unregister_all(host, port):
-    asyncio.run(_ucad_communicate(struct.pack("I", 14), host, port))
+    import socket
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.connect((host, port))
+            sock.sendall(struct.pack("I", 14))
+            # 1024 is more than the reply message size of ucad, so no need to call multiple times
+            reply = sock.recv(1024)
+        _construct_ucad_error(reply)
+    except UcaNetError as une:
+        LOG.error(une)
+        print(f"Error during endpoints unregistration: `{str(une)}'")
+    except Exception as e:
+        LOG.error(e)
+        print(
+            "Unregistration of camera endpoints failed due "
+            "to connection failure, see concert log for more details."
+        )
     LOG.debug("Unregistered all endpoints on %s:%d", host, port)
 
 
