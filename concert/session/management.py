@@ -132,6 +132,25 @@ def is_multiinstance(filename):
     return False
 
 
+def get_device_locks(filename):
+    """Search for the DEVICE_LOCKS assignment in *filename* and return its value."""
+    if not os.path.exists(filename):
+        # Just the session name, find the actual path
+        filename = path(filename)
+
+    with open(filename) as session_file:
+        lines = session_file.readlines()
+
+    for line in lines:
+        if "DEVICE_LOCKS" in line:
+            node = ast.parse(line).body[0]
+            # Extract the list of values from node.value.elts
+            if hasattr(node.value, 'elts'):
+                return [elt.value for elt in node.value.elts]
+
+    # If DEVICE_LOCKS is not specified, be conservative and return an empty list
+    return []
+
 def get_existing():
     """Get all existing session names."""
     sessions = [f for f in os.listdir(path()) if f.endswith('.py')]
