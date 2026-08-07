@@ -7,6 +7,8 @@ import unittest
 import numpy as np
 from typing import Tuple
 from time import time
+from unittest.mock import AsyncMock, patch
+from concert.base import StateError
 from concert.storage import DirectoryWalker
 from concert.experiments.base import Experiment as BaseExperiment, Acquisition, local
 from concert.experiments.base import Consumer as AcquisitionConsumer
@@ -47,6 +49,43 @@ class BrokenExperiment(Experiment):
     async def _frame_producer(self):
         yield None
         raise Exception("Experiment broken")
+
+
+class FailingExperiment(Experiment):
+    """Experiment used to exercise cleanup through a complete director stack."""
+
+    async def __ainit__(self, *, walker, separate_scans, failure_stage, **kwargs):
+        self.failure_stage = failure_stage
+        self.events = []
+        acquisition = await Acquisition(name="test", producer_corofunc=self._frame_producer)
+        await super().__ainit__(acquisitions=[acquisition], walker=walker,
+                                separate_scans=separate_scans, **kwargs)
+
+    @local
+    async def _frame_producer(self):
+        yield np.ones((1, 1))
+        if self.failure_stage == "acquisition":
+            raise RuntimeError("Acquisition failed")
+
+    async def early_prepare(self):
+        self.events.append("early_prepare")
+        if self.failure_stage == "early_prepare":
+            raise RuntimeError("Early preparation failed")
+
+    async def prepare(self):
+        self.events.append("prepare")
+        if self.failure_stage == "prepare":
+            raise RuntimeError("Preparation failed")
+
+    async def finish(self):
+        self.events.append("finish")
+        if self.failure_stage == "finish":
+            raise RuntimeError("Finish failed")
+
+    async def late_finish(self):
+        self.events.append("late_finish")
+        if self.failure_stage == "late_finish":
+            raise RuntimeError("Late finish failed")
 
 
 class EarlyReadyExperiment(Experiment):
@@ -132,6 +171,74 @@ class DirectorTestBrokenExperiment(TestCase):
         except Exception as e:
             LOG.info(e)
         self.assertEqual(await self.director.get_state(), "error")
+
+    async def test_walker_is_reset_after_acquisition_failure(self):
+        with self.assertRaises(StateError):
+            await self.director.run()
+
+        self.assertEqual(await self.walker.get_current(), await self.walker.get_root())
+        self.assertEqual(await self.experiment.get_state(), "error")
+
+
+class DirectorCleanupTest(TestCase):
+    async def _run_failing_stack(self, failure_stage):
+        experiment = await FailingExperiment(
+            walker=self.walker,
+            separate_scans=False,
+            failure_stage=failure_stage,
+        )
+        director = await Director(experiment=experiment, num_iterations=1)
+
+        with self.assertRaises(StateError):
+            await director.run()
+
+        self.assertEqual(await self.walker.get_current(), await self.walker.get_root())
+        self.assertEqual(await director.get_state(), "error")
+        self.assertFalse(await experiment.get_separate_scans())
+        return experiment
+
+    async def test_walker_is_reset_after_early_prepare_failure(self):
+        experiment = await self._run_failing_stack("early_prepare")
+        self.assertEqual(["early_prepare"], experiment.events)
+
+    async def test_walker_is_reset_after_prepare_failure(self):
+        experiment = await self._run_failing_stack("prepare")
+        self.assertEqual(["early_prepare", "prepare", "finish", "late_finish"],
+                         experiment.events)
+
+    async def test_walker_is_reset_after_acquisition_failure(self):
+        experiment = await self._run_failing_stack("acquisition")
+        self.assertEqual(["early_prepare", "prepare", "finish", "late_finish"],
+                         experiment.events)
+
+    async def test_walker_is_reset_after_finish_failure(self):
+        experiment = await self._run_failing_stack("finish")
+        self.assertEqual(["early_prepare", "prepare", "finish"], experiment.events)
+
+    async def test_walker_is_reset_after_late_finish_failure(self):
+        experiment = await self._run_failing_stack("late_finish")
+        self.assertEqual(["early_prepare", "prepare", "finish", "late_finish"],
+                         experiment.events)
+
+    async def test_walker_is_reset_after_logging_failure(self):
+        experiment = await FailingExperiment(
+            walker=self.walker,
+            separate_scans=False,
+            failure_stage="none",
+        )
+        director = await Director(experiment=experiment, num_iterations=1)
+        handlers_before = list(experiment.log.handlers)
+
+        with patch.object(
+            experiment,
+            "_prepare_metadata_str",
+            new=AsyncMock(side_effect=RuntimeError("Metadata logging failed")),
+        ), self.assertRaises(StateError):
+            await director.run()
+
+        self.assertEqual(await self.walker.get_current(), await self.walker.get_root())
+        self.assertEqual(await director.get_state(), "error")
+        self.assertEqual(handlers_before, experiment.log.handlers)
 
 
 @slow
