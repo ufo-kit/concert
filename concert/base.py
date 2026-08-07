@@ -1832,6 +1832,7 @@ class RunnableParameterizable(Parameterizable):
         handler = None
         descended = False
         lifecycle_started = False
+        finalization_error = None
         iteration = await self.get_iteration()
         separate_scans = await self.get_separate_scans()
 
@@ -1879,7 +1880,7 @@ class RunnableParameterizable(Parameterizable):
                     await self.late_finish()
                 except Exception as e:
                     LOG.warning(f"Error `{e}' while finalizing run().")
-                    raise StateError('error', msg=str(e))
+                    finalization_error = StateError('error', msg=str(e))
             try:
                 self.ready_to_prepare_next_sample.set()
                 if descended:
@@ -1893,7 +1894,10 @@ class RunnableParameterizable(Parameterizable):
                     await self.set_iteration(iteration + 1)
             except Exception as e:
                 LOG.warning(f"Error `{e}' while cleaning up run().")
-                raise StateError('error', msg=str(e))
+                if finalization_error is None:
+                    finalization_error = StateError('error', msg=str(e))
+            if finalization_error is not None:
+                raise finalization_error
 
 
     @abc.abstractmethod
