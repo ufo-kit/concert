@@ -46,7 +46,7 @@ RUN pip install --break-system-packages \
 WORKDIR /home
 
 # Install libuca and uca-net binaries
-RUN git clone https://github.com/ufo-kit/libuca.git && \
+RUN git clone -b fix-camera-destruction https://github.com/ufo-kit/libuca.git && \
     git clone https://github.com/ufo-kit/uca-net.git
 
 WORKDIR /home/libuca
