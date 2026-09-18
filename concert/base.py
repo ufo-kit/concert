@@ -1851,6 +1851,10 @@ class RunnableParameterizable(Parameterizable):
     @background
     @check(source=['standby', 'error', 'cancelled'], target=['standby', 'cancelled'])
     async def run(self):
+        self._run_awaitable = asyncio.ensure_future(self._run_lifecycle())
+        await self._run_awaitable
+
+    async def _run_lifecycle(self):
         self.ready_to_prepare_next_outer_loop.clear()
         start_time = time.time()
         handler = None
@@ -1888,8 +1892,7 @@ class RunnableParameterizable(Parameterizable):
 
             lifecycle_started = True
             await self.prepare()
-            self._run_awaitable = self._run()
-            await self._run_awaitable
+            await self._run()
         finally:
             if lifecycle_started:
                 try:
