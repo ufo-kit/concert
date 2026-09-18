@@ -4,6 +4,7 @@ files creation.
 """
 import asyncio
 import inspect
+import json
 import logging
 import os.path as op
 import tempfile
@@ -15,7 +16,7 @@ from unittest.mock import patch
 
 import numpy as np
 import concert.config as cfg
-from concert.base import Parameterizable
+from concert.base import Parameter, Parameterizable, Quantity
 from concert.quantities import q
 from typing import Tuple
 from concert.coroutines.base import start
@@ -48,6 +49,33 @@ class BrokenDeviceException(Exception):
 class BrokenDevice(LinearMotor):
     async def _get_position(self):
         raise BrokenDeviceException("Broken device")
+
+
+class MetadataDevice(Parameterizable):
+    value = Parameter()
+    position = Quantity(q.mm)
+
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
+        self._value = "ready"
+        self._position = 1 * q.mm
+        await self["position"].set_lower(-2 * q.mm)
+        await self["position"].set_upper(3 * q.mm)
+
+    async def _get_value(self):
+        return self._value
+
+    async def _get_position(self):
+        return self._position
+
+    async def _get_target_position(self):
+        return 2 * q.mm
+
+    async def _get_position_lower_external_limit(self):
+        return -5 * q.mm
+
+    async def _get_position_upper_external_limit(self):
+        return 5 * q.mm
 
 
 class VisitChecker(object):
@@ -503,6 +531,33 @@ class TestExperimentLogging(unittest.IsolatedAsyncioTestCase):
         await self._experiment.set_log_devices_at_finish(False)
         _ = await self._experiment.run()
         self.assertEqual(mock_device.log_to_json.call_count, 0)
+
+    async def test_device_metadata_is_structured(self):
+        device = await MetadataDevice()
+        self._experiment._devices_to_log = {"device": device}
+
+        metadata = json.loads(await self._experiment._prepare_metadata_str())
+
+        self.assertEqual(metadata["device"]["value"], {"value": "ready"})
+        self.assertEqual(
+            metadata["device"]["position"],
+            {
+                "value": "1 millimeter",
+                "target": "2 millimeter",
+                "limits": {
+                    "lower": {
+                        "effective": "-2 millimeter",
+                        "user": "-2 millimeter",
+                        "external": "-5 millimeter",
+                    },
+                    "upper": {
+                        "effective": "3 millimeter",
+                        "user": "3 millimeter",
+                        "external": "5 millimeter",
+                    },
+                },
+            },
+        )
 
     async def test_optional_device_logging(self):
         broken_device = await BrokenDevice()
