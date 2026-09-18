@@ -156,6 +156,15 @@ class DirectorTest(TestCase):
                                   name_fmt="director_{:03d}")
         self.assertEqual("director_{:03d}", await director.get_name_fmt())
 
+    async def test_walker_defaults_to_experiment_walker(self):
+        director = await Director(experiment=self.experiment, num_iterations=0)
+        self.assertIs(director.walker, self.experiment.walker)
+
+    async def test_walker_can_be_overridden(self):
+        walker = await DirectoryWalker(root=self._data_dir)
+        director = await Director(experiment=self.experiment, num_iterations=0, walker=walker)
+        self.assertIs(director.walker, walker)
+
 
 @slow
 class DirectorTestBrokenExperiment(TestCase):
