@@ -1783,6 +1783,30 @@ class RunnableParameterizable(Parameterizable):
         a dictionary which potentially encapsulates one or more dictionary
         objects.
         """
+        async def get_parameter_data(parameter):
+            param_data: dict[str, object] = {"value": str(await parameter.get())}
+            try:
+                param_data["target"] = str(await parameter.get_target())
+            except TargetAccessError:
+                pass
+
+            try:
+                param_data["limits"] = {
+                    "lower": {
+                        "effective": str(await parameter.get_lower()),
+                        "user": str(await parameter.get_lower_user()),
+                        "external": str(await parameter.get_lower_external()),
+                    },
+                    "upper": {
+                        "effective": str(await parameter.get_upper()),
+                        "user": str(await parameter.get_upper_user()),
+                        "external": str(await parameter.get_upper_external()),
+                    },
+                }
+            except AttributeError:
+                pass
+            return param_data
+
         metadata = {}
         exp_params = {}
         for param in self:
@@ -1791,14 +1815,14 @@ class RunnableParameterizable(Parameterizable):
         for name, device in self._devices_to_log.items():
             device_data = {}
             for param in device:
-                device_data[param.name] = str(await param.get())
+                device_data[param.name] = await get_parameter_data(param)
             metadata[name] = device_data
 
         for name, device in self._devices_to_log_optional.items():
             device_data = {}
             for param in device:
                 try:
-                    device_data[param.name] = str(await param.get())
+                    device_data[param.name] = await get_parameter_data(param)
                 except Exception as e:
                     self.log.info(f"Error while logging optional device {name}")
                     self.log.info(e)
