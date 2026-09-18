@@ -4,6 +4,7 @@ files creation.
 """
 import asyncio
 import inspect
+import json
 import logging
 import os.path as op
 import tempfile
@@ -15,7 +16,7 @@ from unittest.mock import patch
 
 import numpy as np
 import concert.config as cfg
-from concert.base import Parameterizable
+from concert.base import Parameter, Parameterizable, Quantity
 from concert.quantities import q
 from typing import Tuple
 from concert.coroutines.base import start
@@ -35,6 +36,7 @@ from concert.devices.cameras.dummy import Camera
 from concert.devices.shutters.dummy import Shutter
 from concert.devices.motors.dummy import LinearMotor
 from concert.helpers import CommData
+from concert.loghandler import RemoteLoggingHandler
 from concert.tests import TestCase, suppressed_logging, assert_almost_equal
 from concert.storage import DirectoryWalker, DummyWalker, RemoteDirectoryWalker
 from concert.tests.util.mocks import MockWalkerDevice
@@ -47,6 +49,33 @@ class BrokenDeviceException(Exception):
 class BrokenDevice(LinearMotor):
     async def _get_position(self):
         raise BrokenDeviceException("Broken device")
+
+
+class MetadataDevice(Parameterizable):
+    value = Parameter()
+    position = Quantity(q.mm)
+
+    async def __ainit__(self, **kwargs):
+        await super().__ainit__(**kwargs)
+        self._value = "ready"
+        self._position = 1 * q.mm
+        await self["position"].set_lower(-2 * q.mm)
+        await self["position"].set_upper(3 * q.mm)
+
+    async def _get_value(self):
+        return self._value
+
+    async def _get_position(self):
+        return self._position
+
+    async def _get_target_position(self):
+        return 2 * q.mm
+
+    async def _get_position_lower_external_limit(self):
+        return -5 * q.mm
+
+    async def _get_position_upper_external_limit(self):
+        return 5 * q.mm
 
 
 class VisitChecker(object):
@@ -142,9 +171,16 @@ class TestAcquisition(TestCase):
         self.acquisition.add_consumer(AcquisitionConsumer(self.consume))
 
     async def test_run(self):
-        await self.acquisition()
+        await self.acquisition.run()
         self.assertTrue(self.acquired)
         self.assertEqual(1, self.item)
+        self.assertEqual('standby', await self.acquisition.get_state())
+
+    async def test_run_is_the_only_execution_entrypoint(self):
+        self.assertFalse(hasattr(self.acquisition, '__call__'))
+
+        with self.assertRaises(TypeError):
+            self.acquisition()
 
     async def acquire(self):
         self.acquired = True
@@ -458,8 +494,8 @@ class TestExperimentLogging(unittest.IsolatedAsyncioTestCase):
             self._item = item
 
     async def test_experiment_logging(self) -> None:
-        self._experiment.set_log_devices_at_start(True)
-        self._experiment.set_log_devices_at_start(True)
+        await self._experiment.set_log_devices_at_start(True)
+        await self._experiment.set_log_devices_at_start(True)
         _ = await self._experiment.run()
         self.assertEqual(self._visited, len(self._experiment.acquisitions))
         self.assertEqual(self._acquired, len(self._experiment.acquisitions))
@@ -473,28 +509,55 @@ class TestExperimentLogging(unittest.IsolatedAsyncioTestCase):
         mock_device = self._walker.device.mock_device
 
         mock_device.reset_mock()
-        self._experiment.set_log_devices_at_start(True)
-        self._experiment.set_log_devices_at_finish(True)
+        await self._experiment.set_log_devices_at_start(True)
+        await self._experiment.set_log_devices_at_finish(True)
         _ = await self._experiment.run()
         self.assertEqual(mock_device.log_to_json.call_count, 2)
 
         mock_device.reset_mock()
-        self._experiment.set_log_devices_at_start(False)
-        self._experiment.set_log_devices_at_finish(True)
+        await self._experiment.set_log_devices_at_start(False)
+        await self._experiment.set_log_devices_at_finish(True)
         _ = await self._experiment.run()
         self.assertEqual(mock_device.log_to_json.call_count, 1)
 
         mock_device.reset_mock()
-        self._experiment.set_log_devices_at_start(True)
-        self._experiment.set_log_devices_at_finish(False)
+        await self._experiment.set_log_devices_at_start(True)
+        await self._experiment.set_log_devices_at_finish(False)
         _ = await self._experiment.run()
         self.assertEqual(mock_device.log_to_json.call_count, 1)
 
         mock_device.reset_mock()
-        self._experiment.set_log_devices_at_start(False)
-        self._experiment.set_log_devices_at_finish(False)
+        await self._experiment.set_log_devices_at_start(False)
+        await self._experiment.set_log_devices_at_finish(False)
         _ = await self._experiment.run()
         self.assertEqual(mock_device.log_to_json.call_count, 0)
+
+    async def test_device_metadata_is_structured(self):
+        device = await MetadataDevice()
+        self._experiment._devices_to_log = {"device": device}
+
+        metadata = json.loads(await self._experiment._prepare_metadata_str())
+
+        self.assertEqual(metadata["device"]["value"], {"value": "ready"})
+        self.assertEqual(
+            metadata["device"]["position"],
+            {
+                "value": "1 millimeter",
+                "target": "2 millimeter",
+                "limits": {
+                    "lower": {
+                        "effective": "-2 millimeter",
+                        "user": "-2 millimeter",
+                        "external": "-5 millimeter",
+                    },
+                    "upper": {
+                        "effective": "3 millimeter",
+                        "user": "3 millimeter",
+                        "external": "5 millimeter",
+                    },
+                },
+            },
+        )
 
     async def test_optional_device_logging(self):
         broken_device = await BrokenDevice()
@@ -504,6 +567,8 @@ class TestExperimentLogging(unittest.IsolatedAsyncioTestCase):
         # Test that the experiment fails when a non-optional device is broken
         with self.assertRaises(BrokenDeviceException):
             await self._experiment.run()
+        self.assertFalse(any(isinstance(handler, RemoteLoggingHandler)
+                             for handler in self._experiment.log.handlers))
 
         self._experiment._devices_to_log = {}
         self._experiment._devices_to_log_optional = {}
