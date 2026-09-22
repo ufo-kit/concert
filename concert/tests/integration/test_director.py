@@ -1,5 +1,6 @@
 import asyncio
 import concert
+import os
 import shutil
 import tempfile
 import logging
@@ -369,9 +370,10 @@ class TestDirectorLogging(unittest.IsolatedAsyncioTestCase):
         logging.disable(logging.NOTSET)
         self._visited = 0
         self._acquired = 0
-        self._root = "root"
+        self._root = os.path.join(tempfile.gettempdir(), f"concert-remote-{id(self)}")
+        self.assertFalse(os.path.exists(self._root))
         self._director_iter = 3
-        self._device = MockWalkerDevice()
+        self._device = MockWalkerDevice(root=self._root)
         self._walker = await RemoteDirectoryWalker(device=self._device, root=self._root)
         foo = await Acquisition(name="foo", producer_corofunc=self.produce)
         foo.add_consumer(AcquisitionConsumer(self.consume)), Tuple
@@ -407,7 +409,13 @@ class TestDirectorLogging(unittest.IsolatedAsyncioTestCase):
     async def test_director_logging(self) -> None:
         _ = await self._direxp.run()
         mock_device = self._walker.device.mock_device
-        mock_device.register_logger.assert_called()
+        mock_device.exists.assert_called()
+        self.assertIn(
+            ("TestableLoggingDirector", str(logging.NOTSET), "director.log"),
+            [call.args[0] for call in mock_device.register_logger.call_args_list],
+        )
         mock_device.log.assert_called()
         mock_device.deregister_logger.assert_called()
-        mock_device.log_to_json.assert_called()
+        metadata_filenames = [call.args[0][1] for call in mock_device.log_to_json.call_args_list]
+        self.assertIn("director_start.json", metadata_filenames)
+        self.assertIn("director_finish.json", metadata_filenames)
