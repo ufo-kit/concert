@@ -559,10 +559,9 @@ class RadiographyLogic(Experiment):
         await self.stop_sample_exposure()
         self._finished = True
 
-    @background
-    async def run(self):
+    async def early_prepare(self):
         self._finished = False
-        await super().run()
+        await super().early_prepare()
 
     @abstractmethod
     async def _take_darks(self):

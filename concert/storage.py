@@ -330,7 +330,8 @@ class DummyWalker(Walker):
         return self._paths
 
     async def exists(self, *paths) -> bool:
-        return os.path.join(*paths) in self._paths
+        path = os.path.join(*paths) if paths else self._current
+        return path in self._paths
 
     async def _get_current(self) -> str:
         return self._current
