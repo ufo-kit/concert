@@ -3,7 +3,6 @@
 import abc
 import asyncio
 import json
-import os
 import time
 
 import numpy as np
@@ -1870,7 +1869,7 @@ class RunnableParameterizable(Parameterizable):
                 if separate_scans:
                     await self.walker.descend((await self.get_name_fmt()).format(iteration))
                     descended = True
-                if os.path.exists(await self.walker.get_current()):
+                if await self.walker.exists():
                     handler: AsyncLoggingHandlerCloser = await self.walker.register_logger(
                         logger_name=self.__class__.__name__,
                         log_level=logging.NOTSET,

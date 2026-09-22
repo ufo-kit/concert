@@ -8,7 +8,7 @@ invocations, which we need for testing.
 """
 import os
 import unittest.mock as mock
-from typing import Sequence, Any, Tuple, List
+from typing import Sequence, Any, Tuple, List, Optional, Set
 try:
     import tango
 except ImportError:
@@ -26,11 +26,11 @@ class MockWalkerDevice:
     _root: str
     _current: str
     _registered_log_paths: List[str]
+    _paths: Set[str]
 
     def _side_effect_descend(self, dir_name: str) -> None:
         self._current = os.path.join(self._current, dir_name)
-        if not os.path.exists(self._current):
-            self._create_dir(self._current)
+        self._paths.add(self._current)
 
     def _side_effect_ascend(self) -> None:
         self._current = os.path.dirname(self._current)
@@ -39,21 +39,20 @@ class MockWalkerDevice:
         return os.path.join(self._current, args[2])
 
     def _side_effect_deregister_logger(self, log_path: str) -> str:
-        # Remove the scan directory only if it's empty and not the root.
-        if os.path.dirname(log_path) != self._root:
-            try:
-                os.rmdir(os.path.dirname(log_path))
-            except OSError:
-                # Directory not empty – leave it.
-                pass
+        pass
 
-    def __init__(self) -> None:
+    def _side_effect_exists(self, paths: Tuple[str, ...]) -> bool:
+        return os.path.join(self._current, *paths) in self._paths
+
+    def __init__(self, root: Optional[str] = None) -> None:
         self.mock_device = mock.AsyncMock()
-        self._root = os.environ["HOME"]
+        self._root = root or os.environ["HOME"]
         self._current = self._root
+        self._paths = {self._root}
         self._registered_log_paths = []
         self.mock_device.descend = mock.AsyncMock(side_effect=self._side_effect_descend)
         self.mock_device.ascend = mock.AsyncMock(side_effect=self._side_effect_ascend)
+        self.mock_device.exists = mock.AsyncMock(side_effect=self._side_effect_exists)
         self.mock_device.register_logger = mock.AsyncMock(
                 side_effect=self._side_effect_register_logger)  # noqa E126
         self.mock_device.deregister_logger = mock.AsyncMock(
@@ -90,13 +89,8 @@ class MockWalkerDevice:
     async def ascend(self) -> None:
         await self.mock_device.ascend()
 
-    @staticmethod
-    def _create_dir(directory: str, mode: int = 0o0750) -> None:
-        if not os.path.exists(directory):
-            os.makedirs(name=directory, mode=mode)
-
-    async def exists(self, paths: str) -> bool:
-        await self.mock_device.exists(paths=paths)
+    async def exists(self, paths: Tuple[str, ...]) -> bool:
+        return await self.mock_device.exists(paths=paths)
 
     async def write_sequence(self, name: str) -> None:
         await self.mock_device.write_sequence(name=name)
