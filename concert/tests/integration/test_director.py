@@ -151,6 +151,29 @@ class DirectorTest(TestCase):
         self.assertEqual(await self.director.get_state(), "standby")
         self.assertEqual(await self.experiment.get_iteration(), 5)
 
+    async def test_scan_iteration_does_not_overwrite_current_iteration(self):
+        self.assertEqual(await self.director.get_iteration(), 1)
+        self.assertEqual(await self.director.get_current_iteration(), 4)
+        self.assertEqual(await self.director.get_current_iteration_name(), "iteration_0004")
+
+        metadata_iterations = []
+        prepare_metadata = self.director._prepare_metadata_str
+
+        async def record_metadata_iterations():
+            metadata_iterations.append((
+                await self.director.get_iteration(),
+                await self.director.get_current_iteration(),
+                await self.director.get_current_iteration_name(),
+            ))
+            return await prepare_metadata()
+
+        with patch.object(self.director, "_prepare_metadata_str", record_metadata_iterations):
+            await self.director.run()
+
+        self.assertEqual(metadata_iterations[0], (1, 4, "iteration_0004"))
+        self.assertEqual(await self.director.get_iteration(), 2)
+        self.assertEqual(await self.director.get_current_iteration(), 4)
+
     async def test_constructor_arguments_are_forwarded(self):
         director = await Director(experiment=self.experiment, num_iterations=0,
                                   name_fmt="director_{:03d}")
