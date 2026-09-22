@@ -29,6 +29,7 @@ class Director(RunnableParameterizable):
         :type experiment: concert.experiments.base.Experiment
         """
         self._experiment = experiment
+        self._iteration = 0
         self._run_event = asyncio.Event()
         # Let us run by default
         self._run_event.set()

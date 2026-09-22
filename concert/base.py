@@ -1703,23 +1703,23 @@ class RunnableParameterizable(Parameterizable):
         self._separate_scans = separate_scans
         self._name_fmt = name_fmt
         self._current_name = ""
-        self._iteration = 0
+        self._scan_iteration = 0
 
         if separate_scans and walker:
             # The data is not supposed to be overwritten, so find an iteration which
             # hasn't been used yet
-            while await self.walker.exists(self._name_fmt.format(self._iteration)):
-                self._iteration += 1
+            while await self.walker.exists(self._name_fmt.format(self._scan_iteration)):
+                self._scan_iteration += 1
 
 
     async def _get_state(self):
         return await get_state_from_awaitable(self._run_awaitable)
 
     async def _get_iteration(self):
-        return self._iteration
+        return self._scan_iteration
 
     async def _set_iteration(self, iteration):
-        self._iteration = iteration
+        self._scan_iteration = iteration
 
     async def _get_current_name(self):
         return self._current_name
