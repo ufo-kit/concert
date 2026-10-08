@@ -1,12 +1,17 @@
+"""
+alignment.py
+------------
+Alignment routines for measurement stages.
+"""
 from dataclasses import dataclass
 import logging
 from typing import Callable, Tuple, Dict, Optional
 import numpy as np
+from numpy import ndarray
 import skimage.feature as sft
 import skimage.measure as sms
 import skimage.draw as sdr
 from skimage.measure._regionprops import RegionProperties
-import skimage.registration as skr
 from concert.coroutines.base import background
 from concert.devices.motors.base import LinearMotor, RotationMotor
 from concert.devices.cameras.base import Camera
@@ -15,12 +20,79 @@ from concert.ext.viewers import PyQtGraphViewer
 from concert.imageprocessing import flat_correct
 from concert.processes.common import ProcessError
 from concert.quantities import q, Quantity
-from concert.typing import ArrayLike, Motor_T
+from concert.typing import Motor_T
+
+
+LOG = logging.getLogger(__name__)
+
+
+def locate_template(frame: ndarray, patch: ndarray) -> Tuple[int, int, float]:
+    """
+    Return the template center (row, column) and maximum correlation score.
+
+    :param frame: projection of the alignment phantom
+    :type frame: ndarray
+    :param patch: localized patch of the alignment phantom
+    :type patch: ndarray
+    :return: template center (row, column) and maximum correlation score
+    :rtype: Tuple[int, int, float]
+    """
+    matched = sft.match_template(image=frame, template=patch, pad_input=True)
+    row, column = np.unravel_index(np.argmax(matched), matched.shape)
+    return int(row), int(column), float(np.max(matched))
+
+
+def log_residual(
+        logger: logging.Logger,
+        stage: str,
+        residual: Quantity,
+        tolerance: Quantity,
+        iterations: int,
+        max_iterations: int) -> None:
+    """
+    Logs measured residual distance error at different stages of alignment workflow.
+
+    :param logger: logger
+    :type logger: logging.Logger
+    :param stage: context for logging
+    :type stage: str
+    :param residual: residual distance error after max iterations are reached
+    :type residual: `concert.quantities.Quantity`
+    :param tolerance: distance tolerance for a motor
+    :type tolerance: `concert.quantities.Quantity`
+    :param iterations: current iteration of convergence
+    :type iterations: int
+    :param max_iterations: max iterations
+    :type max_iterations: int
+    """
+    converged = bool(abs(residual) <= tolerance)
+    logger.info("%s: residual=%s, tolerance=%s, iterations=%d, converged=%s",
+                stage, abs(residual), tolerance, iterations, converged)
+    if not converged and iterations >= max_iterations:
+        logger.warning("%s: iteration limit reached above tolerance", stage)
 
 
 class BacklashCompRelMovMixin:
     """
-    Facilitates backlash-compensated relative movement for motors.
+    Facilitates backlash-compensated relative movement for motors. When some specific routine to
+    account for the backlash is not implemented in the controller, motors often suffer from some
+    amount of potential backlash, leading to an imprecise movement. The amount of real backlash in
+    high precision motors is hard to estimate. The default compensation distances are 0.1 mm for
+    linear motors and 0.1 degrees for rotation motors, assuming the real backlash is smaller.
+    Backlash takes place when some movement makes the motor to change direction from +ve to -ve
+    or vice versa. We work with two subroutines, namely `preload` and `move`. For both routines our
+    objective is to approach all final motor movements toward +ve direction and at the end of
+    the movement align the motor position toward +ve side.
+
+    Before making adjustments with any motors preload attempts to make sure that the motor is
+    aligned towards the side of +ve movement by making a bigger move covering the backlash toward
+    -ve direction and then comeback all the way toward +ve direction.
+
+    Move assumes that the motor is preloaded toward +ve direction. When the required movement
+    is +ve it makes the move without any adjustment. In the alternative situation it makes the
+    -ve movement added with the compensatory amount in the same direction and then makes the
+    compensatory move only from -ve to +ve direction to make sure that at the end of the movement
+    the motor is again aligned toward +ve direction.
 
     - **bl_comp_lin**: relative movement distance to counter backlash for linear motors.
     - **bl_comp_rot**: relative movement distance to counter backlash for rotation motors.
@@ -64,7 +136,8 @@ class BacklashCompRelMovMixin:
 @dataclass
 class AcquisitionDevices:
     """
-    Encapsulates relevant devices which are collectively used for frame acquisition.
+    Encapsulates relevant devices which are collectively used to acquire frames from camera under
+    given positions of the rotary stage.
 
     - **camera**: reference to camera.
     - **shutter**: reference to shutter.
@@ -82,19 +155,19 @@ class AcquisitionDevices:
 @dataclass
 class AcquisitionContext(BacklashCompRelMovMixin):
     """
-    Encapsulates devices and configurations for frame acquisition.
+    Encapsulates devices and configurations to acquire frames from camera under given positions of
+    the rotary stage.
 
     - **devices**: reference to devices which are relevant for acquiring frames using camera.
     - **height**: height of the projections.
     - **width**: width of the projections.
-    - **flat_field_correct**: flag indicating if flat field correction should be done for the \
-        acquired frames.
-    - **absorptivity**: flag indicating if absorptivity needs to ve calculated.
+    - **flat_field_correct**: if flat field correction should be done for the projections.
+    - **absorptivity**: flag indicating if absorptivity needs to be calculated.
     - **flat_position**: optional position of the flat motor to move sample away from beam \
-        (only relevant if flat_field_correct` is true).
-    - **vert_crop_start**: vertical crop starting pixel, defaults to 0, meaning start from top
-        pixel.
-    - **vert_crop_end**: vertical crop end pixel, defaults to -1, meaning end at the last pixel.
+        (required when ``flat_field_correct`` is true).
+    - **vert_crop_start**: inclusive first row, defaults to 0.
+    - **vert_crop_end**: exclusive end row, defaults to None to include the final row. Explicit \
+        negative indices follow Python slicing; -1 excludes the final row.
     """
     devices: AcquisitionDevices
     height: int
@@ -103,13 +176,13 @@ class AcquisitionContext(BacklashCompRelMovMixin):
     absorptivity: bool
     flat_position: Optional[Quantity] = None
     vert_crop_start: int = 0
-    vert_crop_end: int = -1
+    vert_crop_end: Optional[int] = None
 
 
 @dataclass
 class AlignmentDevices:
     """
-    Encapsulates relevant devices for alignment fo which we might need to make frequent small
+    Encapsulates relevant devices for alignment for which we might need to make frequent small
     adjustments.
 
     - **rot_motor_pitch**: rotation motor for pitch angle correction.
@@ -120,30 +193,33 @@ class AlignmentDevices:
     """
     rot_motor_pitch: RotationMotor
     rot_motor_roll: RotationMotor
-    align_motor_pbd: Optional[LinearMotor]
-    align_motor_obd: Optional[LinearMotor]
+    align_motor_pbd: LinearMotor
+    align_motor_obd: LinearMotor
 
 
 @dataclass
 class AlignmentContext(BacklashCompRelMovMixin):
     """
-    Encapsulates devices and configurations for the alignment method.
+    Encapsulates devices and configurations for the alignment.
 
     - **devices**: reference to the devices, which are relevant for alignment of tomographic stage.
-    - **pixel_size_um**: pixel size in micrometer.
+    - **pixel_size_um**: calibrated sample-plane pixel size as a length quantity.
     - **max_iterations**: max iterations for alignment.
     - **pixel_sensitivity**: pixel sensitivity to derive a metric to evaluate alignment.
-    - **offset_tomo**: angular offset to be applied to tomographic rotation motor, defaults to no \
-        offset.
+    - **offset_tomo**: angular offset to be applied to tomographic rotation motor. \
+        Default implementation assumes no offset and linear alignment motor, which translates \
+        the sample orthogonal to the beam direction is oriented along the rotation range of \
+        [0, 180] degrees. This property gives the freedom to alter the default behavior by applying
+        and arbitrary rotation phase.
     - **off_cent_pbd**: off-centering distance for alignment motor moving parallel to beam.
     - **del_dist_lin**: linear delta distance to determine correct direction.
     - **del_dist_rot**: angular delta distance to determine correct direction.
     - **pixel_err_eps**: epsilon pixel error tolerance during centering the sample.
-    - **adjust_move**: proportional adjustment to be made before moving motors (experimental).
+    - **adjust_move**: divisor for sample-centering corrections (experimental); values above \
+        one reduce the correction distance.
     - **proc_func**: image processing function to separate sphere from background.
-    - **viewer**: optional viewer to display frames for debugging.
-    - **offset_method**: method to derive vertical and horizontal shifts, one of \
-        ["phase_cross_corr", "template_match"].
+    - **viewer**: optional viewer for the initial patch mosaic and alignment frames. No viewer \
+        is created by the algorithm.
     """
     devices: AlignmentDevices
     pixel_size_um: Quantity
@@ -155,20 +231,8 @@ class AlignmentContext(BacklashCompRelMovMixin):
     del_dist_rot: Quantity = 0.05 * q.deg
     pixel_err_eps: float = 2.0
     adjust_move: float = 1.0
-    proc_func: Callable[[ArrayLike], ArrayLike] = lambda x: x
+    proc_func: Callable[[ndarray], ndarray] = lambda x: x
     viewer: Optional[PyQtGraphViewer] = None
-    offset_method: str = "template_match"
-
-    TEMPLATE_MATCH: str = "template_match"
-    PHASE_CROSS_CORR: str = "phase_cross_corr"
-
-
-def get_noop_logger() -> logging.Logger:
-    """Provides a no-op logger"""
-    logger = logging.getLogger("no-op")
-    logger.addHandler(logging.NullHandler())
-    logger.propagate = False
-    return logger
 
 
 @dataclass
@@ -176,7 +240,7 @@ class AlignmentState:
     """
     Encapsulates elements of the state management for the alignment.
 
-    - **checkpoints**: last known motor positions for which sample was in FOV.
+    - **checkpoints**: motor positions recorded at initialization; not updated or used for recovery.
     - **patches**: contains a patch of our sample for each of the terminal angles.
     - **baseline_scores**: confidence scores for the sample being inside FOV.
     - **dark**: optional cached dark field.
@@ -186,22 +250,17 @@ class AlignmentState:
     - **score_epsilon**: maximum uncertainty to allow to conclude that the sample is in fact \
         inside FOV.
 
-    TODO: Checkpoint based system is not fully implemented yet. It is supposed to serve state
-    management during alignment and help in recovering from anomalies like sample going outside FOV.
-
-    The idea for the checkpoints dictionary is to track the last known 'good' motor positions for
-    which sample was definitely in FOV.
-
-    Additionally, we need a stack data structure which should maintain a history of the
-    chronological motor movements. At any given point in time if we detect the sample outside FOV
-    from `checkpoints` and `history` we can derive which motor movement caused it and try to recover
-    from it.
+    NOTE: The idea for the checkpoints dictionary is to track the last known 'good' motor positions
+    for which sample was definitely in FOV. It is supposed to eventually serve state management
+    during alignment and help in recovering from anomalies like sample going outside FOV.
+    Implementation for checkpoints-based recovery system is still in planning. Until it is
+    implemented alignment relies on sample strictly remaining inside FOV during the process.
     """
     checkpoints: Dict[str, Quantity]
-    patches: Dict[str, ArrayLike]
+    patches: Dict[str, ndarray]
     baseline_scores: Dict[str, float]
-    dark: Optional[ArrayLike] = None
-    flat: Optional[ArrayLike] = None
+    dark: Optional[ndarray] = None
+    flat: Optional[ndarray] = None
     sphere_radius: Optional[int] = None
     dim: int = 200
     score_epsilon: float = 0.2
@@ -217,35 +276,34 @@ class AlignmentState:
         val += f"Sphere Radius = {self.sphere_radius}"
         return val
 
-    def sample_in_FOV(self, frame: ArrayLike, angle: int) -> bool:
+    def sample_in_FOV(self, frame: ndarray, angle: int) -> bool:
         """
         Evaluates if sample is inside FOV for the given `frame` by evaluating the
         confidence score against baseline score for given `angle`.
 
         :param frame: projection to evaluate
-        :type frame: `concert.typing.ArrayLike`
+        :type frame: `numpy.ndarray`
         :param angle: angle to select the patch and score
         :type angle: int
         :return: if sample inside FOV
         :rtype: bool
         """
-        score: float = np.max(
-            sft.match_template(image=frame, template=self.patches[str(angle)], pad_input=True))
+        _, _, score = locate_template(frame, self.patches[str(angle)])
         return abs(self.baseline_scores[str(angle)] - abs(score)) < self.score_epsilon
 
 
-async def acquire_frame(acq_ctx: AcquisitionContext, align_state: AlignmentState) -> ArrayLike:
+async def acquire_frame(acq_ctx: AcquisitionContext, align_state: AlignmentState) -> ndarray:
     """
     Acquires a single frame using context provided for acquisition.
 
-    :param ctx: context for acquisition
-    :type ctx: `concert.processes.alignment.AcquisitionContext`
+    :param acq_ctx: context for acquisition
+    :type acq_ctx: `concert.processes.alignment.AcquisitionContext`
     :param align_state: state for alignment
-    :type align_state: `concert.processes.alignment.AcquisitionState`
+    :type align_state: `concert.processes.alignment.AlignmentState`
     :return: acquired frame
-    :rtype: `concert.typing.ArrayLike`
+    :rtype: `numpy.ndarray`
     """
-    frame: ArrayLike = await acq_ctx.devices.camera.grab()
+    frame: ndarray = await acq_ctx.devices.camera.grab()
     if acq_ctx.flat_field_correct:
         if align_state.dark is None:
             if await acq_ctx.devices.shutter.get_state() != 'closed':
@@ -267,7 +325,7 @@ async def acquire_frame(acq_ctx: AcquisitionContext, align_state: AlignmentState
 async def init_alignment_state(
         acq_ctx: AcquisitionContext,
         align_ctx: AlignmentContext,
-        logger: logging.Logger = get_noop_logger()) -> AlignmentState:
+        logger: logging.Logger = LOG) -> AlignmentState:
     """
     Initializes alignment state.
 
@@ -276,18 +334,32 @@ async def init_alignment_state(
         - extract a patch containing the sample,
         - derive sphere radius,
         - use template matching to get a baseline confidence score,
-        - show extracted patch using runtime viewer as sanity check.
+    - If a viewer is supplied, show all four patches in one square mosaic.
 
     :param acq_ctx: context for acquisition
     :type acq_ctx: `concert.processes.alignment.AcquisitionContext`
     :param align_ctx: context for alignment
     :type align_ctx: `concert.processes.alignment.AlignmentContext`
+    :param logger: logger, defaults to the module logger
+    :type logger: logging.Logger
     :return: initial alignment state
     :rtype: `concert.processes.alignment.AlignmentState`
     """
-    logger.debug = print  # TODO: For quick debugging, remove later
+    def _patch_mosaic(patches: Dict[str, ndarray]) -> ndarray:
+        """Make a padded square preview with 0/90 degrees above 180/270 degrees"""
+        angles = ("0", "90", "180", "270")
+        side = max(max(patches[angle].shape) for angle in angles)
+        preview = np.zeros((2 * side, 2 * side),
+                        dtype=np.result_type(*(patches[angle].dtype for angle in angles)))
+        for index, angle in enumerate(angles):
+            patch = patches[angle]
+            height, width = patch.shape
+            row = (index // 2) * side + (side - height) // 2
+            column = (index % 2) * side + (side - width) // 2
+            preview[row:row + height, column:column + width] = patch
+        return preview
 
-    logger.debug("Start: state initialization before alignment.")
+    logger.info("Start: state initialization before alignment.")
     state = AlignmentState(checkpoints={}, patches={}, baseline_scores={})
     # Record all relevant motor positions
     for motor_str in ["flat_motor", "z_motor"]:
@@ -298,8 +370,8 @@ async def init_alignment_state(
     try:
         for angle in [0, 90, 180, 270]:
             await acq_ctx.devices.tomo_motor.set_position(angle * q.deg + align_ctx.offset_tomo)
-            frame: ArrayLike = await acquire_frame(acq_ctx=acq_ctx, align_state=state)
-            mask: ArrayLike = align_ctx.proc_func(frame)
+            frame: ndarray = await acquire_frame(acq_ctx=acq_ctx, align_state=state)
+            mask: ndarray = align_ctx.proc_func(frame)
             region: RegionProperties = sorted(
                 sms.regionprops(label_image=sms.label(mask)),
                 key=lambda r: r.eccentricity)[0]
@@ -308,16 +380,17 @@ async def init_alignment_state(
             state.patches[str(angle)] = frame[cnt_y - dim:cnt_y + dim, cnt_x - dim:cnt_x + dim]
             if not state.sphere_radius:
                 state.sphere_radius = int(region.perimeter / (2 * np.pi))
-            state.baseline_scores[str(angle)] = np.max(
-                sft.match_template(image=frame, template=state.patches[str(angle)], pad_input=True))
-            viewer = await PyQtGraphViewer(show_refresh_rate=True)
-            await viewer.set_title(f"Angle = {str(angle)}")
-            await viewer.show(state.patches[str(angle)])
+            _, _, state.baseline_scores[str(angle)] = locate_template(
+                frame, state.patches[str(angle)])
+        if align_ctx.viewer:
+            await align_ctx.viewer.set_title("Alignment patches: 0° | 90° / 180° | 270°")
+            await align_ctx.viewer.show(_patch_mosaic(state.patches))
     except Exception:
         raise ProcessError("review proc_func and ensure 360 rotation is possible within FOV")
     finally:
         await acq_ctx.devices.tomo_motor.set_position(0 * q.deg + align_ctx.offset_tomo)
     logger.debug(f"Done: state initialized as:\n{state}")
+    logger.info("State initialization finished.")
     return state
 
 
@@ -338,51 +411,33 @@ async def get_sample_shifts(
     :type align_state: `concert.processes.alignment.AlignmentState`
     :param tomo_angle: initial angle(degrees) to set before measuring offset
     :type tomo_angle: `concert.quantities.Quantity`
-    :return: vertical shift of sample caused by misalignment and distance of sample from center
-    of rotation
+    :return: full absolute vertical separation and half the absolute horizontal separation,
+        both in pixels
     :rtype: Tuple[float, float]
     """
 
     async def _shifts(
-            ref_img: ArrayLike, mov_img: ArrayLike, tomo_angle: int) -> Tuple[float, float]:
-        """
-        Derives vertical and horizontal shifts using either phase_cross_correlation of
-        frames or matching pre-recorded template patches on individual frames.
-        """
-        ver_shift, hor_shift = 0, 0
-        vis_frame: ArrayLike = ref_img + mov_img
-        if align_ctx.offset_method == align_ctx.PHASE_CROSS_CORR:
-            shift_yx, _, _ = skr.phase_cross_correlation(
-                reference_image=ref_img, moving_image=mov_img, upsample_factor=4)
-            ver_shift, hor_shift = abs(shift_yx[0]), abs(shift_yx[1]) / 2
-        if align_ctx.TEMPLATE_MATCH:
-            ref_patch: ArrayLike = align_state.patches[str(tomo_angle)]
-            mov_patch: ArrayLike = align_state.patches[str(tomo_angle + 180)]
-            ref_match: ArrayLike = sft.match_template(
-                image=ref_img, template=ref_patch, pad_input=True)
-            mov_match: ArrayLike = sft.match_template(
-                image=mov_img, template=mov_patch, pad_input=True)
-            ref_ind: ArrayLike = np.unravel_index(np.argmax(ref_match), ref_match.shape)
-            ref_x, ref_y = ref_ind[::-1]
-            mov_ind: ArrayLike = np.unravel_index(np.argmax(mov_match), mov_match.shape)
-            mov_x, mov_y = mov_ind[::-1]
-            ver_shift, hor_shift =  abs(mov_y - ref_y), abs(mov_x - ref_x) / 2
-            if align_ctx.viewer:
-                ref_rows, ref_cols = sdr.disk(center=(ref_y, ref_x), radius=12)
-                move_rows, move_cols = sdr.disk(center=(mov_y, mov_x), radius=12)
-                vis_frame[ref_rows, ref_cols] = np.min(vis_frame)
-                vis_frame[move_rows, move_cols] = np.min(vis_frame)
+            ref_img: ndarray, mov_img: ndarray, tomo_angle: int) -> Tuple[float, float]:
+        """Locate the angle-specific templates and derive unsigned shifts in pixels."""
+        ref_y, ref_x, _ = locate_template(ref_img, align_state.patches[str(tomo_angle)])
+        mov_y, mov_x, _ = locate_template(mov_img, align_state.patches[str(tomo_angle + 180)])
+        ver_shift, hor_shift = abs(mov_y - ref_y), abs(mov_x - ref_x) / 2
         if align_ctx.viewer:
+            vis_frame: ndarray = ref_img + mov_img
+            ref_rows, ref_cols = sdr.disk(center=(ref_y, ref_x), radius=12)
+            move_rows, move_cols = sdr.disk(center=(mov_y, mov_x), radius=12)
+            vis_frame[ref_rows, ref_cols] = np.min(vis_frame)
+            vis_frame[move_rows, move_cols] = np.min(vis_frame)
             await align_ctx.viewer.show(vis_frame)
-            await align_ctx.viewer.set_title(f"ver_shift = {abs(ver_shift)} hor_shift={hor_shift}")
+            await align_ctx.viewer.set_title(f"ver_shift = {ver_shift} hor_shift={hor_shift}")
         return ver_shift, hor_shift
 
     await acq_ctx.devices.tomo_motor.set_position(tomo_angle + align_ctx.offset_tomo)
-    ref_img: ArrayLike = await acquire_frame(acq_ctx=acq_ctx, align_state=align_state)
+    ref_img: ndarray = await acquire_frame(acq_ctx=acq_ctx, align_state=align_state)
     if not align_state.sample_in_FOV(frame=ref_img, angle=tomo_angle.magnitude):
         raise ProcessError("sample went outside FOV, aborting")
     await acq_ctx.devices.tomo_motor.move(180 * q.deg)
-    mov_img: ArrayLike = await acquire_frame(acq_ctx=acq_ctx, align_state=align_state)
+    mov_img: ndarray = await acquire_frame(acq_ctx=acq_ctx, align_state=align_state)
     if not align_state.sample_in_FOV(frame=mov_img, angle=tomo_angle.magnitude + 180):
         raise ProcessError("sample went outside FOV, aborting")
     await acq_ctx.devices.tomo_motor.move(-180 * q.deg)
@@ -393,7 +448,7 @@ async def center_sample_on_axis(
         acq_ctx: AcquisitionContext,
         align_ctx: AlignmentContext,
         align_state: AlignmentState,
-        logger: logging.Logger = get_noop_logger()) -> None:
+        logger: logging.Logger = LOG) -> None:
     """
     Adjusts alignment motors orthogonal to the beam direction, `align_motor_obd` and parallel
     to the beam direction, `align_motor_pbd` to center the sample on rotation axis.
@@ -404,11 +459,9 @@ async def center_sample_on_axis(
     :type align_ctx: `concert.processes.alignment.AlignmentContext`
     :param align_state: alignment state
     :type align_state: `concert.processes.alignment.AlignmentState`
-    :param logger: optional logger
+    :param logger: logger, defaults to the module logger
     :type logger: logging.Logger
     """
-    logger.debug = print  # TODO: For quick debugging, remove later
-
     async def _step_center(motor: LinearMotor, curr_offset: float, tomo_angle: Quantity) -> float:
         """Makes one step of linear motor adjustment toward center of rotation"""
         await align_ctx.move(motor=motor, distance=align_ctx.del_dist_lin)
@@ -436,7 +489,8 @@ async def center_sample_on_axis(
             motor=align_ctx.devices.align_motor_obd, curr_offset=offset_obd, tomo_angle=0 * q.deg)
         logger.debug(f">>>> centering-obd iter = {obd_iter} offset_obd = {offset_obd}")
         obd_iter += 1
-    logger.debug(f">> after: offset_obd = {offset_obd}")
+    log_residual(logger, "Sample centering OBD", offset_obd * q.px,
+                  align_ctx.pixel_err_eps * q.px, obd_iter, align_ctx.max_iterations)
 
     # Make step adjustment for alignment motor parallel to beam direction.
     _, offset_pbd = await get_sample_shifts(
@@ -448,7 +502,8 @@ async def center_sample_on_axis(
             motor=align_ctx.devices.align_motor_pbd, curr_offset=offset_pbd, tomo_angle=90 * q.deg)
         logger.debug(f">>>> centering-pbd iter = {pbd_iter} offset_pbd = {offset_pbd}")
         pbd_iter += 1
-    logger.debug(f">> after: offset_pbd = {offset_pbd}")
+    log_residual(logger, "Sample centering PBD", offset_pbd * q.px,
+                  align_ctx.pixel_err_eps * q.px, pbd_iter, align_ctx.max_iterations)
 
 
 async def offset_from_projection_center(
@@ -461,19 +516,16 @@ async def offset_from_projection_center(
     :param acq_ctx: context for acquisition
     :type acq_ctx: `concert.processes.alignment.AcquisitionContext`
     :param align_state: managed state for alignment
-    :type align_state: `concert.processes.alignment.AlignmentContext`
-    :param tomo_angle: angle of the tomo rotation motor
-    :type tomo_angle: `concert.quantities.Quantity`
-    :return: distance between the geometric center of projection and center of mass
+    :type align_state: `concert.processes.alignment.AlignmentState`
+    :return: absolute vertical and horizontal distances in pixels between the projection center
+        and template-localized sphere position; assumes the reference tomography angle
     :rtype: Tuple[float, float]
     """
-    frame: ArrayLike = await acquire_frame(acq_ctx=acq_ctx, align_state=align_state)
+    frame: ndarray = await acquire_frame(acq_ctx=acq_ctx, align_state=align_state)
     patch = align_state.patches["0"]
-    matched = sft.match_template(image=frame, template=patch, pad_input=True)
-    indices = np.unravel_index(np.argmax(matched), matched.shape)
-    xcm, ycm = indices[::-1]
+    sample_y, sample_x, _ = locate_template(frame, patch)
     yc_proj, xc_proj = frame.shape[0] / 2, frame.shape[1] / 2
-    z_offset, stage_offset = abs(yc_proj - ycm), abs(xc_proj - xcm)
+    z_offset, stage_offset = abs(yc_proj - sample_y), abs(xc_proj - sample_x)
     return z_offset, stage_offset
 
 
@@ -481,7 +533,7 @@ async def center_axis_in_projection(
         acq_ctx: AcquisitionContext,
         align_ctx: AlignmentContext,
         align_state: AlignmentState,
-        logger: logging.Logger = get_noop_logger()) -> None:
+        logger: logging.Logger = LOG) -> None:
     """
     Adjusts the vertical `z_motor` and horizontal stage `flat_motor` to put the rotation axis
     in the middle of the projection.
@@ -492,11 +544,9 @@ async def center_axis_in_projection(
     :type align_ctx: `concert.processes.alignment.AlignmentContext`
     :param align_state: managed state for alignment
     :type align_state: `concert.processes.alignment.AlignmentState`
-    :param logger: optional logger
+    :param logger: logger, defaults to the module logger
     :type logger: logging.Logger
     """
-    logger.debug = print  # TODO: For quick debugging, remove later
-
     offset_types = {"z_offset": 0, "stage_offset": 1}
 
     async def _step_center(motor: LinearMotor, curr_offset: float, offset_type: str) -> float:
@@ -509,7 +559,7 @@ async def center_axis_in_projection(
             curr_offset = -curr_offset
         await acq_ctx.move(motor=motor, distance=curr_offset * align_ctx.pixel_size_um)
         if align_ctx.viewer:
-            frame: ArrayLike = await acquire_frame(acq_ctx=acq_ctx, align_state=align_state)
+            frame: ndarray = await acquire_frame(acq_ctx=acq_ctx, align_state=align_state)
             await align_ctx.viewer.show(frame)
         return (await offset_from_projection_center(
             acq_ctx=acq_ctx, align_state=align_state))[offset_types[offset_type]]
@@ -524,7 +574,8 @@ async def center_axis_in_projection(
             motor=acq_ctx.devices.z_motor, curr_offset=z_offset, offset_type="z_offset")
         z_offset_iter += 1
         logger.debug(f">>>> z iter = {z_offset_iter} z_offset = {z_offset}")
-    logger.debug(f">> after: z_offset = {z_offset}")
+    log_residual(logger, "Projection centering vertical", z_offset * q.px,
+                  align_ctx.pixel_err_eps * q.px, z_offset_iter, align_ctx.max_iterations)
 
     # Make step adjustment for stage (flat) motor (horizontally orthogonal to beam direction)
     _, stage_offset = await offset_from_projection_center(acq_ctx=acq_ctx, align_state=align_state)
@@ -535,17 +586,22 @@ async def center_axis_in_projection(
             motor=acq_ctx.devices.flat_motor, curr_offset=stage_offset, offset_type="stage_offset")
         stage_offset_iter += 1
         logger.debug(f">>>> stage iter = {stage_offset_iter} stage_offset = {stage_offset}")
-    logger.debug(f">> after: stage_offset = {stage_offset}")
+    log_residual(logger, "Projection centering horizontal", stage_offset * q.px,
+                  align_ctx.pixel_err_eps * q.px, stage_offset_iter, align_ctx.max_iterations)
 
 
 @background
-async def align_tomography_generic(
+async def align_tomo_stage_parallel_beam(
         acq_ctx: AcquisitionContext,
         align_ctx: AlignmentContext,
         align_state: AlignmentState,
-        logger: logging.Logger = get_noop_logger()) -> None:
+        logger: logging.Logger = LOG) -> None:
     """
-    Aligns rotation stage for parallel beam CT geometry.
+    Runs sample centering and sequential pitch/roll correction for parallel-beam CT geometry.
+
+    Initialize ``align_state`` separately before calling. Each stage logs its residual and
+    convergence status. Reaching an iteration cap does not raise or stop subsequent stages;
+    returning None does not guarantee that all tolerances were met.
 
     :param acq_ctx: context for acquisition
     :type acq_ctx: `concert.processes.alignment.AcquisitionContext`
@@ -553,11 +609,9 @@ async def align_tomography_generic(
     :type align_ctx: `concert.processes.alignment.AlignmentContext`
     :param align_state: state managed for alignment
     :type align_state: `concert.processes.alignment.AlignmentState`
-    :param logger: optional logger
+    :param logger: logger, defaults to the module logger
     :type logger: logging.Logger
     """
-    logger.debug = print  # TODO: For quick debugging, remove later
-
     def _flush_flat_fields() -> None:
         """Force acquiring new flat fields"""
         align_state.dark = None
@@ -586,41 +640,37 @@ async def align_tomography_generic(
         logger.debug(f"After Correction Motor Position = {await rot_motor.get_position()}")
         return await _get_ang_err(off_cent_px=off_cent_px)
 
-    func_name = "align_rotation_stage_comparative"
-    logger.debug("#" * 3 * len(f"Start: {func_name}"))
-    logger.debug(f"{func_name}")
-    logger.debug("#" * 3 * len(f"Start: {func_name}"))
+    logger.info("Start: tomography alignment procedure.")
     # Preload for backlash-compensated movement.
-    logger.debug("Start: preload for backlash compensation.")
+    logger.info("Start: preload for backlash compensation.")
     await acq_ctx.preload(acq_ctx.devices.flat_motor)
     await acq_ctx.preload(acq_ctx.devices.z_motor)
     await align_ctx.preload(align_ctx.devices.align_motor_obd)
     await align_ctx.preload(align_ctx.devices.align_motor_pbd)
     await align_ctx.preload(align_ctx.devices.rot_motor_roll)
     await align_ctx.preload(align_ctx.devices.rot_motor_pitch)
-    logger.debug("Done: preload.")
+    logger.info("Done: preload.")
     # Bring sample onto the center of rotation.
-    logger.debug("Start: centering sample on axis.")
+    logger.info("Start: centering sample on axis.")
     await center_sample_on_axis(
         acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, logger=logger)
-    logger.debug("Done: sample centered on axis.")
+    logger.info("Sample centering stage finished.")
     # Bring center of rotation to the center of projection. This is a prerequisite to deriving
     # the offset distance for roll correction.
-    logger.debug("Start: centering axis in projection.")
+    logger.info("Start: centering axis in projection.")
     await center_axis_in_projection(
         acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, logger=logger)
-    logger.debug("Done: axis centered in projection.")
-    logger.debug("Start: alignment.")
-    # Alignment metric is a measure of resolution sensitivity. We derive it as an angular threshold,
-    # which represents maximum #pixels of resolution loss vertically against projection width
-    # pixels horizontally.
+    logger.info("Projection centering stage finished.")
+    logger.info("Start: alignment.")
+    # Geometric angular threshold: allowed vertical pixel displacement across projection width.
+    # This criterion does not establish reconstruction resolution.
     metric: Quantity = np.rad2deg(np.arctan(align_ctx.pixel_sensitivity / acq_ctx.width)) * q.deg
     logger.debug(f"Calculated: alignment metric: {metric}")
     # Off-center the sample parallel to beam direction and iteratively correct pitch angle
     # misalignment.
     _flush_flat_fields()
     await acq_ctx.devices.tomo_motor.set_position(0 * q.deg + align_ctx.offset_tomo)
-    logger.debug("Start: off-centering for pitch correction.")
+    logger.info("Start: off-centering for pitch correction.")
     off_cent_px_pitch: float = (align_ctx.off_cent_pbd.to(q.um) / align_ctx.pixel_size_um).magnitude
     await align_ctx.move(
         motor=align_ctx.devices.align_motor_pbd,
@@ -635,21 +685,22 @@ async def align_tomography_generic(
             curr_err=pitch_ang_err)
         pitch_iter += 1
         logger.debug(f"::::pitch-correction iteration: {pitch_iter} pitch: {abs(pitch_ang_err)}")
-    logger.debug(f"::pitch after iterations: {abs(pitch_ang_err)}")
+    log_residual(logger, "Pitch correction", pitch_ang_err, metric,
+                  pitch_iter, align_ctx.max_iterations)
     await align_ctx.move(
         motor=align_ctx.devices.align_motor_pbd,
         distance=-align_ctx.off_cent_pbd)
-    logger.debug("Done: came back from off-centering for pitch correction.")
+    logger.info("Done: came back from off-centering for pitch correction.")
     # Off-center the sample orthogonal to beam direction and iteratively correct roll angle
     # misalignment. Off-centering for roll is towards the right edge of the projection short by
     # twice of sphere diameter.
-    # TODO: Understand, if it is necessary to bring the sample back to rotation axis and center
+    # NOTE: Understand, if it is necessary to bring the sample back to rotation axis and center
     # axis to projection before calculating roll angle for each iteration. It is possible because
     # in the off-centered state making roll angle adjustments may send the sample outside FOV and
     # then immediate next roll angle estimation will fail.
     _flush_flat_fields()
     await acq_ctx.devices.tomo_motor.set_position(0 * q.deg + align_ctx.offset_tomo)
-    logger.debug("Start: off-centering for roll correction.")
+    logger.info("Start: off-centering for roll correction.")
     off_cent_px_roll: float = (acq_ctx.width // 2) - (4 * align_state.sphere_radius)
     await align_ctx.move(
         motor=align_ctx.devices.align_motor_obd,
@@ -664,13 +715,14 @@ async def align_tomography_generic(
             curr_err=roll_ang_err)
         roll_iter += 1
         logger.debug(f"::::roll-correction iteration: {roll_iter} roll: {abs(roll_ang_err)}")
-    logger.debug(f"::roll after iterations: {abs(roll_ang_err)}")
+    log_residual(logger, "Roll correction", roll_ang_err, metric,
+                  roll_iter, align_ctx.max_iterations)
     await align_ctx.move(
         motor=align_ctx.devices.align_motor_obd,
         distance=-off_cent_px_roll * align_ctx.pixel_size_um)
-    logger.debug("Done: came back from off-centering for roll correction.")
-    logger.debug("Start: centering sample in projection.")
+    logger.info("Done: came back from off-centering for roll correction.")
+    logger.info("Start: centering sample in projection.")
     await center_axis_in_projection(
         acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, logger=logger)
-    logger.debug("Done: sample centered in projection.")
-    logger.debug("Done: alignment.")
+    logger.info("Final projection centering stage finished.")
+    logger.info("Tomography alignment procedure finished; see stage residuals.")
