@@ -325,16 +325,23 @@ async def acquire_frame(acq_ctx: AcquisitionContext, align_state: AlignmentState
 
 
 async def _acquire_preview_frame(acq_ctx: AcquisitionContext,
-                                 align_state: AlignmentState) -> ndarray:
-    """Acquire using cached references only, without moving devices or operating the shutter."""
+                                 align_state: AlignmentState) -> Tuple[ndarray, ndarray]:
+    """Return a finite preview and invalid-pixel mask, using only cached references."""
     raw_ctx = replace(acq_ctx, flat_field_correct=False, absorptivity=False)
     frame = await acquire_frame(raw_ctx, align_state)
     if acq_ctx.flat_field_correct:
         rows = slice(acq_ctx.vert_crop_start, acq_ctx.vert_crop_end)
         frame = flat_correct(frame, align_state.flat[rows, :], align_state.dark[rows, :])
+    frame = np.asarray(frame, dtype=float)
+    valid = np.isfinite(frame)
     if acq_ctx.absorptivity:
-        frame = np.nan_to_num(-np.log(frame))
-    return frame
+        valid &= frame > 0
+        preview = np.zeros_like(frame)
+        np.log(frame, out=preview, where=valid)
+        preview *= -1
+    else:
+        preview = np.where(valid, frame, 0)
+    return preview, ~valid
 
 
 def _estimate_preview_tilts(positions: Dict[int, Tuple[int, int]]) -> Optional[Dict[str, Quantity]]:
@@ -346,6 +353,8 @@ def _estimate_preview_tilts(positions: Dict[int, Tuple[int, int]]) -> Optional[D
     abs(a*d-b*c)/(a*a+b*b). Both pairs are needed for arbitrary off-centering.
     A zero lever arm cannot constrain tilt, even though atan2(0, 0) is finite.
     """
+    if not all(angle in positions for angle in (0, 90, 180, 270)):
+        return None
     try:
         with np.errstate(over='raise', under='raise', invalid='raise', divide='raise'):
             y0, x0 = positions[0]
@@ -370,37 +379,42 @@ def _estimate_preview_tilts(positions: Dict[int, Tuple[int, int]]) -> Optional[D
 def _compose_alignment_preview(frames: Dict[int, ndarray],
                                positions: Dict[int, Tuple[int, int]],
                                pixel_size: Quantity, debug: bool = False):
-    """Stack midpoint-centered crops, preserving source coordinates in the labels."""
+    """Stack cropped pairs with summary labels, centroid dots, and panel outlines."""
     height, width = frames[0].shape
-    panels, labels, markers = [], [], []
+    panels, labels, markers, outlines = [], [], [], []
     row_offset = 0
     for first, second, panel_height, color in (
             (0, 180, height // 2, (255, 130, 100)),
             (90, 270, height - height // 2, (100, 220, 180))):
-        y1, x1 = positions[first]
-        y2, x2 = positions[second]
-        start = int(round((y1 + y2) / 2)) - panel_height // 2
+        available = [positions[a] for a in (first, second) if a in positions]
+        midpoint = np.mean([p[0] for p in available]) if available else height / 2
+        start = int(round(midpoint)) - panel_height // 2
         start = max(0, min(start, height - panel_height))
         # Float arithmetic avoids integer overflow when merging camera frames.
-        merged = frames[first].astype(float) + frames[second].astype(float)
+        with np.errstate(over='ignore', invalid='ignore'):
+            merged = frames[first].astype(float) + frames[second].astype(float)
+        merged = np.nan_to_num(merged, nan=0, posinf=0, neginf=0)
         panels.append(merged[start:start + panel_height, :])
-        horizontal_px = abs(x2 - x1) / 2
-        horizontal_mm = (horizontal_px * pixel_size).to(q.mm).magnitude
-        text = (f"{first}° / {second}° relative to reference\n"
-                f"Half horizontal offset: {horizontal_mm:.5g} mm ({horizontal_px:g} px)\n"
-                f"Vertical separation: {abs(y2 - y1):g} px")
+        text = f"{first}° / {second}° relative to reference\n"
+        if len(available) == 2:
+            (y1, x1), (y2, x2) = available
+            horizontal_px = abs(x2 - x1) / 2
+            horizontal_mm = (horizontal_px * pixel_size).to(q.mm).magnitude
+            text += (f"Half horizontal offset: {horizontal_mm:.5g} mm ({horizontal_px:g} px)\n"
+                     f"Vertical separation: {abs(y2 - y1):g} px")
+        else:
+            text += "Localization unavailable"
         if debug:
             text += f"\nSource crop: rows {start}:{start + panel_height}"
-        labels.append(dict(text=text, position=(12, row_offset + 12), color=color))
-        for angle, y, x in ((first, y1, x1), (second, y2, x2)):
+        labels.append(dict(text=text, position=(12, row_offset + panel_height - 12),
+                           color=color, anchor=(0, 1), font_size=12))
+        outlines.append(dict(position=(0, row_offset), size=(width, panel_height),
+                             color=color, width=2))
+        for y, x in available:
             position = (x, y - start + row_offset)
             markers.append(dict(position=position, color=color))
-            labels.append(dict(text=f"{angle}° ({x}, {y})",
-                               position=(min(x + 12, max(0, width - 180)),
-                                         max(row_offset, min(position[1] + 12,
-                                             row_offset + panel_height - 24))), color=color))
         row_offset += panel_height
-    return np.vstack(panels), labels, markers
+    return np.vstack(panels), labels, markers, outlines
 
 
 def _preview_references_available(acq_ctx: AcquisitionContext, state: AlignmentState,
@@ -423,12 +437,26 @@ async def _display_alignment_state(acq_ctx: AcquisitionContext, align_ctx: Align
     try:
         for angle in (0, 90, 180, 270):
             await acq_ctx.devices.tomo_motor.set_position(angle * q.deg + align_ctx.offset_tomo)
-            frames[angle] = await _acquire_preview_frame(acq_ctx, state)
-            y, x, _ = locate_template(frames[angle], state.patches[str(angle)])
-            positions[angle] = (y, x)
+            frame, invalid = await _acquire_preview_frame(acq_ctx, state)
+            frames[angle] = frame
+            logger.debug("Preview angle=%s°: invalid pixels=%s/%s", angle,
+                         np.count_nonzero(invalid), invalid.size)
+            score = float('nan')
+            if not invalid.all() and np.min(frame) != np.max(frame):
+                with np.errstate(over='ignore', invalid='ignore', divide='ignore'):
+                    y, x, score = locate_template(frame, state.patches[str(angle)])
+                baseline = state.baseline_scores[str(angle)]
+                if (np.all(np.isfinite((y, x, score, baseline))) and score > 0
+                        and abs(baseline - abs(score)) < state.score_epsilon
+                        and 0 <= y < frame.shape[0] and 0 <= x < frame.shape[1]
+                        and not invalid[y, x]):
+                    positions[angle] = (y, x)
+            if angle not in positions:
+                logger.warning("Preview localization unavailable: angle=%s°, score=%s",
+                               angle, score)
     finally:
         await acq_ctx.devices.tomo_motor.set_position(original_angle)
-    image, labels, markers = _compose_alignment_preview(
+    image, labels, markers, outlines = _compose_alignment_preview(
         frames, positions, align_ctx.pixel_size_um, align_ctx.preview_mode == 'debug')
     if show_angles:
         estimates = _estimate_preview_tilts(positions)
@@ -441,12 +469,12 @@ async def _display_alignment_state(acq_ctx: AcquisitionContext, align_ctx: Align
                                for key, value in residuals.items())
             title += f" — last stage residuals: {values}"
         else:
-            title += " — angular estimates unavailable (no usable lever arm)"
+            title += " — angular estimates unavailable (unreliable localization or lever arm)"
         tolerance = np.rad2deg(np.arctan(align_ctx.pixel_sensitivity / acq_ctx.width))
         title += f"; angular tolerance={tolerance:.4g}°"
     await align_ctx.viewer.set_title(title)
     await align_ctx.viewer.show_annotated(
-        image, labels=labels, markers=markers, force=True, autoscale=True)
+        image, labels=labels, markers=markers, outlines=outlines, force=True, autoscale=True)
 
 
 async def _display_projection(acq_ctx: AcquisitionContext, align_ctx: AlignmentContext,
@@ -454,7 +482,9 @@ async def _display_projection(acq_ctx: AcquisitionContext, align_ctx: AlignmentC
     """Show a single reference-angle frame without moving any adjustment device."""
     if align_ctx.viewer is None or not _preview_references_available(acq_ctx, state, logger):
         return
-    frame = await _acquire_preview_frame(acq_ctx, state)
+    frame, invalid = await _acquire_preview_frame(acq_ctx, state)
+    logger.debug("Projection preview: invalid pixels=%s/%s", np.count_nonzero(invalid),
+                 invalid.size)
     await align_ctx.viewer.set_title(title)
     await align_ctx.viewer.show(frame, force=True)
 

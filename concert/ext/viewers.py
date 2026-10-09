@@ -330,30 +330,38 @@ class PyQtGraphViewer(ImageViewerBase):
     """Dynamic image viewer using PyQtGraph."""
 
     @background
-    async def show_annotated(self, image, labels=(), markers=(), force=True, autoscale=False):
+    async def show_annotated(self, image, labels=(), markers=(), force=True, autoscale=False,
+                             outlines=()):
         """Display an image with overlays, without altering its intensity values.
 
         Labels are dictionaries with ``text``, ``position`` (column, row), and optional
-        ``color``. Markers are dictionaries with ``position`` and optional ``color``.
+        ``color``, ``anchor`` (default top left), and ``font_size`` in points. Markers are
+        dictionaries with ``position`` and optional ``color``. Rectangular outlines have
+        ``position``, ``size`` (width, height), optional ``color``, and ``width`` in screen
+        pixels (default 2). Font sizes and line widths are independent of zoom/downsampling.
         Coordinates refer to the input image, before viewer downsampling. Ordinary ``show``
         calls clear these overlays. Like ``show``, this respects a paused viewer. ``autoscale``
         adjusts contrast for this image without changing the viewer's configured limits.
         """
         if not self._paused and (not self._queue.qsize() or force or not self._proc):
-            await run_in_executor(self._show_annotated, image, labels, markers, autoscale)
+            await run_in_executor(self._show_annotated, image, labels, markers, autoscale, outlines)
         self._ensure_updater_runs()
 
-    def _show_annotated(self, image, labels, markers, autoscale):
+    def _show_annotated(self, image, labels, markers, autoscale, outlines=()):
         def scaled(items):
             result = []
             for item in items:
                 position = tuple(value / self._downsampling for value in item['position'])
-                result.append(dict(item, position=position))
+                entry = dict(item, position=position)
+                if 'size' in item:
+                    entry['size'] = tuple(value / self._downsampling for value in item['size'])
+                result.append(entry)
             return result
 
         self._queue.put(('annotated-image', {
             'image': image[::self._downsampling, ::self._downsampling],
             'labels': scaled(labels), 'markers': scaled(markers),
+            'outlines': scaled(outlines),
             'autoscale': autoscale,
         }))
 
@@ -555,6 +563,7 @@ class _PyQtGraphUpdater(_ImageUpdaterBase):
     def process_annotated_image(self, payload):
         """Update the image and its overlays together in the viewer process."""
         import pyqtgraph as pg
+        from pyqtgraph.Qt import QtWidgets
 
         original_limits = self.clim
         self.proces_image(payload['image'])
@@ -562,9 +571,23 @@ class _PyQtGraphUpdater(_ImageUpdaterBase):
             self.view.imageItem.setImage(payload['image'], autoLevels=True)
             self.view.ui.histogram.autoHistogramRange()
             self.clim = original_limits
+        for outline in payload.get('outlines', ()):
+            x, y = outline['position']
+            width, height = outline['size']
+            item = QtWidgets.QGraphicsRectItem(x, y, width, height)
+            pen = pg.mkPen(outline.get('color', (255, 255, 255)),
+                           width=outline.get('width', 2))
+            pen.setCosmetic(True)
+            item.setPen(pen)
+            self.view.addItem(item)
+            self.annotation_items.append(item)
         for label in payload['labels']:
-            item = pg.TextItem(text=label['text'], anchor=(0, 0),
+            item = pg.TextItem(text=label['text'], anchor=label.get('anchor', (0, 0)),
                                color=label.get('color', (255, 255, 255)), fill=(0, 0, 0, 200))
+            if 'font_size' in label:
+                font = item.textItem.font()
+                font.setPointSizeF(label['font_size'])
+                item.setFont(font)
             item.setPos(*label['position'])
             self.view.addItem(item)
             self.annotation_items.append(item)
