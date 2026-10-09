@@ -329,6 +329,34 @@ class PyQtGraphViewer(ImageViewerBase):
 
     """Dynamic image viewer using PyQtGraph."""
 
+    @background
+    async def show_annotated(self, image, labels=(), markers=(), force=True, autoscale=False):
+        """Display an image with overlays, without altering its intensity values.
+
+        Labels are dictionaries with ``text``, ``position`` (column, row), and optional
+        ``color``. Markers are dictionaries with ``position`` and optional ``color``.
+        Coordinates refer to the input image, before viewer downsampling. Ordinary ``show``
+        calls clear these overlays. Like ``show``, this respects a paused viewer. ``autoscale``
+        adjusts contrast for this image without changing the viewer's configured limits.
+        """
+        if not self._paused and (not self._queue.qsize() or force or not self._proc):
+            await run_in_executor(self._show_annotated, image, labels, markers, autoscale)
+        self._ensure_updater_runs()
+
+    def _show_annotated(self, image, labels, markers, autoscale):
+        def scaled(items):
+            result = []
+            for item in items:
+                position = tuple(value / self._downsampling for value in item['position'])
+                result.append(dict(item, position=position))
+            return result
+
+        self._queue.put(('annotated-image', {
+            'image': image[::self._downsampling, ::self._downsampling],
+            'labels': scaled(labels), 'markers': scaled(markers),
+            'autoscale': autoscale,
+        }))
+
     def _make_updater(self):
         return _PyQtGraphUpdater(self._queue, limits=self._limits, title=self._title,
                                  show_refresh_rate=self._show_refresh_rate)
@@ -445,11 +473,13 @@ class _PyQtGraphUpdater(_ImageUpdaterBase):
         self.plot = None
         # main graphics window
         self.view = None
+        self.annotation_items = []
         self.last_text_time = time.perf_counter()
         self.last_time = time.perf_counter()
         self.commands.update(
             {
                 'image': self.proces_image,
+                'annotated-image': self.process_annotated_image,
                 'clim': self.update_limits,
                 'show-fps': self.toggle_show_refresh_rate,
             }
@@ -505,6 +535,11 @@ class _PyQtGraphUpdater(_ImageUpdaterBase):
         import pyqtgraph as pg
         first = False
 
+        if self.view:
+            for item in self.annotation_items:
+                self.view.removeItem(item)
+        self.annotation_items = []
+
         if not self.view:
             first = True
             self.plot = pg.PlotItem(title=self.title)
@@ -516,6 +551,30 @@ class _PyQtGraphUpdater(_ImageUpdaterBase):
 
         if first:
             self.update_limits(self.clim)
+
+    def process_annotated_image(self, payload):
+        """Update the image and its overlays together in the viewer process."""
+        import pyqtgraph as pg
+
+        original_limits = self.clim
+        self.proces_image(payload['image'])
+        if payload['autoscale']:
+            self.view.imageItem.setImage(payload['image'], autoLevels=True)
+            self.view.ui.histogram.autoHistogramRange()
+            self.clim = original_limits
+        for label in payload['labels']:
+            item = pg.TextItem(text=label['text'], anchor=(0, 0),
+                               color=label.get('color', (255, 255, 255)), fill=(0, 0, 0, 200))
+            item.setPos(*label['position'])
+            self.view.addItem(item)
+            self.annotation_items.append(item)
+        for marker in payload['markers']:
+            x, y = marker['position']
+            item = pg.ScatterPlotItem(x=[x], y=[y], size=10,
+                                      pen=pg.mkPen('w'), brush=pg.mkBrush(
+                                          marker.get('color', (255, 255, 255))))
+            self.view.addItem(item)
+            self.annotation_items.append(item)
 
     def update_limits(self, clim):
         """Update limits (black and white point)."""

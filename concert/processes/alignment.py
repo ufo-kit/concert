@@ -3,14 +3,13 @@ alignment.py
 ------------
 Alignment routines for measurement stages.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import logging
-from typing import Callable, Tuple, Dict, Optional
+from typing import Callable, Tuple, Dict, Optional, Literal
 import numpy as np
 from numpy import ndarray
 import skimage.feature as sft
 import skimage.measure as sms
-import skimage.draw as sdr
 from skimage.measure._regionprops import RegionProperties
 from concert.coroutines.base import background
 from concert.devices.motors.base import LinearMotor, RotationMotor
@@ -220,6 +219,8 @@ class AlignmentContext(BacklashCompRelMovMixin):
     - **proc_func**: image processing function to separate sphere from background.
     - **viewer**: optional viewer for the initial patch mosaic and alignment frames. No viewer \
         is created by the algorithm.
+    - **preview_mode**: progress shows major-stage boundaries; debug additionally shows each \
+        directional sample-centering boundary. Neither mode shows exploratory movements.
     """
     devices: AlignmentDevices
     pixel_size_um: Quantity
@@ -233,6 +234,7 @@ class AlignmentContext(BacklashCompRelMovMixin):
     adjust_move: float = 1.0
     proc_func: Callable[[ndarray], ndarray] = lambda x: x
     viewer: Optional[PyQtGraphViewer] = None
+    preview_mode: Literal["progress", "debug"] = "progress"
 
 
 @dataclass
@@ -322,6 +324,141 @@ async def acquire_frame(acq_ctx: AcquisitionContext, align_state: AlignmentState
     return np.asarray(frame)[acq_ctx.vert_crop_start:acq_ctx.vert_crop_end, :]
 
 
+async def _acquire_preview_frame(acq_ctx: AcquisitionContext,
+                                 align_state: AlignmentState) -> ndarray:
+    """Acquire using cached references only, without moving devices or operating the shutter."""
+    raw_ctx = replace(acq_ctx, flat_field_correct=False, absorptivity=False)
+    frame = await acquire_frame(raw_ctx, align_state)
+    if acq_ctx.flat_field_correct:
+        rows = slice(acq_ctx.vert_crop_start, acq_ctx.vert_crop_end)
+        frame = flat_correct(frame, align_state.flat[rows, :], align_state.dark[rows, :])
+    if acq_ctx.absorptivity:
+        frame = np.nan_to_num(-np.log(frame))
+    return frame
+
+
+def _estimate_preview_tilts(positions: Dict[int, Tuple[int, int]]) -> Optional[Dict[str, Quantity]]:
+    """Estimate orbit-plane tilt magnitudes from four views, for display only.
+
+    For small tilt, x(theta)=a*cos(theta)+b*sin(theta) and
+    y(theta)=c*cos(theta)+d*sin(theta), after removing their centers. The roll slope is
+    (a*c+b*d)/(a*a+b*b); the beam-direction pitch slope has magnitude
+    abs(a*d-b*c)/(a*a+b*b). Both pairs are needed for arbitrary off-centering.
+    A zero lever arm cannot constrain tilt, even though atan2(0, 0) is finite.
+    """
+    try:
+        with np.errstate(over='raise', under='raise', invalid='raise', divide='raise'):
+            y0, x0 = positions[0]
+            y90, x90 = positions[90]
+            y180, x180 = positions[180]
+            y270, x270 = positions[270]
+            a, b = (x0 - x180) / 2, (x90 - x270) / 2
+            c, d = (y0 - y180) / 2, (y90 - y270) / 2
+            radius = np.hypot(a, b)
+            if not np.isfinite(radius) or radius == 0:
+                return None
+            a, b, c, d = np.asarray([a, b, c, d], dtype=float) / radius
+            slopes = np.asarray([a * d - b * c, a * c + b * d])
+            angles = np.rad2deg(np.arctan(np.abs(slopes)))
+            if not np.all(np.isfinite(angles)):
+                return None
+            return dict(pitch=angles[0] * q.deg, roll=angles[1] * q.deg)
+    except (FloatingPointError, OverflowError, ZeroDivisionError):
+        return None
+
+
+def _compose_alignment_preview(frames: Dict[int, ndarray],
+                               positions: Dict[int, Tuple[int, int]],
+                               pixel_size: Quantity, debug: bool = False):
+    """Stack midpoint-centered crops, preserving source coordinates in the labels."""
+    height, width = frames[0].shape
+    panels, labels, markers = [], [], []
+    row_offset = 0
+    for first, second, panel_height, color in (
+            (0, 180, height // 2, (255, 130, 100)),
+            (90, 270, height - height // 2, (100, 220, 180))):
+        y1, x1 = positions[first]
+        y2, x2 = positions[second]
+        start = int(round((y1 + y2) / 2)) - panel_height // 2
+        start = max(0, min(start, height - panel_height))
+        # Float arithmetic avoids integer overflow when merging camera frames.
+        merged = frames[first].astype(float) + frames[second].astype(float)
+        panels.append(merged[start:start + panel_height, :])
+        horizontal_px = abs(x2 - x1) / 2
+        horizontal_mm = (horizontal_px * pixel_size).to(q.mm).magnitude
+        text = (f"{first}° / {second}° relative to reference\n"
+                f"Half horizontal offset: {horizontal_mm:.5g} mm ({horizontal_px:g} px)\n"
+                f"Vertical separation: {abs(y2 - y1):g} px")
+        if debug:
+            text += f"\nSource crop: rows {start}:{start + panel_height}"
+        labels.append(dict(text=text, position=(12, row_offset + 12), color=color))
+        for angle, y, x in ((first, y1, x1), (second, y2, x2)):
+            position = (x, y - start + row_offset)
+            markers.append(dict(position=position, color=color))
+            labels.append(dict(text=f"{angle}° ({x}, {y})",
+                               position=(min(x + 12, max(0, width - 180)),
+                                         max(row_offset, min(position[1] + 12,
+                                             row_offset + panel_height - 24))), color=color))
+        row_offset += panel_height
+    return np.vstack(panels), labels, markers
+
+
+def _preview_references_available(acq_ctx: AcquisitionContext, state: AlignmentState,
+                                  logger: logging.Logger) -> bool:
+    if acq_ctx.flat_field_correct and (state.dark is None or state.flat is None):
+        logger.warning("Preview skipped: cached dark/flat references are unavailable")
+        return False
+    return True
+
+
+async def _display_alignment_state(acq_ctx: AcquisitionContext, align_ctx: AlignmentContext,
+                                   state: AlignmentState, title: str, logger: logging.Logger,
+                                   show_angles: bool = False,
+                                   residuals: Optional[Dict[str, Quantity]] = None) -> None:
+    """Acquire an annotated four-view snapshot, moving only the tomography motor."""
+    if align_ctx.viewer is None or not _preview_references_available(acq_ctx, state, logger):
+        return
+    frames, positions = {}, {}
+    original_angle = await acq_ctx.devices.tomo_motor.get_position()
+    try:
+        for angle in (0, 90, 180, 270):
+            await acq_ctx.devices.tomo_motor.set_position(angle * q.deg + align_ctx.offset_tomo)
+            frames[angle] = await _acquire_preview_frame(acq_ctx, state)
+            y, x, _ = locate_template(frames[angle], state.patches[str(angle)])
+            positions[angle] = (y, x)
+    finally:
+        await acq_ctx.devices.tomo_motor.set_position(original_angle)
+    image, labels, markers = _compose_alignment_preview(
+        frames, positions, align_ctx.pixel_size_um, align_ctx.preview_mode == 'debug')
+    if show_angles:
+        estimates = _estimate_preview_tilts(positions)
+        if estimates is not None:
+            values = ", ".join(f"{key}≈{value.to(q.deg).magnitude:.4g}°"
+                               for key, value in estimates.items())
+            title += f" — estimated residuals: {values}"
+        elif residuals is not None:
+            values = ", ".join(f"{key}={value.to(q.deg).magnitude:.4g}°"
+                               for key, value in residuals.items())
+            title += f" — last stage residuals: {values}"
+        else:
+            title += " — angular estimates unavailable (no usable lever arm)"
+        tolerance = np.rad2deg(np.arctan(align_ctx.pixel_sensitivity / acq_ctx.width))
+        title += f"; angular tolerance={tolerance:.4g}°"
+    await align_ctx.viewer.set_title(title)
+    await align_ctx.viewer.show_annotated(
+        image, labels=labels, markers=markers, force=True, autoscale=True)
+
+
+async def _display_projection(acq_ctx: AcquisitionContext, align_ctx: AlignmentContext,
+                              state: AlignmentState, title: str, logger: logging.Logger) -> None:
+    """Show a single reference-angle frame without moving any adjustment device."""
+    if align_ctx.viewer is None or not _preview_references_available(acq_ctx, state, logger):
+        return
+    frame = await _acquire_preview_frame(acq_ctx, state)
+    await align_ctx.viewer.set_title(title)
+    await align_ctx.viewer.show(frame, force=True)
+
+
 async def init_alignment_state(
         acq_ctx: AcquisitionContext,
         align_ctx: AlignmentContext,
@@ -384,7 +521,8 @@ async def init_alignment_state(
                 frame, state.patches[str(angle)])
         if align_ctx.viewer:
             await align_ctx.viewer.set_title("Alignment patches: 0° | 90° / 180° | 270°")
-            await align_ctx.viewer.show(_patch_mosaic(state.patches))
+            # The pending title command must not cause this one-time preview to be skipped.
+            await align_ctx.viewer.show(_patch_mosaic(state.patches), force=True)
     except Exception:
         raise ProcessError("review proc_func and ensure 360 rotation is possible within FOV")
     finally:
@@ -416,22 +554,6 @@ async def get_sample_shifts(
     :rtype: Tuple[float, float]
     """
 
-    async def _shifts(
-            ref_img: ndarray, mov_img: ndarray, tomo_angle: int) -> Tuple[float, float]:
-        """Locate the angle-specific templates and derive unsigned shifts in pixels."""
-        ref_y, ref_x, _ = locate_template(ref_img, align_state.patches[str(tomo_angle)])
-        mov_y, mov_x, _ = locate_template(mov_img, align_state.patches[str(tomo_angle + 180)])
-        ver_shift, hor_shift = abs(mov_y - ref_y), abs(mov_x - ref_x) / 2
-        if align_ctx.viewer:
-            vis_frame: ndarray = ref_img + mov_img
-            ref_rows, ref_cols = sdr.disk(center=(ref_y, ref_x), radius=12)
-            move_rows, move_cols = sdr.disk(center=(mov_y, mov_x), radius=12)
-            vis_frame[ref_rows, ref_cols] = np.min(vis_frame)
-            vis_frame[move_rows, move_cols] = np.min(vis_frame)
-            await align_ctx.viewer.show(vis_frame)
-            await align_ctx.viewer.set_title(f"ver_shift = {ver_shift} hor_shift={hor_shift}")
-        return ver_shift, hor_shift
-
     await acq_ctx.devices.tomo_motor.set_position(tomo_angle + align_ctx.offset_tomo)
     ref_img: ndarray = await acquire_frame(acq_ctx=acq_ctx, align_state=align_state)
     if not align_state.sample_in_FOV(frame=ref_img, angle=tomo_angle.magnitude):
@@ -441,7 +563,10 @@ async def get_sample_shifts(
     if not align_state.sample_in_FOV(frame=mov_img, angle=tomo_angle.magnitude + 180):
         raise ProcessError("sample went outside FOV, aborting")
     await acq_ctx.devices.tomo_motor.move(-180 * q.deg)
-    return await _shifts(ref_img=ref_img, mov_img=mov_img, tomo_angle=tomo_angle.magnitude)
+    ref_y, ref_x, _ = locate_template(ref_img, align_state.patches[str(tomo_angle.magnitude)])
+    mov_y, mov_x, _ = locate_template(
+        mov_img, align_state.patches[str(tomo_angle.magnitude + 180)])
+    return abs(mov_y - ref_y), abs(mov_x - ref_x) / 2
 
 
 async def center_sample_on_axis(
@@ -479,6 +604,13 @@ async def center_sample_on_axis(
             acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, tomo_angle=tomo_angle)
         return _new_offset
 
+    if align_ctx.preview_mode == "progress":
+        await _display_alignment_state(acq_ctx, align_ctx, align_state,
+                                       "Sample centering — before", logger)
+    else:
+        await _display_alignment_state(acq_ctx, align_ctx, align_state,
+                                       "Sample centering OBD — before", logger)
+
     # Make step adjustment for alignment motor orthogonal to beam direction.
     _, offset_obd = await get_sample_shifts(
         acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, tomo_angle=0 * q.deg)
@@ -492,6 +624,12 @@ async def center_sample_on_axis(
     log_residual(logger, "Sample centering OBD", offset_obd * q.px,
                   align_ctx.pixel_err_eps * q.px, obd_iter, align_ctx.max_iterations)
 
+    if align_ctx.preview_mode == "debug":
+        await _display_alignment_state(acq_ctx, align_ctx, align_state,
+                                       "Sample centering OBD — after", logger)
+        await _display_alignment_state(acq_ctx, align_ctx, align_state,
+                                       "Sample centering PBD — before", logger)
+
     # Make step adjustment for alignment motor parallel to beam direction.
     _, offset_pbd = await get_sample_shifts(
         acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, tomo_angle=90 * q.deg)
@@ -504,6 +642,10 @@ async def center_sample_on_axis(
         pbd_iter += 1
     log_residual(logger, "Sample centering PBD", offset_pbd * q.px,
                   align_ctx.pixel_err_eps * q.px, pbd_iter, align_ctx.max_iterations)
+
+    title = "Sample centering PBD — after" if align_ctx.preview_mode == "debug" else (
+        "Sample centering — after")
+    await _display_alignment_state(acq_ctx, align_ctx, align_state, title, logger)
 
 
 async def offset_from_projection_center(
@@ -558,13 +700,12 @@ async def center_axis_in_projection(
         if _interim_offset > curr_offset:
             curr_offset = -curr_offset
         await acq_ctx.move(motor=motor, distance=curr_offset * align_ctx.pixel_size_um)
-        if align_ctx.viewer:
-            frame: ndarray = await acquire_frame(acq_ctx=acq_ctx, align_state=align_state)
-            await align_ctx.viewer.show(frame)
         return (await offset_from_projection_center(
             acq_ctx=acq_ctx, align_state=align_state))[offset_types[offset_type]]
 
     await acq_ctx.devices.tomo_motor.set_position(0 * q.deg + align_ctx.offset_tomo)
+    await _display_projection(acq_ctx, align_ctx, align_state,
+                              "Projection centering — before", logger)
     # Make step adjustment for z-motor (vertically orthogonal to beam direction)
     z_offset, _ = await offset_from_projection_center(acq_ctx=acq_ctx, align_state=align_state)
     logger.debug(f">> before: z_offset = {z_offset}")
@@ -588,6 +729,9 @@ async def center_axis_in_projection(
         logger.debug(f">>>> stage iter = {stage_offset_iter} stage_offset = {stage_offset}")
     log_residual(logger, "Projection centering horizontal", stage_offset * q.px,
                   align_ctx.pixel_err_eps * q.px, stage_offset_iter, align_ctx.max_iterations)
+
+    await _display_projection(acq_ctx, align_ctx, align_state,
+                              "Projection centering — after", logger)
 
 
 @background
@@ -641,6 +785,10 @@ async def align_tomo_stage_parallel_beam(
         return await _get_ang_err(off_cent_px=off_cent_px)
 
     logger.info("Start: tomography alignment procedure.")
+    if align_ctx.preview_mode not in ("progress", "debug"):
+        raise ValueError("preview_mode must be 'progress' or 'debug'")
+    await _display_alignment_state(acq_ctx, align_ctx, align_state,
+                                   "Alignment — before", logger, show_angles=True)
     # Preload for backlash-compensated movement.
     logger.info("Start: preload for backlash compensation.")
     await acq_ctx.preload(acq_ctx.devices.flat_motor)
@@ -677,6 +825,8 @@ async def align_tomo_stage_parallel_beam(
         distance=align_ctx.off_cent_pbd)
     pitch_ang_err: Quantity = await _get_ang_err(off_cent_px=off_cent_px_pitch)
     logger.debug(f"::pitch before iterations: {abs(pitch_ang_err)}")
+    await _display_alignment_state(acq_ctx, align_ctx, align_state,
+                                   "Pitch correction — before (deliberately displaced)", logger)
     pitch_iter = 0
     while abs(pitch_ang_err) > metric and pitch_iter < align_ctx.max_iterations:
         pitch_ang_err = await _step_ang_err(
@@ -687,6 +837,8 @@ async def align_tomo_stage_parallel_beam(
         logger.debug(f"::::pitch-correction iteration: {pitch_iter} pitch: {abs(pitch_ang_err)}")
     log_residual(logger, "Pitch correction", pitch_ang_err, metric,
                   pitch_iter, align_ctx.max_iterations)
+    await _display_alignment_state(acq_ctx, align_ctx, align_state,
+                                   "Pitch correction — after (deliberately displaced)", logger)
     await align_ctx.move(
         motor=align_ctx.devices.align_motor_pbd,
         distance=-align_ctx.off_cent_pbd)
@@ -707,6 +859,8 @@ async def align_tomo_stage_parallel_beam(
         distance=off_cent_px_roll * align_ctx.pixel_size_um)
     roll_ang_err: Quantity = await _get_ang_err(off_cent_px=off_cent_px_roll)
     logger.debug(f"::roll before iterations: {abs(roll_ang_err)}")
+    await _display_alignment_state(acq_ctx, align_ctx, align_state,
+                                   "Roll correction — before (deliberately displaced)", logger)
     roll_iter = 0
     while abs(roll_ang_err) > metric and roll_iter < align_ctx.max_iterations:
         roll_ang_err = await _step_ang_err(
@@ -717,6 +871,8 @@ async def align_tomo_stage_parallel_beam(
         logger.debug(f"::::roll-correction iteration: {roll_iter} roll: {abs(roll_ang_err)}")
     log_residual(logger, "Roll correction", roll_ang_err, metric,
                   roll_iter, align_ctx.max_iterations)
+    await _display_alignment_state(acq_ctx, align_ctx, align_state,
+                                   "Roll correction — after (deliberately displaced)", logger)
     await align_ctx.move(
         motor=align_ctx.devices.align_motor_obd,
         distance=-off_cent_px_roll * align_ctx.pixel_size_um)
@@ -725,4 +881,7 @@ async def align_tomo_stage_parallel_beam(
     await center_axis_in_projection(
         acq_ctx=acq_ctx, align_ctx=align_ctx, align_state=align_state, logger=logger)
     logger.info("Final projection centering stage finished.")
+    await _display_alignment_state(
+        acq_ctx, align_ctx, align_state, "Alignment — after", logger, show_angles=True,
+        residuals=dict(pitch=pitch_ang_err, roll=roll_ang_err))
     logger.info("Tomography alignment procedure finished; see stage residuals.")
