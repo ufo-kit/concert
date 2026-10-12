@@ -3,7 +3,7 @@ alignment.py
 ------------
 Alignment routines for measurement stages.
 """
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 import logging
 from typing import Callable, Tuple, Dict, Optional, Literal
 import numpy as np
@@ -237,6 +237,26 @@ class AlignmentContext(BacklashCompRelMovMixin):
     preview_mode: Literal["progress", "debug"] = "progress"
 
 
+@dataclass(frozen=True)
+class _PreviewPanel:
+    """One observation, with marker coordinates local to its cropped image."""
+    image: ndarray
+    markers: Tuple[Tuple[int, int], ...]
+    horizontal_px: Optional[float]
+    vertical_px: Optional[float]
+    angles: Tuple[int, int]
+    stage: str
+    crop_start: int
+    applied_displacement: Optional[Quantity] = None
+
+
+@dataclass
+class _PreviewCache:
+    """Latest OBD/PBD observations; never used for alignment measurements."""
+    image_shape: Tuple[int, int]
+    panels: Dict[str, _PreviewPanel] = field(default_factory=dict)
+
+
 @dataclass
 class AlignmentState:
     """
@@ -266,6 +286,8 @@ class AlignmentState:
     sphere_radius: Optional[int] = None
     dim: int = 200
     score_epsilon: float = 0.2
+    _preview_cache: Optional[_PreviewCache] = field(
+        default=None, init=False, repr=False, compare=False)
 
     def __str__(self) -> str:
         "Provides a printable expression for the state"
@@ -376,43 +398,74 @@ def _estimate_preview_tilts(positions: Dict[int, Tuple[int, int]]) -> Optional[D
         return None
 
 
-def _compose_alignment_preview(frames: Dict[int, ndarray],
-                               positions: Dict[int, Tuple[int, int]],
-                               pixel_size: Quantity, debug: bool = False):
-    """Stack cropped pairs with summary labels, centroid dots, and panel outlines."""
-    height, width = frames[0].shape
-    panels, labels, markers, outlines = [], [], [], []
-    row_offset = 0
-    for first, second, panel_height, color in (
-            (0, 180, height // 2, (255, 130, 100)),
-            (90, 270, height - height // 2, (100, 220, 180))):
-        available = [positions[a] for a in (first, second) if a in positions]
-        midpoint = np.mean([p[0] for p in available]) if available else height / 2
-        start = int(round(midpoint)) - panel_height // 2
-        start = max(0, min(start, height - panel_height))
+def _make_preview_panel(frames: Dict[int, ndarray], positions: Dict[int, Tuple[int, int]],
+                        angles: Tuple[int, int], panel_height: int, stage: str,
+                        applied_displacement: Optional[Quantity] = None) -> _PreviewPanel:
+    """Crop a fresh pair, using a neutral background when either detection is unavailable."""
+    first, second = angles
+    height, width = frames[first].shape
+    available = [positions[a] for a in angles if a in positions]
+    midpoint = np.mean([p[0] for p in available]) if available else height / 2
+    start = int(round(midpoint)) - panel_height // 2
+    start = max(0, min(start, height - panel_height))
+    horizontal_px, vertical_px = None, None
+    if len(available) == 2:
+        (y1, x1), (y2, x2) = available
+        horizontal_px, vertical_px = abs(x2 - x1) / 2, abs(y2 - y1)
         # Float arithmetic avoids integer overflow when merging camera frames.
         with np.errstate(over='ignore', invalid='ignore'):
             merged = frames[first].astype(float) + frames[second].astype(float)
         merged = np.nan_to_num(merged, nan=0, posinf=0, neginf=0)
-        panels.append(merged[start:start + panel_height, :])
-        text = f"{first}° / {second}° relative to reference\n"
-        if len(available) == 2:
-            (y1, x1), (y2, x2) = available
-            horizontal_px = abs(x2 - x1) / 2
-            horizontal_mm = (horizontal_px * pixel_size).to(q.mm).magnitude
-            text += (f"Half horizontal offset: {horizontal_mm:.5g} mm ({horizontal_px:g} px)\n"
-                     f"Vertical separation: {abs(y2 - y1):g} px")
+        image = merged[start:start + panel_height, :].copy()
+    else:
+        image = np.zeros((panel_height, width))
+    markers = tuple((x, y - start) for y, x in available)
+    return _PreviewPanel(image, markers, horizontal_px, vertical_px, angles, stage, start,
+                         applied_displacement)
+
+
+def _compose_alignment_preview(cache: _PreviewCache, pixel_size: Quantity,
+                               refreshed: Tuple[str, ...] = ('obd', 'pbd'), debug: bool = False):
+    """Stack stable OBD/PBD panels, labeling the provenance of retained observations."""
+    height, width = cache.image_shape
+    panels, labels, markers, outlines = [], [], [], []
+    row_offset = 0
+    for direction, panel_height, color, heading in (
+            ('obd', height // 2, (255, 130, 100),
+             'OBD — orthogonal to beam: centering / roll alignment'),
+            ('pbd', height - height // 2, (100, 220, 180),
+             'PBD — parallel to beam: centering / pitch alignment')):
+        panel = cache.panels.get(direction)
+        text = heading + "\n"
+        if panel is None:
+            panels.append(np.zeros((panel_height, width)))
+            text += "No previous measurement\nLocalization unavailable"
         else:
-            text += "Localization unavailable"
-        if debug:
-            text += f"\nSource crop: rows {start}:{start + panel_height}"
+            panels.append(panel.image)
+            status = "Current measurement" if direction in refreshed else "Previous measurement"
+            first, second = panel.angles
+            text += (f"{status} — {panel.stage}\n"
+                     f"Acquired at {first}° / {second}° relative to reference\n")
+            if panel.applied_displacement is not None:
+                distance_mm = panel.applied_displacement.to(q.mm).magnitude
+                distance_px = (panel.applied_displacement / pixel_size).to('').magnitude
+                text += (f"Applied {direction.upper()} displacement: "
+                         f"{distance_mm:.5g} mm ({distance_px:g} px)\n")
+            if panel.horizontal_px is not None:
+                horizontal_mm = (panel.horizontal_px * pixel_size).to(q.mm).magnitude
+                text += (f"Measured half-horizontal separation: {horizontal_mm:.5g} mm "
+                         f"({panel.horizontal_px:g} px)\n"
+                         f"Vertical separation: {panel.vertical_px:g} px")
+            else:
+                text += "Localization unavailable"
+            if debug:
+                text += f"\nSource crop: rows {panel.crop_start}:{panel.crop_start + panel_height}"
+            for x, y in panel.markers:
+                markers.append(dict(position=(x, y + row_offset), color=color))
         labels.append(dict(text=text, position=(12, row_offset + panel_height - 12),
                            color=color, anchor=(0, 1), font_size=12))
         outlines.append(dict(position=(0, row_offset), size=(width, panel_height),
                              color=color, width=2))
-        for y, x in available:
-            position = (x, y - start + row_offset)
-            markers.append(dict(position=position, color=color))
         row_offset += panel_height
     return np.vstack(panels), labels, markers, outlines
 
@@ -428,14 +481,17 @@ def _preview_references_available(acq_ctx: AcquisitionContext, state: AlignmentS
 async def _display_alignment_state(acq_ctx: AcquisitionContext, align_ctx: AlignmentContext,
                                    state: AlignmentState, title: str, logger: logging.Logger,
                                    show_angles: bool = False,
-                                   residuals: Optional[Dict[str, Quantity]] = None) -> None:
-    """Acquire an annotated four-view snapshot, moving only the tomography motor."""
+                                   residuals: Optional[Dict[str, Quantity]] = None,
+                                   purpose: Literal['snapshot', 'pitch', 'roll'] = 'snapshot',
+                                   applied_displacement: Optional[Quantity] = None) -> None:
+    """Refresh both directional panels, or the active correction panel, moving only tomo."""
     if align_ctx.viewer is None or not _preview_references_available(acq_ctx, state, logger):
         return
     frames, positions = {}, {}
+    angles = (0, 90, 180, 270) if purpose == 'snapshot' else (0, 180)
     original_angle = await acq_ctx.devices.tomo_motor.get_position()
     try:
-        for angle in (0, 90, 180, 270):
+        for angle in angles:
             await acq_ctx.devices.tomo_motor.set_position(angle * q.deg + align_ctx.offset_tomo)
             frame, invalid = await _acquire_preview_frame(acq_ctx, state)
             frames[angle] = frame
@@ -456,8 +512,19 @@ async def _display_alignment_state(acq_ctx: AcquisitionContext, align_ctx: Align
                                angle, score)
     finally:
         await acq_ctx.devices.tomo_motor.set_position(original_angle)
+    if state._preview_cache is None or state._preview_cache.image_shape != frames[0].shape:
+        state._preview_cache = _PreviewCache(frames[0].shape)
+    cache = state._preview_cache
+    height = cache.image_shape[0]
+    refreshed = ('obd', 'pbd') if purpose == 'snapshot' else (
+        ('pbd',) if purpose == 'pitch' else ('obd',))
+    for direction in refreshed:
+        pair = (90, 270) if purpose == 'snapshot' and direction == 'pbd' else (0, 180)
+        panel_height = height // 2 if direction == 'obd' else height - height // 2
+        cache.panels[direction] = _make_preview_panel(
+            frames, positions, pair, panel_height, title, applied_displacement)
     image, labels, markers, outlines = _compose_alignment_preview(
-        frames, positions, align_ctx.pixel_size_um, align_ctx.preview_mode == 'debug')
+        cache, align_ctx.pixel_size_um, refreshed, align_ctx.preview_mode == 'debug')
     if show_angles:
         estimates = _estimate_preview_tilts(positions)
         if estimates is not None:
@@ -617,6 +684,8 @@ async def center_sample_on_axis(
     :param logger: logger, defaults to the module logger
     :type logger: logging.Logger
     """
+    align_state._preview_cache = None
+
     async def _step_center(motor: LinearMotor, curr_offset: float, tomo_angle: Quantity) -> float:
         """Makes one step of linear motor adjustment toward center of rotation"""
         await align_ctx.move(motor=motor, distance=align_ctx.del_dist_lin)
@@ -815,6 +884,7 @@ async def align_tomo_stage_parallel_beam(
         return await _get_ang_err(off_cent_px=off_cent_px)
 
     logger.info("Start: tomography alignment procedure.")
+    align_state._preview_cache = None
     if align_ctx.preview_mode not in ("progress", "debug"):
         raise ValueError("preview_mode must be 'progress' or 'debug'")
     await _display_alignment_state(acq_ctx, align_ctx, align_state,
@@ -856,7 +926,8 @@ async def align_tomo_stage_parallel_beam(
     pitch_ang_err: Quantity = await _get_ang_err(off_cent_px=off_cent_px_pitch)
     logger.debug(f"::pitch before iterations: {abs(pitch_ang_err)}")
     await _display_alignment_state(acq_ctx, align_ctx, align_state,
-                                   "Pitch correction — before (deliberately displaced)", logger)
+                                   "Pitch correction — before (deliberately displaced)", logger,
+                                   purpose='pitch', applied_displacement=align_ctx.off_cent_pbd)
     pitch_iter = 0
     while abs(pitch_ang_err) > metric and pitch_iter < align_ctx.max_iterations:
         pitch_ang_err = await _step_ang_err(
@@ -868,7 +939,8 @@ async def align_tomo_stage_parallel_beam(
     log_residual(logger, "Pitch correction", pitch_ang_err, metric,
                   pitch_iter, align_ctx.max_iterations)
     await _display_alignment_state(acq_ctx, align_ctx, align_state,
-                                   "Pitch correction — after (deliberately displaced)", logger)
+                                   "Pitch correction — after (deliberately displaced)", logger,
+                                   purpose='pitch', applied_displacement=align_ctx.off_cent_pbd)
     await align_ctx.move(
         motor=align_ctx.devices.align_motor_pbd,
         distance=-align_ctx.off_cent_pbd)
@@ -890,7 +962,9 @@ async def align_tomo_stage_parallel_beam(
     roll_ang_err: Quantity = await _get_ang_err(off_cent_px=off_cent_px_roll)
     logger.debug(f"::roll before iterations: {abs(roll_ang_err)}")
     await _display_alignment_state(acq_ctx, align_ctx, align_state,
-                                   "Roll correction — before (deliberately displaced)", logger)
+                                   "Roll correction — before (deliberately displaced)", logger,
+                                   purpose='roll',
+                                   applied_displacement=off_cent_px_roll * align_ctx.pixel_size_um)
     roll_iter = 0
     while abs(roll_ang_err) > metric and roll_iter < align_ctx.max_iterations:
         roll_ang_err = await _step_ang_err(
@@ -902,7 +976,9 @@ async def align_tomo_stage_parallel_beam(
     log_residual(logger, "Roll correction", roll_ang_err, metric,
                   roll_iter, align_ctx.max_iterations)
     await _display_alignment_state(acq_ctx, align_ctx, align_state,
-                                   "Roll correction — after (deliberately displaced)", logger)
+                                   "Roll correction — after (deliberately displaced)", logger,
+                                   purpose='roll',
+                                   applied_displacement=off_cent_px_roll * align_ctx.pixel_size_um)
     await align_ctx.move(
         motor=align_ctx.devices.align_motor_obd,
         distance=-off_cent_px_roll * align_ctx.pixel_size_um)
