@@ -438,6 +438,12 @@ class Experiment(RunnableParameterizable):
             # This is possible
             experiment.frames
         """
+        if not isinstance(acquisition, Acquisition):
+            raise TypeError("Only Acquisition instances can be added to the experiment")
+        for acq in self._acquisitions:
+            if acq.name == acquisition.name:
+                raise ValueError(f"Acquisition with name `{acquisition.name}' already exists")
+
         self._acquisitions.append(acquisition)
         setattr(self, acquisition.name, acquisition)
 
