@@ -15,7 +15,7 @@ from concert.experiments.base import Experiment as BaseExperiment, Acquisition, 
 from concert.experiments.base import Consumer as AcquisitionConsumer
 from concert.tests import TestCase as BaseTestCase, slow
 from concert.directors.dummy import Director
-from concert.directors.base import Director as BaseDirector
+from concert.directors.base import Director as BaseDirector, FixedIterationDirector
 from concert.directors.scanning import XYScan
 from concert.devices.motors.dummy import LinearMotor
 from concert.quantities import q
@@ -40,6 +40,18 @@ class Experiment(BaseExperiment):
     @local
     async def _frame_producer(self):
         yield np.random.random((100, 100))
+
+
+class ResultExperiment(Experiment):
+    async def __ainit__(self, **kwargs):
+        self.completed_iterations = 0
+        await super().__ainit__(**kwargs)
+
+    @local
+    async def _frame_producer(self):
+        yield np.random.random((100, 100))
+        self.completed_iterations += 1
+        self.ready_to_prepare_next_outer_loop.set()
 
 
 class BrokenExperiment(Experiment):
@@ -110,7 +122,7 @@ class EarlyReadyExperiment(Experiment):
         self.acq_finished_time[await self.get_iteration()] = time()
 
 
-class TimeLoggingDirector(BaseDirector):
+class TimeLoggingDirector(FixedIterationDirector):
     """
     Director with two (identical) iterations.
     The _prepare_run() stores the time when it is called.
@@ -138,6 +150,30 @@ class TestCase(BaseTestCase):
 
     def tearDown(self) -> None:
         shutil.rmtree(self._data_dir)
+
+
+class ResultLimitedDirector(BaseDirector):
+    async def __ainit__(self, *, experiment):
+        self.prepared_iterations = []
+        await super().__ainit__(experiment=experiment)
+
+    async def has_next_iteration(self, iteration: int) -> bool:
+        return self._experiment.completed_iterations < 2
+
+    async def _prepare_run(self, iteration: int):
+        self.prepared_iterations.append(iteration)
+
+
+class RuntimeControlledDirectorTest(TestCase):
+    async def test_stops_when_runtime_condition_is_satisfied(self):
+        experiment = await ResultExperiment(walker=self.walker, separate_scans=False)
+        director = await ResultLimitedDirector(experiment=experiment)
+
+        await director.run()
+
+        self.assertEqual(await experiment.get_iteration(), 2)
+        self.assertEqual(await director.get_current_iteration(), 1)
+        self.assertEqual(director.prepared_iterations, [0, 1])
 
 
 @slow
@@ -336,7 +372,7 @@ class XYScanDirectorTest(TestCase):
         self.assertEqual(await self.director.get_state(), "standby")
 
 
-class TestableLoggingDirector(BaseDirector):
+class TestableLoggingDirector(FixedIterationDirector):
     """Defines testable director to repeat a given number of experiments, so that some reasonable
     assertions can be made on the logging behavior"""
 
