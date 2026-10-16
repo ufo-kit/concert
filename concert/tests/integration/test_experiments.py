@@ -228,6 +228,16 @@ class TestExperiment(TestExperimentBase):
         self.assertEqual(self.experiment.foo, self.foo)
         self.assertEqual(self.experiment.bar, self.bar)
 
+    async def test_add_rejects_duplicate_acquisitions(self):
+        with self.assertRaises(ValueError):
+            self.experiment.add(self.foo)
+
+        duplicate = await Acquisition(name="foo", producer_corofunc=self.produce)
+        with self.assertRaises(ValueError):
+            self.experiment.add(duplicate)
+
+        self.assertEqual(self.experiment.acquisitions, (self.foo, self.bar))
+
     def test_remove(self):
         self.experiment.remove(self.bar)
         self.assertFalse(hasattr(self.experiment, 'bar'))
