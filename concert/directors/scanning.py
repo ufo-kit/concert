@@ -2,10 +2,10 @@ import asyncio
 from concert.quantities import q
 from concert.helpers import arange
 from concert.base import Quantity, Parameter, check
-from concert.directors.base import Director
+from concert.directors.base import FixedIterationDirector
 
 
-class XYScan(Director):
+class XYScan(FixedIterationDirector):
     """
     Director to scan a specimen within a plane.
     """

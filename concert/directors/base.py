@@ -9,9 +9,12 @@ LOG = logging.getLogger(__name__)
 
 class Director(RunnableParameterizable):
     """
-    Class to handle multiple experiment executions.
+    Base class for runtime-controlled experiment execution.
+
+    Subclasses decide whether another experiment should run by implementing
+    :meth:`has_next_iteration`. This allows the stopping condition to depend on
+    results collected while the director is running.
     """
-    number_of_iterations = Parameter()
     current_iteration = Parameter()
     current_iteration_name = Parameter()
     log_level = Selection(['critical', 'error', 'warning', 'info', 'debug'])
@@ -59,10 +62,13 @@ class Director(RunnableParameterizable):
         ...
 
     @abstractmethod
-    async def _get_number_of_iterations(self) -> int:
+    async def has_next_iteration(self, iteration: int) -> bool:
         """
-        Should return the total number of iterations.
-        :return: Number of iterations.
+        Return whether *iteration* should be executed.
+
+        This is evaluated before preparing the first iteration and again after
+        the current experiment signals that the next iteration may be prepared,
+        so it may use results produced at runtime.
         """
         ...
 
@@ -79,24 +85,22 @@ class Director(RunnableParameterizable):
         """
         return f"iteration_{iteration:04d}"
 
-    async def _prepare_next_run(self):
-        if await self.get_current_iteration() < await self.get_number_of_iterations() - 1:
-            await self._prepare_run(await self.get_current_iteration() + 1)
-
     @background
     async def _run(self):
         await self._experiment['separate_scans'].stash()
         await self._experiment.set_separate_scans(False)
         try:
-            # prepare first iteration
             self._iteration = 0
-            await self._prepare_run(self._iteration)
+            if not await self.has_next_iteration(0):
+                return
+            await self._prepare_run(0)
 
-            for iteration in range(await self.get_number_of_iterations()):
-                self._iteration = iteration
+            while True:
+                iteration = self._iteration
                 await self._run_event.wait()
 
                 await self._experiment.walker.descend(await self.get_iteration_name(iteration))
+                self._experiment.ready_to_prepare_next_outer_loop.clear()
                 exp_run = self._experiment.run()
                 iteration_name = await self.get_iteration_name(iteration)
                 self._experiment.log.info(f"Iteration name: {iteration_name}")
@@ -104,7 +108,9 @@ class Director(RunnableParameterizable):
                 # Note: exp_run and self._experiment.ready_to_prepare_next_sample.wait() finish
                 # at the same time, if the user does not implement ready_to_prepare_next_sample.
                 await self._experiment.ready_to_prepare_next_outer_loop.wait()
-                await self._prepare_next_run()
+                has_next_iteration = await self.has_next_iteration(iteration + 1)
+                if has_next_iteration:
+                    await self._prepare_run(iteration + 1)
                 try:
                     await exp_run
                 except Exception as e:
@@ -115,6 +121,10 @@ class Director(RunnableParameterizable):
                     raise e
                 finally:
                     await self._experiment.walker.ascend()
+
+                if not has_next_iteration:
+                    break
+                self._iteration += 1
 
         except asyncio.CancelledError:
             # This is normal, no special state needed -> standby
@@ -146,3 +156,17 @@ class Director(RunnableParameterizable):
         Resumes a currently paused director run.
         """
         self._run_event.set()
+
+
+class FixedIterationDirector(Director):
+    """Director with a fixed number of iterations determined before the run."""
+
+    number_of_iterations = Parameter()
+
+    @abstractmethod
+    async def _get_number_of_iterations(self) -> int:
+        """Return the total number of experiment iterations."""
+        ...
+
+    async def has_next_iteration(self, iteration: int) -> bool:
+        return iteration < await self.get_number_of_iterations()
