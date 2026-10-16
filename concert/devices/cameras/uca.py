@@ -16,7 +16,6 @@ from concert.devices.cameras import base
 
 LOG = logging.getLogger(__name__)
 
-
 def _new_setter_wrapper(name, unit=None):
     async def _wrapper(instance, value):
         if await instance.get_state() == 'recording':
@@ -55,7 +54,7 @@ def _translate_gerror(func):
 
 
 class Camera(base.Camera):
-
+    _manager = None
     """libuca-based camera.
 
     All properties that are exported by the underlying camera are also visible.
@@ -81,7 +80,8 @@ class Camera(base.Camera):
 
         from gi.repository import GObject, GLib, Uca
 
-        self._manager = Uca.PluginManager()
+        if Camera._manager is None:
+            Camera._manager = Uca.PluginManager()
 
         params = params if params else {}
 
