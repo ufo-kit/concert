@@ -1,22 +1,22 @@
 """Exercise the experimental protocol over real Tango RPC and change events."""
 import asyncio
 import json
-import time
-import threading
 import unittest
 import uuid
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 tango = pytest.importorskip("tango")
 from tango.asyncio_executor import AsyncioExecutor  # noqa: E402
-from tango.test_context import DeviceTestContext  # noqa: E402
+from tango.test_context import MultiDeviceTestContext  # noqa: E402
 
+from concert.base import AsyncObject  # noqa: E402
+from concert.session.utils import abort_awaiting  # noqa: E402
 from concert.tests.util.tango_jobs import (  # noqa: E402
-    JobConnectionError, JobTestDevice, JobUnavailable,
-    RemoteJob, RemoteJobCancelled, RemoteJobError,
+    JobConnectionError, JobDevice, JobTestDevice, JobUnavailable,
+    RemoteJob, RemoteJobCancelled, RemoteJobError, job_command,
 )
 
 
@@ -50,17 +50,29 @@ class SetupConnection(FaultyConnection):
     def __init__(self, proxy):
         super().__init__(proxy)
         self.subscriptions = 0
+        self.attributes = []
+        self.events = []
+        self.callback_loops = []
         self.unsubscriptions = 0
         self.subscribed = asyncio.Event()
         self.loop = asyncio.get_running_loop()
-        self.release_subscription = threading.Event()
+        self.release_subscription = asyncio.Event()
         self.release_subscription.set()
 
-    def subscribe_event(self, *args, **kwargs):
-        subscription = self.proxy.subscribe_event(*args, **kwargs)
+    async def subscribe_event(self, *args, **kwargs):
+        attr_name, event_type, callback = args
+
+        def record_event(event):
+            self.callback_loops.append(asyncio.get_running_loop())
+            self.events.append(event)
+            callback(event)
+
+        subscription = await self.proxy.subscribe_event(
+            attr_name, event_type, record_event, **kwargs)
         self.subscriptions += 1
-        self.loop.call_soon_threadsafe(self.subscribed.set)
-        self.release_subscription.wait()
+        self.attributes.append(attr_name)
+        self.subscribed.set()
+        await self.release_subscription.wait()
         return subscription
 
     async def unsubscribe_event(self, subscription):
@@ -68,11 +80,41 @@ class SetupConnection(FaultyConnection):
         self.unsubscriptions += 1
 
 
+class TestJobAttributeNames(unittest.TestCase):
+    def test_default_and_custom_names(self):
+        async def operation(self):
+            pass
+
+        self.assertEqual(job_command()(operation)._job_spec[2], "operation_job_state")
+        self.assertEqual(job_command(attr_name="custom")(operation)._job_spec[2], "custom")
+        for name in ("", 12):
+            with self.assertRaises(ValueError):
+                job_command(attr_name=name)
+
+    def test_collisions_are_rejected_before_creating_attributes(self):
+        for names in (("shared", "SHARED"), ("calls",), ("STATE",), ("Status",)):
+            with self.subTest(names=names):
+                device = SimpleNamespace(
+                    _operations={str(i): (None, None, name) for i, name in enumerate(names)},
+                    get_device_attr=lambda: SimpleNamespace(
+                        get_attr_nb=lambda: 3,
+                        get_attr_by_ind=lambda i: SimpleNamespace(
+                            get_name=lambda: ("calls", "State", "Status")[i])),
+                    add_attribute=Mock(),
+                )
+                with self.assertRaisesRegex(ValueError, "collision"):
+                    JobDevice.initialize_dynamic_attributes(device)
+                device.add_attribute.assert_not_called()
+
+
 class TestTangoJobs(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls):
         # A separate process avoids mixing Tango's server and client executors.
-        cls.context = DeviceTestContext(JobTestDevice, process=True, host="127.0.0.1")
+        cls.context = MultiDeviceTestContext([{
+            "class": JobTestDevice,
+            "devices": [{"name": "test/jobs/first"}, {"name": "test/jobs/second"}],
+        }], process=True, host="127.0.0.1")
         cls.context.start()
 
     @classmethod
@@ -83,9 +125,9 @@ class TestTangoJobs(unittest.IsolatedAsyncioTestCase):
         self.proxy = self.make_proxy()
         await self.proxy.Init()
 
-    def make_proxy(self):
+    def make_proxy(self, name="test/jobs/first"):
         proxy = tango.DeviceProxy(
-            self.context.get_device_access(), green_mode=tango.GreenMode.Asyncio,
+            self.context.get_device_access(name), green_mode=tango.GreenMode.Asyncio,
             asyncio_executor=AsyncioExecutor(loop=asyncio.get_running_loop()),
         )
         proxy.set_timeout_millis(500)
@@ -106,16 +148,124 @@ class TestTangoJobs(unittest.IsolatedAsyncioTestCase):
     async def start(self, name, *args, proxy=None, **options):
         options.setdefault("reconcile_interval", 0.05)
         options.setdefault("recovery_timeout", 0.15)
-        job = await RemoteJob.start(self.proxy if proxy is None else proxy, name, *args, **options)
+        if args:
+            options["arg"], = args
+        job = await RemoteJob(proxy=self.proxy if proxy is None else proxy, command=name, **options)
         self.addAsyncCleanup(job.close)
         return job
 
     async def attach(self, job_id, proxy=None, **options):
         options.setdefault("reconcile_interval", 0.05)
         options.setdefault("recovery_timeout", 0.15)
-        job = await RemoteJob.attach(self.proxy if proxy is None else proxy, job_id, **options)
+        job = await RemoteJob(proxy=self.proxy if proxy is None else proxy,
+                              job_id=job_id, **options)
         self.addAsyncCleanup(job.close)
         return job
+
+    async def test_async_constructor_initializes_one_job(self):
+        job = await self.start("slow", 0.1)
+        self.assertIsInstance(job, AsyncObject)
+        self.assertIsInstance(job, RemoteJob)
+        self.assertFalse(hasattr(RemoteJob, "start"))
+        self.assertFalse(hasattr(RemoteJob, "attach"))
+        self.assertEqual(await job, 0.1)
+
+    async def test_constructor_requires_command_or_id(self):
+        for options in ({}, {"arg": 1}, {"job_id": str(uuid.uuid4()), "arg": 1}):
+            with self.subTest(options=options):
+                with self.assertRaises(ValueError):
+                    await RemoteJob(proxy=self.proxy, **options)
+        # Explicit None is an argument, not omission of a void command's input.
+        with self.assertRaises(tango.DevFailed):
+            await RemoteJob(proxy=self.proxy, command="fail", arg=None)
+
+    async def test_command_attributes_and_custom_name_discovery(self):
+        attributes = list(self.proxy.get_attribute_list())
+        self.assertIn("immediate_job_state", attributes)
+        self.assertIn("delay_state", attributes)
+        self.assertNotIn("slow_job_state", attributes)
+        self.assertNotIn("job_changed", attributes)
+        connection = SetupConnection(self.proxy)
+        job = await self.start("slow", 0.2, proxy=connection)
+        self.assertEqual((await self.record(job))["attr_name"], "delay_state")
+        attached = await self.attach(job.id, proxy=connection)
+        self.assertEqual(connection.attributes, ["delay_state", "delay_state"])
+        self.assertEqual(await attached, 0.2)
+        self.assertEqual(await job, 0.2)
+        value = json.loads((await self.proxy.read_attribute("delay_state")).value)
+        self.assertEqual(value, {"id": job.id, "state": "SUCCEEDED"})
+
+    async def test_other_commands_do_not_deliver_events_to_handle(self):
+        connection = SetupConnection(self.proxy)
+        job = await self.start("slow", 0.1, proxy=connection)
+        # Keep this subscription alive after server completion to test routing.
+        job._refresh = AsyncMock()
+        await self.wait_state(job, "SUCCEEDED")
+        other = await self.start("immediate", "other command")
+        await other
+        await asyncio.sleep(0.1)
+        ids = {json.loads(event.attr_value.value)["id"] for event in connection.events
+               if not event.err and event.attr_value is not None}
+        self.assertIn(job.id, ids)
+        self.assertNotIn(other.id, ids)
+        await job.close()
+
+    async def test_finished_and_unknown_jobs_do_not_subscribe(self):
+        job = await self.start("immediate", "finished")
+        await job
+        connection = SetupConnection(self.proxy)
+        finished = await self.attach(job.id, proxy=connection)
+        self.assertEqual(await finished, "finished")
+        unknown = await self.attach(str(uuid.uuid4()), proxy=connection)
+        with self.assertRaises(JobUnavailable):
+            await unknown
+        self.assertEqual(connection.subscriptions, 0)
+
+    async def test_completion_between_discovery_and_subscription(self):
+        class DelayedDiscovery(SetupConnection):
+            reads = 0
+
+            async def GetJob(self, job_id):
+                record = await super().GetJob(job_id)
+                self.reads += 1
+                if self.reads == 1:
+                    self.initial_state = json.loads(record)["state"]
+                    await asyncio.sleep(0.3)
+                return record
+
+        await self.proxy.emit_events(False)
+        connection = DelayedDiscovery(self.proxy)
+        job = await self.start("slow", 0.15, proxy=connection, reconcile_interval=60)
+        self.assertEqual(connection.initial_state, "RUNNING")
+        self.assertEqual(await asyncio.wait_for(job, 2), 0.15)
+        self.assertEqual(connection.reads, 2)
+        self.assertEqual(connection.unsubscriptions, 1)
+
+    async def test_initial_discovery_failure_recovers(self):
+        connection = SetupConnection(self.proxy)
+        connection.offline = True
+        job = await self.start("slow", 0.4, proxy=connection)
+        self.assertEqual(connection.subscriptions, 0)
+        await asyncio.sleep(0.05)
+        connection.offline = False
+        self.assertEqual(await asyncio.wait_for(job, 2), 0.4)
+        self.assertEqual(connection.attributes, ["delay_state"])
+
+    async def test_dynamic_attributes_survive_init_and_are_device_local(self):
+        other = self.make_proxy("test/jobs/second")
+        await other.Init()
+        attributes = list(self.proxy.get_attribute_list())
+        for _ in range(2):
+            await self.proxy.Init()
+            self.assertEqual(list(self.proxy.get_attribute_list()), attributes)
+        first, second = await asyncio.gather(
+            self.start("slow", 0.2), self.start("slow", 0.2, proxy=other),
+        )
+        self.assertEqual(await first, 0.2)
+        self.assertEqual(await second, 0.2)
+        for proxy, job in ((self.proxy, first), (other, second)):
+            value = json.loads((await proxy.read_attribute("delay_state")).value)
+            self.assertEqual(value, {"id": job.id, "state": "SUCCEEDED"})
 
     async def test_single_job_releases_subscription_on_completion(self):
         connection = SetupConnection(self.proxy)
@@ -129,6 +279,9 @@ class TestTangoJobs(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(connection.unsubscriptions, 1)
         await asyncio.gather(job.close(), job.close())
         self.assertEqual(connection.unsubscriptions, 1)
+        self.assertTrue(connection.callback_loops)
+        self.assertTrue(all(loop is asyncio.get_running_loop()
+                            for loop in connection.callback_loops))
 
     async def test_attachments_monitor_independently(self):
         connection = SetupConnection(self.proxy)
@@ -159,10 +312,11 @@ class TestTangoJobs(unittest.IsolatedAsyncioTestCase):
             def subscribe_event(self, *args, **kwargs):
                 tango.Except.throw_exception("API_CommunicationFailed", "offline", "test")
 
+        job = await self.start("slow", 1, proxy=FailedSubscription(self.proxy))
         with self.assertRaises(JobConnectionError) as caught:
-            await self.start("slow", 0.2, proxy=FailedSubscription(self.proxy))
+            await job
         job = await self.attach(caught.exception.job_id)
-        self.assertEqual(await job, 0.2)
+        self.assertEqual(await job, 1)
         self.assertEqual((await self.proxy.read_attribute("calls")).value, 1)
 
     async def test_close_does_not_interrupt_automatic_unsubscription(self):
@@ -202,7 +356,7 @@ class TestTangoJobs(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(connection.subscriptions, 1)
         self.assertEqual(connection.unsubscriptions, 1)
         # Cancelling attachment must not cancel the accepted operation.
-        change = json.loads((await self.proxy.read_attribute("job_changed")).value)
+        change = json.loads((await self.proxy.read_attribute("delay_state")).value)
         attached = await self.attach(change["id"])
         self.assertEqual(await attached, 0.3)
 
@@ -231,10 +385,11 @@ class TestTangoJobs(unittest.IsolatedAsyncioTestCase):
 
     async def test_events_contain_only_one_job_and_ignore_late_updates(self):
         job = await self.start("slow", 0.3)
-        running = json.loads((await self.proxy.read_attribute("job_changed")).value)
+        job._refresh = AsyncMock()  # Test event ordering before the result is fetched.
+        running = json.loads((await self.proxy.read_attribute("delay_state")).value)
         self.assertEqual(set(running), {"id", "state"})
         self.assertEqual(running["id"], job.id)
-        time.sleep(0.6)
+        await asyncio.sleep(0.6)
         self.assertEqual(job.state, "SUCCEEDED")
         # An older notification must not undo the terminal event, even before
         # GetJob has fetched the result.
@@ -245,22 +400,23 @@ class TestTangoJobs(unittest.IsolatedAsyncioTestCase):
         event.attr_value.value = json.dumps(unknown)
         job._on_event(event)
         self.assertEqual(job.state, "SUCCEEDED")
+        del job._refresh
+        await job._refresh()
         self.assertEqual(await job, 0.3)
         self.assertEqual(job.state, "SUCCEEDED")
 
-    async def test_state_updates_while_interactive_event_loop_is_idle(self):
+    async def test_state_updates_without_awaiting_job(self):
         job = await self.start("slow", 0.2)
-        # Terminal IPython stops its loop between async cells. Deliberately
-        # block this loop to reproduce that, leaving Tango's threads running.
-        time.sleep(0.6)
+        # Concert's asyncio-enabled prompt lets tasks run between user commands.
+        await asyncio.sleep(0.6)
         self.assertEqual(job.state, "SUCCEEDED")
         self.assertEqual(await job, 0.2)
 
-    async def test_cancelled_state_updates_while_loop_is_idle(self):
+    async def test_cancelled_state_updates_without_awaiting_job(self):
         job = await self.start("cleanup", 10)
         await self.wait_state(job, "RUNNING")
         await job.cancel_remote()
-        time.sleep(0.6)
+        await asyncio.sleep(0.6)
         self.assertEqual(job.state, "CANCELLED")
         with self.assertRaises(RemoteJobCancelled):
             await job
@@ -274,7 +430,7 @@ class TestTangoJobs(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(refreshed.wait(), 2)
         running_record = await self.proxy.GetJob(job.id)
         self.assertEqual(json.loads(running_record)["state"], "RUNNING")
-        time.sleep(0.6)
+        await asyncio.sleep(0.6)
         self.assertEqual(job.state, "SUCCEEDED")
 
         class StaleRead(FaultyConnection):
@@ -297,9 +453,10 @@ class TestTangoJobs(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await asyncio.wait_for(job, 2), "result")
 
     async def test_concurrent_completion_reads_settle_handle_once(self):
-        finished = await self.start("immediate", "result")
-        await finished
-        response = await self.proxy.GetJob(finished.id)
+        job = await self.start("slow", 0.1)
+        job._refresh = AsyncMock()  # Keep the outcome pending until the two test reads.
+        await self.wait_state(job, "SUCCEEDED")
+        response = await self.proxy.GetJob(job.id)
         both_reading = asyncio.Event()
 
         class SimultaneousReads(FaultyConnection):
@@ -312,12 +469,12 @@ class TestTangoJobs(unittest.IsolatedAsyncioTestCase):
                 await both_reading.wait()
                 return response
 
-        job = RemoteJob(SimultaneousReads(self.proxy), finished.id)
-        self.addAsyncCleanup(job.close)
+        job.proxy = SimultaneousReads(self.proxy)
+        del job._refresh
         await asyncio.wait_for(asyncio.gather(
             job._refresh(), job._refresh(),
         ), 2)
-        self.assertEqual(await job, "result")
+        self.assertEqual(await job, 0.1)
 
     async def test_remote_failure(self):
         job = await self.start("fail")
@@ -335,6 +492,25 @@ class TestTangoJobs(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.record(job))["state"], "RUNNING")
         self.assertEqual(await asyncio.wait_for(other, 2), 0.3)
         self.assertEqual(await job, 0.3)
+
+    async def test_concert_abort_stops_monitoring_but_not_server_job(self):
+        for immediately in (True, False):
+            with self.subTest(immediately=immediately):
+                job = await self.start("slow", 10)
+                if not immediately:
+                    await asyncio.sleep(0)  # Let the watcher enter its try/finally.
+                self.assertTrue(job._monitor._is_concert_task)
+                abort_awaiting()  # The action bound to Ctrl-K in Concert.
+                with self.assertRaises(JobConnectionError):
+                    await asyncio.wait_for(job, 2)
+
+                async def wait_for_cleanup():
+                    while job._subscription is not None:
+                        await asyncio.sleep(0.01)
+
+                await asyncio.wait_for(wait_for_cleanup(), 2)
+                self.assertEqual((await self.record(job))["state"], "RUNNING")
+                await self.proxy.Init()
 
     async def test_remote_cancellation_waits_for_cleanup(self):
         job = await self.start("cleanup", 10)
