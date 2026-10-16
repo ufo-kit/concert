@@ -3,22 +3,24 @@ import logging
 from abc import abstractmethod
 
 from concert.base import background, Parameter, StateError, Selection, RunnableParameterizable
-from concert.helpers import get_state_from_awaitable
-from concert.loghandler import AsyncLoggingHandlerCloser
 
 LOG = logging.getLogger(__name__)
 
 
 class Director(RunnableParameterizable):
     """
-    Class to handle multiple experiment executions.
+    Base class for runtime-controlled experiment execution.
+
+    Subclasses decide whether another experiment should run by implementing
+    :meth:`has_next_iteration`. This allows the stopping condition to depend on
+    results collected while the director is running.
     """
-    number_of_iterations = Parameter()
     current_iteration = Parameter()
     current_iteration_name = Parameter()
     log_level = Selection(['critical', 'error', 'warning', 'info', 'debug'])
 
-    async def __ainit__(self, *, experiment, **kwargs):
+    async def __ainit__(self, experiment, walker=None, separate_scans=True,
+                        name_fmt='director_scan_{:>04}', **kwargs):
         """
         :param experiment: Experiment that is run. If the experiment features a
             'ready_to_prepare_next_sample' event (asyncio.Event) this will be waited within the
@@ -30,26 +32,22 @@ class Director(RunnableParameterizable):
         :type experiment: concert.experiments.base.Experiment
         """
         self._experiment = experiment
+        self._iteration = 0
         self._run_event = asyncio.Event()
         # Let us run by default
         self._run_event.set()
-        self._iteration = 0
-        self.log = LOG
-        self.log.setLevel("INFO")
-        await super().__ainit__(**kwargs)
+        if walker is None:
+            walker = experiment.walker
+        await super().__ainit__(walker=walker, separate_scans=separate_scans,
+                        name_fmt=name_fmt, **kwargs)
+        await self.set_log_file_prefix("director")
 
     async def _get_state(self):
-        state = await get_state_from_awaitable(self._run_awaitable)
+        state = await super()._get_state()
         if state == 'running' and not self._run_event.is_set():
             return 'paused'
         else:
             return state
-
-    async def _get_log_level(self):
-        return logging.getLevelName(self.log.getEffectiveLevel()).lower()
-
-    async def _set_log_level(self, level):
-        self.log.setLevel(level.upper())
 
     @abstractmethod
     async def _prepare_run(self, iteration: int):
@@ -64,10 +62,13 @@ class Director(RunnableParameterizable):
         ...
 
     @abstractmethod
-    async def _get_number_of_iterations(self) -> int:
+    async def has_next_iteration(self, iteration: int) -> bool:
         """
-        Should return the total number of iterations.
-        :return: Number of iterations.
+        Return whether *iteration* should be executed.
+
+        This is evaluated before preparing the first iteration and again after
+        the current experiment signals that the next iteration may be prepared,
+        so it may use results produced at runtime.
         """
         ...
 
@@ -84,44 +85,32 @@ class Director(RunnableParameterizable):
         """
         return f"iteration_{iteration:04d}"
 
-    async def _prepare_next_run(self):
-        if await self.get_current_iteration() < await self.get_number_of_iterations() - 1:
-            await self._prepare_run(await self.get_current_iteration() + 1)
-
     @background
     async def _run(self):
         await self._experiment['separate_scans'].stash()
         await self._experiment.set_separate_scans(False)
-        handler = None
         try:
-            if self._experiment.walker:
-                handler: AsyncLoggingHandlerCloser = await self._experiment.walker.register_logger(
-                    logger_name=self.__class__.__name__,
-                    log_level=logging.NOTSET,
-                    file_name="director.log"
-                )
-                self.log.addHandler(handler)
-            self.log.info(await self.info_table)
-
-            await self.prepare()
-            # prepare first iteration
             self._iteration = 0
-            await self._prepare_run(self._iteration)
+            if not await self.has_next_iteration(0):
+                return
+            await self._prepare_run(0)
 
-            for iteration in range(await self.get_number_of_iterations()):
-                self._iteration = iteration
+            while True:
+                iteration = self._iteration
                 await self._run_event.wait()
 
                 await self._experiment.walker.descend(await self.get_iteration_name(iteration))
+                self._experiment.ready_to_prepare_next_outer_loop.clear()
                 exp_run = self._experiment.run()
-                sample_name = await self.get_iteration_name(iteration)
-                self._experiment.log.info(f"Sample name: {sample_name}")
-                self._experiment.log.info(await self.info_table)
+                iteration_name = await self.get_iteration_name(iteration)
+                self._experiment.log.info(f"Iteration name: {iteration_name}")
 
                 # Note: exp_run and self._experiment.ready_to_prepare_next_sample.wait() finish
                 # at the same time, if the user does not implement ready_to_prepare_next_sample.
-                await self._experiment.ready_to_prepare_next_sample.wait()
-                await self._prepare_next_run()
+                await self._experiment.ready_to_prepare_next_outer_loop.wait()
+                has_next_iteration = await self.has_next_iteration(iteration + 1)
+                if has_next_iteration:
+                    await self._prepare_run(iteration + 1)
                 try:
                     await exp_run
                 except Exception as e:
@@ -132,6 +121,10 @@ class Director(RunnableParameterizable):
                     raise e
                 finally:
                     await self._experiment.walker.ascend()
+
+                if not has_next_iteration:
+                    break
+                self._iteration += 1
 
         except asyncio.CancelledError:
             # This is normal, no special state needed -> standby
@@ -144,11 +137,7 @@ class Director(RunnableParameterizable):
             LOG.warning('Experiment director cancelled by keyboard interrupt')
             raise
         finally:
-            if handler:
-                await handler.aclose()
-                self.log.removeHandler(handler)
             await self._experiment['separate_scans'].restore()
-            await self.finish()
 
     async def _get_current_iteration(self) -> int:
         return self._iteration
@@ -168,8 +157,16 @@ class Director(RunnableParameterizable):
         """
         self._run_event.set()
 
-    async def prepare(self):
-        pass
 
-    async def finish(self):
-        pass
+class FixedIterationDirector(Director):
+    """Director with a fixed number of iterations determined before the run."""
+
+    number_of_iterations = Parameter()
+
+    @abstractmethod
+    async def _get_number_of_iterations(self) -> int:
+        """Return the total number of experiment iterations."""
+        ...
+
+    async def has_next_iteration(self, iteration: int) -> bool:
+        return iteration < await self.get_number_of_iterations()

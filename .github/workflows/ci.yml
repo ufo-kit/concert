@@ -15,6 +15,10 @@ jobs:
               run: docker build -t concert-docker .
             - name: Setup Decentralized Infrastructure
               run: docker compose -f concert/tests/integration/scenarios/compose.yml up -d
+            - name: Sleep for 20 seconds
+              uses: GuillaumeFalourd/wait-sleep-action@v1
+              with:
+                time: '20' # for 20 seconds
             - name: Run Scenarios
               run: |
                 docker run \
