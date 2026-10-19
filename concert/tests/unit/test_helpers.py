@@ -227,7 +227,7 @@ class TestCommData(TestCase):
 
     def test_tcp(self):
         comms = CommData("localhost", port=1234, protocol="tcp", socket_type=zmq.PUSH, sndhwm=1234)
-        self.assertEqual(comms.server_endpoint, "tcp://*:1234")
+        self.assertEqual(comms.server_endpoint, "tcp://localhost:1234")
         self.assertEqual(comms.client_endpoint, "tcp://localhost:1234")
         self.assertEqual(comms.sndhwm, 1234)
         self.assertEqual(comms.socket_type, zmq.PUSH)
