@@ -444,7 +444,7 @@ class CommData:
         if self.protocol == "ipc":
             return f"{self.protocol}://{self.host}"
         else:
-            return f"{self.protocol}://*:{self.port}"
+            return f"{self.protocol}://{self.host}:{self.port}"
 
     @property
     def client_endpoint(self) -> str:
