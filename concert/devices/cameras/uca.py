@@ -309,8 +309,16 @@ def _ucad_unregister_all(host, port):
 
 def _construct_ucad_error(message):
     # struct UcaNetDefaultReply of uca-net-protocol.h
-    msg_type, occured, domain, code, message = struct.unpack("I?64si512s", message)
-    if occured:
+    reply_format = "I?64si512s"
+    reply_size = struct.calcsize(reply_format)
+
+    if len(message) != reply_size:
+        raise UcaNetError(
+            f"Invalid reply from ucad: expected {reply_size} bytes, got {len(message)}"
+        )
+
+    msg_type, occurred, domain, code, message = struct.unpack(reply_format, message)
+    if occurred:
         raise UcaNetError(message.decode().strip('\x00'))
 
 
