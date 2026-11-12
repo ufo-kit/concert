@@ -1,10 +1,10 @@
 import logging
-from concert.directors.base import Director as BaseDirector
+from concert.directors.base import FixedIterationDirector
 
 LOG = logging.getLogger(__name__)
 
 
-class Director(BaseDirector):
+class Director(FixedIterationDirector):
     """
     Dummy director, that runs an Experiment *num_iteration* times.
     """
