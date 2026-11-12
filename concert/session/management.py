@@ -121,16 +121,40 @@ def is_multiinstance(filename):
         filename = path(filename)
 
     with open(filename) as session_file:
-        lines = session_file.readlines()
+        tree = ast.parse(session_file.read())
 
-    for line in lines:
-        if "MULTIINSTANCE" in line:
-            node = ast.parse(line).body[0]
-            return node.value.value
+    for node in tree.body:
+        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            if any(isinstance(target, ast.Name) and target.id == "MULTIINSTANCE"
+                   for target in targets):
+                return ast.literal_eval(node.value)
 
     # If MULTIINSTANCE is not specified be conservative and return False
     return False
 
+
+def get_device_locks(filename):
+    """Search for the DEVICE_LOCKS assignment in *filename* and return its value."""
+    if not os.path.exists(filename):
+        # Just the session name, find the actual path
+        filename = path(filename)
+
+    with open(filename) as session_file:
+        tree = ast.parse(session_file.read())
+
+    for node in tree.body:
+        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            if any(isinstance(target, ast.Name) and target.id == "DEVICE_LOCKS"
+                   for target in targets):
+                value = ast.literal_eval(node.value)
+                if isinstance(value, (list, tuple)):
+                    return list(value)
+                break
+
+    # If DEVICE_LOCKS is not specified, be conservative and return an empty list
+    return []
 
 def get_existing():
     """Get all existing session names."""
