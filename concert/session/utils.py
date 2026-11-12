@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from logging.handlers import TimedRotatingFileHandler
 import math
 import os
 import abc
@@ -7,7 +8,14 @@ from abc import abstractmethod
 import inspect
 import subprocess
 import sys
+import shutil
+import time
 import prettytable
+
+if os.name == 'nt':
+    import msvcrt
+else:
+    import fcntl
 from concert.config import AIODEBUG
 from concert.coroutines.base import background, get_event_loop, run_in_loop
 from concert.devices.base import Device
@@ -15,6 +23,111 @@ from concert.quantities import q
 
 
 LOG = logging.getLogger(__name__)
+
+
+class MultiprocessTimedRotatingFileHandler(TimedRotatingFileHandler):
+    """Rotate a shared log without renaming the inode held by other processes.
+
+    ``TimedRotatingFileHandler`` renames the active file during rollover.  A
+    handler in another process can still have the old inode open, causing its
+    records to disappear from the new active log.  A small inter-process lock
+    and copy/truncate rotation keep all handlers attached to the active inode.
+    """
+
+    def __init__(self, filename, *args, **kwargs):
+        super().__init__(filename, *args, **kwargs)
+        self._rotation_lock = open(filename + '.lock', 'a+')
+        if os.name == 'nt' and os.path.getsize(filename + '.lock') == 0:
+            self._rotation_lock.write(' ')
+            self._rotation_lock.flush()
+        with self._locked():
+            shared_rollover = self._read_rollover()
+            if shared_rollover is None:
+                self._write_rollover(self.rolloverAt)
+            else:
+                self.rolloverAt = shared_rollover
+
+    def close(self):
+        try:
+            super().close()
+        finally:
+            self._rotation_lock.close()
+
+    def emit(self, record):
+        try:
+            with self._locked():
+                shared_rollover = self._read_rollover()
+                if shared_rollover is None:
+                    shared_rollover = self.rolloverAt
+                    self._write_rollover(shared_rollover)
+                self.rolloverAt = shared_rollover
+                if time.time() >= shared_rollover:
+                    self._doRollover(shared_rollover)
+                super(TimedRotatingFileHandler, self).emit(record)
+        except Exception:
+            self.handleError(record)
+
+    def _read_rollover(self):
+        self._rotation_lock.seek(0)
+        value = self._rotation_lock.read().strip()
+        try:
+            return float(value)
+        except ValueError:
+            return None
+
+    def _write_rollover(self, rollover_at):
+        self._rotation_lock.seek(0)
+        self._rotation_lock.truncate()
+        self._rotation_lock.write(str(rollover_at))
+        self._rotation_lock.flush()
+
+    def _locked(self):
+        class Lock:
+            def __enter__(_self):
+                if os.name == 'nt':
+                    self._rotation_lock.seek(0)
+                    msvcrt.locking(self._rotation_lock.fileno(), msvcrt.LK_LOCK, 1)
+                else:
+                    fcntl.flock(self._rotation_lock.fileno(), fcntl.LOCK_EX)
+
+            def __exit__(_self, *_args):
+                if os.name == 'nt':
+                    self._rotation_lock.seek(0)
+                    msvcrt.locking(self._rotation_lock.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    fcntl.flock(self._rotation_lock.fileno(), fcntl.LOCK_UN)
+        return Lock()
+
+    def doRollover(self):
+        with self._locked():
+            shared_rollover = self._read_rollover()
+            # Another handler may have completed this rollover while this
+            # handler was waiting for the lock.  Never overwrite its archive.
+            if shared_rollover is not None and shared_rollover != self.rolloverAt:
+                self.rolloverAt = shared_rollover
+                return
+            self._doRollover(shared_rollover or self.rolloverAt)
+
+    def _doRollover(self, rollover_at):
+        self.rolloverAt = rollover_at
+        self.stream.flush()
+        if os.path.exists(self.baseFilename):
+            destination = self.rotation_filename(
+                self.baseFilename + "." +
+                time.strftime('%Y-%m-%d', time.localtime(rollover_at)))
+            shutil.copyfile(self.baseFilename, destination)
+            os.ftruncate(self.stream.fileno(), 0)
+            self.stream.seek(0, os.SEEK_END)
+        current_time = time.time()
+
+        if self.when == 'MIDNIGHT':
+            new_rollover_at = self.computeRollover(current_time)
+        else:
+            new_rollover_at = current_time + self.interval
+        while new_rollover_at <= current_time:
+            new_rollover_at += self.interval
+        self.rolloverAt = new_rollover_at
+        self._write_rollover(new_rollover_at)
 
 
 class SubCommand(abc.ABC):
@@ -50,7 +163,7 @@ def setup_logging(name, to_stream=False, filename=None, loglevel=None):
         stream_handler.setFormatter(formatter)
         logger.addHandler(stream_handler)
     if filename:
-        file_handler = logging.FileHandler(filename)
+        file_handler = MultiprocessTimedRotatingFileHandler(filename, when='D', backupCount=0)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
 
