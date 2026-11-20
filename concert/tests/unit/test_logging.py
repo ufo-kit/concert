@@ -158,13 +158,59 @@ class TestMultiprocessTimedRotatingFileHandler(TestCase):
                 with handler._locked():
                     handler._write_rollover(rollover_at)
 
-                with patch('concert.session.utils.shutil.copyfile',
+                with patch('concert.session.utils.shutil.copyfileobj',
                            side_effect=OSError('filesystem full')), \
                         patch.object(handler, 'handleError') as handle_error:
                     # The filesystem exception must not escape emit().
                     handler.emit(record)
 
                 handle_error.assert_called_once_with(record)
+            finally:
+                handler.close()
+
+    def test_retry_after_shared_state_failure_preserves_existing_archive(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            logfile = os.path.join(tmpdir, 'concert.log')
+            handler = MultiprocessTimedRotatingFileHandler(logfile, when='D')
+            deadline = time.time() - 1
+            try:
+                handler.emit(self._record('original records'))
+                with handler._locked():
+                    handler._write_rollover(deadline)
+                with patch.object(handler, '_write_rollover', side_effect=OSError('full')), \
+                        patch.object(handler, 'handleError') as error:
+                    handler.emit(self._record('failed rollover'))
+                error.assert_called_once()
+                archive = logfile + '.' + time.strftime('%Y-%m-%d_%H-%M-%SZ',
+                                                       time.gmtime(deadline))
+                handler.emit(self._record('retry'))
+                with open(archive) as log:
+                    self.assertEqual(log.read(), 'original records\n')
+                self.assertTrue(os.path.exists(archive + '.1'))
+                with open(logfile) as log:
+                    self.assertEqual(log.read(), 'retry\n')
+            finally:
+                handler.close()
+
+    def test_failed_archive_copy_removes_partial_archive_and_keeps_active_log(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            logfile = os.path.join(tmpdir, 'concert.log')
+            handler = MultiprocessTimedRotatingFileHandler(logfile, when='D')
+            try:
+                handler.emit(self._record('original records'))
+                with handler._locked():
+                    handler._write_rollover(time.time() - 1)
+
+                def fail_copy(source, output):
+                    output.write(b'partial')
+                    raise OSError('full')
+
+                with patch('concert.session.utils.shutil.copyfileobj', side_effect=fail_copy), \
+                        patch.object(handler, 'handleError'):
+                    handler.emit(self._record('failed rollover'))
+                self.assertEqual(sorted(os.listdir(tmpdir)), ['concert.log', 'concert.log.lock'])
+                with open(logfile) as log:
+                    self.assertEqual(log.read(), 'original records\n')
             finally:
                 handler.close()
 

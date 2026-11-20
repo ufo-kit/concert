@@ -116,7 +116,23 @@ class MultiprocessTimedRotatingFileHandler(TimedRotatingFileHandler):
                 self.baseFilename + "." +
                 # UTC timestamps distinguish deadlines even during DST fallback.
                 time.strftime('%Y-%m-%d_%H-%M-%SZ', time.gmtime(rollover_at)))
-            shutil.copyfile(self.baseFilename, destination)
+            # Reserve the archive exclusively: retries or reused clock deadlines
+            # must never overwrite an archive from an earlier rollover.
+            archive = destination
+            suffix = 0
+            while True:
+                try:
+                    output = open(archive, 'xb')
+                    break
+                except FileExistsError:
+                    suffix += 1
+                    archive = f'{destination}.{suffix}'
+            try:
+                with output, open(self.baseFilename, 'rb') as source:
+                    shutil.copyfileobj(source, output)
+            except Exception:
+                os.unlink(archive)
+                raise
             os.ftruncate(self.stream.fileno(), 0)
             self.stream.seek(0, os.SEEK_END)
         current_time = time.time()
@@ -127,8 +143,8 @@ class MultiprocessTimedRotatingFileHandler(TimedRotatingFileHandler):
             new_rollover_at = current_time + self.interval
         while new_rollover_at <= current_time:
             new_rollover_at += self.interval
-        self.rolloverAt = new_rollover_at
         self._write_rollover(new_rollover_at)
+        self.rolloverAt = new_rollover_at
 
 
 class SubCommand(abc.ABC):
