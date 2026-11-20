@@ -77,6 +77,25 @@ class TestIPythonProfiles(TestCase):
             history = root / 'ipython' / 'profile_concert_external_session' / 'history.sqlite'
             self.assertTrue(history.is_file())
 
+    def test_renaming_session_preserves_history_and_removal_deletes_profile(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            env = os.environ.copy()
+            env.pop('VIRTUAL_ENV', None)
+            env['IPYTHONDIR'] = str(root / 'ipython')
+            env['XDG_DATA_HOME'] = str(root / 'data')
+            self._run_concert(env, 'init', 'original')
+            self._run_concert(env, 'start', 'original', input_text='original_marker = 1\nexit()\n')
+            self._run_concert(env, 'mv', 'original', 'renamed')
+            self._run_concert(env, 'start', 'renamed', input_text='renamed_marker = 2\nexit()\n')
+            profile = root / 'ipython' / 'profile_concert_renamed'
+            history = self._history(profile / 'history.sqlite')
+            self.assertIn('original_marker', history)
+            self.assertIn('renamed_marker', history)
+            self.assertFalse((root / 'ipython' / 'profile_concert_original').exists())
+            self._run_concert(env, 'rm', 'renamed')
+            self.assertFalse(profile.exists())
+
     @staticmethod
     def _run_concert(env, *arguments, input_text=None, cwd=None):
         repository = Path(__file__).resolve().parents[3]
