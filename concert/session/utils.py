@@ -114,7 +114,8 @@ class MultiprocessTimedRotatingFileHandler(TimedRotatingFileHandler):
         if os.path.exists(self.baseFilename):
             destination = self.rotation_filename(
                 self.baseFilename + "." +
-                time.strftime('%Y-%m-%d', time.localtime(rollover_at)))
+                # UTC timestamps distinguish deadlines even during DST fallback.
+                time.strftime('%Y-%m-%d_%H-%M-%SZ', time.gmtime(rollover_at)))
             shutil.copyfile(self.baseFilename, destination)
             os.ftruncate(self.stream.fileno(), 0)
             self.stream.seek(0, os.SEEK_END)

@@ -4,8 +4,10 @@ import os
 import runpy
 import tempfile
 import time
+from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from concert.session.utils import MultiprocessTimedRotatingFileHandler, setup_logging
 from concert.tests import TestCase
@@ -207,6 +209,51 @@ class TestMultiprocessTimedRotatingFileHandler(TestCase):
                 first.close()
                 second.close()
 
+    def test_daily_rollovers_on_same_local_date_preserve_both_archives(self):
+        timezone = ZoneInfo('America/New_York')
+        first_deadline = datetime(2026, 11, 1, 0, 30, tzinfo=timezone).timestamp()
+        second_deadline = first_deadline + 86400
+        self.assertEqual(
+            datetime.fromtimestamp(second_deadline, timezone).isoformat(),
+            '2026-11-01T23:30:00-05:00',
+        )
+
+        # Model the server timezone without modifying the process-wide TZ.
+        def localtime(timestamp):
+            return datetime.fromtimestamp(timestamp, timezone).timetuple()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            logfile = os.path.join(tmpdir, 'concert.log')
+            handler = MultiprocessTimedRotatingFileHandler(logfile, when='D', backupCount=0)
+            try:
+                with handler._locked():
+                    handler._write_rollover(first_deadline)
+                with patch('concert.session.utils.time.localtime', side_effect=localtime), \
+                        patch('concert.session.utils.time.time', return_value=first_deadline - 1):
+                    handler.emit(self._record('first interval'))
+                with patch('concert.session.utils.time.localtime', side_effect=localtime), \
+                        patch('concert.session.utils.time.time', return_value=first_deadline):
+                    handler.emit(self._record('second interval'))
+                self.assertEqual(handler.rolloverAt, second_deadline)
+                with patch('concert.session.utils.time.localtime', side_effect=localtime), \
+                        patch('concert.session.utils.time.time', return_value=second_deadline):
+                    handler.emit(self._record('active interval'))
+                handler.flush()
+
+                archives = sorted(
+                    name for name in os.listdir(tmpdir)
+                    if name.startswith('concert.log.') and name != 'concert.log.lock'
+                )
+                self.assertEqual(len(archives), 2)
+                with open(os.path.join(tmpdir, archives[0])) as log:
+                    self.assertEqual(log.read(), 'first interval\n')
+                with open(os.path.join(tmpdir, archives[1])) as log:
+                    self.assertEqual(log.read(), 'second interval\n')
+                with open(logfile) as log:
+                    self.assertEqual(log.read(), 'active interval\n')
+            finally:
+                handler.close()
+
     def test_concurrent_processes_roll_over_once_without_losing_records(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             logfile = os.path.join(tmpdir, 'concert.log')
@@ -239,7 +286,8 @@ class TestMultiprocessTimedRotatingFileHandler(TestCase):
                         process.join(timeout=10)
 
             self.assertEqual([process.exitcode for process in processes], [0, 0])
-            rotated = logfile + '.' + time.strftime('%Y-%m-%d', time.localtime(rollover_at))
+            rotated = logfile + '.' + time.strftime('%Y-%m-%d_%H-%M-%SZ',
+                                                    time.gmtime(rollover_at))
             archives = [
                 name for name in os.listdir(tmpdir)
                 if name.startswith('concert.log.') and name != 'concert.log.lock'
