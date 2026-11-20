@@ -6,6 +6,7 @@ import os
 import abc
 from abc import abstractmethod
 import inspect
+import json
 import subprocess
 import sys
 import shutil
@@ -36,8 +37,8 @@ class MultiprocessTimedRotatingFileHandler(TimedRotatingFileHandler):
 
     Only immediate opening (``delay=False``) and unlimited retention
     (``backupCount=0``) are supported. All writers must use this handler on a
-    filesystem supporting inter-process locks. Rollover is not transactional:
-    crashes can leave duplicate records or a partial archive.
+    filesystem supporting inter-process locks. A durable journal recovers
+    interrupted rotations before another cooperating writer appends records.
     """
 
     def __init__(self, filename, *args, **kwargs):
@@ -52,6 +53,7 @@ class MultiprocessTimedRotatingFileHandler(TimedRotatingFileHandler):
                 self._rotation_lock.write(' ')
                 self._rotation_lock.flush()
             with self._locked():
+                self._recover_rotation()
                 shared_rollover = self._read_rollover()
                 if shared_rollover is None:
                     self._write_rollover(self.rolloverAt)
@@ -72,6 +74,9 @@ class MultiprocessTimedRotatingFileHandler(TimedRotatingFileHandler):
     def emit(self, record):
         try:
             with self._locked():
+                # Never append while a committed rotation still needs recovery:
+                # recovery may truncate the active file.
+                self._recover_rotation()
                 try:
                     shared_rollover = self._read_rollover()
                     if shared_rollover is None:
@@ -82,6 +87,8 @@ class MultiprocessTimedRotatingFileHandler(TimedRotatingFileHandler):
                         self._doRollover(shared_rollover)
                 except Exception:
                     self.handleError(record)
+                    if os.path.exists(self.baseFilename + '.rotation'):
+                        return
                 # A failed rotation must not suppress an otherwise writable record.
                 logging.FileHandler.emit(self, record)
         except Exception:
@@ -120,10 +127,61 @@ class MultiprocessTimedRotatingFileHandler(TimedRotatingFileHandler):
                     fcntl.flock(self._rotation_lock.fileno(), fcntl.LOCK_UN)
         return Lock()
 
+    def _sync_directory(self):
+        if os.name != 'nt':
+            fd = os.open(os.path.dirname(self.baseFilename), os.O_RDONLY)
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+
+    def _write_rotation(self, state):
+        journal = self.baseFilename + '.rotation'
+        temporary = journal + '.tmp'
+        try:
+            fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, 'w') as output:
+                json.dump(state, output)
+                output.flush()
+                os.fsync(output.fileno())
+            os.replace(temporary, journal)
+            self._sync_directory()
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+
+    def _clear_rotation(self):
+        os.unlink(self.baseFilename + '.rotation')
+        self._sync_directory()
+
+    def _recover_rotation(self):
+        journal = self.baseFilename + '.rotation'
+        if not os.path.exists(journal):
+            return
+        with open(journal) as source:
+            state = json.load(source)
+        if state['phase'] == 'copying':
+            if os.path.exists(state['archive']):
+                os.unlink(state['archive'])
+            self._clear_rotation()
+            return
+        if state['phase'] != 'ready':
+            raise ValueError('Invalid rotation journal phase')
+        if not os.path.exists(state['archive']):
+            raise OSError('Committed rotation archive is missing')
+        self.stream.flush()
+        os.ftruncate(self.stream.fileno(), 0)
+        os.fsync(self.stream.fileno())
+        self.stream.seek(0, os.SEEK_END)
+        self._write_rollover(state['deadline'])
+        self.rolloverAt = state['deadline']
+        self._clear_rotation()
+
     def doRollover(self):
         self.acquire()
         try:
             with self._locked():
+                self._recover_rotation()
                 shared_rollover = self._read_rollover()
                 # Another handler may have completed this rollover while this
                 # handler was waiting for the lock. Never overwrite its archive.
@@ -163,19 +221,29 @@ class MultiprocessTimedRotatingFileHandler(TimedRotatingFileHandler):
                     suffix += 1
                     archive = f'{destination}.{suffix}'
             try:
+                self._write_rotation({'phase': 'copying', 'archive': archive})
                 with output, open(self.baseFilename, 'rb') as source:
                     os.chmod(archive, stat.S_IMODE(os.fstat(source.fileno()).st_mode))
                     shutil.copyfileobj(source, output)
                     output.flush()
                     os.fsync(output.fileno())
-                # Do not truncate until both the archive and next deadline have
-                # been written successfully. A retry then keeps the active data.
-                self._write_rollover(new_rollover_at)
+                self._write_rotation({'phase': 'ready', 'archive': archive,
+                                      'deadline': new_rollover_at})
             except Exception:
-                os.unlink(archive)
+                output.close()
+                # If the ready journal was published, preserve the archive for
+                # recovery even if directory synchronization failed.
+                journal = self.baseFilename + '.rotation'
+                if os.path.exists(journal):
+                    with open(journal) as source:
+                        committed = json.load(source)['phase'] == 'ready'
+                    if committed:
+                        raise
+                    self._recover_rotation()
+                elif os.path.exists(archive):
+                    os.unlink(archive)
                 raise
-            os.ftruncate(self.stream.fileno(), 0)
-            self.stream.seek(0, os.SEEK_END)
+            self._recover_rotation()
         else:
             self._write_rollover(new_rollover_at)
         self.rolloverAt = new_rollover_at

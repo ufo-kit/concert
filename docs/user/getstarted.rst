@@ -39,8 +39,10 @@ renaming or removing a session.
 Session logging
 ---------------
 
-File logging uses a shared ``concert.log`` and a ``concert.log.lock`` file to
-coordinate writers. All writers of that file must use Concert's shared handler;
+File logging uses a shared ``concert.log``, a ``concert.log.lock`` file, and a
+temporary ``concert.log.rotation`` recovery journal to coordinate writers.
+Do not remove these coordination files while sessions are running.
+All writers of that file must use Concert's shared handler;
 external writers and external log rotation are not coordinated by this lock.
 Use a local filesystem with working inter-process file locks. Network filesystem
 locking and Windows behavior require validation on the deployment platform.
@@ -56,15 +58,25 @@ following the active file.
 A forward clock jump triggers one rotation and schedules a future deadline. A
 backward clock jump delays rotation until the stored deadline is reached again.
 If rotation fails, the handler reports the error and attempts to write the
-record to the active log while retaining the lock. Failed archive copies are
-removed, and failed deadline updates leave active records available for retry.
+record to the active log while retaining the lock, provided no committed
+rotation is awaiting recovery. Failed archive copies are removed. If recovery
+cannot complete, new records are not appended because the active file may still
+need truncation; the handler reports this logging failure instead.
 
-The completed archive and shared deadline are flushed to disk before the active
-log is truncated. This is not a transactional or exactly-once crash-recovery
-protocol: a process crash between these operations can leave duplicate records
-in the archive and active log or a partial archive. Hardware/filesystem failures
-can still lose data. This log should not be used as the sole durable acquisition
-record.
+On supported local POSIX filesystems, a durable recovery journal records whether
+an archive is being copied or is complete. The archive and journal are
+synchronized before truncating the active log. After process termination, the
+next cooperating writer removes an incomplete copy or finishes the committed
+rotation and deadline update before appending. Recovery also runs when a new
+handler is opened. A crash while reserving an archive or writing an unpublished
+journal can leave an empty archive placeholder or temporary journal file; these
+do not overwrite existing archives or discard active records.
+
+This does not provide exactly-once delivery of individual log calls: a record
+being written when its process terminates can be missing or incomplete.
+Hardware failures, damaged journals, external file changes, and filesystems
+without reliable locking and synchronization are outside these guarantees.
+This log should not be used as the sole durable acquisition record.
 
 Using the session shell
 -----------------------

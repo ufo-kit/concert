@@ -27,6 +27,38 @@ def _write_shared_log(logfile, message, barrier):
         handler.close()
 
 
+def _crash_during_rollover(logfile, stage):
+    handler = MultiprocessTimedRotatingFileHandler(logfile, when='D')
+    handler._write_rollover(time.time() - 1)
+    if stage == 'copying':
+        def crash_copy(source, output):
+            output.write(b'partial')
+            output.flush()
+            os._exit(73)
+        hook = patch('concert.session.utils.shutil.copyfileobj', side_effect=crash_copy)
+    elif stage == 'ready':
+        original = handler._write_rotation
+        def crash_ready(state):
+            original(state)
+            if state['phase'] == 'ready':
+                os._exit(73)
+        hook = patch.object(handler, '_write_rotation', side_effect=crash_ready)
+    elif stage == 'truncated':
+        original = os.ftruncate
+        def crash_truncate(fd, size):
+            original(fd, size)
+            os._exit(73)
+        hook = patch('concert.session.utils.os.ftruncate', side_effect=crash_truncate)
+    else:
+        original = handler._write_rollover
+        def crash_deadline(deadline):
+            original(deadline)
+            os._exit(73)
+        hook = patch.object(handler, '_write_rollover', side_effect=crash_deadline)
+    with hook:
+        handler.emit(logging.LogRecord('test', logging.INFO, '', 0, 'unwritten', (), None))
+
+
 class TestLogging(TestCase):
     def setUp(self):
         super().setUp()
@@ -240,12 +272,12 @@ class TestMultiprocessTimedRotatingFileHandler(TestCase):
                     for _ in range(3):
                         handler.emit(self._record('failed rollover'))
                 self.assertEqual(error.call_count, 3)
-                self.assertEqual(sorted(os.listdir(tmpdir)), ['concert.log', 'concert.log.lock'])
+                self.assertTrue(os.path.exists(logfile + '.rotation'))
                 archive = logfile + '.' + time.strftime('%Y-%m-%d_%H-%M-%SZ',
                                                        time.gmtime(deadline))
                 handler.emit(self._record('retry'))
                 with open(archive) as log:
-                    self.assertEqual(log.read(), 'original records\n' + 'failed rollover\n' * 3)
+                    self.assertEqual(log.read(), 'original records\n')
                 self.assertFalse(os.path.exists(archive + '.1'))
                 with open(logfile) as log:
                     self.assertEqual(log.read(), 'retry\n')
@@ -273,6 +305,43 @@ class TestMultiprocessTimedRotatingFileHandler(TestCase):
                     self.assertEqual(log.read(), 'original records\nfailed rollover\n')
             finally:
                 handler.close()
+
+    def test_process_crashes_recover_without_losing_or_duplicating_rotated_records(self):
+        if os.name == 'nt':
+            self.skipTest('Local POSIX crash recovery is the supported test scope')
+        for stage in ('copying', 'ready', 'truncated', 'deadline'):
+            with self.subTest(stage=stage), tempfile.TemporaryDirectory() as root:
+                logfile = os.path.join(root, 'concert.log')
+                survivor = MultiprocessTimedRotatingFileHandler(logfile, when='D')
+                try:
+                    survivor.emit(self._record('original records'))
+                    survivor.flush()
+                    process = multiprocessing.get_context('spawn').Process(
+                        target=_crash_during_rollover, args=(logfile, stage))
+                    process.start()
+                    try:
+                        process.join(timeout=15)
+                        self.assertEqual(process.exitcode, 73)
+                    finally:
+                        if process.is_alive():
+                            process.terminate()
+                            process.join(timeout=10)
+                    # Test both an already-open writer and initialization recovery.
+                    if stage in ('copying', 'ready'):
+                        survivor.close()
+                        survivor = MultiprocessTimedRotatingFileHandler(logfile, when='D')
+                    survivor.emit(self._record('after recovery'))
+                    archives = [name for name in os.listdir(root)
+                                if name.startswith('concert.log.')
+                                and name not in ('concert.log.lock', 'concert.log.rotation')]
+                    self.assertEqual(len(archives), 1)
+                    with open(os.path.join(root, archives[0])) as archive:
+                        self.assertEqual(archive.read(), 'original records\n')
+                    with open(logfile) as active:
+                        self.assertEqual(active.read(), 'after recovery\n')
+                    self.assertFalse(os.path.exists(logfile + '.rotation'))
+                finally:
+                    survivor.close()
 
     def test_archives_keep_private_source_permissions(self):
         if os.name == 'nt':
