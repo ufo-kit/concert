@@ -20,6 +20,54 @@ Now :ref:`start <start-command>` the tutorial session::
 
     $ concert start tutorial
 
+Session profiles and history
+----------------------------
+
+Each named session uses an IPython profile named ``concert_<session>`` in the
+IPython directory (which can be configured with ``IPYTHONDIR``). Its command
+history and IPython settings are separate from those of other sessions. Sessions
+started with ``--filename`` use the filename without its extension as their
+profile name; files with the same basename therefore share a profile.
+
+``concert mv source target`` moves the profile along with the session, preserving
+history and settings. An existing target profile prevents the rename rather
+than being overwritten. ``concert cp`` copies only the session code: the new
+session starts with its own profile. ``concert rm`` deletes the corresponding
+profile, including its history and settings. Stop running instances before
+renaming or removing a session.
+
+Session logging
+---------------
+
+File logging uses a shared ``concert.log`` and a ``concert.log.lock`` file to
+coordinate writers. All writers of that file must use Concert's shared handler;
+external writers and external log rotation are not coordinated by this lock.
+Use a local filesystem with working inter-process file locks. Network filesystem
+locking and Windows behavior require validation on the deployment platform.
+
+Rotation happens on the first record after a 24-hour deadline, not necessarily
+at local midnight. Archives include UTC timestamps, for example
+``concert.log.2026-11-01_04-30-00Z``; a numbered suffix prevents overwriting an
+existing archive. Archives preserve the active log's permission bits and are
+not automatically deleted. The shared handler requires ``delay=False`` and
+``backupCount=0``. ``concert log --follow`` continues following the active file.
+
+A forward clock jump triggers one rotation and schedules a future deadline. A
+backward clock jump delays rotation until the stored deadline is reached again.
+If rotation fails, the handler reports the error and attempts to write the
+record to the active log while retaining the lock. Failed archive copies are
+removed, and failed deadline updates leave active records available for retry.
+
+The completed archive and shared deadline are flushed to disk before the active
+log is truncated. This is not a transactional or exactly-once crash-recovery
+protocol: a process crash between these operations can leave duplicate records
+in the archive and active log or a partial archive. Hardware/filesystem failures
+can still lose data. This log should not be used as the sole durable acquisition
+record.
+
+Using the session shell
+-----------------------
+
 You will be greeted by an IPython shell loaded with pre-defined devices,
 processes and utilities like the pint_ package for unit calculation. Although,
 this package is primarily used for talking to devices, you can also use it to do

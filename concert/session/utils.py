@@ -33,6 +33,11 @@ class MultiprocessTimedRotatingFileHandler(TimedRotatingFileHandler):
     handler in another process can still have the old inode open, causing its
     records to disappear from the new active log.  A small inter-process lock
     and copy/truncate rotation keep all handlers attached to the active inode.
+
+    Only immediate opening (``delay=False``) and unlimited retention
+    (``backupCount=0``) are supported. All writers must use this handler on a
+    filesystem supporting inter-process locks. Rollover is not transactional:
+    crashes can leave duplicate records or a partial archive.
     """
 
     def __init__(self, filename, *args, **kwargs):
@@ -41,7 +46,7 @@ class MultiprocessTimedRotatingFileHandler(TimedRotatingFileHandler):
             super().close()
             raise ValueError('Shared log rotation requires delay=False and backupCount=0')
         self._rotation_lock = open(self.baseFilename + '.lock', 'a+')
-        if os.name == 'nt' and os.path.getsize(filename + '.lock') == 0:
+        if os.name == 'nt' and os.path.getsize(self.baseFilename + '.lock') == 0:
             self._rotation_lock.write(' ')
             self._rotation_lock.flush()
         with self._locked():
