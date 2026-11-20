@@ -8,7 +8,7 @@ from abc import abstractmethod
 import numpy as np
 from concert.quantities import q
 from concert.experiments.base import Experiment, Acquisition, local, remote
-from concert.base import background, Parameter, Quantity, Parameterizable, \
+from concert.base import Parameter, Quantity, Parameterizable, \
     AccessorNotImplementedError
 from concert.base import check
 
@@ -559,10 +559,9 @@ class RadiographyLogic(Experiment):
         await self.stop_sample_exposure()
         self._finished = True
 
-    @background
-    async def run(self):
+    async def early_prepare(self):
         self._finished = False
-        await super().run()
+        await super().early_prepare()
 
     @abstractmethod
     async def _take_darks(self):
