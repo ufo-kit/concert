@@ -146,6 +146,64 @@ class TestMultiprocessTimedRotatingFileHandler(TestCase):
             finally:
                 handler.close()
 
+    def test_nonfinite_shared_deadlines_are_replaced_on_startup_and_emit(self):
+        for value in ('nan', 'inf', '-inf'):
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as tmpdir:
+                logfile = os.path.join(tmpdir, 'concert.log')
+                with open(logfile + '.lock', 'w') as state:
+                    state.write(value)
+                handler = MultiprocessTimedRotatingFileHandler(logfile, when='D')
+                try:
+                    with handler._locked():
+                        self.assertEqual(handler._read_rollover(), handler.rolloverAt)
+                        handler._rotation_lock.seek(0)
+                        handler._rotation_lock.truncate()
+                        handler._rotation_lock.write(value)
+                        handler._rotation_lock.flush()
+                    handler.emit(self._record('message'))
+                    with handler._locked():
+                        self.assertEqual(handler._read_rollover(), handler.rolloverAt)
+                    with open(logfile) as log:
+                        self.assertEqual(log.read(), 'message\n')
+                finally:
+                    handler.close()
+
+    def test_backward_clock_jump_keeps_writing_until_shared_deadline(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            logfile = os.path.join(tmpdir, 'concert.log')
+            handler = MultiprocessTimedRotatingFileHandler(logfile, when='D')
+            deadline = handler.rolloverAt
+            try:
+                with patch('concert.session.utils.time.time', return_value=deadline - 172800), \
+                        patch.object(handler, '_doRollover') as rollover:
+                    handler.emit(self._record('clock moved backward'))
+                rollover.assert_not_called()
+                self.assertEqual(handler.rolloverAt, deadline)
+                with open(logfile) as log:
+                    self.assertEqual(log.read(), 'clock moved backward\n')
+            finally:
+                handler.close()
+
+    def test_forward_clock_jump_rotates_once_and_schedules_future_deadline(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            logfile = os.path.join(tmpdir, 'concert.log')
+            handler = MultiprocessTimedRotatingFileHandler(logfile, when='D')
+            now = handler.rolloverAt + 5 * 86400
+            try:
+                handler.emit(self._record('before clock jump'))
+                with patch('concert.session.utils.time.time', return_value=now), \
+                        patch.object(handler, '_doRollover', wraps=handler._doRollover) as rollover:
+                    handler.emit(self._record('after clock jump'))
+                    handler.emit(self._record('next record'))
+                rollover.assert_called_once()
+                self.assertEqual(handler.rolloverAt, now + 86400)
+                with handler._locked():
+                    self.assertEqual(handler._read_rollover(), handler.rolloverAt)
+                with open(logfile) as log:
+                    self.assertEqual(log.read(), 'after clock jump\nnext record\n')
+            finally:
+                handler.close()
+
     def test_rollover_failure_is_reported_without_interrupting_logging_caller(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             logfile = os.path.join(tmpdir, 'concert.log')

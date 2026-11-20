@@ -71,7 +71,8 @@ class MultiprocessTimedRotatingFileHandler(TimedRotatingFileHandler):
         self._rotation_lock.seek(0)
         value = self._rotation_lock.read().strip()
         try:
-            return float(value)
+            deadline = float(value)
+            return deadline if math.isfinite(deadline) else None
         except ValueError:
             return None
 
