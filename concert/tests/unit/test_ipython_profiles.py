@@ -1,5 +1,4 @@
 import os
-import shutil
 import sqlite3
 import subprocess
 import sys
@@ -10,11 +9,7 @@ from concert.tests import TestCase
 
 
 class TestIPythonProfiles(TestCase):
-    def test_system_command_creates_and_removes_profile(self):
-        concert_command = shutil.which('concert')
-        if concert_command is None:
-            self.skipTest('concert command is not installed')
-
+    def test_checkout_command_creates_and_removes_profile_from_other_directory(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             env = os.environ.copy()
@@ -22,20 +17,20 @@ class TestIPythonProfiles(TestCase):
             env['IPYTHONDIR'] = str(root / 'ipython')
             env['XDG_DATA_HOME'] = str(root / 'data')
 
-            self._run_concert(env, 'init', 'system', executable=concert_command)
+            self._run_concert(env, 'init', 'system', cwd=tmpdir)
             self._run_concert(
                 env,
                 'start',
                 'system',
                 input_text='system_marker = 1\nexit()\n',
-                executable=concert_command,
+                cwd=tmpdir,
             )
 
             profile = root / 'ipython' / 'profile_concert_system'
             self.assertTrue(profile.is_dir())
             self.assertTrue((profile / 'history.sqlite').is_file())
 
-            self._run_concert(env, 'rm', 'system', executable=concert_command)
+            self._run_concert(env, 'rm', 'system', cwd=tmpdir)
             self.assertFalse(profile.exists())
 
     def test_sessions_have_separate_histories_and_rm_removes_profiles(self):
@@ -83,17 +78,22 @@ class TestIPythonProfiles(TestCase):
             self.assertTrue(history.is_file())
 
     @staticmethod
-    def _run_concert(env, *arguments, input_text=None, executable=None):
-        command = executable or sys.executable
-        prefix = [command] if executable else [command, 'bin/concert']
+    def _run_concert(env, *arguments, input_text=None, cwd=None):
+        repository = Path(__file__).resolve().parents[3]
+        env = env.copy()
+        env['PYTHONPATH'] = os.pathsep.join(
+            [str(repository), env['PYTHONPATH']] if env.get('PYTHONPATH') else [str(repository)]
+        )
         result = subprocess.run(
-            [*prefix, *arguments],
+            [sys.executable, str(repository / 'bin' / 'concert'), *arguments],
             env=env,
+            cwd=cwd,
             input=input_text,
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             check=False,
+            timeout=30,
         )
         if result.returncode:
             raise AssertionError(
