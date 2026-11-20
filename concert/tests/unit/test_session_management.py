@@ -7,6 +7,21 @@ from concert.tests import TestCase
 
 
 class TestSessionManagement(TestCase):
+    def test_move_does_not_overwrite_existing_target_session(self):
+        with tempfile.TemporaryDirectory() as root:
+            for name in ('source', 'target'):
+                with open(os.path.join(root, name + '.py'), 'w') as session:
+                    session.write(name)
+            source_profile = os.path.join(root, 'profile_concert_source')
+            os.mkdir(source_profile)
+            with patch.object(cs, '_CACHED_PATH', root), \
+                    patch.object(cs, 'get_ipython_dir', return_value=root):
+                with self.assertRaises(FileExistsError):
+                    cs.move('source', 'target')
+            with open(os.path.join(root, 'target.py')) as session:
+                self.assertEqual(session.read(), 'target')
+            self.assertTrue(os.path.isdir(source_profile))
+
     def test_move_preserves_profile_and_remove_cleans_it_up(self):
         with tempfile.TemporaryDirectory() as root:
             source_profile = os.path.join(root, 'profile_concert_source')

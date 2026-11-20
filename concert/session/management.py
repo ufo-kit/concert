@@ -103,6 +103,8 @@ def remove(session):
 
 def move(source, target):
     """Move *source* to *target*, preserving its IPython profile."""
+    if os.path.lexists(path(target)):
+        raise FileExistsError(f'Target session already exists: {path(target)}')
     profile_root = get_ipython_dir()
     source_profile = os.path.join(profile_root, f'profile_concert_{source}')
     target_profile = os.path.join(profile_root, f'profile_concert_{target}')
