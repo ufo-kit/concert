@@ -47,16 +47,22 @@ external writers and external log rotation are not coordinated by this lock.
 Use a local filesystem with working inter-process file locks. Network filesystem
 locking and Windows behavior require validation on the deployment platform.
 
-Rotation happens on the first record after a 24-hour deadline, not necessarily
-at local midnight. Archives include UTC timestamps, for example
+Rotation happens on the first record at or after local midnight. Calendar-day
+scheduling accounts for DST transitions, including 23-hour and 25-hour days;
+there is no background timer and no empty archives are created for idle days.
+Archives include UTC timestamps, for example
 ``concert.log.2026-11-01_04-30-00Z``; a numbered suffix prevents overwriting an
 existing archive. Archives preserve the active log's permission bits and are
 not automatically deleted. The shared handler requires ``delay=False``,
 ``backupCount=0``, and a positive interval. ``concert log --follow`` continues
 following the active file.
 
-A forward clock jump triggers one rotation and schedules a future deadline. A
+A forward clock jump triggers one rotation and schedules the next midnight. A
 backward clock jump delays rotation until the stored deadline is reached again.
+When upgrading from fixed 24-hour rotation, an existing shared deadline is
+honored once; subsequent deadlines follow midnight scheduling. Restart all
+sessions together when changing scheduling or the system timezone so writers
+use the same configuration.
 If rotation fails, the handler reports the error and attempts to write the
 record to the active log while retaining the lock, provided no committed
 rotation is awaiting recovery. Failed archive copies are removed. If recovery

@@ -81,7 +81,7 @@ class TestLogging(TestCase):
             self._logging_handlers = handlers
 
             self.assertEqual(len(handlers), 1)
-            self.assertEqual(handlers[0].when, 'D')
+            self.assertEqual(handlers[0].when, 'MIDNIGHT')
             self.assertEqual(handlers[0].backupCount, 0)
 
             logging.getLogger('test.logger').info('message')
@@ -134,6 +134,54 @@ class TestLogging(TestCase):
 
 
 class TestMultiprocessTimedRotatingFileHandler(TestCase):
+    def test_midnight_rotation_tracks_short_and_long_dst_days(self):
+        timezone = ZoneInfo('America/New_York')
+        for month, day, hours in ((3, 8, 23), (11, 1, 25)):
+            with self.subTest(month=month), tempfile.TemporaryDirectory() as root:
+                start = datetime(2026, month, day, tzinfo=timezone).timestamp()
+                next_midnight = datetime(2026, month, day + 1, tzinfo=timezone).timestamp()
+                self.assertEqual(next_midnight - start, hours * 3600)
+                logfile = os.path.join(root, 'concert.log')
+                with open(logfile, 'w') as log:
+                    log.write('previous day\n')
+                os.utime(logfile, (start - 1, start - 1))
+
+                def localtime(timestamp=None):
+                    return datetime.fromtimestamp(
+                        start if timestamp is None else timestamp, timezone).timetuple()
+
+                with patch('concert.session.utils.time.localtime', side_effect=localtime), \
+                        patch('concert.session.utils.time.time', return_value=start):
+                    handler = MultiprocessTimedRotatingFileHandler(logfile, when='midnight')
+                    try:
+                        self.assertEqual(handler.rolloverAt, start)
+                        handler.emit(self._record('DST transition day'))
+                        self.assertEqual(handler.rolloverAt, next_midnight)
+                        with patch('concert.session.utils.time.time',
+                                   return_value=next_midnight - 1):
+                            handler.emit(self._record('before next midnight'))
+                        self.assertEqual(handler.rolloverAt, next_midnight)
+                        with patch('concert.session.utils.time.time', return_value=next_midnight):
+                            handler.emit(self._record('next calendar day'))
+                        following_midnight = datetime(
+                            2026, month, day + 2, tzinfo=timezone).timestamp()
+                        self.assertEqual(handler.rolloverAt, following_midnight)
+                        with handler._locked():
+                            self.assertEqual(handler._read_rollover(), following_midnight)
+                        archives = sorted(name for name in os.listdir(root)
+                                          if name.startswith('concert.log.')
+                                          and name != 'concert.log.lock')
+                        self.assertEqual(len(archives), 2)
+                        with open(os.path.join(root, archives[0])) as log:
+                            self.assertEqual(log.read(), 'previous day\n')
+                        with open(os.path.join(root, archives[1])) as log:
+                            self.assertEqual(log.read(),
+                                             'DST transition day\nbefore next midnight\n')
+                        with open(logfile) as log:
+                            self.assertEqual(log.read(), 'next calendar day\n')
+                    finally:
+                        handler.close()
+
     @staticmethod
     def _record(message):
         return logging.LogRecord(

@@ -282,7 +282,7 @@ def setup_logging(name, to_stream=False, filename=None, loglevel=None):
         stream_handler.setFormatter(formatter)
         logger.addHandler(stream_handler)
     if filename:
-        file_handler = MultiprocessTimedRotatingFileHandler(filename, when='D', backupCount=0)
+        file_handler = MultiprocessTimedRotatingFileHandler(filename, when='midnight', backupCount=0)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
 
