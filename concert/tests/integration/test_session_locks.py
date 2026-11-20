@@ -13,12 +13,22 @@ class TestSessionLocks(TestCase):
         self.session1 = tempfile.NamedTemporaryFile('w+t', delete=False, suffix=".py")
         self.session2 = tempfile.NamedTemporaryFile('w+t', delete=False, suffix=".py")
         with open(self.session1.name, 'w') as session_file:
-            session_file.write(_SESSION_TEMPLATE.format(version=get_canonical_version(), doc="test_session1"))
+            session_file.write(
+                _SESSION_TEMPLATE.format(
+                    version=get_canonical_version(), doc="test_session1"
+                )
+            )
 
         with open(self.session2.name, 'w') as session_file:
             start_sleep_time = 0  # s
-            long_running_session = _SESSION_TEMPLATE + f"\nimport time\ntime.sleep({start_sleep_time})"
-            session_file.write(long_running_session.format(version=get_canonical_version(), doc="test_session2"))
+            long_running_session = _SESSION_TEMPLATE + (
+                f"\nimport time\ntime.sleep({start_sleep_time})"
+            )
+            session_file.write(
+                long_running_session.format(
+                    version=get_canonical_version(), doc="test_session2"
+                )
+            )
 
     def tearDown(self):
         os.remove(self.session1.name)
@@ -44,7 +54,7 @@ class TestSessionLocks(TestCase):
 
         f = run_session(start_command1)
         with self.assertRaises(SessionLockException):
-            await  run_session(start_command2)
+            await run_session(start_command2)
         await f
 
 
@@ -56,20 +66,36 @@ class TestDeviceLocks(TestCase):
         self.session3 = tempfile.NamedTemporaryFile('w+t', delete=False, suffix=".py")
         self.session4 = tempfile.NamedTemporaryFile('w+t', delete=False, suffix=".py")
         with open(self.session1.name, 'w') as session_file:
-            session_with_device_a = _SESSION_TEMPLATE + f"\nDEVICE_LOCKS=['a']"
-            session_file.write(session_with_device_a.format(version=get_canonical_version(), doc="test_session_a"))
+            session_with_device_a = _SESSION_TEMPLATE + "\nDEVICE_LOCKS=['a']"
+            session_file.write(
+                session_with_device_a.format(
+                    version=get_canonical_version(), doc="test_session_a"
+                )
+            )
 
         with open(self.session2.name, 'w') as session_file:
-            session_with_device_b = _SESSION_TEMPLATE + f"\nDEVICE_LOCKS=['b']"
-            session_file.write(session_with_device_b.format(version=get_canonical_version(), doc="test_session_b"))
+            session_with_device_b = _SESSION_TEMPLATE + "\nDEVICE_LOCKS=['b']"
+            session_file.write(
+                session_with_device_b.format(
+                    version=get_canonical_version(), doc="test_session_b"
+                )
+            )
 
         with open(self.session3.name, 'w') as session_file:
-            session_with_device_x_y = _SESSION_TEMPLATE + f"\nDEVICE_LOCKS=['x', 'y']"
-            session_file.write(session_with_device_x_y.format(version=get_canonical_version(), doc="test_session_x_y"))
+            session_with_device_x_y = _SESSION_TEMPLATE + "\nDEVICE_LOCKS=['x', 'y']"
+            session_file.write(
+                session_with_device_x_y.format(
+                    version=get_canonical_version(), doc="test_session_x_y"
+                )
+            )
 
         with open(self.session4.name, 'w') as session_file:
-            session_with_device_y_z = _SESSION_TEMPLATE + f"\nDEVICE_LOCKS=['y', 'z']"
-            session_file.write(session_with_device_y_z.format(version=get_canonical_version(), doc="test_session_y_z"))
+            session_with_device_y_z = _SESSION_TEMPLATE + "\nDEVICE_LOCKS=['y', 'z']"
+            session_file.write(
+                session_with_device_y_z.format(
+                    version=get_canonical_version(), doc="test_session_y_z"
+                )
+            )
 
     def tearDown(self):
         os.remove(self.session1.name)
@@ -90,7 +116,7 @@ class TestDeviceLocks(TestCase):
 
         f = run_session(start_command1, self.session1.name)
 
-        await  run_session(start_command2, self.session2.name)
+        await run_session(start_command2, self.session2.name)
         await f
 
     async def test_locks(self):
@@ -107,5 +133,5 @@ class TestDeviceLocks(TestCase):
         f = run_session(start_command1, self.session3.name)
 
         with self.assertRaises(DeviceLockException):
-            await  run_session(start_command2, self.session4.name)
+            await run_session(start_command2, self.session4.name)
             await f

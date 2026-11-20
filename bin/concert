@@ -1,17 +1,26 @@
 #! python
 
-import asyncio
 import argparse
-
 import logging
-import os
 import re
 import sys
 
 import concert
 import concert.config
-from concert.session.utils import (InitCommand, ShowCommand, MoveCommand, CopyCommand, RemoveCommand, ImportCommand,
-                                   ExportCommand, StartCommand, DocsCommand, BroadcastCommand, EditCommand, LogCommand)
+from concert.session.utils import (
+    InitCommand,
+    ShowCommand,
+    MoveCommand,
+    CopyCommand,
+    RemoveCommand,
+    ImportCommand,
+    ExportCommand,
+    StartCommand,
+    DocsCommand,
+    BroadcastCommand,
+    EditCommand,
+    LogCommand,
+)
 from concert.ext.cmd import plugins
 
 logging.addLevelName(concert.config.PERFDEBUG, 'PERFDEBUG')
@@ -34,9 +43,6 @@ def cmp_versions(v1, v2):
     n1 = normalize(v1)
     n2 = normalize(v2)
     return (n1 > n2) - (n1 < n2)
-
-
-
 
 
 def main():

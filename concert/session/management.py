@@ -156,6 +156,7 @@ def get_device_locks(filename):
     # If DEVICE_LOCKS is not specified, be conservative and return an empty list
     return []
 
+
 def get_existing():
     """Get all existing session names."""
     sessions = [f for f in os.listdir(path()) if f.endswith('.py')]

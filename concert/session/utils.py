@@ -10,7 +10,6 @@ import atexit
 import contextlib
 import sys
 import shutil
-import subprocess
 import tempfile
 import zipfile
 import prettytable
@@ -634,7 +633,6 @@ class StartCommand(SubCommand):
                 lockfiles.append(lockfile)
                 atexit.register(delete_lock_file, lockfile)
 
-
         if non_interactive:
             with open(path, "rb") as f:
                 eval_source(f.read(), {}, filename=path)
@@ -658,7 +656,9 @@ class StartCommand(SubCommand):
                 # --filename must have been specified
                 session = os.path.splitext(os.path.basename(path))[0]
                 sys.path.append(os.path.dirname(path))
-            ip_config.InteractiveShellApp.exec_lines = [STARTUP_FMT.format(session, repr(lockfiles or []))]
+            ip_config.InteractiveShellApp.exec_lines = [
+                STARTUP_FMT.format(session, repr(lockfiles or []))
+            ]
         else:
             session_code = 'from concert.quantities import q'
             ip_config.InteractiveShellApp.exec_lines = [session_code]
@@ -733,8 +733,10 @@ class BroadcastCommand(SubCommand):
             },
             '--start-consumers': {
                 'action': 'store_true',
-                'help': 'For local destination endpoints, if the destination name is a valid '
-                        'concert tango server, start it (applicable only when --config is specified)'
+                'help': (
+                    'For local destination endpoints, if the destination name is a valid '
+                    'concert tango server, start it (applicable only when --config is specified)'
+                )
             },
             '--logfile': {
                 'type': str
@@ -837,8 +839,10 @@ class SessionLockException(Exception):
     """Raised if a locked session is tried to be started."""
 
     def __init__(self, session, lockfile):
-        self.msg = (f"Tried to start session {session} with present lockfile. "
-                    f"If you are sure there are no running instances, delete `{lockfile}'and start again.")
+        self.msg = (
+            f"Tried to start session {session} with present lockfile. "
+            f"If you are sure there are no running instances, delete `{lockfile}'and start again."
+        )
 
     def __str__(self):
         return self.msg
@@ -848,8 +852,11 @@ class DeviceLockException(Exception):
     """Raised if a session with present device locks is tried to be started"""
 
     def __init__(self, devices, lockfiles):
-        self.msg = (f"Tried to start session with present device locks {devices}. "
-                    f"If you are sure there are no using these devices, delete `{lockfiles}'and start again.")
+        self.msg = (
+            f"Tried to start session with present device locks {devices}. "
+            f"If you are sure there are no using these devices, "
+            f"delete `{lockfiles}'and start again."
+        )
 
     def __str__(self):
         return self.msg
