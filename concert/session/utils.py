@@ -9,6 +9,7 @@ import inspect
 import subprocess
 import sys
 import shutil
+import stat
 import time
 import prettytable
 
@@ -36,7 +37,10 @@ class MultiprocessTimedRotatingFileHandler(TimedRotatingFileHandler):
 
     def __init__(self, filename, *args, **kwargs):
         super().__init__(filename, *args, **kwargs)
-        self._rotation_lock = open(filename + '.lock', 'a+')
+        if self.delay or self.backupCount:
+            super().close()
+            raise ValueError('Shared log rotation requires delay=False and backupCount=0')
+        self._rotation_lock = open(self.baseFilename + '.lock', 'a+')
         if os.name == 'nt' and os.path.getsize(filename + '.lock') == 0:
             self._rotation_lock.write(' ')
             self._rotation_lock.flush()
@@ -51,19 +55,25 @@ class MultiprocessTimedRotatingFileHandler(TimedRotatingFileHandler):
         try:
             super().close()
         finally:
-            self._rotation_lock.close()
+            lock = getattr(self, '_rotation_lock', None)
+            if lock is not None:
+                lock.close()
 
     def emit(self, record):
         try:
             with self._locked():
-                shared_rollover = self._read_rollover()
-                if shared_rollover is None:
-                    shared_rollover = self.rolloverAt
-                    self._write_rollover(shared_rollover)
-                self.rolloverAt = shared_rollover
-                if time.time() >= shared_rollover:
-                    self._doRollover(shared_rollover)
-                super(TimedRotatingFileHandler, self).emit(record)
+                try:
+                    shared_rollover = self._read_rollover()
+                    if shared_rollover is None:
+                        shared_rollover = self.rolloverAt
+                        self._write_rollover(shared_rollover)
+                    self.rolloverAt = shared_rollover
+                    if time.time() >= shared_rollover:
+                        self._doRollover(shared_rollover)
+                except Exception:
+                    self.handleError(record)
+                # A failed rotation must not suppress an otherwise writable record.
+                logging.FileHandler.emit(self, record)
         except Exception:
             self.handleError(record)
 
@@ -81,6 +91,7 @@ class MultiprocessTimedRotatingFileHandler(TimedRotatingFileHandler):
         self._rotation_lock.truncate()
         self._rotation_lock.write(str(rollover_at))
         self._rotation_lock.flush()
+        os.fsync(self._rotation_lock.fileno())
 
     def _locked(self):
         class Lock:
@@ -112,6 +123,13 @@ class MultiprocessTimedRotatingFileHandler(TimedRotatingFileHandler):
     def _doRollover(self, rollover_at):
         self.rolloverAt = rollover_at
         self.stream.flush()
+        current_time = time.time()
+        if self.when == 'MIDNIGHT':
+            new_rollover_at = self.computeRollover(current_time)
+        else:
+            new_rollover_at = current_time + self.interval
+        while new_rollover_at <= current_time:
+            new_rollover_at += self.interval
         if os.path.exists(self.baseFilename):
             destination = self.rotation_filename(
                 self.baseFilename + "." +
@@ -123,28 +141,28 @@ class MultiprocessTimedRotatingFileHandler(TimedRotatingFileHandler):
             suffix = 0
             while True:
                 try:
-                    output = open(archive, 'xb')
+                    fd = os.open(archive, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                    output = os.fdopen(fd, 'wb')
                     break
                 except FileExistsError:
                     suffix += 1
                     archive = f'{destination}.{suffix}'
             try:
                 with output, open(self.baseFilename, 'rb') as source:
+                    os.chmod(archive, stat.S_IMODE(os.fstat(source.fileno()).st_mode))
                     shutil.copyfileobj(source, output)
+                    output.flush()
+                    os.fsync(output.fileno())
+                # Do not truncate until both the archive and next deadline have
+                # been written successfully. A retry then keeps the active data.
+                self._write_rollover(new_rollover_at)
             except Exception:
                 os.unlink(archive)
                 raise
             os.ftruncate(self.stream.fileno(), 0)
             self.stream.seek(0, os.SEEK_END)
-        current_time = time.time()
-
-        if self.when == 'MIDNIGHT':
-            new_rollover_at = self.computeRollover(current_time)
         else:
-            new_rollover_at = current_time + self.interval
-        while new_rollover_at <= current_time:
-            new_rollover_at += self.interval
-        self._write_rollover(new_rollover_at)
+            self._write_rollover(new_rollover_at)
         self.rolloverAt = new_rollover_at
 
 

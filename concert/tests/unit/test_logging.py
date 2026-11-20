@@ -237,14 +237,16 @@ class TestMultiprocessTimedRotatingFileHandler(TestCase):
                     handler._write_rollover(deadline)
                 with patch.object(handler, '_write_rollover', side_effect=OSError('full')), \
                         patch.object(handler, 'handleError') as error:
-                    handler.emit(self._record('failed rollover'))
-                error.assert_called_once()
+                    for _ in range(3):
+                        handler.emit(self._record('failed rollover'))
+                self.assertEqual(error.call_count, 3)
+                self.assertEqual(sorted(os.listdir(tmpdir)), ['concert.log', 'concert.log.lock'])
                 archive = logfile + '.' + time.strftime('%Y-%m-%d_%H-%M-%SZ',
                                                        time.gmtime(deadline))
                 handler.emit(self._record('retry'))
                 with open(archive) as log:
-                    self.assertEqual(log.read(), 'original records\n')
-                self.assertTrue(os.path.exists(archive + '.1'))
+                    self.assertEqual(log.read(), 'original records\n' + 'failed rollover\n' * 3)
+                self.assertFalse(os.path.exists(archive + '.1'))
                 with open(logfile) as log:
                     self.assertEqual(log.read(), 'retry\n')
             finally:
@@ -268,9 +270,51 @@ class TestMultiprocessTimedRotatingFileHandler(TestCase):
                     handler.emit(self._record('failed rollover'))
                 self.assertEqual(sorted(os.listdir(tmpdir)), ['concert.log', 'concert.log.lock'])
                 with open(logfile) as log:
-                    self.assertEqual(log.read(), 'original records\n')
+                    self.assertEqual(log.read(), 'original records\nfailed rollover\n')
             finally:
                 handler.close()
+
+    def test_archives_keep_private_source_permissions(self):
+        if os.name == 'nt':
+            self.skipTest('POSIX permission bits are not supported on Windows')
+        with tempfile.TemporaryDirectory() as tmpdir:
+            logfile = os.path.join(tmpdir, 'concert.log')
+            handler = MultiprocessTimedRotatingFileHandler(logfile, when='D')
+            try:
+                os.chmod(logfile, 0o600)
+                handler.emit(self._record('private records'))
+                handler._write_rollover(time.time() - 1)
+                handler.emit(self._record('after rollover'))
+                archive = next(name for name in os.listdir(tmpdir)
+                               if name not in ('concert.log', 'concert.log.lock'))
+                self.assertEqual(os.stat(os.path.join(tmpdir, archive)).st_mode & 0o777, 0o600)
+            finally:
+                handler.close()
+
+    def test_reused_deadline_never_overwrites_existing_archive(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            logfile = os.path.join(tmpdir, 'concert.log')
+            handler = MultiprocessTimedRotatingFileHandler(logfile, when='D')
+            deadline = time.time() - 1
+            archive = logfile + '.' + time.strftime('%Y-%m-%d_%H-%M-%SZ', time.gmtime(deadline))
+            try:
+                with open(archive, 'w') as log:
+                    log.write('existing archive\n')
+                handler.emit(self._record('new interval'))
+                handler._write_rollover(deadline)
+                handler.emit(self._record('after rollover'))
+                with open(archive) as log:
+                    self.assertEqual(log.read(), 'existing archive\n')
+                with open(archive + '.1') as log:
+                    self.assertEqual(log.read(), 'new interval\n')
+            finally:
+                handler.close()
+
+    def test_unsupported_handler_options_are_rejected(self):
+        for options in ({'delay': True}, {'backupCount': 2}):
+            with self.subTest(options=options), tempfile.TemporaryDirectory() as tmpdir:
+                with self.assertRaisesRegex(ValueError, 'delay=False and backupCount=0'):
+                    MultiprocessTimedRotatingFileHandler(os.path.join(tmpdir, 'log'), **options)
 
     def test_stale_handler_does_not_repeat_rollover_or_lose_records(self):
         with tempfile.TemporaryDirectory() as tmpdir:
