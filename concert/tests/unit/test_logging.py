@@ -311,10 +311,43 @@ class TestMultiprocessTimedRotatingFileHandler(TestCase):
                 handler.close()
 
     def test_unsupported_handler_options_are_rejected(self):
-        for options in ({'delay': True}, {'backupCount': 2}):
+        for options in ({'delay': True}, {'backupCount': 2}, {'interval': 0}, {'interval': -1}):
             with self.subTest(options=options), tempfile.TemporaryDirectory() as tmpdir:
                 with self.assertRaisesRegex(ValueError, 'delay=False and backupCount=0'):
                     MultiprocessTimedRotatingFileHandler(os.path.join(tmpdir, 'log'), **options)
+
+    def test_failed_initialization_closes_open_streams(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            logfile = os.path.join(tmpdir, 'log')
+            streams = []
+            real_open = open
+
+            def track_open(*args, **kwargs):
+                stream = real_open(*args, **kwargs)
+                streams.append(stream)
+                return stream
+
+            with patch('builtins.open', side_effect=track_open), \
+                    patch.object(MultiprocessTimedRotatingFileHandler, '_write_rollover',
+                                 side_effect=OSError('state failure')):
+                with self.assertRaises(OSError):
+                    MultiprocessTimedRotatingFileHandler(logfile)
+            self.assertTrue(streams)
+            self.assertTrue(all(stream.closed for stream in streams))
+
+    def test_manual_rollover_acquires_and_releases_handler_lock_on_failure(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            handler = MultiprocessTimedRotatingFileHandler(os.path.join(tmpdir, 'log'))
+            try:
+                with patch.object(handler, 'acquire', wraps=handler.acquire) as acquire, \
+                        patch.object(handler, 'release', wraps=handler.release) as release, \
+                        patch.object(handler, '_doRollover', side_effect=OSError('failed')):
+                    with self.assertRaises(OSError):
+                        handler.doRollover()
+                acquire.assert_called_once()
+                release.assert_called_once()
+            finally:
+                handler.close()
 
     def test_stale_handler_does_not_repeat_rollover_or_lose_records(self):
         with tempfile.TemporaryDirectory() as tmpdir:

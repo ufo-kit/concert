@@ -49,8 +49,9 @@ Rotation happens on the first record after a 24-hour deadline, not necessarily
 at local midnight. Archives include UTC timestamps, for example
 ``concert.log.2026-11-01_04-30-00Z``; a numbered suffix prevents overwriting an
 existing archive. Archives preserve the active log's permission bits and are
-not automatically deleted. The shared handler requires ``delay=False`` and
-``backupCount=0``. ``concert log --follow`` continues following the active file.
+not automatically deleted. The shared handler requires ``delay=False``,
+``backupCount=0``, and a positive interval. ``concert log --follow`` continues
+following the active file.
 
 A forward clock jump triggers one rotation and schedules a future deadline. A
 backward clock jump delays rotation until the stored deadline is reached again.

@@ -42,19 +42,24 @@ class MultiprocessTimedRotatingFileHandler(TimedRotatingFileHandler):
 
     def __init__(self, filename, *args, **kwargs):
         super().__init__(filename, *args, **kwargs)
-        if self.delay or self.backupCount:
+        if self.delay or self.backupCount or self.interval <= 0:
             super().close()
-            raise ValueError('Shared log rotation requires delay=False and backupCount=0')
-        self._rotation_lock = open(self.baseFilename + '.lock', 'a+')
-        if os.name == 'nt' and os.path.getsize(self.baseFilename + '.lock') == 0:
-            self._rotation_lock.write(' ')
-            self._rotation_lock.flush()
-        with self._locked():
-            shared_rollover = self._read_rollover()
-            if shared_rollover is None:
-                self._write_rollover(self.rolloverAt)
-            else:
-                self.rolloverAt = shared_rollover
+            raise ValueError('Shared log rotation requires delay=False and backupCount=0 '
+                             'and a positive interval')
+        try:
+            self._rotation_lock = open(self.baseFilename + '.lock', 'a+')
+            if os.name == 'nt' and os.path.getsize(self.baseFilename + '.lock') == 0:
+                self._rotation_lock.write(' ')
+                self._rotation_lock.flush()
+            with self._locked():
+                shared_rollover = self._read_rollover()
+                if shared_rollover is None:
+                    self._write_rollover(self.rolloverAt)
+                else:
+                    self.rolloverAt = shared_rollover
+        except Exception:
+            self.close()
+            raise
 
     def close(self):
         try:
@@ -116,14 +121,18 @@ class MultiprocessTimedRotatingFileHandler(TimedRotatingFileHandler):
         return Lock()
 
     def doRollover(self):
-        with self._locked():
-            shared_rollover = self._read_rollover()
-            # Another handler may have completed this rollover while this
-            # handler was waiting for the lock.  Never overwrite its archive.
-            if shared_rollover is not None and shared_rollover != self.rolloverAt:
-                self.rolloverAt = shared_rollover
-                return
-            self._doRollover(shared_rollover or self.rolloverAt)
+        self.acquire()
+        try:
+            with self._locked():
+                shared_rollover = self._read_rollover()
+                # Another handler may have completed this rollover while this
+                # handler was waiting for the lock. Never overwrite its archive.
+                if shared_rollover is not None and shared_rollover != self.rolloverAt:
+                    self.rolloverAt = shared_rollover
+                    return
+                self._doRollover(self.rolloverAt if shared_rollover is None else shared_rollover)
+        finally:
+            self.release()
 
     def _doRollover(self, rollover_at):
         self.rolloverAt = rollover_at
@@ -146,7 +155,8 @@ class MultiprocessTimedRotatingFileHandler(TimedRotatingFileHandler):
             suffix = 0
             while True:
                 try:
-                    fd = os.open(archive, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_BINARY', 0)
+                    fd = os.open(archive, flags, 0o600)
                     output = os.fdopen(fd, 'wb')
                     break
                 except FileExistsError:
