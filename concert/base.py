@@ -1680,7 +1680,6 @@ class RunnableParameterizable(Parameterizable):
     log_devices_at_start = Parameter()
     log_devices_at_finish = Parameter()
 
-
     async def __ainit__(self, walker=None, separate_scans=True,
                         name_fmt='scan_{:>04}', **kwargs):
         self._log_file_prefix = None
@@ -1691,7 +1690,8 @@ class RunnableParameterizable(Parameterizable):
         self._log_devices_at_finish = None
         self.ready_to_prepare_next_outer_loop = asyncio.Event()
 
-        # 'ready_to_prepare_next_sample' was not the ideal name. We leave this for backward compatibility
+        # 'ready_to_prepare_next_sample' was not the ideal name. We leave this
+        # for backward compatibility.
         self.ready_to_prepare_next_sample = self.ready_to_prepare_next_outer_loop
         await super().__ainit__(**kwargs)
         self._run_awaitable = None
@@ -1709,7 +1709,6 @@ class RunnableParameterizable(Parameterizable):
             # hasn't been used yet
             while await self.walker.exists(self._name_fmt.format(self._scan_iteration)):
                 self._scan_iteration += 1
-
 
     async def _get_state(self):
         return await get_state_from_awaitable(self._run_awaitable)
@@ -1734,7 +1733,6 @@ class RunnableParameterizable(Parameterizable):
 
     async def _set_name_fmt(self, fmt):
         self._name_fmt = fmt
-
 
     async def _set_log_devices_at_start(self, log):
         self._log_devices_at_start = bool(log)
@@ -1761,7 +1759,6 @@ class RunnableParameterizable(Parameterizable):
     async def finish(self):
         """Gets executed after every experiment run."""
         pass
-
 
     def add_device_to_log(self, name: str, device: 'concert.devices.base.Device', optional=False):
         """
@@ -1828,19 +1825,18 @@ class RunnableParameterizable(Parameterizable):
             metadata[name] = device_data
         return json.dumps(metadata, indent=4)
 
-
     async def _get_log_file_prefix(self):
         return self._log_file_prefix
 
     async def _set_log_file_prefix(self, prefix: str):
         self._log_file_prefix = str(prefix)
 
-
     async def early_prepare(self):
         """
         Function that is called at first in the run() BEFORE the first logging starts.
 
-        This can be used if devices need to be configured in a way that they produce proper logging results.
+        This can be used if devices need to be configured in a way that they
+        produce proper logging results.
         """
         pass
 
@@ -1924,7 +1920,6 @@ class RunnableParameterizable(Parameterizable):
                     finalization_error = StateError('error', msg=str(e))
             if finalization_error is not None:
                 raise finalization_error
-
 
     @abc.abstractmethod
     @background

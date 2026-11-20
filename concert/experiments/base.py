@@ -248,15 +248,24 @@ class Experiment(RunnableParameterizable):
         still running.
 
     """
-
-
-
-    async def __ainit__(self, *, acquisitions, walker=None, separate_scans=True, name_fmt='scan_{:>04}', **kwargs):
-
+    async def __ainit__(
+        self,
+        *,
+        acquisitions,
+        walker=None,
+        separate_scans=True,
+        name_fmt='scan_{:>04}',
+        **kwargs,
+    ):
         self._acquisitions = []
         for acquisition in acquisitions:
             self.add(acquisition)
-        await super().__ainit__(walker=walker, separate_scans=separate_scans,name_fmt=name_fmt, **kwargs)
+        await super().__ainit__(
+            walker=walker,
+            separate_scans=separate_scans,
+            name_fmt=name_fmt,
+            **kwargs,
+        )
         await self.set_log_file_prefix("experiment")
 
     async def attach(self, addon):
@@ -339,6 +348,7 @@ class Experiment(RunnableParameterizable):
     @background
     async def _run(self):
         await self.acquire()
+
 
 class AcquisitionError(Exception):
     """Acquisition-related exceptions."""

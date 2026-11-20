@@ -38,8 +38,12 @@ class Director(RunnableParameterizable):
         self._run_event.set()
         if walker is None:
             walker = experiment.walker
-        await super().__ainit__(walker=walker, separate_scans=separate_scans,
-                        name_fmt=name_fmt, **kwargs)
+        await super().__ainit__(
+            walker=walker,
+            separate_scans=separate_scans,
+            name_fmt=name_fmt,
+            **kwargs,
+        )
         await self.set_log_file_prefix("director")
 
     async def _get_state(self):
