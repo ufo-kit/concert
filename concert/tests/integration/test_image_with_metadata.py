@@ -57,7 +57,7 @@ class TestMetadataExperiment(TestCase):
             num_projections=100,
             num_flats=5,
             num_darks=5,
-            separate_scans=False
+            separate_runs=False
         )
         self.writer = await ImageWriter(experiment=self.exp)
 

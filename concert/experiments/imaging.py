@@ -8,7 +8,7 @@ from abc import abstractmethod
 import numpy as np
 from concert.quantities import q
 from concert.experiments.base import Experiment, Acquisition, local, remote
-from concert.base import background, Parameter, Quantity, Parameterizable, \
+from concert.base import Parameter, Quantity, Parameterizable, \
     AccessorNotImplementedError
 from concert.base import check
 
@@ -419,7 +419,7 @@ class RadiographyLogic(Experiment):
     projections."""
 
     async def __ainit__(self, *, walker, flat_motor, radio_position, flat_position, camera, num_flats, num_darks,
-                        num_projections, separate_scans=True, **kwargs):
+                        num_projections, separate_runs=True, **kwargs):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -437,8 +437,8 @@ class RadiographyLogic(Experiment):
         :type num_darks: int
         :param num_projections: Number of projections.
         :type num_projections: int
-        :param separate_scans: Descend into subdirectories based on current iteration.
-        :type separate_scans: bool
+        :param separate_runs: Descend into subdirectories based on current iteration.
+        :type separate_runs: bool
         """
         self._num_flats = None
         self._num_darks = None
@@ -453,7 +453,7 @@ class RadiographyLogic(Experiment):
         flats_acq = await Acquisition(name="flats", producer_corofunc=self._take_flats, producer=camera)
         radios_acq = await Acquisition(name="radios", producer_corofunc=self._take_radios, producer=camera)
         await super().__ainit__(acquisitions=[darks_acq, flats_acq, radios_acq], walker=walker,
-                                separate_scans=separate_scans, **kwargs)
+                                separate_runs=separate_runs, **kwargs)
         self.install_parameters(
             {"flat_position": Quantity(flat_motor_unit, check=check(source=_runnable_state)),
              "radio_position": Quantity(flat_motor_unit,
@@ -559,10 +559,9 @@ class RadiographyLogic(Experiment):
         await self.stop_sample_exposure()
         self._finished = True
 
-    @background
-    async def run(self):
+    async def early_prepare(self):
         self._finished = False
-        await super().run()
+        await super().early_prepare()
 
     @abstractmethod
     async def _take_darks(self):
@@ -618,7 +617,7 @@ class TomographyLogic(RadiographyLogic):
 
     async def __ainit__(self, *, walker, flat_motor, tomography_motor, radio_position, flat_position, camera,
                         num_flats=200, num_darks=200, num_projections=3000, angular_range=180 * q.deg,
-                        start_angle=0 * q.deg, separate_scans=True, **kwargs):
+                        start_angle=0 * q.deg, separate_runs=True, **kwargs):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -649,7 +648,7 @@ class TomographyLogic(RadiographyLogic):
         await super().__ainit__(
             walker=walker, flat_motor=flat_motor, radio_position=radio_position, flat_position=flat_position,
             camera=camera, num_flats=num_flats, num_darks=num_darks, num_projections=num_projections,
-            separate_scans=separate_scans, **kwargs
+            separate_runs=separate_runs, **kwargs
         )
         await self.set_angular_range(angular_range)
         await self.set_start_angle(start_angle)
@@ -771,7 +770,7 @@ class SteppedSpiralTomographyLogic(SpiralMixin, SteppedTomographyLogic):
     async def __ainit__(self, *, walker, flat_motor, tomography_motor, vertical_motor, radio_position, flat_position,
                         camera, start_position_vertical, sample_height, vertical_shift_per_tomogram, num_flats=200,
                         num_darks=200, num_projections=3000, angular_range=180 * q.deg, start_angle=0 * q.deg,
-                        separate_scans=True, **kwargs):
+                        separate_runs=True, **kwargs):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -809,7 +808,7 @@ class SteppedSpiralTomographyLogic(SpiralMixin, SteppedTomographyLogic):
             walker=walker, flat_motor=flat_motor, tomography_motor=tomography_motor, radio_position=radio_position,
             flat_position=flat_position, camera=camera, num_flats=num_flats, num_darks=num_darks,
             num_projections=num_projections, angular_range=angular_range,
-            start_angle=start_angle, separate_scans=separate_scans, **kwargs
+            start_angle=start_angle, separate_runs=separate_runs, **kwargs
         )
         self._vertical_motor = vertical_motor
         await self.set_start_position_vertical(start_position_vertical)
@@ -865,7 +864,7 @@ class ContinuousSpiralTomographyLogic(SpiralMixin, ContinuousTomographyLogic):
     async def __ainit__(self, *, walker, flat_motor, tomography_motor, vertical_motor, radio_position, flat_position,
                         camera, start_position_vertical, sample_height, vertical_shift_per_tomogram, num_flats=200,
                         num_darks=200, num_projections=3000, angular_range=180 * q.deg, start_angle=0 * q.deg,
-                        separate_scans=True, **kwargs):
+                        separate_runs=True, **kwargs):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -904,7 +903,7 @@ class ContinuousSpiralTomographyLogic(SpiralMixin, ContinuousTomographyLogic):
             walker=walker, flat_motor=flat_motor, tomography_motor=tomography_motor, radio_position=radio_position,
             flat_position=flat_position, camera=camera, num_flats=num_flats, num_darks=num_darks,
             num_projections=num_projections, angular_range=angular_range,
-            start_angle=start_angle, separate_scans=separate_scans, **kwargs
+            start_angle=start_angle, separate_runs=separate_runs, **kwargs
         )
         self._vertical_motor = vertical_motor
         await self.set_start_position_vertical(start_position_vertical)
@@ -1064,7 +1063,7 @@ class LocalGratingInterferometryStepping(
 
     async def __ainit__(self, *, walker, camera, flat_motor, stepping_motor, flat_position, radio_position, grating_period,
                         num_darks, stepping_start_position, num_periods=1, num_steps_per_period=16,
-                        propagation_distance=None, separate_scans=False, **kwargs):
+                        propagation_distance=None, separate_runs=False, **kwargs):
         """
         :param walker: Walker for the experiment
         :type walker: concert.storage.DirectoryWalker
@@ -1094,7 +1093,7 @@ class LocalGratingInterferometryStepping(
         """
         await super().__ainit__(
             walker=walker, flat_motor=flat_motor, radio_position=radio_position, flat_position=flat_position,
-            camera=camera, num_flats=0, num_darks=num_darks, num_projections=1, separate_scans=separate_scans, **kwargs
+            camera=camera, num_flats=0, num_darks=num_darks, num_projections=1, separate_runs=separate_runs, **kwargs
         )
         self._stepping_motor = stepping_motor
         await self.set_grating_period(grating_period)

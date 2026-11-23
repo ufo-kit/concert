@@ -46,7 +46,7 @@ class RadiographyLogic(SynchrotronMixin, imaging.RadiographyLogic):
     """
 
     async def __ainit__(self, *, walker, flat_motor, radio_position, flat_position, camera, shutter, num_flats=200,
-                        num_darks=200, num_projections=3000, separate_scans=True, **kwargs):
+                        num_darks=200, num_projections=3000, separate_runs=True, **kwargs):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -66,8 +66,8 @@ class RadiographyLogic(SynchrotronMixin, imaging.RadiographyLogic):
         :type num_darks: int
         :param num_projections: Number of projections.
         :type num_projections: int
-        :param separate_scans: Descend into subdirectories based on current iteration.
-        :type separate_scans: bool
+        :param separate_runs: Descend into subdirectories based on current iteration.
+        :type separate_runs: bool
         """
         self._shutter = shutter
         await super().__ainit__(
@@ -79,7 +79,7 @@ class RadiographyLogic(SynchrotronMixin, imaging.RadiographyLogic):
             num_flats=num_flats,
             num_darks=num_darks,
             num_projections=num_projections,
-            separate_scans=separate_scans,
+            separate_runs=separate_runs,
             **kwargs
         )
 
@@ -92,7 +92,7 @@ class ContinuousTomographyLogic(SynchrotronMixin, imaging.ContinuousTomographyLo
 
     async def __ainit__(self, *, walker, flat_motor, tomography_motor, radio_position, flat_position, camera, shutter,
                         num_flats=200, num_darks=200, num_projections=3000, angular_range=180 * q.deg,
-                        start_angle=0 * q.deg, separate_scans=True, **kwargs):
+                        start_angle=0 * q.deg, separate_runs=True, **kwargs):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -132,7 +132,7 @@ class ContinuousTomographyLogic(SynchrotronMixin, imaging.ContinuousTomographyLo
             num_projections=num_projections,
             angular_range=angular_range,
             start_angle=start_angle,
-            separate_scans=separate_scans, **kwargs
+            separate_runs=separate_runs, **kwargs
         )
 
 
@@ -144,7 +144,7 @@ class SteppedTomographyLogic(SynchrotronMixin, imaging.SteppedTomographyLogic):
 
     async def __ainit__(self, *, walker, flat_motor, tomography_motor, radio_position, flat_position, camera, shutter,
                         num_flats=200, num_darks=200, num_projections=3000, angular_range=180 * q.deg,
-                        start_angle=0 * q.deg, separate_scans=True, **kwargs):
+                        start_angle=0 * q.deg, separate_runs=True, **kwargs):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -184,7 +184,7 @@ class SteppedTomographyLogic(SynchrotronMixin, imaging.SteppedTomographyLogic):
             num_projections=num_projections,
             angular_range=angular_range,
             start_angle=start_angle,
-            separate_scans=separate_scans, **kwargs
+            separate_runs=separate_runs, **kwargs
         )
 
 
@@ -197,7 +197,7 @@ class ContinuousSpiralTomographyLogic(SynchrotronMixin, imaging.ContinuousSpiral
     async def __ainit__(self, *, walker, flat_motor, tomography_motor, vertical_motor, radio_position, flat_position,
                         camera, shutter, start_position_vertical, sample_height, vertical_shift_per_tomogram,
                         num_flats=200, num_darks=200, num_projections=3000, angular_range=180 * q.deg,
-                        start_angle=0 * q.deg, separate_scans=True, **kwargs):
+                        start_angle=0 * q.deg, separate_runs=True, **kwargs):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -251,7 +251,7 @@ class ContinuousSpiralTomographyLogic(SynchrotronMixin, imaging.ContinuousSpiral
             num_projections=num_projections,
             angular_range=angular_range,
             start_angle=start_angle,
-            separate_scans=separate_scans, **kwargs
+            separate_runs=separate_runs, **kwargs
         )
 
 
@@ -264,7 +264,7 @@ class SteppedSpiralTomographyLogic(SynchrotronMixin, imaging.SteppedSpiralTomogr
     async def __ainit__(self, *, walker, flat_motor, tomography_motor, vertical_motor, radio_position, flat_position,
                         camera, shutter, start_position_vertical, sample_height, vertical_shift_per_tomogram,
                         num_flats=200, num_darks=200, num_projections=3000, angular_range=180 * q.deg,
-                        start_angle=0 * q.deg, separate_scans=True, **kwargs):
+                        start_angle=0 * q.deg, separate_runs=True, **kwargs):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -317,7 +317,7 @@ class SteppedSpiralTomographyLogic(SynchrotronMixin, imaging.SteppedSpiralTomogr
             num_projections=num_projections,
             angular_range=angular_range,
             start_angle=start_angle,
-            separate_scans=separate_scans, **kwargs
+            separate_runs=separate_runs, **kwargs
         )
 
 
@@ -407,7 +407,7 @@ class LocalGratingInterferometryStepping(
 
     async def __ainit__(self, *, walker, camera, shutter, flat_motor, stepping_motor, flat_position, radio_position,
                         grating_period, num_darks, stepping_start_position, num_periods, num_steps_per_period,
-                        propagation_distance, separate_scans, **kwargs):
+                        propagation_distance, separate_runs, **kwargs):
         """
         :param walker: Walker for the experiment
         :type walker: concert.storage.DirectoryWalker
@@ -451,5 +451,5 @@ class LocalGratingInterferometryStepping(
             num_periods=num_periods,
             num_steps_per_period=num_steps_per_period,
             propagation_distance=propagation_distance,
-            separate_scans=separate_scans, **kwargs
+            separate_runs=separate_runs, **kwargs
         )

@@ -225,7 +225,7 @@ class TestSynchrotronGratingInterferometryStepping(GratingInterferometryStepping
             num_periods=4,
             num_steps_per_period=8,
             propagation_distance=20 * q.cm,
-            separate_scans=True
+            separate_runs=True
         )
         await self.run_experiment()
 
@@ -249,6 +249,6 @@ class TestXRayTubeGratingInterferometryStepping(GratingInterferometryStepping, T
             num_periods=4,
             num_steps_per_period=8,
             propagation_distance=20 * q.cm,
-            separate_scans=True
+            separate_runs=True
         )
         await self.run_experiment()

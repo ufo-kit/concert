@@ -329,8 +329,8 @@ Advanced
 Sometimes we need finer control over when exactly is the data acquired and worry
 about the download later. We can use the *acquire* argument to acquisition
 class. This means that the data acquisition can be invoked before data download.
-Acquisition calls its *acquire* first and only when it is finished connects
-producer with consumers.
+Acquisition runs its *acquire* hook first and only when it is finished connects
+the producer with consumers.
 
 The Experiment class has the attribute
 :py:attr:`.base.Experiment.ready_to_prepare_next_sample` which is an instance of

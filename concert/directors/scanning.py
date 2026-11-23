@@ -22,11 +22,11 @@ class XYScan(Director):
                         **kwargs):
         """
         :param experiment: Experiment that is run. If the experiment features a
-            'ready_to_prepare_next_sample' event (asyncio.Event) this will be waited within the
+            'ready_to_prepare_next_outer_loop' event (asyncio.Event) this will be waited within the
             experiment execution. When set() the next iteration will be prepared while the
             experiment is still running. This could be used to prepare a future iteration while
             still data is stored or processed.
-            The separate_scans property of the experiment should be set to False, since the director
+            The separate_runs property of the experiment should be set to False, since the director
             handles the naming of the sub-folders.
         :type experiment: concert.experiments.base.Experiment
         :param x_motor: Linear motor for scanning in x direction
