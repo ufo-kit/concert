@@ -10,9 +10,12 @@ LOG = logging.getLogger(__name__)
 
 class Director(ManagedRunnable):
     """
-    Class to handle multiple experiment executions.
+    Base class for runtime-controlled experiment execution.
+
+    Subclasses decide whether another experiment should run by implementing
+    :meth:`has_next_iteration`. This allows the stopping condition to depend on
+    results collected while the director is running.
     """
-    number_of_iterations = Parameter()
     current_iteration = Parameter()
     current_iteration_name = Parameter()
 
@@ -63,8 +66,14 @@ class Director(ManagedRunnable):
         ...
 
     @abstractmethod
-    async def _get_number_of_iterations(self) -> int:
-        """Return the total number of iterations."""
+    async def has_next_iteration(self, iteration: int) -> bool:
+        """
+        Return whether *iteration* should be executed.
+
+        This is evaluated before preparing the first iteration and again after
+        the current experiment signals that the next iteration may be prepared,
+        so it may use results produced at runtime.
+        """
         ...
 
     async def _get_current_iteration_name(self) -> str:
@@ -80,20 +89,18 @@ class Director(ManagedRunnable):
         """
         return f"iteration_{iteration:04d}"
 
-    async def _prepare_next_run(self):
-        if await self.get_current_iteration() < await self.get_number_of_iterations() - 1:
-            await self._prepare_run(await self.get_current_iteration() + 1)
-
     @background
     async def _run(self):
         await self._experiment['separate_runs'].stash()
         await self._experiment.set_separate_runs(False)
         try:
             self._iteration = 0
-            await self._prepare_run(self._iteration)
+            if not await self.has_next_iteration(0):
+                return
+            await self._prepare_run(0)
 
-            for iteration in range(await self.get_number_of_iterations()):
-                self._iteration = iteration
+            while True:
+                iteration = self._iteration
                 await self._run_event.wait()
 
                 await self._experiment.walker.descend(await self.get_iteration_name(iteration))
@@ -105,7 +112,9 @@ class Director(ManagedRunnable):
                 try:
                     # Without early readiness signaling, the event is set when exp_run finishes.
                     await self._experiment.ready_to_prepare_next_outer_loop.wait()
-                    await self._prepare_next_run()
+                    has_next_iteration = await self.has_next_iteration(iteration + 1)
+                    if has_next_iteration:
+                        await self._prepare_run(iteration + 1)
                     await exp_run
                 except Exception as e:
                     itr_name = await self.get_iteration_name(await self.get_iteration())
@@ -114,7 +123,23 @@ class Director(ManagedRunnable):
                     self.log.error(e)
                     raise e
                 finally:
+                    # If preparation or the stopping condition fails while the experiment is still
+                    # running, stop it before leaving the iteration.  Apart from avoiding a leaked
+                    # task, this prevents an experiment that signalled readiness early from
+                    # continuing to acquire after the director has entered its error state.
+                    if not exp_run.done():
+                        exp_run.cancel()
+                    try:
+                        await exp_run
+                    except (asyncio.CancelledError, Exception):
+                        # Preserve the exception that caused the iteration to fail.  In the normal
+                        # case this await also consumes the experiment's exception.
+                        pass
                     await self._experiment.walker.ascend()
+
+                if not has_next_iteration:
+                    break
+                self._iteration += 1
 
         except asyncio.CancelledError:
             # This is normal, no special state needed -> standby
@@ -146,3 +171,17 @@ class Director(ManagedRunnable):
         Resumes a currently paused director run.
         """
         self._run_event.set()
+
+
+class FixedIterationDirector(Director):
+    """Director with a fixed number of iterations determined before the run."""
+
+    number_of_iterations = Parameter()
+
+    @abstractmethod
+    async def _get_number_of_iterations(self) -> int:
+        """Return the total number of experiment iterations."""
+        ...
+
+    async def has_next_iteration(self, iteration: int) -> bool:
+        return iteration < await self.get_number_of_iterations()
