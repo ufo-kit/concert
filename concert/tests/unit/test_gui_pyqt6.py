@@ -68,7 +68,7 @@ with QEventLoop(app) as loop:
     asyncio.set_event_loop(loop)
     device = loop.run_until_complete(Device())
     widget = ParameterizableWidget(device)
-    assert widget.verticalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOn
+    assert widget.verticalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAsNeeded
     assert widget.horizontalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
     assert not widget.params['state'].write_button.isEnabled()
 
@@ -95,7 +95,7 @@ with QEventLoop(app) as loop:
     QTimer.singleShot(0, number.context_menu.close)
     number.context_menu.exec(number.mapToGlobal(number.rect().center()))
     for row in widget.params.values():
-        row._timer.stop()
+        row.set_polling(False)
     widget.close()
 ''')
 
@@ -108,6 +108,16 @@ from concert.gui import get_application, gui_event_loop
 app = get_application()
 
 async def main():
+    from concert.session.utils import abort_awaiting
+    from concert.gui import GuiSession
+    session = GuiSession(pump=True).start()
+    original = session._event_task
+    session.start()
+    assert session._event_task is original
+    abort_awaiting()
+    await asyncio.sleep(0.03)
+    assert not original.done()
+    await session.shutdown()
     task = gui_event_loop()
     await asyncio.sleep(0.03)
     assert not task.done()
@@ -199,21 +209,26 @@ async def main():
     task = asyncio.create_task(row.read())
     while device.calls == before:
         await asyncio.sleep(0)
+    readers = []
     for _ in range(10):
         row.request_refresh()
         row.request_write()
-        await row.read()
+        readers.append(asyncio.create_task(row.read()))
         await row.write()
     assert device.calls == before + 1 and device.writes == []
     assert not row.write_button.isEnabled()
     device.block.set()
     await task
+    await asyncio.gather(*readers)
     assert row.write_button.isEnabled()
     row.set_polling(True)
-    assert row._timer.isActive() and row.poll_action.isChecked()
+    widget.show()
     row.show()
+    await asyncio.sleep(0.05)
+    row.update_visibility()
+    assert row.polling_active and row.poll_action.isChecked()
     row.hide()
-    assert not row._timer.isActive() and not row.polling
+    assert not row.polling_active and row.polling
     assert widget.params['value'] is row
     flag = widget.params['flag']
     await flag.read()
@@ -237,17 +252,17 @@ async def main():
     await selection.write()
     assert device.writes == [None, '']
     device.block = asyncio.Event()
-    row.request_refresh()
-    while not row._busy:
+    row.controller.request('read')
+    while not row.controller.busy:
         await asyncio.sleep(0)
     await widget.shutdown()
-    assert not row._busy and row._task is None and not row._timer.isActive()
+    assert not row.controller.busy and not row.polling_active
     widget.close()
     second = ParameterizableWidget(device, exclude_properties=['flag'])
     assert 'flag' not in second.params
     doomed = second.params['value']
-    doomed.request_refresh()
-    while not doomed._busy:
+    doomed.controller.request('read')
+    while not doomed.controller.busy:
         await asyncio.sleep(0)
     doomed.deleteLater()
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
@@ -258,6 +273,7 @@ async def main():
     second.close()
 
 app = get_application()
+app.setQuitOnLastWindowClosed(False)
 with QEventLoop(app) as loop:
     asyncio.set_event_loop(loop)
     loop.run_until_complete(main())
@@ -298,12 +314,21 @@ class Camera:
 
 async def main():
     camera = Camera()
-    motors = [SimpleNamespace(move=AsyncMock(), set_position=AsyncMock()) for _ in range(4)]
+    class Motor:
+        def __init__(self):
+            self.move = AsyncMock()
+            self.set_position = AsyncMock()
+            self.get_position = AsyncMock(return_value=0 * q.mm)
+        def __getitem__(self, name):
+            return SimpleNamespace(unit=q.mm, get_lower=AsyncMock(return_value=None),
+                                   get_upper=AsyncMock(return_value=None))
+    motors = [Motor() for _ in range(4)]
     viewer = Mock()
     viewer.getImageItem.return_value.mapFromScene.side_effect = lambda pos: pos
     with patch('concert.gui.tools.ImageView', return_value=viewer):
         align = await Alignment(*motors, camera, 2 * q.mm,
-                                target_horizontal=8, target_vertical=6)
+                                target_horizontal=8, target_vertical=6,
+                                confirmation=lambda positions: True)
     assert align._target_horizontal == 8 and align._target_vertical == 6
     def click(button):
         align.mouse_clicked(SimpleNamespace(button=lambda: button, scenePos=lambda: QPointF(3, 4)))
@@ -336,7 +361,132 @@ async def main():
     align._input_event.clear()
     click(Qt.MouseButton.MiddleButton)
     assert not align._input_event.is_set()
+    viewer.show.side_effect = align.cancel
+    assert await align.align_y() is False
+    viewer.show.side_effect = lambda: click(Qt.MouseButton.LeftButton)
+    align._confirmation = lambda positions: False
+    assert await align.align_y() is False
+    motors[1].move.assert_not_awaited()
+    align._confirmation = lambda positions: True
+    motors[2].__class__.__getitem__ = lambda self, name: SimpleNamespace(
+        unit=q.mm, get_lower=AsyncMock(return_value=0 * q.mm),
+        get_upper=AsyncMock(return_value=1 * q.mm))
+    try: await align.align_x(z=True)
+    except ValueError: pass
+    else: raise AssertionError('limits must be validated before motion')
+    assert motors[0].move.await_count == 1
+    camera.fail = True
+    async def broken_restore(value):
+        if value == 'EXTERNAL': raise RuntimeError('restore failed')
+        camera.source = value
+    camera.set_trigger_source = broken_restore
+    try: await align.align_y()
+    except ValueError as error:
+        if hasattr(error, '__notes__'):
+            assert 'restore failed' in error.__notes__[0]
+    else: raise AssertionError('original acquisition error must survive cleanup failure')
 
 get_application()
 asyncio.run(main())
+''')
+
+
+def test_standalone_initialization_and_shutdown():
+    run_gui_script('''
+import runpy
+import qasync
+from concert.gui import get_application
+get_application()
+namespace = runpy.run_path('bin/gui_standalone.py', run_name='gui_lifecycle_test')
+qasync.run(namespace['main'](auto_close=True))
+''')
+
+
+def test_standalone_run_button_signal():
+    run_gui_script('''
+import asyncio
+import runpy
+from unittest.mock import patch
+from PyQt6.QtWidgets import QApplication, QPushButton
+import qasync
+from concert.gui import get_application
+
+app = get_application()
+namespace = runpy.run_path('bin/gui_standalone.py', run_name='gui_button_test')
+
+async def exercise():
+    started = asyncio.Event()
+    release = asyncio.Event()
+    calls = []
+    async def run(self):
+        calls.append(self)
+        started.set()
+        await release.wait()
+
+    with patch.object(namespace['LocalSteppedTomography'], 'run', run):
+        main = asyncio.create_task(namespace['main']())
+        button = None
+        for _ in range(200):
+            for window in QApplication.topLevelWidgets():
+                for candidate in window.findChildren(QPushButton):
+                    if candidate.text() == 'Run experiment' and window.isVisible():
+                        button = candidate
+                        break
+            if button is not None:
+                break
+            await asyncio.sleep(0.01)
+        assert button is not None
+        button.click()
+        await asyncio.wait_for(started.wait(), 2)
+        assert not button.isEnabled()
+        release.set()
+        for _ in range(100):
+            if button.isEnabled():
+                break
+            await asyncio.sleep(0.01)
+        assert button.isEnabled() and len(calls) == 1
+        button.window().close()
+        await asyncio.wait_for(main, 2)
+
+qasync.run(exercise())
+''')
+
+
+def test_real_qasync_tomography_acquisition():
+    run_gui_script('''
+import asyncio
+import tempfile
+import qasync
+from concert.gui import get_application
+from concert.devices.motors.dummy import LinearMotor, RotationMotor
+from concert.devices.cameras.dummy import Camera
+from concert.devices.shutters.dummy import Shutter
+from concert.experiments.synchrotron import LocalSteppedTomography
+from concert.storage import DirectoryWalker
+from concert.quantities import q
+
+get_application()
+async def main():
+    with tempfile.TemporaryDirectory() as directory:
+        camera = await Camera()
+        await camera.set_roi_width(8 * q.pixel)
+        await camera.set_roi_height(8 * q.pixel)
+        experiment = await LocalSteppedTomography(
+            walker=await DirectoryWalker(root=directory),
+            flat_motor=await LinearMotor(), tomography_motor=await RotationMotor(),
+            camera=camera, shutter=await Shutter(), radio_position=0 * q.mm,
+            flat_position=1 * q.mm, num_darks=1, num_flats=1, num_projections=2)
+        # Reproduce a policy loop different from qasync's running loop.
+        policy = asyncio.get_event_loop_policy()
+        previous = policy.get_event_loop()
+        other = asyncio.new_event_loop()
+        policy.set_event_loop(other)
+        try:
+            await asyncio.wait_for(experiment.run(), 10)
+            assert await experiment.get_state() == 'standby'
+        finally:
+            policy.set_event_loop(previous)
+            other.close()
+
+qasync.run(main())
 ''')
