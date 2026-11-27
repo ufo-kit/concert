@@ -1,7 +1,8 @@
 import asyncio
 import numpy as np
+from unittest.mock import patch
 from concert.coroutines.base import (async_generate, broadcast, feed_queue, run_in_executor,
-                                     run_in_loop, start, wait_until, WaitError)
+                                     run_in_loop, start, wait_until, WaitError, get_event_loop)
 from concert.coroutines.filters import (absorptivity, flat_correct, average_images,
                                         downsize, stall, Timer)
 from concert.coroutines.sinks import count, null, Result, Accumulate
@@ -15,6 +16,18 @@ async def produce_frames(num_frames=3, shape=(2, 2)):
 
 
 class TestCoroutines(TestCase):
+
+    async def test_running_loop_takes_precedence_over_policy_loop(self):
+        other_loop = asyncio.new_event_loop()
+        try:
+            with patch.object(asyncio.get_event_loop_policy(), 'get_event_loop',
+                              return_value=other_loop):
+                self.assertIs(get_event_loop(), asyncio.get_running_loop())
+                accumulator = Accumulate()
+                await asyncio.gather(*broadcast(produce_frames(), accumulator))
+                self.assertEqual(len(accumulator.items), 3)
+        finally:
+            other_loop.close()
 
     def setUp(self):
         super(TestCoroutines, self).setUp()

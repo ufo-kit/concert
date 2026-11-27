@@ -697,6 +697,17 @@ class ParameterValue(object):
         return self._parameter.data
 
     @property
+    def help(self):
+        """Human-readable parameter documentation, without accessing hardware."""
+        return self._parameter.help
+
+    @property
+    def readable(self):
+        """Return True if a getter is implemented."""
+        return (getattr(self._instance, '_get_' + self.name) is not _getter_not_implemented
+                or self._parameter.fget is not None)
+
+    @property
     def writable(self):
         """Return True if the parameter is writable."""
         return (getattr(self._instance, '_set_' + self.name) is not _setter_not_implemented
@@ -849,6 +860,11 @@ class ParameterValue(object):
 class StateValue(ParameterValue):
     """Special :class:`.ParameterValue` implementing state parameter."""
 
+    @property
+    def readable(self):
+        """Software state is readable too, when a default is provided."""
+        return super().readable or self._parameter.default is not None
+
     @background
     async def get(self, wait_on=None):
         if wait_on:
@@ -896,6 +912,11 @@ class QuantityValue(ParameterValue):
     def unlock_limits(self):
         """Unlock limits."""
         self._limits_locked = False
+
+    @property
+    def limits_locked(self):
+        """Whether changing the user limits is currently forbidden."""
+        return self._limits_locked
 
     @property
     def lower(self):
