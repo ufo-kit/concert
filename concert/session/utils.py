@@ -680,7 +680,19 @@ class StartCommand(SubCommand):
         ip_config.Completer.use_jedi = False
 
         # Now we start ipython with our configuration
-        IPython.start_ipython(argv=[], config=ip_config, user_ns={'with_gui': with_gui})
+        user_ns = {'with_gui': with_gui}
+        gui_session = None
+        if with_gui:
+            from concert.gui import GuiSession
+            gui_session = GuiSession(pump=True)
+            user_ns['_concert_gui_session'] = gui_session
+        try:
+            IPython.start_ipython(argv=[], config=ip_config, user_ns=user_ns)
+        finally:
+            if gui_session is not None:
+                # IPython's synchronous entry point has returned; its loop is no
+                # longer running and can finish outstanding GUI cleanup.
+                run_in_loop(gui_session.shutdown())
 
 
 class DocsCommand(SubCommand):
