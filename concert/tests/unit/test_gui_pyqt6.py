@@ -222,11 +222,16 @@ async def main():
     await asyncio.gather(*readers)
     assert row.write_button.isEnabled()
     row.set_polling(True)
+    widget.resize(640, 800)
     widget.show()
     row.show()
-    await asyncio.sleep(0.05)
+    for _ in range(100):
+        widget.ensureWidgetVisible(row)
+        if row.is_value_visible():
+            break
+        await asyncio.sleep(0.01)
     row.update_visibility()
-    assert row.polling_active and row.poll_action.isChecked()
+    assert row.polling_active and row.poll_action.isChecked(), 'Polling row must be in the viewport'
     row.hide()
     assert not row.polling_active and row.polling
     assert widget.params['value'] is row
