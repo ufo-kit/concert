@@ -33,6 +33,30 @@ For special cameras the generator
 overwritten.
 
 
+Parameter scans
+"""""""""""""""
+
+See :ref:`parameter-scanning` for usage and :doc:`scanning` for the shared axis
+configuration and scan director API.
+
+.. autoclass:: concert.experiments.scan.Scan
+   :show-inheritance:
+   :members:
+.. autoclass:: concert.experiments.scan.ScanLogic
+   :show-inheritance:
+   :members:
+.. autoclass:: concert.experiments.scan.LocalScan
+   :show-inheritance:
+   :members:
+.. autoclass:: concert.experiments.scan.RemoteScan
+   :show-inheritance:
+   :members:
+.. autoclass:: concert.experiments.scan.ScanAxis
+   :show-inheritance:
+   :members:
+   :noindex:
+
+
 Radiography
 """""""""""
 

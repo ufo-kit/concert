@@ -78,6 +78,172 @@ current experiment working directory defined by it's
 :class:`concert.storage.DirectoryWalker`.
 
 
+Scanning parameters with images
+-------------------------------
+
+For a complete guide covering local and remote scans, arbitrary lists, ranges,
+traversal orders, dynamic parameters and image metadata, see
+:ref:`parameter-scanning`.
+
+:class:`concert.experiments.scan.LocalScan` acquires one software-triggered image
+for each combination of device parameter values. The last axis changes fastest,
+just as in :func:`concert.processes.common.scan`::
+
+    from concert.experiments.scan import LocalScan, RemoteScan
+    from concert.experiments.addons import local as local_addons
+    from concert.quantities import q
+
+    exp = await LocalScan(
+        axes={
+            'x': (motor['position'], [0, 1, 2] * q.mm),
+            'exposure': (camera['exposure_time'], [1, 5] * q.ms),
+        },
+        camera=camera,
+        go_back=True,
+        walker=walker,
+    )
+
+    # Inspect all axes, their positions and the total image count.
+    print(await exp.get_scan_plan())
+    print(await exp.get_num_positions())  # 6
+
+    # Adjust a regular range, including the endpoint by default.
+    await exp.axes['x'].set_range(0 * q.mm, 10 * q.mm, 2 * q.mm)
+
+    # Or supply arbitrary positions.
+    await exp.axes['exposure'].set_values([1, 2, 10] * q.ms)
+
+    writer = await local_addons.ImageWriter(experiment=exp)
+    await exp.run()
+
+For a one-dimensional scan, pass a single device parameter and its position
+sequence. Without explicit names, axes are named ``axis_0``, ``axis_1``, etc.
+Each axis also has the usual Concert ``info_table``. Positions can only be
+changed between runs; invalid empty ranges or steps pointing away from the
+endpoint are rejected without replacing the previous positions.
+
+``LocalScan`` has one local acquisition, ``exp.scan``, which yields images to
+the usual local addons. ``Scan`` remains a compatibility name for ``LocalScan``.
+For remote acquisition, use ``RemoteScan`` with the same parameters::
+
+    exp = await RemoteScan(
+        axes={'x': (motor['position'], [0, 1, 2] * q.mm)},
+        camera=remote_camera, go_back=True, walker=walker,
+    )
+    print(await exp.get_scan_plan())
+    await exp.axes['x'].set_range(0 * q.mm, 10 * q.mm, 2 * q.mm)
+
+    # Attach remote addons (e.g. concert.experiments.addons.tango.ImageWriter)
+    # configured for the camera's remote endpoints, then run the experiment.
+    await exp.run()
+
+``RemoteScan`` triggers and calls ``camera.grab_send(1, end=...)`` at every
+position. Only the last image ends the stream; images are sent directly to remote
+addons rather than returned to the session. Its camera must support the normal
+remote acquisition endpoint registration. Local and remote addons cannot be
+mixed within an acquisition.
+
+Both modes share the same editable axes and include the scan plan in parameter logging.
+
+Local scan image metadata
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Each ``LocalScan`` image carries a ``scan`` entry in its metadata, preserving
+the camera's existing metadata. For example::
+
+    image.metadata['scan']
+    # {
+    #     'iteration': 3,
+    #     'indices': [1, 0],
+    #     'order': 'snake',
+    #     'axes': {
+    #         'x': {'parameter': 'position', 'value': '5 millimeter'},
+    #         'exposure': {'parameter': 'exposure_time', 'value': '0.001 second'},
+    #     },
+    # }
+
+Values are actual parameter read-backs sampled immediately before triggering,
+not just the requested positions. Axis names distinguish multiple parameters
+with the same name, such as two motors' ``position`` parameters. Iteration and
+grid indices are zero-based. Values are strings including units so standard
+image writers can serialize the metadata as JSON. Each image has an independent
+metadata snapshot which remains unchanged as the scan continues or restores
+the original positions. Remote scan image metadata is not modified by the
+local session.
+
+
+Dynamic axis parameters
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Scan experiments automatically install Concert parameters for each named axis.
+For ``names=['x', 'y']``, these include:
+
+* ``scan_x``: a read-only live summary, for example
+  ``position: values=[5 millimeter, 0 millimeter, 2 millimeter]; 3 points; order=snake``.
+* ``scan_x_values``: the actual positions, editable between runs.
+* ``scan_x_start``, ``scan_x_stop``, ``scan_x_step``: read-only range settings,
+  or ``None`` when explicit positions are configured.
+* ``scan_x_num_points``: read-only number of positions.
+
+The same parameters are installed for ``y``. They appear automatically in the
+normal Concert parameter table and experiment metadata::
+
+    print(await exp.info_table)
+    print(await exp.get_scan_x())
+    await exp.set_scan_x_values([8, 1, 4] * q.mm)
+    # Equivalent parameter access:
+    await exp['scan_x_values'].set([8, 1, 4] * q.mm)
+    # Regular ranges continue to be configured atomically on the axis:
+    await exp.axes['x'].set_range(0 * q.mm, 10 * q.mm, 2 * q.mm)
+
+These are live views: changes through ``axes`` are immediately reflected in the
+generated parameters and vice versa. Axis names with punctuation or spaces are
+converted to valid parameter names (``sample x`` becomes ``scan_sample_x``).
+``exp.axis_parameter_names`` maps each axis name and field to its generated name.
+Conflicting generated names are rejected. Parameters are instance-specific and
+do not appear on other scans with different axes.
+
+
+Arbitrary values and traversal order
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Each axis accepts an arbitrary non-empty list, including irregular spacing,
+unsorted values, repeated values, or individual quantities with compatible
+units. Lists are never sorted. For example::
+
+    exp = await LocalScan(
+        [x_motor['position'], y_motor['position']],
+        [[5 * q.mm, 0 * q.mm, 2 * q.mm], [1 * q.mm, 7 * q.mm, 3 * q.mm]],
+        camera=camera, names=['x', 'y'], order='snake',
+    )
+    await exp.axes['x'].set_values([8 * q.mm, 1 * q.mm, 4 * q.mm])
+    await exp.set_order('spiral')
+    print(await exp.get_position_indices(3))
+    print(await exp.get_scan_plan())
+
+The ``order`` keyword and ``set_order`` support:
+
+* ``raster`` (default): Cartesian order, last axis fastest.
+* ``snake``: reflected traversal, reversing alternate rows. Works for any
+  number of axes and visits adjacent grid indices without row-reset jumps.
+* ``spiral``: clockwise, outside-in traversal of exactly two axes. Starts at
+  index ``(0, 0)`` and moves along the second axis first. Rectangular grids and
+  single-row/column grids are supported.
+
+For a 3-by-3 grid, the visitation indices are::
+
+    snake:  (0,0) (0,1) (0,2) (1,2) (1,1) (1,0) (2,0) (2,1) (2,2)
+    spiral: (0,0) (0,1) (0,2) (1,2) (2,2) (2,1) (2,0) (1,0) (1,1)
+
+Orders operate on list indices, not physical distances. An unsorted list can
+therefore still cause large physical moves. Change order only between runs.
+The same options apply to ``RemoteScan`` and scan directors.
+
+The original trigger source is restored after acquisition. With ``go_back=True``,
+scanned parameters are restored as well, including on failure or cancellation.
+This experiment does not control a shutter or acquire dark/flat fields.
+
+
 .. _local-exp:
 
 Local dummy file experiment
