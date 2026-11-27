@@ -15,6 +15,7 @@ jobs:
     env:
       QT_QPA_PLATFORM: offscreen
       QT_API: pyqt6
+      PYTEST_QT_API: pyqt6
       PYQTGRAPH_QT_LIB: PyQt6
     steps:
     - uses: actions/checkout@v4
@@ -22,9 +23,9 @@ jobs:
       with:
         python-version: '3.12'
     - name: Install GUI dependencies
-      run: python -m pip install '.[gui]' pytest
+      run: python -m pip install '.[gui]' pytest pytest-qt
     - name: Run GUI regression tests
-      run: python -m pytest concert/tests/unit/test_gui_pyqt6.py concert/tests/unit/test_gui_startup.py
+      run: python -m pytest concert/tests/unit/gui concert/tests/unit/test_gui_pyqt6.py concert/tests/unit/test_gui_startup.py concert/tests/unit/test_gui_controller.py
 
   build:
 
