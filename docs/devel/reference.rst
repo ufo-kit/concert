@@ -10,4 +10,5 @@ API reference
     reference/process.rst
     reference/imageprocessing.rst
     reference/experiments.rst
+    reference/scanning.rst
     reference/ext.rst
