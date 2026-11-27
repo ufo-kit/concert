@@ -46,7 +46,7 @@ class RadiographyLogic(XrayTubeMixin, imaging.RadiographyLogic):
     """
 
     async def __ainit__(self, *, walker, flat_motor, radio_position, flat_position, camera, xray_tube, num_flats=200,
-                        num_darks=200, num_projections=3000, separate_scans=True, **kwargs):
+                        num_darks=200, num_projections=3000, separate_runs=True, **kwargs):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -77,7 +77,7 @@ class RadiographyLogic(XrayTubeMixin, imaging.RadiographyLogic):
             num_flats=num_flats,
             num_darks=num_darks,
             num_projections=num_projections,
-            separate_scans=separate_scans,
+            separate_runs=separate_runs,
             **kwargs
         )
 
@@ -90,7 +90,7 @@ class ContinuousTomographyLogic(XrayTubeMixin, imaging.ContinuousTomographyLogic
 
     async def __ainit__(self, *, walker, flat_motor, tomography_motor, radio_position, flat_position, camera, xray_tube,
                         num_flats=200, num_darks=200, num_projections=3000, angular_range=180 * q.deg,
-                        start_angle=0 * q.deg, separate_scans=True, **kwargs):
+                        start_angle=0 * q.deg, separate_runs=True, **kwargs):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -130,7 +130,7 @@ class ContinuousTomographyLogic(XrayTubeMixin, imaging.ContinuousTomographyLogic
             num_projections=num_projections,
             angular_range=angular_range,
             start_angle=start_angle,
-            separate_scans=separate_scans,
+            separate_runs=separate_runs,
             **kwargs
         )
 
@@ -143,7 +143,7 @@ class SteppedTomographyLogic(XrayTubeMixin, imaging.SteppedTomographyLogic):
 
     async def __ainit__(self, *, walker, flat_motor, tomography_motor, radio_position, flat_position, camera, xray_tube,
                         num_flats=200, num_darks=200, num_projections=3000, angular_range=360 * q.deg,
-                        start_angle=0 * q.deg, separate_scans=True, **kwargs):
+                        start_angle=0 * q.deg, separate_runs=True, **kwargs):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -183,7 +183,7 @@ class SteppedTomographyLogic(XrayTubeMixin, imaging.SteppedTomographyLogic):
             num_projections=num_projections,
             angular_range=angular_range,
             start_angle=start_angle,
-            separate_scans=separate_scans, **kwargs
+            separate_runs=separate_runs, **kwargs
         )
 
 
@@ -196,7 +196,7 @@ class ContinuousSpiralTomographyLogic(XrayTubeMixin, imaging.ContinuousSpiralTom
     async def __ainit__(self, *, walker, flat_motor, tomography_motor, vertical_motor, radio_position, flat_position,
                         camera, xray_tube, start_position_vertical, sample_height, vertical_shift_per_tomogram,
                         num_flats=200, num_darks=200, num_projections=3000, angular_range=180 * q.deg,
-                        start_angle=0 * q.deg, separate_scans=True, **kwargs):
+                        start_angle=0 * q.deg, separate_runs=True, **kwargs):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -250,7 +250,7 @@ class ContinuousSpiralTomographyLogic(XrayTubeMixin, imaging.ContinuousSpiralTom
             num_projections=num_projections,
             angular_range=angular_range,
             start_angle=start_angle,
-            separate_scans=separate_scans, **kwargs
+            separate_runs=separate_runs, **kwargs
         )
 
 
@@ -263,7 +263,7 @@ class SteppedSpiralTomographyLogic(XrayTubeMixin, imaging.SteppedSpiralTomograph
     async def __ainit__(self, *, walker, flat_motor, tomography_motor, vertical_motor, radio_position, flat_position,
                         camera, xray_tube, start_position_vertical, sample_height, vertical_shift_per_tomogram,
                         num_flats=200, num_darks=200, num_projections=3000, angular_range=180 * q.deg,
-                        start_angle=0 * q.deg, separate_scans=True, **kwargs):
+                        start_angle=0 * q.deg, separate_runs=True, **kwargs):
         """
         :param walker: Walker for storing experiment data.
         :type walker: concert.storage.Walker
@@ -316,7 +316,7 @@ class SteppedSpiralTomographyLogic(XrayTubeMixin, imaging.SteppedSpiralTomograph
             num_projections=num_projections,
             angular_range=angular_range,
             start_angle=start_angle,
-            separate_scans=separate_scans, **kwargs
+            separate_runs=separate_runs, **kwargs
         )
 
 
@@ -406,7 +406,7 @@ class LocalGratingInterferometryStepping(
 
     async def __ainit__(self, *, walker, camera, xray_tube, flat_motor, stepping_motor, flat_position, radio_position,
                         grating_period, num_darks, stepping_start_position, num_periods, num_steps_per_period,
-                        propagation_distance, separate_scans, **kwargs):
+                        propagation_distance, separate_runs, **kwargs):
         """
         :param walker: Walker for the experiment
         :type walker: concert.storage.DirectoryWalker
@@ -450,5 +450,5 @@ class LocalGratingInterferometryStepping(
             num_periods=num_periods,
             num_steps_per_period=num_steps_per_period,
             propagation_distance=propagation_distance,
-            separate_scans=separate_scans, **kwargs
+            separate_runs=separate_runs, **kwargs
         )

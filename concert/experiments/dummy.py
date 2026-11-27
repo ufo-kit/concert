@@ -48,8 +48,8 @@ class ImagingExperiment(Experiment):
     """
 
     async def __ainit__(self, *, num_darks, num_flats, num_radios, camera=None, shape=(1024, 1024),
-                        walker=None, random=False, dtype=np.ushort, separate_scans=True,
-                        name_fmt='scan_{:>04}', **kwargs):
+                        walker=None, random=False, dtype=np.ushort, separate_runs=True,
+                        name_fmt='run_{:>04}', **kwargs):
         self.num_darks = num_darks
         self.num_flats = num_flats
         self.num_radios = num_radios
@@ -65,7 +65,7 @@ class ImagingExperiment(Experiment):
         await super().__ainit__(
             acquisitions=[darks, flats, radios],
             walker=walker,
-            separate_scans=separate_scans,
+            separate_runs=separate_runs,
             name_fmt=name_fmt, **kwargs
         )
 
@@ -145,7 +145,7 @@ class ImagingFileExperiment(Experiment):
     """
 
     async def __ainit__(self, *, camera, num_darks, num_flats, num_radios, darks_pattern='darks', flats_pattern='flats',
-                        radios_pattern='projections', walker=None, separate_scans=True, name_fmt='scan_{:>04}',
+                        radios_pattern='projections', walker=None, separate_runs=True, name_fmt='run_{:>04}',
                         **kwargs):
         self.darks_pattern = darks_pattern
         self.flats_pattern = flats_pattern
@@ -160,7 +160,7 @@ class ImagingFileExperiment(Experiment):
         await super().__ainit__(
             acquisitions=[darks, flats, radios],
             walker=walker,
-            separate_scans=separate_scans,
+            separate_runs=separate_runs,
             name_fmt=name_fmt, **kwargs
         )
 
@@ -223,7 +223,7 @@ class RemoteFileImagingExperiment(Experiment):
     """
 
     async def __ainit__(self, *, camera, num_darks, num_flats, num_radios, darks_pattern='darks', flats_pattern='flats',
-                        radios_pattern='projections', walker=None, separate_scans=True, name_fmt='scan_{:>04}',
+                        radios_pattern='projections', walker=None, separate_runs=True, name_fmt='run_{:>04}',
                         **kwargs):
         self.darks_pattern = darks_pattern
         self.flats_pattern = flats_pattern
@@ -238,7 +238,7 @@ class RemoteFileImagingExperiment(Experiment):
         await super().__ainit__(
             acquisitions=[darks, flats, radios],
             walker=walker,
-            separate_scans=separate_scans,
+            separate_runs=separate_runs,
             name_fmt=name_fmt,
             **kwargs
         )

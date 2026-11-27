@@ -51,8 +51,8 @@ class TestExperimentBase(TestCase, ABC):
         await self._setup_walker()
         await self._setup_experiment()
         
-        # Clean up any existing scan data
-        self._clean_scan_data()
+        # Clean up any existing run data
+        self._clean_run_data()
 
     @abstractmethod
     async def _setup_walker(self):
@@ -64,11 +64,11 @@ class TestExperimentBase(TestCase, ABC):
         """Set up the experiment - to be implemented by subclasses. Must create self._exp."""
         ...
 
-    def _clean_scan_data(self):
-        """Clean up any existing scan data."""
+    def _clean_run_data(self):
+        """Clean up any existing run data."""
         base_path: Path = Path(self._root)
         items: List[str] = os.listdir(base_path)
-        items = list(filter(lambda name: "scan" in name, items))
+        items = list(filter(lambda name: name.startswith("run_"), items))
         if len(items) > 0:
             for item in items:
                 abs_path: Path = base_path.joinpath(item)
@@ -82,7 +82,7 @@ class TestExperimentBase(TestCase, ABC):
         _ = await self._exp.run()
         base_path: Path = Path(self._root)
         items: List[str] = os.listdir(base_path)
-        items = list(filter(lambda name: "scan" in name, items))
+        items = list(filter(lambda name: name.startswith("run_"), items))
         self.assertTrue(len(items) > 0)
         self.list_files(base_path.__str__())
         for item in items:
@@ -106,7 +106,7 @@ class TestExperimentBase(TestCase, ABC):
             print(f"Num flats: {len(flats)}")
             print(f"Num radios: {len(radios)}")
             with open(abs_path.joinpath("experiment_finish.json")) as log:
-                exp_log: Dict[str, Any] = json.load(log)["experiment"]
+                exp_log: Dict[str, Any] = json.load(log)["runnable"]
                 self.assertTrue(len(darks) == int(exp_log["num_darks"]))
                 self.assertTrue(len(flats) == int(exp_log["num_flats"]))
                 self.assertTrue(len(radios) == int(exp_log["num_projections"]))
@@ -114,6 +114,6 @@ class TestExperimentBase(TestCase, ABC):
     async def asyncTearDown(self) -> None:
         """Clean up after the test."""
         await super().asyncTearDown()
-        self._clean_scan_data()
+        self._clean_run_data()
         if hasattr(self, '_camera'):
             await self._camera.unregister_all()

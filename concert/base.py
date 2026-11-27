@@ -8,9 +8,11 @@ import functools
 import inspect
 import types
 from typing import List, Union
+
 from concert.helpers import memoize, get_state_from_awaitable
 from concert.coroutines.base import background, get_event_loop, run_in_loop, wait_until
 from concert.quantities import q
+
 
 LOG = logging.getLogger(__name__)
 _RUN_IN_LOOP_ERR_TMPL = "Someone is trying to use `{}' " \
@@ -70,7 +72,6 @@ def _find_object_by_name(instance):
     """Find variable name by *instance*. This is supposed to be used only in the
     :meth:`.Parameter.__set__`.
     """
-
     def _is_name_ok(instance_name):
         return instance_name and instance_name not in ['instance', 'self']
 
@@ -228,7 +229,6 @@ def transition(immediate=None, target=None, state_name='state'):
     and cleanup logic must take place in the callable to be wrapped.
     *state_name* can be used to define the state if multiple states are used.
     """
-
     def wrapped(func):
         @functools.wraps(func)
         async def call_func(instance, *args, **kwargs):
@@ -272,7 +272,6 @@ def check(source: Union[str, List[str]] = '*', target: Union[str, List[str]] = '
     target states.
     *state_name* can be used to define the state if multiple states are used.
     """
-
     async def check_now(instance, allowed_states, state_str):
         state = await instance[state_name].get()
         if state not in allowed_states and '*' not in allowed_states:
@@ -1678,9 +1677,13 @@ class RunnableParameterizable(Parameterizable):
     @background
     @check(source=['standby', 'error', 'cancelled'], target=['standby', 'cancelled'])
     async def run(self):
-        """Run :meth:`_run` while exposing its progress through ``state``."""
-        self._run_awaitable = self._run()
+        """Run the operation while exposing its progress through ``state``."""
+        self._run_awaitable = self._execute()
         await self._run_awaitable
+
+    def _execute(self):
+        """Return the task representing the complete operation."""
+        return self._run()
 
     @abc.abstractmethod
     @background

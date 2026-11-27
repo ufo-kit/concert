@@ -1,5 +1,6 @@
 import asyncio
 import concert
+import os
 import shutil
 import tempfile
 import logging
@@ -7,12 +8,14 @@ import unittest
 import numpy as np
 from typing import Tuple
 from time import time
+from unittest.mock import AsyncMock, patch
+from concert.base import StateError
 from concert.storage import DirectoryWalker
 from concert.experiments.base import Experiment as BaseExperiment, Acquisition, local
 from concert.experiments.base import Consumer as AcquisitionConsumer
 from concert.tests import TestCase as BaseTestCase, slow
 from concert.directors.dummy import Director
-from concert.directors.base import Director as BaseDirector
+from concert.directors.base import Director as BaseDirector, FixedIterationDirector
 from concert.directors.scanning import XYScan
 from concert.devices.motors.dummy import LinearMotor
 from concert.quantities import q
@@ -29,14 +32,26 @@ class Experiment(BaseExperiment):
     Simple Experiment for tests, that produces one random image (100 x 100) within a acquisition
     *test*.
     """
-    async def __ainit__(self, *, walker, separate_scans, **kwargs):
+    async def __ainit__(self, *, walker, separate_runs, **kwargs):
         acquisition = await Acquisition(name="test", producer_corofunc=self._frame_producer)
         await super().__ainit__(acquisitions=[acquisition], walker=walker,
-                                separate_scans=separate_scans)
+                                separate_runs=separate_runs)
 
     @local
     async def _frame_producer(self):
         yield np.random.random((100, 100))
+
+
+class ResultExperiment(Experiment):
+    async def __ainit__(self, **kwargs):
+        self.completed_iterations = 0
+        await super().__ainit__(**kwargs)
+
+    @local
+    async def _frame_producer(self):
+        yield np.random.random((100, 100))
+        self.completed_iterations += 1
+        self.ready_to_prepare_next_outer_loop.set()
 
 
 class BrokenExperiment(Experiment):
@@ -49,13 +64,50 @@ class BrokenExperiment(Experiment):
         raise Exception("Experiment broken")
 
 
+class FailingExperiment(Experiment):
+    """Experiment used to exercise cleanup through a complete director stack."""
+
+    async def __ainit__(self, *, walker, separate_runs, failure_stage, **kwargs):
+        self.failure_stage = failure_stage
+        self.events = []
+        acquisition = await Acquisition(name="test", producer_corofunc=self._frame_producer)
+        await super().__ainit__(acquisitions=[acquisition], walker=walker,
+                                separate_runs=separate_runs, **kwargs)
+
+    @local
+    async def _frame_producer(self):
+        yield np.ones((1, 1))
+        if self.failure_stage == "acquisition":
+            raise RuntimeError("Acquisition failed")
+
+    async def early_prepare(self):
+        self.events.append("early_prepare")
+        if self.failure_stage == "early_prepare":
+            raise RuntimeError("Early preparation failed")
+
+    async def prepare(self):
+        self.events.append("prepare")
+        if self.failure_stage == "prepare":
+            raise RuntimeError("Preparation failed")
+
+    async def finish(self):
+        self.events.append("finish")
+        if self.failure_stage == "finish":
+            raise RuntimeError("Finish failed")
+
+    async def late_finish(self):
+        self.events.append("late_finish")
+        if self.failure_stage == "late_finish":
+            raise RuntimeError("Late finish failed")
+
+
 class EarlyReadyExperiment(Experiment):
     """
     An experiment, that sets the ready_to_prepare_next_sample and then waits for two seconds within
     the acquisition.
     """
-    async def __ainit__(self, *, walker, separate_scans, set_ready, **kwargs):
-        await super().__ainit__(walker=walker, separate_scans=separate_scans, **kwargs)
+    async def __ainit__(self, *, walker, separate_runs, set_ready, **kwargs):
+        await super().__ainit__(walker=walker, separate_runs=separate_runs, **kwargs)
         self._set_ready = set_ready
         self.ready_time = {}
         self.acq_finished_time = {}
@@ -70,7 +122,7 @@ class EarlyReadyExperiment(Experiment):
         self.acq_finished_time[await self.get_iteration()] = time()
 
 
-class TimeLoggingDirector(BaseDirector):
+class TimeLoggingDirector(FixedIterationDirector):
     """
     Director with two (identical) iterations.
     The _prepare_run() stores the time when it is called.
@@ -100,11 +152,35 @@ class TestCase(BaseTestCase):
         shutil.rmtree(self._data_dir)
 
 
+class ResultLimitedDirector(BaseDirector):
+    async def __ainit__(self, *, experiment):
+        self.prepared_iterations = []
+        await super().__ainit__(experiment=experiment)
+
+    async def has_next_iteration(self, iteration: int) -> bool:
+        return self._experiment.completed_iterations < 2
+
+    async def _prepare_run(self, iteration: int):
+        self.prepared_iterations.append(iteration)
+
+
+class RuntimeControlledDirectorTest(TestCase):
+    async def test_stops_when_runtime_condition_is_satisfied(self):
+        experiment = await ResultExperiment(walker=self.walker, separate_runs=False)
+        director = await ResultLimitedDirector(experiment=experiment)
+
+        await director.run()
+
+        self.assertEqual(await experiment.get_iteration(), 2)
+        self.assertEqual(await director.get_current_iteration(), 1)
+        self.assertEqual(director.prepared_iterations, [0, 1])
+
+
 @slow
 class DirectorTest(TestCase):
     async def asyncSetUp(self):
         await super().asyncSetUp()
-        self.experiment = await Experiment(walker=self.walker, separate_scans=False)
+        self.experiment = await Experiment(walker=self.walker, separate_runs=False)
         self.director = await Director(experiment=self.experiment, num_iterations=5)
         await self.director.run()
 
@@ -112,12 +188,49 @@ class DirectorTest(TestCase):
         self.assertEqual(await self.director.get_state(), "standby")
         self.assertEqual(await self.experiment.get_iteration(), 5)
 
+    async def test_run_iteration_does_not_overwrite_current_iteration(self):
+        self.assertEqual(await self.director.get_iteration(), 1)
+        self.assertEqual(await self.director.get_current_iteration(), 4)
+        self.assertEqual(await self.director.get_current_iteration_name(), "iteration_0004")
+
+        metadata_iterations = []
+        prepare_metadata = self.director._prepare_metadata_str
+
+        async def record_metadata_iterations():
+            metadata_iterations.append((
+                await self.director.get_iteration(),
+                await self.director.get_current_iteration(),
+                await self.director.get_current_iteration_name(),
+            ))
+            return await prepare_metadata()
+
+        with patch.object(self.director, "_prepare_metadata_str", record_metadata_iterations):
+            await self.director.run()
+
+        self.assertEqual(metadata_iterations[0], (1, 4, "iteration_0004"))
+        self.assertEqual(await self.director.get_iteration(), 2)
+        self.assertEqual(await self.director.get_current_iteration(), 4)
+
+    async def test_constructor_arguments_are_forwarded(self):
+        director = await Director(experiment=self.experiment, num_iterations=0,
+                                  name_fmt="director_{:03d}")
+        self.assertEqual("director_{:03d}", await director.get_name_fmt())
+
+    async def test_walker_defaults_to_experiment_walker(self):
+        director = await Director(experiment=self.experiment, num_iterations=0)
+        self.assertIs(director.walker, self.experiment.walker)
+
+    async def test_walker_can_be_overridden(self):
+        walker = await DirectoryWalker(root=self._data_dir)
+        director = await Director(experiment=self.experiment, num_iterations=0, walker=walker)
+        self.assertIs(director.walker, walker)
+
 
 @slow
 class DirectorTestBrokenExperiment(TestCase):
     async def asyncSetUp(self):
         await super().asyncSetUp()
-        self.experiment = await BrokenExperiment(walker=self.walker, separate_scans=False)
+        self.experiment = await BrokenExperiment(walker=self.walker, separate_runs=False)
         self.director = await Director(experiment=self.experiment, num_iterations=5)
 
     async def test_final_state(self):
@@ -128,13 +241,81 @@ class DirectorTestBrokenExperiment(TestCase):
             LOG.info(e)
         self.assertEqual(await self.director.get_state(), "error")
 
+    async def test_walker_is_reset_after_acquisition_failure(self):
+        with self.assertRaises(StateError):
+            await self.director.run()
+
+        self.assertEqual(await self.walker.get_current(), await self.walker.get_root())
+        self.assertEqual(await self.experiment.get_state(), "error")
+
+
+class DirectorCleanupTest(TestCase):
+    async def _run_failing_stack(self, failure_stage):
+        experiment = await FailingExperiment(
+            walker=self.walker,
+            separate_runs=False,
+            failure_stage=failure_stage,
+        )
+        director = await Director(experiment=experiment, num_iterations=1)
+
+        with self.assertRaises(StateError):
+            await director.run()
+
+        self.assertEqual(await self.walker.get_current(), await self.walker.get_root())
+        self.assertEqual(await director.get_state(), "error")
+        self.assertFalse(await experiment.get_separate_runs())
+        return experiment
+
+    async def test_walker_is_reset_after_early_prepare_failure(self):
+        experiment = await self._run_failing_stack("early_prepare")
+        self.assertEqual(["early_prepare"], experiment.events)
+
+    async def test_walker_is_reset_after_prepare_failure(self):
+        experiment = await self._run_failing_stack("prepare")
+        self.assertEqual(["early_prepare", "prepare", "finish", "late_finish"],
+                         experiment.events)
+
+    async def test_walker_is_reset_after_acquisition_failure(self):
+        experiment = await self._run_failing_stack("acquisition")
+        self.assertEqual(["early_prepare", "prepare", "finish", "late_finish"],
+                         experiment.events)
+
+    async def test_walker_is_reset_after_finish_failure(self):
+        experiment = await self._run_failing_stack("finish")
+        self.assertEqual(["early_prepare", "prepare", "finish"], experiment.events)
+
+    async def test_walker_is_reset_after_late_finish_failure(self):
+        experiment = await self._run_failing_stack("late_finish")
+        self.assertEqual(["early_prepare", "prepare", "finish", "late_finish"],
+                         experiment.events)
+
+    async def test_walker_is_reset_after_logging_failure(self):
+        experiment = await FailingExperiment(
+            walker=self.walker,
+            separate_runs=False,
+            failure_stage="none",
+        )
+        director = await Director(experiment=experiment, num_iterations=1)
+        handlers_before = list(experiment.log.handlers)
+
+        with patch.object(
+            experiment,
+            "_prepare_metadata_str",
+            new=AsyncMock(side_effect=RuntimeError("Metadata logging failed")),
+        ), self.assertRaises(StateError):
+            await director.run()
+
+        self.assertEqual(await self.walker.get_current(), await self.walker.get_root())
+        self.assertEqual(await director.get_state(), "error")
+        self.assertEqual(handlers_before, experiment.log.handlers)
+
 
 @slow
 class EarlyFinishExperiment(TestCase):
     async def asyncSetUp(self):
         await super().asyncSetUp()
         self.experiment = await EarlyReadyExperiment(walker=self.walker,
-                                                     separate_scans=False,
+                                                     separate_runs=False,
                                                      set_ready=True)
         self.director = await TimeLoggingDirector(experiment=self.experiment)
         await self.director.run()
@@ -154,7 +335,7 @@ class NotEarlyFinishExperiment(TestCase):
     async def asyncSetUp(self):
         await super().asyncSetUp()
         self.experiment = await EarlyReadyExperiment(walker=self.walker,
-                                                     separate_scans=False,
+                                                     separate_runs=False,
                                                      set_ready=False)
         self.director = await TimeLoggingDirector(experiment=self.experiment)
         await self.director.run()
@@ -173,7 +354,7 @@ class NotEarlyFinishExperiment(TestCase):
 class XYScanDirectorTest(TestCase):
     async def asyncSetUp(self):
         await super().asyncSetUp()
-        self.experiment = await Experiment(walker=self.walker, separate_scans=False)
+        self.experiment = await Experiment(walker=self.walker, separate_runs=False)
         self.x_motor = await LinearMotor()
         self.y_motor = await LinearMotor()
         self.director = await XYScan(experiment=self.experiment,
@@ -191,7 +372,7 @@ class XYScanDirectorTest(TestCase):
         self.assertEqual(await self.director.get_state(), "standby")
 
 
-class TestableLoggingDirector(BaseDirector):
+class TestableLoggingDirector(FixedIterationDirector):
     """Defines testable director to repeat a given number of experiments, so that some reasonable
     assertions can be made on the logging behavior"""
 
@@ -216,7 +397,7 @@ class TestableLoggingDirector(BaseDirector):
         return await self._get_iteration_name(iteration)
 
     async def get_iteration(self) -> int:
-        return self._get_current_iteration()
+        return await self._get_current_iteration()
 
 
 class TestDirectorLogging(unittest.IsolatedAsyncioTestCase):
@@ -225,9 +406,10 @@ class TestDirectorLogging(unittest.IsolatedAsyncioTestCase):
         logging.disable(logging.NOTSET)
         self._visited = 0
         self._acquired = 0
-        self._root = "root"
+        self._root = os.path.join(tempfile.gettempdir(), f"concert-remote-{id(self)}")
+        self.assertFalse(os.path.exists(self._root))
         self._director_iter = 3
-        self._device = MockWalkerDevice()
+        self._device = MockWalkerDevice(root=self._root)
         self._walker = await RemoteDirectoryWalker(device=self._device, root=self._root)
         foo = await Acquisition(name="foo", producer_corofunc=self.produce)
         foo.add_consumer(AcquisitionConsumer(self.consume)), Tuple
@@ -263,7 +445,13 @@ class TestDirectorLogging(unittest.IsolatedAsyncioTestCase):
     async def test_director_logging(self) -> None:
         _ = await self._direxp.run()
         mock_device = self._walker.device.mock_device
-        mock_device.register_logger.assert_called()
+        mock_device.exists.assert_called()
+        self.assertIn(
+            ("TestableLoggingDirector", str(logging.NOTSET), "director.log"),
+            [call.args[0] for call in mock_device.register_logger.call_args_list],
+        )
         mock_device.log.assert_called()
         mock_device.deregister_logger.assert_called()
-        mock_device.log_to_json.assert_called()
+        metadata_filenames = [call.args[0][1] for call in mock_device.log_to_json.call_args_list]
+        self.assertIn("director_start.json", metadata_filenames)
+        self.assertIn("director_finish.json", metadata_filenames)

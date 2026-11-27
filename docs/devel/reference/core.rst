@@ -28,6 +28,17 @@ Collection of parameters
 .. autoclass:: concert.base.RunnableParameterizable
     :members:
 
+Managed execution
+-----------------
+
+.. autoclass:: concert.runnable.ManagedRunnable
+    :show-inheritance:
+    :members:
+
+Managed run storage uses ``separate_runs`` and defaults to directories named
+``run_0000``, ``run_0001``, and so on. Metadata snapshots store the runnable's
+parameters under the ``runnable`` key.
+
 
 State machine
 -------------
