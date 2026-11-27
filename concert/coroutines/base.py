@@ -20,7 +20,10 @@ async def async_generate(iterable):
 
 def get_event_loop():
     """Get asyncio's event loop."""
-    return asyncio.get_event_loop_policy().get_event_loop()
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.get_event_loop_policy().get_event_loop()
 
 
 def run_in_loop(coroutine, error_msg_if_running=None):

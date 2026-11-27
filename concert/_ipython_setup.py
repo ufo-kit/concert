@@ -85,5 +85,8 @@ try:
     # ctrl-k (abort everything, also background awaitables)
     ip.loop_runner = ConcertAsyncioRunner()
     ip.pt_app.key_bindings.add('c-k')(_abort_all_awaiting)
+    if ip.user_ns.get('with_gui', False):
+        # The owner is injected by StartCommand and survives hardware aborts.
+        ip.user_ns['_concert_gui_session'].start()
 except NameError as err:
     raise NameError("This module must be run after concert start") from err

@@ -43,5 +43,8 @@ setup(
         'pyzmq>=23.2.1',
         'psutil'
     ],
+    extras_require={
+        'gui': ['PyQt6>=6.12.1,<7', 'qasync>=0.28.0', 'pyqtgraph>=0.13.7'],
+    },
     test_suite='concert.tests',
 )
