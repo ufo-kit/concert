@@ -1,6 +1,5 @@
 import asyncio
 import time
-from itertools import product
 from functools import reduce
 import numpy as np
 import logging
@@ -20,10 +19,15 @@ from concert.progressbar import wrap_iterable
 LOG = logging.getLogger(__name__)
 
 
-async def scan(params, values, feedback, go_back=False):
+async def scan(params, values, feedback, go_back=False, *, order='raster'):
     """Multi-dimensional scan of :class:`concert.base.Parameter` instances *params*, which are set
     to *values*. *feedback* is a coroutine function without parameters called after every iteration.
     If *go_back* is True, the original parameter values are restored at the end.
+
+    *order* selects 'raster' (last axis fastest), 'snake' (reflected traversal in
+    any dimension), or 'spiral' (clockwise outside-in traversal of exactly two
+    axes, starting at index (0, 0) along the second axis). Values may be arbitrary
+    lists; traversal follows list indices rather than physical distances.
 
     If *params* is just one parameter and *values* is one list of values, perform a 1D scan. In this
     case tuples (x, y) are returned where x are the individual elements from the list of *values*
@@ -56,6 +60,8 @@ async def scan(params, values, feedback, go_back=False):
             print(vector) # prints ((1 * q.s, 5 * q.mm), feedback()) and so on
 
     """
+    from concert.scanning import scan_index
+
     params = params if is_iterable(params) else [params]
     ndim = len(params)
     values = values if is_iterable(values[0]) else [values]
@@ -63,13 +69,18 @@ async def scan(params, values, feedback, go_back=False):
     if ndim > 1 and len(params) != len(values):
         raise RuntimeError
     num_iterations = reduce(lambda x, y: x * y, [len(vals) for vals in values])
+    shape = tuple(len(vals) for vals in values)
+    # Validate before stashing or moving any parameter.
+    scan_index(shape, 0, order)
 
     if go_back:
         for param in params:
             await param.stash()
 
     try:
-        for vector in wrap_iterable(product(*values), total=num_iterations):
+        vectors = (tuple(values[i][index] for i, index in enumerate(scan_index(shape, n, order)))
+                   for n in range(num_iterations))
+        for vector in wrap_iterable(vectors, total=num_iterations):
             setters = [params[i].set(vector[i]) for i in range(len(vector))]
             await asyncio.gather(*setters)
             yield (vector[0] if ndim == 1 else vector, await feedback())
