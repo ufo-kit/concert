@@ -559,12 +559,13 @@ class StartCommand(SubCommand):
                 '--loglevel': {'choices': ['perfdebug', 'aiodebug', 'debug', 'info', 'warning',
                                            'error', 'critical'],
                                'default': 'info'},
-                '--non-interactive': {'action': 'store_true'}}
+                '--non-interactive': {'action': 'store_true'},
+                '--with-gui': {'action': 'store_true', 'default': False}}
         super(StartCommand, self).__init__('start', opts)
 
     def run(self, session=None, filename=None,
             non_interactive=False,
-            logto='file', logfile=None, loglevel=None):
+            logto='file', logfile=None, loglevel=None, with_gui=False):
         import IPython
 
         if IPython.version_info >= (8, 0):
@@ -637,11 +638,15 @@ class StartCommand(SubCommand):
             with open(path, "rb") as f:
                 eval_source(f.read(), {}, filename=path)
         else:
-            self.run_shell(path=path, session=session, lockfiles=lockfiles)
+            self.run_shell(path=path, session=session, lockfiles=lockfiles, with_gui=with_gui)
 
-    def run_shell(self, path=None, session=None, lockfiles=None):
+    def run_shell(self, path=None, session=None, lockfiles=None, with_gui=False):
         import IPython
         import traitlets.config
+
+        if with_gui:
+            from concert.gui import get_application
+            get_application()
 
         print("Welcome to Concert {0}".format(concert.__version__))
 
@@ -675,7 +680,7 @@ class StartCommand(SubCommand):
         ip_config.Completer.use_jedi = False
 
         # Now we start ipython with our configuration
-        IPython.start_ipython(argv=[], config=ip_config)
+        IPython.start_ipython(argv=[], config=ip_config, user_ns={'with_gui': with_gui})
 
 
 class DocsCommand(SubCommand):
