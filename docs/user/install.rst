@@ -48,6 +48,36 @@ the :ref:`developer documentation <get-the-code>`.
 __ http://docs.python.org/2/install/index.html
 
 
+GUI dependencies
+----------------
+
+The parameter widgets and standalone GUI use PyQt6 (6.12.1 or newer),
+pyqtgraph, and qasync. Install these optional dependencies from the source
+checkout with::
+
+    $ python -m pip install -e '.[gui]'
+
+Use PyQt6 consistently in applications embedding these widgets; do not mix
+Qt bindings in the same process. If you explicitly configure binding selection,
+set ``PYQTGRAPH_QT_LIB=PyQt6`` and ``QT_API=pyqt6`` before starting Python.
+
+Interactive sessions remain headless by default. Enable GUI event processing
+explicitly with ``concert start --with-gui``. Importing ``concert.gui`` does not
+create a Qt application; standalone applications should call
+``concert.gui.get_application()`` before constructing any widgets.
+
+Parameter widget constructors do not access devices. Populate their values with
+``await widget.refresh()`` and enable periodic reads with
+``widget.set_polling(True)``. Call ``await widget.shutdown()`` before destroying
+the containing window or stopping the event loop. Supported generic editors are
+strings, integers, floats, and booleans; other generic values are read-only.
+Quantity and selection parameters have dedicated editors.
+
+To run the GUI compatibility tests without a display::
+
+    $ QT_QPA_PLATFORM=offscreen python -m pytest concert/tests/unit/test_gui_pyqt6.py concert/tests/unit/test_gui_startup.py
+
+
 Installing into a virtualenv
 ----------------------------
 
