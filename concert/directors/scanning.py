@@ -1,8 +1,76 @@
 import asyncio
+from contextlib import aclosing
 from concert.quantities import q
 from concert.helpers import arange
 from concert.base import Quantity, Parameter, check
 from concert.directors.base import FixedIterationDirector
+from concert.coroutines.base import background
+from concert.processes.common import scan as scan_parameters
+from concert.scanning import ScanMixin
+
+
+class Scan(ScanMixin, FixedIterationDirector):
+    """Run an experiment at each Cartesian combination of parameter values.
+
+    Prefer *axes*, a dictionary mapping each axis name to ``(parameter, values)``;
+    insertion order defines the axis order. The configuration matches the scan
+    experiments. Alternatively, provide a single bound parameter
+    and its positions, or parallel sequences of parameters and positions. The
+    values can be irregular or unsorted lists. *order='raster'* changes the last
+    axis fastest; *'snake'* reflects alternating rows in any dimension, and
+    *'spiral'* visits a two-axis grid clockwise from the outside in.
+    Named ``axes`` support ``set_values`` and
+    ``set_range``; ``get_scan_plan`` displays the complete configuration.
+
+    Each position runs the supplied local or remote *experiment*. The existing
+    director lifecycle handles iteration directories, pause/resume and early
+    preparation when the experiment signals readiness. The experiment must
+    have a walker, as with other directors. With *go_back*, parameters are
+    restored after completion, failure or cancellation.
+    """
+
+    async def __ainit__(self, parameters=None, values=None, *, experiment, axes=None, names=None,
+                        go_back=False, order='raster', **kwargs):
+        await super().__ainit__(parameters=parameters, values=values, axes=axes, names=names,
+                                go_back=go_back, order=order, experiment=experiment, **kwargs)
+
+    async def _get_number_of_iterations(self):
+        return await self.get_num_positions()
+
+    @background
+    async def _run(self):
+        parameters, values = await self._get_scan_arguments()
+        self._scan_iteration_names = {}
+
+        async def feedback():
+            pass
+
+        # Reuse the process scan's parallel setters, Cartesian traversal and
+        # parameter restoration. Closing also restores if the director stops early.
+        async with aclosing(scan_parameters(parameters, values, feedback,
+                                            go_back=await self.get_go_back(),
+                                            order=await self.get_order())) as positions:
+            self._positions = positions
+            try:
+                await super()._run()
+            finally:
+                self._positions = None
+
+    async def _prepare_run(self, iteration):
+        await anext(self._positions)
+        self._scan_iteration_names[iteration] = await self.get_iteration_name(iteration)
+
+    async def _get_current_iteration_name(self):
+        # Keep the last run's actual name when axes are edited between runs;
+        # its old iteration index may no longer fit into the new grid.
+        names = getattr(self, '_scan_iteration_names', {})
+        if self._iteration in names:
+            return names[self._iteration]
+        return await self.get_iteration_name(0)
+
+    async def get_iteration_name(self, iteration):
+        indices = await self.get_position_indices(iteration)
+        return 'iteration_' + '_'.join(f'{index:04d}' for index in indices)
 
 
 class XYScan(FixedIterationDirector):
